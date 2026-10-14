@@ -2348,7 +2348,11 @@
     "paused": "Paused or waiting for the server",
     "done_one": "Episode downloaded",
     "done_other": "{{count}} episodes downloaded",
-    "doneSub": "Everything is on the disk"
+    "doneSub": "Everything is on the disk",
+    "landed": "{{title}} {{ep}} is here",
+    "tapToWatch": "tap to watch",
+    "pausedAll": "Paused",
+    "tapToResume": "tap to resume"
   },
   "explain": {
     "whySource": "Why?",

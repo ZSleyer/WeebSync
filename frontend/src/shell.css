@@ -194,6 +194,7 @@
 .ws-title {
   display: flex;
   align-items: center;
+  gap: 1rem;
   min-height: 2.75rem;
   margin-bottom: 1rem;
 }
@@ -356,7 +357,8 @@
   display: grid;
   min-width: 0;
 }
-.t-live-lbl > span {
+.t-live-lbl > span,
+.t-live-line > * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -430,4 +432,104 @@
    (--nav-h plus --safe-b, both from the design system). ── */
 html[data-overlay] .app-shell > main {
   visibility: hidden;
+}
+
+/* the page's own controls beside the desktop title (PageActions) */
+.ws-title h1 {
+  flex: 1;
+  min-width: 0;
+}
+.ws-title-acts {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ws-title-acts:empty {
+  display: none;
+}
+
+/* ── The phone's toolbar slot: a page's toolbar (a selection's actions)
+   stands in for the tab bar while it holds something, as native apps swap
+   their bottom bar. Same place, same height, above the shell's rows. ── */
+.ws-toolbar {
+  position: relative;
+  z-index: 50;
+  flex: none;
+  min-height: var(--nav-h);
+  padding: 0 var(--safe-r) var(--safe-b) var(--safe-l);
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+}
+.ws-toolbar:empty,
+.ws-toolbar[hidden] {
+  display: none;
+}
+.ws-toolbar:not(:empty) + nav {
+  display: none;
+}
+@media (width >= 64rem) {
+  .ws-toolbar {
+    display: none;
+  }
+}
+
+/* ── Live pill, the rest of its states ── */
+/* folded to the ring while the page scrolls down: a clip, no layout change */
+.t-live--pill {
+  clip-path: inset(0 0 0 0 round 1.625rem);
+  transition:
+    clip-path var(--dur-3) var(--spring),
+    border-color var(--dur-1) var(--ease-out);
+}
+.t-live--pill .t-live-lbl {
+  transition: opacity var(--dur-1) var(--ease-out);
+}
+.t-live--pill[data-small] {
+  clip-path: inset(0 0 0 calc(100% - 3.25rem) round 1.625rem);
+}
+.t-live--pill[data-small] .t-live-lbl {
+  opacity: 0;
+}
+/* the ring keeps an outline of its own while folded */
+.t-live--pill .t-live-ring-box::after {
+  content: "";
+  position: absolute;
+  inset: -0.375rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.t-live--pill[data-small] .t-live-ring-box::after {
+  opacity: 1;
+}
+.t-live[data-state="paused"] .t-live-rate,
+.t-live[data-state="done"] .t-live-rate {
+  color: var(--fg-2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-live--pill,
+  .t-live--pill .t-live-lbl,
+  .t-live--pill .t-live-ring-box::after {
+    transition: none;
+  }
+}
+
+/* ── Full-screen media views (player, reader) on a phone: the route says
+   immersive and the shell leaves out its bars; html.playing / html.reading
+   (set by the pages) are the fallback that keeps the live pill away. ── */
+@media (width < 64rem) {
+  :is(html.playing, html.reading) .ws-live-wrap {
+    display: none;
+  }
+}
+
+/* ── The mini player: a full-width card 8px above the tab bar on a phone
+   (the notice row), a 64px card beside the live block in the sidebar's foot.
+   The pill sits at the end of <main>, so it rides above the card already. ── */
+.ws-mini[data-variant="pill"] {
+  margin-bottom: 0.5rem;
+}
+.ws-side .ws-side-foot > .ws-mini {
+  margin: 0 0.25rem 0.5rem;
 }

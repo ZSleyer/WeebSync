@@ -33,8 +33,9 @@ import { AudioProvider, MiniPlayer } from './components/AudioPlayer'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import RedirectWithQuery from './components/RedirectWithQuery'
-import { AppBarActions, ShellFooter, WIDE_MQ } from './components/PageActions'
-import { SeriesModalProvider, TITLE_PATH } from './components/SeriesModal'
+import { AppBarActions, ShellFooter, ShellToolbar, TitleActions, WIDE_MQ } from './components/PageActions'
+import { LiveProvider } from './components/liveState'
+import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
 import Setup, { FINISHING_KEY } from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -170,6 +171,10 @@ export interface RouteHandle {
   /** a screen opened from many places goes back where it came from; `back`
    *  is then only where a direct link leads */
   backHistory?: boolean
+  /** a full-screen media view (player, reader): on a phone the shell's bars,
+   *  its notice row and the live pill step aside, and no route motion is
+   *  left on the page; a desktop keeps its sidebar */
+  immersive?: boolean
 }
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
@@ -245,13 +250,13 @@ export const router = createBrowserRouter(
       <Route
         path="/play"
         lazy={() => import('./pages/Player').then((m) => ({ Component: m.default }))}
-        handle={{ ...h('player.title', '/files', 'nav.files'), backHistory: true }}
+        handle={{ ...h('player.title', '/files', 'nav.files'), backHistory: true, immersive: true }}
       />
       {/* lazy as well: the readers and pdf.js only load when a file is opened */}
       <Route
         path="/view"
         lazy={() => import('./pages/Viewer').then((m) => ({ Component: m.default }))}
-        handle={{ ...h('viewer.title', '/files', 'nav.files'), backHistory: true }}
+        handle={{ ...h('viewer.title', '/files', 'nav.files'), backHistory: true, immersive: true }}
       />
       {/* the rules have a page of their own, reached from the sidebar and
           from settings; on a phone it stacks on settings */}
@@ -374,13 +379,20 @@ function RouteTitle() {
   return null
 }
 
+// The live activity's finished state, kept above the page that remounts,
+// with the way into the series of what landed
+function LiveBridge({ children }: { children: ReactNode }) {
+  const series = useSeriesModal()
+  return <LiveProvider openSeries={series.open}>{children}</LiveProvider>
+}
+
 function Shell({ email }: { email: string }) {
   const { t } = useTranslation()
   // the tab bar would ride on top of the keyboard and eat a sixth of what it
   // leaves of the screen; it steps aside while typing, as native apps do
   const keyboard = useKeyboardUp()
   const location = useLocation()
-  const { title, back, backHistory } = useScreen()
+  const { title, back, backHistory, immersive: fullScreen } = useScreen()
   const goBack = useBack(back ?? '/')
   // the header mark lights up while something transfers; same query the
   // sampler keeps alive, so this costs no extra request
@@ -410,6 +422,13 @@ function Shell({ email }: { email: string }) {
   // outlet and leaves its heading, menu and tabs standing. A back swipe the
   // browser already animated plays nothing on top.
   const wide = useMediaQuery(WIDE_MQ)
+  // a full-screen media view on a phone: the page is all there is
+  const immersive = !!fullScreen && !wide
+  // the phone's toolbar slot (a selection's actions) and the actions slot of
+  // the desktop title row, both held in state like the app bar's
+  const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
+  const [titleActions, setTitleActions] = useState<HTMLElement | null>(null)
+  const titleRow = wide && !back
   const navType = useNavigationType()
   const prev = useRef({ path: location.pathname, back })
   const motion = useMemo(() => {
@@ -561,81 +580,97 @@ function Shell({ email }: { email: string }) {
 
   // the phone's tab bar: every top-level page, then the search
   const tabs = (
-    <TabBar aria-label={t('nav.main')} hidden={keyboard}>
-      <div className="ws-tabs">
-        {PHONE_TABS.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-tab" data-tone={tone(n)}>
-            <span aria-hidden className="ws-pip" />
-            {icon(n)}
-            <span>{t(n.key)}</span>
-          </NavLink>
-        ))}
-        {/* the search as Ctrl+K is on the desktop: the last entry, where the
+    <>
+      {/* a page's toolbar stands in for the tabs while it holds something */}
+      <div ref={setToolbar} className="ws-toolbar" hidden={keyboard} />
+      <TabBar aria-label={t('nav.main')} hidden={keyboard}>
+        <div className="ws-tabs">
+          {PHONE_TABS.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-tab" data-tone={tone(n)}>
+              <span aria-hidden className="ws-pip" />
+              {icon(n)}
+              <span>{t(n.key)}</span>
+            </NavLink>
+          ))}
+          {/* the search as Ctrl+K is on the desktop: the last entry, where the
             thumb rests, drawn like the tabs but opening the search */}
-        <button type="button" onClick={() => setPalette(true)} aria-haspopup="dialog" className="ws-tab">
-          <span aria-hidden className="ws-pip" />
-          <Search aria-hidden />
-          <span>{t('palette.title')}</span>
-        </button>
-      </div>
-    </TabBar>
+          <button type="button" onClick={() => setPalette(true)} aria-haspopup="dialog" className="ws-tab">
+            <span aria-hidden className="ws-pip" />
+            <Search aria-hidden />
+            <span>{t('palette.title')}</span>
+          </button>
+        </div>
+      </TabBar>
+    </>
   )
 
   return (
     <AudioProvider>
-      <SectionMotion.Provider value={motion.section}>
+      <SectionMotion.Provider value={immersive ? '' : motion.section}>
         <AppBarActions.Provider value={actions}>
-          <ShellFooter.Provider value={footer}>
-            <SeriesModalProvider panel={aside}>
-              <TransfersProvider panel={aside}>
-                <AppShell
-                  sidebar={sidebar}
-                  bar={bar}
-                  tabs={tabs}
-                  mainKey={topPage(location.pathname)}
-                  notice={
-                    <>
-                      <UpdateToast />
-                      <MiniPlayer variant="pill" />
-                    </>
-                  }
-                  footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
-                  aside={<div ref={setAside} className="contents" />}
-                  before={
-                    <>
-                      <RouteTitle />
-                      <ScrollMemory />
-                      <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
-                    </>
-                  }
-                >
-                  {/* the desktop's title row: a top-level page's h1 over the
+          <TitleActions.Provider value={titleRow ? titleActions : undefined}>
+            <ShellToolbar.Provider value={toolbar}>
+              <ShellFooter.Provider value={footer}>
+                <SeriesModalProvider panel={aside}>
+                  <TransfersProvider panel={aside}>
+                    <LiveBridge>
+                      <AppShell
+                        className={immersive ? 'ws-immersive' : undefined}
+                        sidebar={sidebar}
+                        bar={immersive ? null : bar}
+                        tabs={immersive ? null : tabs}
+                        mainKey={topPage(location.pathname)}
+                        notice={
+                          immersive ? null : (
+                            <>
+                              <UpdateToast />
+                              <MiniPlayer variant="pill" />
+                            </>
+                          )
+                        }
+                        footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
+                        aside={<div ref={setAside} className="contents" />}
+                        before={
+                          <>
+                            <RouteTitle />
+                            <ScrollMemory />
+                            <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
+                          </>
+                        }
+                      >
+                        {/* the desktop's title row: a top-level page's h1 over the
                       content; a stacked screen keeps its own heading. Only
                       rendered wide: on a phone the pull to refresh moves the
                       first thing in <main> */}
-                  {wide && !back && (
-                    <header className="ws-title">
-                      <h1>
-                        <span ref={deskTitle}>{screenTitle}</span>
-                      </h1>
-                    </header>
-                  )}
-                  {/* at most one one-time hint, above whatever page is open */}
-                  <Tips />
-                  <RouteTransition cls={motion.page}>
-                    <Outlet />
-                  </RouteTransition>
-                  <PageScroll stacked={!!back} />
-                  {/* what transfers right now, riding the page's bottom edge */}
-                  {!wide && (
-                    <div className="ws-live-wrap">
-                      <LiveActivity variant="pill" />
-                    </div>
-                  )}
-                </AppShell>
-              </TransfersProvider>
-            </SeriesModalProvider>
-          </ShellFooter.Provider>
+                        {titleRow && (
+                          <header className="ws-title">
+                            <h1>
+                              <span ref={deskTitle}>{screenTitle}</span>
+                            </h1>
+                            <div ref={setTitleActions} className="ws-title-acts" />
+                          </header>
+                        )}
+                        {/* at most one one-time hint, above whatever page is open */}
+                        <Tips />
+                        {/* no transform left on the page under a full-screen view:
+                      it would be the containing block of its fixed overlay */}
+                        <RouteTransition cls={immersive ? '' : motion.page}>
+                          <Outlet />
+                        </RouteTransition>
+                        <PageScroll stacked={!!back} />
+                        {/* what transfers right now, riding the page's bottom edge */}
+                        {!wide && !immersive && (
+                          <div className="ws-live-wrap">
+                            <LiveActivity variant="pill" />
+                          </div>
+                        )}
+                      </AppShell>
+                    </LiveBridge>
+                  </TransfersProvider>
+                </SeriesModalProvider>
+              </ShellFooter.Provider>
+            </ShellToolbar.Provider>
+          </TitleActions.Provider>
         </AppBarActions.Provider>
       </SectionMotion.Provider>
     </AudioProvider>
