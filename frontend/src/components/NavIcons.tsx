@@ -98,21 +98,19 @@ export function HouseIcon(props: LucideProps) {
   )
 }
 
-// the folder's front panel, flat against the back and tipped towards the
-// eye: its top edge drops and widens, the bottom stays put
+// the folder's front panel, flat against the back and swung open: the top
+// edge drops and slides forward, so the panel stands slanted over its fixed
+// bottom, the open folder of every icon set (Material folder_open)
 const FLAT = 'M2 6L22 6L22 18A2 2 0 0 1 20 20L4 20A2 2 0 0 1 2 18Z'
-const TIPPED = 'M0.6 9.4L23.4 9.4L22 18A2 2 0 0 1 20 20L4 20A2 2 0 0 1 2 18Z'
+const TIPPED = 'M6.4 10L23.4 10L21.1 18.5A2 2 0 0 1 19.2 20L4 20A2 2 0 0 1 2 18Z'
 
 export function FolderIcon(props: LucideProps) {
   const ref = useRef<SVGSVGElement>(null)
   const open = useRef<SVGAnimationElement>(null)
   const close = useRef<SVGAnimationElement>(null)
-  const tilt = useRef<SVGAnimationElement>(null)
-  const settle = useRef<SVGAnimationElement>(null)
   useCurrent(ref, (current, first) => {
     if (first && !current) return
     play(current ? open.current : close.current)
-    play(current ? tilt.current : settle.current)
   })
   const morph = {
     attributeName: 'd',
@@ -125,16 +123,11 @@ export function FolderIcon(props: LucideProps) {
   } as const
   return (
     <svg ref={ref} {...svg(props)}>
-      {/* the whole folder leans a little as it opens, on its bottom edge */}
-      <g>
-        <animateTransform ref={tilt} {...morph} attributeName="transform" type="rotate" values="0 12 20;-6 12 20" />
-        <animateTransform ref={settle} {...morph} attributeName="transform" type="rotate" values="-6 12 20;0 12 20" />
-        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-        <path d={FLAT}>
-          <animate ref={open} {...morph} values={`${FLAT};${TIPPED}`} />
-          <animate ref={close} {...morph} values={`${TIPPED};${FLAT}`} />
-        </path>
-      </g>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+      <path d={FLAT}>
+        <animate ref={open} {...morph} values={`${FLAT};${TIPPED}`} />
+        <animate ref={close} {...morph} values={`${TIPPED};${FLAT}`} />
+      </path>
     </svg>
   )
 }
