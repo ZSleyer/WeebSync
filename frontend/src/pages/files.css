@@ -18,7 +18,8 @@
   gap: 0.5rem;
   height: var(--ctl-h);
   padding: 0 0.75rem;
-  border: 1px solid var(--line);
+  /* the field's only edge: 3:1 like every input's (WCAG 1.4.11) */
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl, 8px);
   background: var(--bg);
   color: var(--fg-3);

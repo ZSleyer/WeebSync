@@ -66,7 +66,8 @@
   --line-strong: #8a6f76;
   --fg: #1b2238;
   --fg-2: #3a4462;
-  --fg-3: #5a6380;
+  /* 4.5:1 also on the accent's 14% tint of a picked tab or row */
+  --fg-3: #566079;
   --accent: #b3263f;
   --on-accent: #ffffff;
   --accent-2: #0c7069;
@@ -96,7 +97,7 @@
     --line-strong: #8a6f76;
     --fg: #1b2238;
     --fg-2: #3a4462;
-    --fg-3: #5a6380;
+    --fg-3: #566079;
     --accent: #b3263f;
     --on-accent: #ffffff;
     --accent-2: #0c7069;
@@ -818,6 +819,9 @@ summary::-webkit-details-marker { display: none; }
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 .t-input::placeholder { color: var(--fg-3); }
+/* every other field too (a search box inside its own label): the browser's
+   grey failed 4.5:1 on the light page, and Firefox fades it on top */
+::placeholder { color: var(--fg-3); opacity: 1; }
 .t-input[aria-invalid='true'] { border-color: var(--err); }
 /* env-locked and other read-only fields: visibly muted, value stays legible */
 .t-input:disabled, .t-select:disabled {

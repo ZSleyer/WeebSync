@@ -62,13 +62,14 @@
   height: 2.5rem;
   padding: 0 0.75rem;
   gap: 0.5rem;
-  border: 1px solid var(--line);
+  /* the field's only edge: 3:1 like every input's (WCAG 1.4.11) */
+  border: 1px solid var(--line-strong);
   border-radius: var(--r-ctl);
   background: var(--card);
   color: var(--fg-3);
 }
 .w-search:focus-within {
-  border-color: var(--line-strong);
+  border-color: var(--accent);
 }
 .w-search input {
   flex: 1;
