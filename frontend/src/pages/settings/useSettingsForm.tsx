@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient, type UseMutationResult } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Badge, Button } from 'fluid-lycoris'
+import { Button } from 'fluid-lycoris'
 import { PageFooter } from '../../components/PageActions'
 import { api } from '../../api'
+import { EnvChip } from './ui'
 
 export interface SettingsState {
   baseUrl: string
@@ -136,7 +137,7 @@ export function useSettingsForm() {
       // as a refetch changed anything in `data` (a false unsaved warning)
       setForm(null)
       setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setTimeout(() => setSaved(false), 1200)
     },
   })
 
@@ -163,7 +164,10 @@ export function useSettingsForm() {
     return undefined
   }
 
-  return { form, set, save, saved, locked, dirty, issue }
+  // drop the edits: back to the fetched state
+  const reset = () => setForm(null)
+
+  return { form, set, save, saved, locked, dirty, issue, reset }
 }
 
 // Error line under a field, wired to its input via aria-describedby.
@@ -177,50 +181,50 @@ export function FieldIssue({ id, msg }: { id: string; msg?: string }) {
   )
 }
 
-// Lock icon next to a field label whose value is forced by an env var.
-// Hover shows "ENV" + hint; the sr-only text carries it for screen readers.
-export function EnvBadge({ show }: { show: boolean }) {
-  const { t } = useTranslation()
-  if (!show) return null
-  return (
-    <span className="ml-1.5 inline-block align-[-1px] text-t-muted" title={`ENV - ${t('settings.envLockedHint')}`}>
-      <svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2a5 5 0 0 0-5 5v3H5v12h14V10h-2V7a5 5 0 0 0-5-5zm-3 8V7a3 3 0 0 1 6 0v3H9z" />
-      </svg>
-      <span className="sr-only">ENV - {t('settings.envLockedHint')}</span>
-    </span>
-  )
-}
+// The ENV chip next to a field label whose value an env var forces.
+export const EnvBadge = EnvChip
 
+// The save bar: there only while something is unsaved (and for a moment
+// after a save, to say it worked). Verwerfen drops the edits. On a phone it
+// sits in the shell's footer row above the tab bar, on a desktop it sticks
+// to the bottom of the section.
 export function SaveBar({
   form,
   save,
   saved,
+  dirty,
+  reset,
 }: {
   form: SettingsState
   save: UseMutationResult<SettingsState, Error, SettingsState>
   saved: boolean
+  dirty: boolean
+  reset: () => void
 }) {
   const { t } = useTranslation()
+  if (!dirty && !saved && !save.error) return null
   return (
-    // the shell's footer row on a phone, where a long form used to hide the
-    // button below the fold; in flow after the panels on desktop as before
     <PageFooter>
-      <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6">
-        <Button variant="primary" onClick={() => save.mutate(form)} disabled={save.isPending}>
-          {t('settings.save')}
-        </Button>
-        {saved && (
-          <Badge tone="ok" role="status">
-            {t('settings.saved')}
-          </Badge>
+      <div className="set-save" role="region" aria-label={t('settings.save')}>
+        <span role="status">{dirty ? t('settings.unsaved') : saved ? t('settings.saved') : ''}</span>
+        {dirty && (
+          <>
+            <Button
+              onClick={() => {
+                save.reset()
+                reset()
+              }}
+              disabled={save.isPending}
+            >
+              {t('common.discard')}
+            </Button>
+            <Button variant="primary" onClick={() => save.mutate(form)} disabled={save.isPending}>
+              {t('settings.save')}
+            </Button>
+          </>
         )}
-        {save.error && (
-          <span className="text-sm text-err" role="alert">
-            {save.error.message}
-          </span>
-        )}
-      </ActionBar>
+        {save.error && <span role="alert">{save.error.message}</span>}
+      </div>
     </PageFooter>
   )
 }

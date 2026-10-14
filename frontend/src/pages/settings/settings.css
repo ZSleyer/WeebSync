@@ -1,0 +1,525 @@
+/* ═══ Settings: one page, a side column (account, search, sections) and the
+   open section's panels. Panels are not boxes: a heading, the fields, a
+   hairline to the next. ═══ */
+
+/* ── The frame ── */
+.set-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-height: 0;
+  flex: 1;
+}
+.set-head,
+.set-side--desk {
+  display: none;
+}
+@media (width >= 64rem) {
+  .set-head {
+    display: flex;
+    align-items: center;
+    min-height: 2.75rem;
+    margin-bottom: 1rem;
+  }
+  .set-head h1 {
+    margin: 0;
+    font: 600 var(--fs-title-lg) / 1.15 var(--f-display);
+    letter-spacing: 0.01em;
+  }
+  .set-wrap {
+    display: grid;
+    grid-template-columns: 16.25rem minmax(0, 1fr);
+    gap: 2.5rem;
+    align-items: start;
+  }
+  .set-side {
+    display: block;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100dvh - 6rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    padding: 2px;
+  }
+  .set-main {
+    max-width: 45rem;
+    min-width: 0;
+  }
+}
+
+/* ── Side column: the account card, the search field, the menu ── */
+.set-acc {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+.set-acc > .t {
+  flex: 1;
+  min-width: 0;
+}
+.set-acc strong {
+  display: block;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.set-acc .t > span {
+  display: block;
+  font-size: var(--fs-meta);
+  color: var(--fg-3);
+}
+
+/* the search over the menu: the icon inside the field */
+.set-q {
+  position: relative;
+  display: block;
+  margin-bottom: 0.75rem;
+}
+.set-q > svg {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--fg-3);
+  pointer-events: none;
+}
+.set-q > input {
+  width: 100%;
+  padding-left: 2.5rem;
+  font-size: 1rem;
+}
+
+.set-g {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1.125rem 0.25rem 0.375rem;
+  font: 600 0.8125rem/1 var(--f-display);
+  color: var(--fg-3);
+}
+.set-nav > :first-child .set-g,
+.set-nav > .set-g:first-child {
+  margin-top: 0.25rem;
+}
+.set-adm {
+  font: 500 0.625rem/1 var(--f-mono);
+  padding: 2px 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  color: var(--fg-3);
+}
+.set-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.set-nav a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  min-height: 3.75rem;
+  padding: 0.375rem 0.25rem;
+  color: var(--fg);
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+}
+.set-nav li:last-child a {
+  border-bottom: 0;
+}
+.set-nav .ic {
+  width: 2.125rem;
+  height: 2.125rem;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 9px;
+  background: var(--hover);
+  color: var(--fg-2);
+}
+.set-nav .t {
+  flex: 1;
+  min-width: 0;
+}
+.set-nav .t strong {
+  display: block;
+  font-weight: 500;
+}
+.set-nav .t span {
+  display: block;
+  font-size: var(--fs-meta);
+  color: var(--fg-3);
+}
+.set-nav a::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 0.375rem 0 auto;
+  border-right: 1.6px solid var(--fg-3);
+  border-top: 1.6px solid var(--fg-3);
+  transform: rotate(45deg);
+}
+.set-nav .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: none;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.set-none {
+  margin: 0.75rem 0.25rem;
+  color: var(--fg-3);
+  font-size: var(--fs-link);
+}
+@media (width >= 64rem) {
+  .set-nav a {
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    border: 0;
+    border-radius: var(--r-ctl);
+  }
+  .set-nav a:hover {
+    background: var(--hover);
+  }
+  .set-nav a[aria-current="page"] {
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+  }
+  .set-nav a::after {
+    display: none;
+  }
+  .set-nav .ic {
+    width: 1.75rem;
+    height: 1.75rem;
+    background: none;
+  }
+  .set-nav a[aria-current="page"] .ic {
+    color: var(--accent);
+  }
+  .set-nav .t span {
+    display: none;
+  }
+}
+
+/* ── A panel: unboxed, a heading, the fields, a hairline ── */
+.set-p {
+  padding: 0.25rem 0 1.25rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 4.5rem;
+}
+.set-p:last-of-type {
+  border-bottom: 0;
+}
+.set-p > h3,
+.set-p-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0 0.25rem;
+  font: 600 var(--fs-section) / 1.3 var(--f-display);
+  color: var(--fg);
+}
+.set-p.danger > h3 {
+  color: var(--err);
+}
+.set-p > .set-desc {
+  margin: 0 0 0.25rem;
+  font-size: var(--fs-meta);
+  color: var(--fg-3);
+  max-width: 62ch;
+}
+/* the ENV chip: the value comes from an environment variable */
+.set-env {
+  font: 500 0.625rem/1 var(--f-mono);
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: var(--hover);
+  color: var(--fg-3);
+  cursor: help;
+}
+.set-p :is(input, textarea):read-only:not([type="checkbox"]):not([type="radio"]),
+.set-p :is(input, textarea, select, button):disabled {
+  opacity: 0.6;
+}
+
+/* a note in prose, the actions under a panel, two fields side by side */
+.sf-note {
+  margin: 0.5rem 0 0;
+  max-width: 62ch;
+  font-size: var(--fs-link);
+  color: var(--fg-2);
+}
+.sf-note b {
+  font-weight: 600;
+  color: var(--fg);
+}
+.sf-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+.sf-2 {
+  display: grid;
+  gap: 0 0.75rem;
+}
+@media (width >= 30rem) {
+  .sf-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.sf-num {
+  max-width: 10rem;
+}
+.sf-issue {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--err);
+}
+
+/* a secret: the field and a word for whether one is stored */
+.sec-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+.sec-row > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.sec-st {
+  font-size: 0.75rem;
+  color: var(--warn);
+  white-space: nowrap;
+}
+.sec-st.ok {
+  color: var(--ok);
+}
+
+/* a disclosure inside a panel: its own chevron that turns */
+.sf-disc {
+  margin-top: 0.75rem;
+}
+.sf-disc > summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  color: var(--accent);
+  font-weight: 500;
+  cursor: pointer;
+  list-style: none;
+}
+.sf-disc > summary::-webkit-details-marker {
+  display: none;
+}
+.sf-disc > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg);
+  translate: 0 -2px;
+  transition: transform var(--dur-2) var(--ease-out);
+}
+.sf-disc[open] > summary::after {
+  transform: rotate(225deg);
+  translate: 0 2px;
+}
+
+/* ── Tables of switches: categories by channel, Plex libraries ── */
+.cat-t {
+  width: 100%;
+  margin-top: 0.5rem;
+  border-collapse: collapse;
+}
+.cat-t :is(td, th) {
+  padding: 0.5rem 0.625rem 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  font-size: var(--fs-link);
+  vertical-align: middle;
+}
+.cat-t tr:last-child td {
+  border-bottom: 0;
+}
+.cat-t th {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--fg-3);
+}
+.cat-t :is(td, th).c {
+  width: 1%;
+  text-align: center;
+  white-space: nowrap;
+  padding-inline: 0.5rem;
+}
+.cat-t label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* ── A server card: icon tile, name, a stats line, its rows ── */
+.srv {
+  margin: 0.625rem 0;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.srv-h {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.srv-ic {
+  width: 2.375rem;
+  height: 2.375rem;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 10px;
+  background: var(--hover);
+}
+.srv-h > .t {
+  flex: 1;
+  min-width: 0;
+}
+.srv-h strong {
+  display: block;
+  font-weight: 500;
+}
+.srv-h .t > span {
+  display: block;
+  font-size: 0.78125rem;
+  color: var(--fg-3);
+  overflow-wrap: anywhere;
+}
+.idx-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-link);
+}
+.idx-row > :first-child {
+  flex: 1;
+  min-width: 0;
+  font-weight: 500;
+}
+
+/* ── The status strip: a dot and a name per service ── */
+.st-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 0.875rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.st-strip a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.5rem;
+  padding: 0.25rem 0;
+  font-size: var(--fs-meta);
+  color: var(--fg-2);
+  text-decoration: none;
+}
+.st-strip a:hover {
+  color: var(--fg);
+}
+.st-strip .dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--line-strong);
+}
+.st-strip .dot.ok {
+  background: var(--ok);
+}
+.st-strip .dot.warn {
+  background: var(--warn);
+}
+.st-strip .dot.err {
+  background: var(--err);
+}
+
+/* ── A changed host key ── */
+.hk {
+  margin-top: 0.625rem;
+  padding: 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--warn) 60%, var(--line));
+  border-radius: 10px;
+}
+.hk p {
+  margin: 0 0 0.5rem;
+  font-size: var(--fs-link);
+}
+
+/* ── The live log ── */
+.log-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.log {
+  height: 13.75rem;
+  overflow: auto;
+  margin: 0.5rem 0 0;
+  padding: 0.625rem 0.75rem;
+  border-radius: 10px;
+  background: #050507;
+  color: #b7c5d3;
+  font: 0.75rem/1.55 var(--f-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+}
+
+/* ── The save bar: only while there is something to save ── */
+.set-save {
+  position: sticky;
+  bottom: 0.75rem;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding: 0.625rem 0.625rem 0.625rem 1rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--card);
+}
+.set-save > span:first-child {
+  flex: 1;
+  min-width: 8rem;
+  font-size: var(--fs-link);
+}
+.set-save [role="alert"] {
+  flex-basis: 100%;
+  font-size: var(--fs-meta);
+  color: var(--err);
+}
+.t-shell-footer .set-save {
+  position: static;
+  margin: 0;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  padding: 0.5rem 1rem;
+}

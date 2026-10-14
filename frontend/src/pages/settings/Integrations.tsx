@@ -106,7 +106,7 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
 
 export default function Integrations() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty, issue } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, issue, reset } = useSettingsForm()
   if (!form) return null
 
   // one panel per provider, the connection status as its first row and the
@@ -337,7 +337,7 @@ export default function Integrations() {
       </Panel>
 
       <Smtp form={form} set={set} locked={locked} dirty={dirty} />
-      <SaveBar form={form} save={save} saved={saved} />
+      <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
     </>
   )
 }

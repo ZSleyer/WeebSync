@@ -11,7 +11,7 @@ import { copyText } from '../../clipboard'
 
 export default function Security() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, reset } = useSettingsForm()
 
   const [discovered, setDiscovered] = useState('')
   const discover = async () => {
@@ -228,7 +228,7 @@ export default function Security() {
       <div id="users">
         <Users />
       </div>
-      <SaveBar form={form} save={save} saved={saved} />
+      <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
     </>
   )
 }

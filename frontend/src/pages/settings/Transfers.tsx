@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next'
-import { Badge, Input, Panel } from 'fluid-lycoris'
-import { EnvBadge, SaveBar, useSettingsForm } from './useSettingsForm'
+import { SaveBar, useSettingsForm } from './useSettingsForm'
+import { SettingsPanel, TextSetting } from './ui'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 // The server stores these as whole numbers and refuses a JSON float, so a
@@ -9,70 +9,64 @@ const toInt = (v: string) => Math.trunc(Number(v)) || 0
 
 export default function Transfers() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, reset } = useSettingsForm()
   if (!form) return null
 
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.instance')}>
-        <Badge tone="accent">{t('settings.instance')}</Badge>
-        <label className="mt-3 block text-xs text-t-muted">
-          {t('settings.baseUrl')}
-          <EnvBadge show={locked('baseUrl')} />
-          <Input
-            className="mt-1 font-mono"
-            type="url"
-            placeholder="https://weebsync.example.com"
-            value={form.baseUrl}
-            disabled={locked('baseUrl')}
-            onChange={(e) => set('baseUrl', e.target.value)}
-          />
-          <span className="mt-1 block">{t('settings.baseUrlHint')}</span>
-        </label>
-      </Panel>
+      <SettingsPanel title={t('settings.instance')}>
+        <TextSetting
+          label={t('settings.baseUrl')}
+          hint={t('settings.baseUrlHint')}
+          env={locked('baseUrl')}
+          mono
+          type="url"
+          placeholder="https://weebsync.example.com"
+          value={form.baseUrl}
+          onChange={(v) => set('baseUrl', v)}
+        />
+      </SettingsPanel>
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.transfers')}>
-        <Badge tone="accent">{t('settings.transfers')}</Badge>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
-          <label className="text-xs text-t-muted">
-            {t('settings.maxConcurrent')}
-            <Input
-              className="mt-1 font-mono"
-              type="number"
-              min={1}
-              max={20}
-              step={1}
-              value={form.maxConcurrent}
-              onChange={(e) => set('maxConcurrent', toInt(e.target.value))}
-            />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('settings.globalLimit')}
-            <Input
-              className="mt-1 font-mono"
-              type="number"
-              min={0}
-              step={1}
-              value={Math.round(form.globalRateLimit / 1024)}
-              onChange={(e) => set('globalRateLimit', toInt(e.target.value) * 1024)}
-            />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('settings.watchInterval')}
-            <Input
-              className="mt-1 font-mono"
-              type="number"
-              min={5}
-              max={1440}
-              step={1}
-              value={form.watchIntervalMin}
-              onChange={(e) => set('watchIntervalMin', toInt(e.target.value))}
-            />
-          </label>
-        </div>
-      </Panel>
-      <SaveBar form={form} save={save} saved={saved} />
+      <SettingsPanel title={t('settings.transfers')}>
+        <TextSetting
+          label={t('settings.maxConcurrent')}
+          mono
+          narrow
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={20}
+          step={1}
+          value={form.maxConcurrent}
+          onChange={(v) => set('maxConcurrent', toInt(v))}
+        />
+        <TextSetting
+          label={t('settings.globalLimit')}
+          hint={t('settings.globalLimitHint')}
+          mono
+          narrow
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1}
+          value={Math.round(form.globalRateLimit / 1024)}
+          onChange={(v) => set('globalRateLimit', toInt(v) * 1024)}
+        />
+        <TextSetting
+          label={t('settings.watchInterval')}
+          mono
+          narrow
+          type="number"
+          inputMode="numeric"
+          min={5}
+          max={1440}
+          step={1}
+          value={form.watchIntervalMin}
+          onChange={(v) => set('watchIntervalMin', toInt(v))}
+        />
+      </SettingsPanel>
+      <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
     </>
   )
 }

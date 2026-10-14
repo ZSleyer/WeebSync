@@ -28,6 +28,8 @@ export interface SettingsFieldProps {
   label: ReactNode
   /** the quiet line under the label */
   hint?: ReactNode
+  /** id of the hint line, for the control's aria-describedby */
+  hintId?: string
   /** the id of the control, so the label names it */
   htmlFor?: string
   /** beside the label: an ENV chip, a status */
@@ -45,7 +47,7 @@ export interface SettingsFieldProps {
  * One setting: its label, an optional chip beside it, a quiet hint, and the
  * control. A row for switches, stacked for fields.
  */
-export function SettingsField({ label, hint, htmlFor, badge, row, children, className }: SettingsFieldProps) {
+export function SettingsField({ label, hint, hintId, htmlFor, badge, row, children, className }: SettingsFieldProps) {
   return (
     <div className={cx('t-sf', row && 't-sf--row', className)}>
       <div className="t-sf-l">
@@ -53,7 +55,11 @@ export function SettingsField({ label, hint, htmlFor, badge, row, children, clas
         {badge}
       </div>
       {children}
-      {hint !== undefined && <p className="t-sf-h">{hint}</p>}
+      {hint !== undefined && (
+        <p id={hintId} className="t-sf-h">
+          {hint}
+        </p>
+      )}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router'
+import { createMemoryRouter, RouterProvider } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SettingsLayout from '../pages/settings/SettingsLayout'
 import { api } from '../api'
@@ -20,13 +20,18 @@ const app = (path: string, isAdmin = false) => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="/settings" element={<SettingsLayout />}>
-            <Route path=":section" element={<p>Inhalt</p>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <RouterProvider
+        router={createMemoryRouter(
+          [
+            {
+              path: '/settings',
+              element: <SettingsLayout />,
+              children: [{ path: ':section', element: <p>Inhalt</p>, handle: { title: 'settings.nav.general' } }],
+            },
+          ],
+          { initialEntries: [path] },
+        )}
+      />
     </QueryClientProvider>,
   )
 }
