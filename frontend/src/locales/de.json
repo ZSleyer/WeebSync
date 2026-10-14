@@ -2432,11 +2432,118 @@
       "tester": "Namen testen",
       "testerHint": "Einen Datei- oder Ordnernamen eintippen. WeebSync zeigt, was es daraus liest.",
       "testerEmpty": "Nichts erkannt.",
-      "matchTitle": "Zuordnung",
-      "matchText": "WeebSync sucht den Titel bei AniList, erst mit der Saison aus dem Ordnerpfad, dann ohne, dann mit dem Alternativtitel aus den Klammern. Jeder Treffer bekommt Punkte, der beste gewinnt, wenn er die Schwelle erreicht.",
-      "pointsTitle": "Punkte",
-      "loadTitle": "Wann eine Datei geladen wird",
-      "loadText": "Eine Auto-Sync lädt jede Datei, die ihr Ziel noch nicht in derselben Größe hat. Diese Gründe halten eine Datei zurück:"
+      "traceLabel": "Was WeebSync liest",
+      "samplesLabel": "Beispiele",
+      "samples": {
+        "apothecary": "Ordner Apothekerin",
+        "absolute": "One Piece absolut",
+        "roman": "Römische Staffel",
+        "year": "Jahr in Klammern"
+      },
+      "names": {
+        "title": "Namen lesen",
+        "seasonT": "Staffel",
+        "seasonD": "<m>S2</m>, <m>2nd Season</m>, <m>Season 2</m>, <m>second season</m> oder römisch am Ende (<m>II</m> bis <m>V</m>). Eine nackte Zahl am Ende ist nie eine Staffel, <i>Yami Shibai 10</i> bleibt ein Titel.",
+        "langT": "Sprachen",
+        "langD": "Nur Tags in eckigen oder runden Klammern, etwa <m>[GerJapDub,GerEngSub]</m>. Das Tag der Datei zählt vor dem des Ordners. Liegt eine <m>[JapDub]</m>-Datei in einem <m>[GerJapDub]</m>-Ordner, hat sie keinen deutschen Ton.",
+        "resT": "Auflösung",
+        "resD": "<m>1080p</m>, <m>1920x1080</m>, <m>4K</m>. Die höchste Angabe gewinnt.",
+        "noneT": "Ohne Staffel",
+        "noneD": "Steht keine Staffel im Namen, gilt Staffel 1. Ordner wie <m>Season 2</m> oder <m>Staffel.5</m> nehmen den Titel vom Ordner darüber."
+      },
+      "scope": {
+        "title": "Quelle eines Ordners",
+        "p1": "Ein markierter Ordner bestimmt, wo seine <b>direkten</b> Unterordner gesucht werden: Anime und Manga bei AniList, Serien und Filme bei TMDB, Serien wahlweise bei TVDB. Tiefer wird nicht vererbt. Ausnahme sind Buchstaben-Regale wie <m>A</m> oder <m>0-9</m>.",
+        "p2": "Regeln übertragen eine Markierung auf gleich gebaute Geschwister. Aus <m>2026-2 Spring</m> wird die Form <m>{n}-{n} {season}</m>, sie passt dann auf alle Saison-Ordner."
+      },
+      "match": {
+        "title": "Zuordnen bei AniList",
+        "intro": "Gesucht wird erst mit dem Titel aus dem Namen und, wenn der Pfad Jahr und Saison nennt, nur in dieser Saison. Dann ohne Filter, mit dem Alternativtitel, angeglichen und zuletzt ohne Staffelangabe. Jeder Kandidat bekommt Punkte:",
+        "pointsLabel": "Punkte je Kandidat",
+        "upTo": "bis +{{n}}",
+        "after1": "Mehr als 2 Jahre Abstand scheidet aus. Ab {{n}} Punkten gilt ein Treffer als sicher. Angleichen heißt: Akzente weg, Satzzeichen weg, lange Vokale kurz. <i>Haikyuu!!</i> ist dann <i>Haikyu</i>.",
+        "after2": "<b>TMDB und TVDB</b> vergeben keine Punkte. Dort gewinnt der erste Suchtreffer, bei TVDB der erste innerhalb von 2 Jahren.",
+        "after3": "Von Hand gesetzte Zuordnungen bleiben bei jedem Neu-Zuordnen erhalten. Ändern sich diese Regeln, prüft WeebSync beim nächsten Start einmal alle automatischen Zuordnungen und löst die, deren Jahr mehr als 2 Jahre abweicht."
+      },
+      "points": {
+        "title_fold": "Titel stimmt nach dem Angleichen",
+        "title_strict": "Zeichen für Zeichen gleich",
+        "words": "Wörter decken sich",
+        "contained": "Ordnertitel steckt ganz im Serientitel",
+        "season_match": "Staffel passt",
+        "season_miss": "Staffel passt nicht",
+        "season_base": "Grundeintrag bei einem Ordner ab Staffel 2",
+        "movie": "Film-Ordner und Film-Eintrag",
+        "movie_tv": "Film-Ordner und Serien-Eintrag",
+        "ova": "OVA-Ordner und OVA-, Special- oder ONA-Eintrag",
+        "year": "Jahr höchstens 1 daneben",
+        "promo": "Teaser, Trailer, PV"
+      },
+      "bundle": {
+        "title": "Eine Serie aus vielen Ordnern",
+        "p": "Ordner mit demselben Eintrag werden eine Karte. Staffeln einer Show werden über die TVDB- oder TMDB-Zuordnung zu einer Serie verbunden, sonst über den Titel ohne Staffelangabe, wenn das Jahr höchstens 1 abweicht. Manga wird nie gebündelt."
+      },
+      "sync": {
+        "title": "Auto-Sync",
+        "paceT": "Takt",
+        "paceD": "Standardmäßig alle 30 Minuten, einstellbar ab 5. Sind alle erschienenen Folgen da, wartet die Auto-Sync bis zum nächsten Termin. Spätestens nach 12 Stunden prüft sie trotzdem, damit v2-Dateien auffallen.",
+        "failT": "Fehlschlag",
+        "failD": "Nach 1, 2, 4 Minuten und so weiter erneut, höchstens im normalen Takt. Sie gibt nie auf.",
+        "gapsT": "Lücken",
+        "gapsD": "Fehlende Folgen zwischen der niedrigsten und der höchsten vorhandenen, je Staffel. Specials zählen nie als Lücke.",
+        "behindT": "Im Rückstand",
+        "behindD": "Erschienen minus vorhanden. „Spät“ erst, wenn mehr fehlt als in den letzten 2 Tagen erschienen ist.",
+        "dubT": "Synchro-Termine",
+        "dubD": "Gemessene Termine plus eine Schätzung: Original plus Verzug, aus dem Median der letzten 3 Abstände. Ohne gemessene Folge gilt der eingestellte Verzug. Überfällig ab 7 Tagen nach der Schätzung.",
+        "absT": "Absolute Nummern",
+        "absD": "Mit Ausstrahlungs-Reihenfolge fragt WeebSync TVDB, dann Plex, dann TMDB nach Staffel und Folge. Unbekannte Folgen liegen in <m>_Unzugeordnet</m> und werden alle 30 Minuten neu einsortiert.",
+        "skipsIntro": "Eine Datei wird nicht geladen, wenn:"
+      },
+      "skip": {
+        "outside_roots": {
+          "head": "Ziel außerhalb der freigegebenen Ordner",
+          "body": "Geladen wird nur in die freigegebenen Wurzelordner."
+        },
+        "language": {
+          "head": "Sprache passt nicht",
+          "body": "Das Tag im Dateinamen zählt vor dem des Ordners. Fehlt es, liest WeebSync die Tonspuren selbst aus."
+        },
+        "worse_variant": {
+          "head": "Es gibt eine bessere Fassung",
+          "body": "Gleiches Ziel: höhere Auflösung gewinnt, dann mehr Synchros, dann mehr Untertitel, dann die größere Datei."
+        },
+        "present": {
+          "head": "Schon da",
+          "body": "Gleicher Name und gleiche Größe am Ziel. Bei anderer Größe ist es eine Neuveröffentlichung und ersetzt die alte Datei."
+        },
+        "owned": {
+          "head": "Plex hat die Folge schon",
+          "body": "Nur wenn das in den Einstellungen an ist und Plex die Serie über ID oder Ordner kennt, nie nur über den Titel."
+        },
+        "uploading": {
+          "head": "Wird noch hochgeladen",
+          "body": "Kleiner als die Hälfte des Medians der Folgen im Ordner, ab 3 Folgen."
+        },
+        "queued": {
+          "head": "Steht schon in der Warteschlange",
+          "body": "Gleiche Quelle oder gleiches Ziel."
+        },
+        "blocked": {
+          "head": "Letzter Versuch scheiterte an der Platte",
+          "body": "Voll, schreibgeschützt oder keine Rechte. Erst wenn das behoben ist, geht es weiter."
+        }
+      },
+      "files": {
+        "title": "Dateien",
+        "partT": ".part",
+        "partD": "Downloads laufen als <m>.part</m> und setzen dort fort. Erst eine vollständige Datei bekommt ihren Namen.",
+        "retryT": "Wiederholen",
+        "retryD": "10 Versuche, Pause ab 5 Sekunden, verdoppelt bis 5 Minuten. Fehlende Rechte, eine volle oder schreibgeschützte Platte und ein gescheitertes Umbenennen werden nie automatisch wiederholt.",
+        "trashT": "Papierkorb",
+        "trashD": "<m>.weebsync-trash</m> neben dem Original, nach 14 Tagen gelöscht.",
+        "upgradesT": "Upgrades",
+        "upgradesD": "Nur ganze Stufen zählen (720, 1080, 1440, 2160). Eine zusätzliche Sprache zählt nur, wenn sie zu den gewünschten gehört."
+      }
     }
   }
 }

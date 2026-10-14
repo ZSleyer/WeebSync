@@ -1,0 +1,315 @@
+/* ── The rules page (/rules): the rules in plain words beside a sticky name
+   tester on a wide screen, the tester first in one column on a narrow one.
+   Teal is the colour of explanations and rules. ── */
+
+/* kind colours of the tester: one per group of name pieces */
+.ws-rules {
+  --k-title: #ffa14a;
+  --k-season: #7ab8ff;
+  --k-ep: #7ab8ff;
+  --k-year: #c8a6ff;
+  --k-lang: #34d67a;
+  --k-res: #e6ebf0;
+  --k-alt: #ffcf7a;
+  --k-other: #8fa3b5;
+  container-type: inline-size;
+}
+[data-theme="light"] .ws-rules {
+  --k-title: #b03a0b;
+  --k-season: #1d53cc;
+  --k-ep: #1d53cc;
+  --k-year: #6d28d9;
+  --k-lang: #0c5f2c;
+  --k-res: #0a1628;
+  --k-alt: #854307;
+  --k-other: #4a5f73;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .ws-rules {
+    --k-title: #b03a0b;
+    --k-season: #1d53cc;
+    --k-ep: #1d53cc;
+    --k-year: #6d28d9;
+    --k-lang: #0c5f2c;
+    --k-res: #0a1628;
+    --k-alt: #854307;
+    --k-other: #4a5f73;
+  }
+}
+
+/* The route wraps the page in its own header (an h2): the page brings its
+   own h1 for the desktop, and the phone's app bar names it, so that header
+   stands down. */
+div:has(> .ws-rules) > .t-page-header {
+  display: none;
+}
+.ws-rules-h1 {
+  display: none;
+  margin: 0 0 1rem;
+  font: 600 var(--fs-title-lg) / 1.15 var(--f-display);
+  letter-spacing: 0.01em;
+}
+@media (min-width: 64rem) {
+  .ws-rules-h1 {
+    display: block;
+  }
+}
+
+.ws-rules-body > section {
+  margin-top: 0.5rem;
+  scroll-margin-top: 4.5rem;
+}
+.ws-rules-body > section > h2 {
+  margin: 1.375rem 0 0.5rem;
+  font: 600 var(--fs-section) / 1.3 var(--f-display);
+  color: var(--fg);
+}
+.ws-rules-body p {
+  margin: 0 0 0.625rem;
+  max-width: 62ch;
+  color: var(--fg-2);
+}
+.ws-rules-body p b,
+.ws-rules-body dd b {
+  font-weight: 600;
+  color: var(--fg);
+}
+.ws-mono {
+  font-family: var(--f-mono);
+  font-size: 0.92em;
+  overflow-wrap: anywhere;
+}
+
+.ws-rules-dl {
+  display: grid;
+  grid-template-columns: minmax(0, 5.75rem) minmax(0, 1fr);
+  gap: 0.625rem 0.875rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.875rem;
+}
+.ws-rules-dl dt {
+  font-weight: 500;
+  color: var(--fg);
+}
+.ws-rules-dl dd {
+  margin: 0;
+  color: var(--fg-2);
+}
+
+.ws-tbl {
+  overflow-x: auto;
+  margin: 0 0 0.75rem;
+}
+.ws-tbl table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.ws-tbl td {
+  padding: 0.4375rem 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-2);
+}
+.ws-tbl td:last-child {
+  padding-left: 0.75rem;
+  text-align: right;
+  white-space: nowrap;
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+ol.ws-skips {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0.75rem;
+  counter-reset: k;
+}
+ol.ws-skips li {
+  position: relative;
+  display: grid;
+  gap: 0.125rem;
+  padding: 0.5rem 0 0.5rem 1.875rem;
+  border-bottom: 1px solid var(--line);
+}
+ol.ws-skips li:last-child {
+  border-bottom: 0;
+}
+ol.ws-skips li::before {
+  counter-increment: k;
+  content: counter(k);
+  position: absolute;
+  left: 0;
+  top: 0.5625rem;
+  font: 500 0.8125rem / 1.4 var(--f-mono);
+  color: var(--fg-3);
+}
+ol.ws-skips b {
+  font-weight: 500;
+}
+ol.ws-skips span {
+  font-size: 0.875rem;
+  color: var(--fg-3);
+}
+
+/* ── the tester ── */
+.ws-tester-h {
+  margin: 0.75rem 0 0.25rem;
+  font: 600 0.9375rem / 1.2 var(--f-display);
+  color: var(--fg);
+}
+.ws-tester-hint {
+  margin: 0 0 0.5rem;
+  font-size: var(--fs-meta);
+  color: var(--fg-3);
+}
+.ws-tester textarea {
+  display: block;
+  width: 100%;
+  min-height: 4.5rem;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-ctl);
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 0.9375rem / 1.5 var(--f-mono);
+}
+.ws-tester textarea:focus-visible {
+  outline: 2px solid var(--accent-2);
+  outline-offset: 1px;
+}
+.ws-samples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 1rem;
+  margin: 0.375rem 0 0.75rem;
+}
+.ws-samples button {
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent-2);
+  cursor: pointer;
+}
+.ws-samples button[aria-pressed="true"] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (hover: hover) {
+  .ws-samples button:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}
+
+.ws-fname {
+  margin: 0.25rem 0 0.625rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r-ctl);
+  background: var(--bg);
+  font: 400 0.875rem / 1.7 var(--f-mono);
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+.ws-tk {
+  --k: var(--k-other);
+  border-radius: 3px;
+  background: color-mix(in oklab, var(--k) 18%, transparent);
+  color: var(--fg);
+  text-decoration: underline 2px var(--k);
+  text-underline-offset: 4px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+[data-k="title"] {
+  --k: var(--k-title);
+}
+[data-k="alt"] {
+  --k: var(--k-alt);
+}
+[data-k="season"] {
+  --k: var(--k-season);
+}
+[data-k="ep"] {
+  --k: var(--k-ep);
+}
+[data-k="year"] {
+  --k: var(--k-year);
+}
+[data-k="lang"] {
+  --k: var(--k-lang);
+}
+[data-k="res"] {
+  --k: var(--k-res);
+}
+[data-k="other"] {
+  --k: var(--k-other);
+}
+
+.ws-trace {
+  list-style: none;
+  margin: 0 0 0.375rem;
+  padding: 0;
+}
+.ws-trace li {
+  display: grid;
+  grid-template-columns: 7rem minmax(0, 1fr);
+  gap: 0.625rem;
+  padding: 0.3125rem 0.25rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+}
+.ws-kk {
+  font-weight: 500;
+  color: var(--k);
+}
+.ws-kv {
+  font-family: var(--f-mono);
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+.ws-quiet {
+  font-size: 0.875rem;
+  color: var(--fg-3);
+}
+/* pointing at a piece lights its row, and the other way round */
+.ws-tk.ws-hl {
+  background: color-mix(in oklab, var(--k) 34%, transparent);
+}
+.ws-trace li.ws-hl {
+  background: color-mix(in oklab, var(--k) 12%, transparent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ws-tk,
+  .ws-trace li {
+    transition: background-color var(--dur-2);
+  }
+}
+
+/* ── wide: the rules left, the tester in a sticky column right ── */
+@container (min-width: 60rem) {
+  .ws-rules-body {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 23.75rem;
+    column-gap: 3rem;
+    align-items: start;
+  }
+  .ws-rules-body > * {
+    grid-column: 1;
+  }
+  .ws-rules-body > .ws-tester {
+    grid-column: 2;
+    grid-row: 1 / span 8;
+    position: sticky;
+    top: 1rem;
+  }
+  .ws-rules-body > .ws-tester .ws-tester-h {
+    margin-top: 1.375rem;
+  }
+}

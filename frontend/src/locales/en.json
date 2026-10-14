@@ -2432,11 +2432,118 @@
       "tester": "Test a name",
       "testerHint": "Type a file or folder name. WeebSync shows what it reads from it.",
       "testerEmpty": "Nothing recognized.",
-      "matchTitle": "Matching",
-      "matchText": "WeebSync searches AniList for the title, first with the season from the folder path, then without, then with the alternative title from the parentheses. Every hit gets points, the best one wins if it reaches the bar.",
-      "pointsTitle": "Points",
-      "loadTitle": "When a file is downloaded",
-      "loadText": "An auto-sync downloads every file whose target is not there at the same size yet. These reasons hold a file back:"
+      "traceLabel": "What WeebSync reads",
+      "samplesLabel": "Examples",
+      "samples": {
+        "apothecary": "Apothecary folder",
+        "absolute": "One Piece absolute",
+        "roman": "Roman season",
+        "year": "Year in parentheses"
+      },
+      "names": {
+        "title": "Reading names",
+        "seasonT": "Season",
+        "seasonD": "<m>S2</m>, <m>2nd Season</m>, <m>Season 2</m>, <m>second season</m> or Roman at the end (<m>II</m> to <m>V</m>). A bare number at the end is never a season, <i>Yami Shibai 10</i> stays a title.",
+        "langT": "Languages",
+        "langD": "Only tags in square brackets or parentheses, such as <m>[GerJapDub,GerEngSub]</m>. The file's tag counts before the folder's. A <m>[JapDub]</m> file in a <m>[GerJapDub]</m> folder has no German audio.",
+        "resT": "Resolution",
+        "resD": "<m>1080p</m>, <m>1920x1080</m>, <m>4K</m>. The highest one wins.",
+        "noneT": "No season",
+        "noneD": "Without a season in the name, it is season 1. Folders like <m>Season 2</m> or <m>Staffel.5</m> take the title of the folder above."
+      },
+      "scope": {
+        "title": "Where a folder is looked up",
+        "p1": "A marked folder decides where its <b>direct</b> subfolders are looked up: anime and manga on AniList, shows and movies on TMDB, shows on TVDB if chosen. It does not reach deeper. Letter shelves like <m>A</m> or <m>0-9</m> are the exception.",
+        "p2": "Rules carry a mark over to siblings of the same shape. <m>2026-2 Spring</m> becomes the shape <m>{n}-{n} {season}</m>, which then fits every season folder."
+      },
+      "match": {
+        "title": "Matching on AniList",
+        "intro": "The first search uses the title from the name and, when the path names a year and season, only that season. Then without a filter, with the alternative title, folded and finally without the season. Every candidate gets points:",
+        "pointsLabel": "Points per candidate",
+        "upTo": "up to +{{n}}",
+        "after1": "More than 2 years apart rules a candidate out. From {{n}} points a hit counts as sure. Folding means: no accents, no punctuation, long vowels short. <i>Haikyuu!!</i> then reads <i>Haikyu</i>.",
+        "after2": "<b>TMDB and TVDB</b> give no points. The first search hit wins there, on TVDB the first within 2 years.",
+        "after3": "Matches set by hand survive every rematch. When these rules change, WeebSync checks every automatic match once on the next start and drops those whose year is more than 2 years off."
+      },
+      "points": {
+        "title_fold": "Title equal after folding",
+        "title_strict": "Equal character by character",
+        "words": "Words overlap",
+        "contained": "Folder title sits whole in the series title",
+        "season_match": "Season fits",
+        "season_miss": "Season does not fit",
+        "season_base": "Base entry for a folder from season 2",
+        "movie": "Movie folder and movie entry",
+        "movie_tv": "Movie folder and TV entry",
+        "ova": "OVA folder and OVA, special or ONA entry",
+        "year": "Year at most 1 off",
+        "promo": "Teaser, trailer, PV"
+      },
+      "bundle": {
+        "title": "One series from many folders",
+        "p": "Folders with the same entry become one card. Seasons of a show join into one series through their TVDB or TMDB match, otherwise through the title without the season when the year is at most 1 off. Manga is never bundled."
+      },
+      "sync": {
+        "title": "Auto-sync",
+        "paceT": "Pace",
+        "paceD": "Every 30 minutes by default, from 5 up. Once every aired episode is there, the auto-sync waits for the next airing. After 12 hours at the latest it checks anyway, so v2 files are noticed.",
+        "failT": "Failure",
+        "failD": "Again after 1, 2, 4 minutes and so on, at most at the normal pace. It never gives up.",
+        "gapsT": "Gaps",
+        "gapsD": "Missing episodes between the lowest and the highest one present, per season. Specials never count as a gap.",
+        "behindT": "Behind",
+        "behindD": "Aired minus present. “Late” only when more is missing than aired in the last 2 days.",
+        "dubT": "Dub dates",
+        "dubD": "Measured dates plus an estimate: the original plus a lag, the median of the last 3 gaps. Without a measured episode the lag you set applies. Overdue from 7 days after the estimate.",
+        "absT": "Absolute numbers",
+        "absD": "With aired order WeebSync asks TVDB, then Plex, then TMDB for season and episode. Unknown episodes wait in <m>_Unsorted</m> and are sorted again every 30 minutes.",
+        "skipsIntro": "A file is not downloaded when:"
+      },
+      "skip": {
+        "outside_roots": {
+          "head": "Target outside the allowed folders",
+          "body": "Downloads only go into the allowed root folders."
+        },
+        "language": {
+          "head": "Language does not fit",
+          "body": "The tag in the file name counts before the folder's. Without one, WeebSync reads the audio tracks itself."
+        },
+        "worse_variant": {
+          "head": "There is a better release",
+          "body": "Same target: higher resolution wins, then more dubs, then more subtitles, then the larger file."
+        },
+        "present": {
+          "head": "Already there",
+          "body": "Same name and same size at the target. A different size is a re-release and replaces the old file."
+        },
+        "owned": {
+          "head": "Plex already has the episode",
+          "body": "Only when that is on in the settings and Plex knows the show by ID or folder, never by title alone."
+        },
+        "uploading": {
+          "head": "Still uploading",
+          "body": "Smaller than half the median of the episodes in the folder, from 3 episodes."
+        },
+        "queued": {
+          "head": "Already in the queue",
+          "body": "Same source or same target."
+        },
+        "blocked": {
+          "head": "The last attempt failed on the disk",
+          "body": "Full, read-only or no permission. It goes on once that is fixed."
+        }
+      },
+      "files": {
+        "title": "Files",
+        "partT": ".part",
+        "partD": "Downloads run as <m>.part</m> and resume there. Only a complete file gets its name.",
+        "retryT": "Retries",
+        "retryD": "10 attempts, a pause from 5 seconds, doubled up to 5 minutes. Missing permissions, a full or read-only disk and a failed rename are never retried on their own.",
+        "trashT": "Trash",
+        "trashD": "<m>.weebsync-trash</m> next to the original, deleted after 14 days.",
+        "upgradesT": "Upgrades",
+        "upgradesD": "Only whole steps count (720, 1080, 1440, 2160). An extra language only counts when it is one you want."
+      }
     }
   }
 }
