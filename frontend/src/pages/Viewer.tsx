@@ -448,6 +448,10 @@ export function Paged({
   const start = layout === 'double' ? spreadOf(page) : page
   const shown = layout === 'double' && start > 0 && start + 1 < count ? [start, start + 1] : [start]
   const last = shown[shown.length - 1]
+  // where the page or spread before and after this one starts (a spread's
+  // first page; the cover stands alone)
+  const after = layout === 'double' ? (start === 0 ? 1 : start + 2) : start + 1
+  const before = layout === 'double' ? (start === 0 ? -1 : start <= 1 ? 0 : start - 2) : start - 1
 
   // the strip mounts pages as they come near and keeps them, so nothing
   // above the reader shrinks under it
@@ -671,39 +675,39 @@ export function Paged({
   else if (count > 0)
     body = (
       <div ref={track} className="ws-rd-track">
-        {shown.length === 2 ? (
-          // the spread meets in the middle: the first page hugs the gutter from its side
-          <div className="ws-rd-unit">
-            <div className="ws-rd-spread" data-rtl={isRtl ? '' : undefined}>
-              {shown.map((i) => (
-                <div key={i} className={(i === shown[0]) !== isRtl ? 'justify-end' : 'justify-start'}>
-                  {render(i, 'height')}
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : (
-          // the page and, a screen to each side, the ones a drag brings in, so
-          // the next page is already there while the finger pulls. Keyed by
-          // page: on a turn the neighbour's element, picture loaded, simply
-          // becomes the middle one. ponytail: single pages only, a spread
-          // still slides in after the turn
-          [isRtl ? start + 1 : start - 1, start, isRtl ? start - 1 : start + 1].map((i, at) =>
-            i < 0 || i >= count || (at !== 1 && layout === 'double') ? null : (
-              <div
-                key={i}
-                className="ws-rd-unit"
-                data-at={at - 1}
-                data-fit={layout === 'double' ? 'height' : fit}
-                data-kind={kind}
-                aria-hidden={at !== 1 || undefined}
-                inert={at !== 1 || undefined}
-              >
-                {render(i, layout === 'double' ? 'height' : fit)}
+        {/* what is shown and, a screen to each side, what a drag brings in, so
+            the next page or spread is already there while the finger pulls.
+            Keyed by where it starts: on a turn the neighbour, pictures loaded,
+            simply becomes the middle one */}
+        {[isRtl ? after : before, start, isRtl ? before : after].map((s, at) => {
+          if (s < 0 || s >= count) return null
+          const pages = layout === 'double' && s > 0 && s + 1 < count ? [s, s + 1] : [s]
+          const side = at !== 1 || undefined
+          return pages.length === 2 ? (
+            <div key={s} className="ws-rd-unit" data-at={at - 1} aria-hidden={side} inert={side}>
+              {/* the spread meets in the middle: the first page hugs the gutter from its side */}
+              <div className="ws-rd-spread" data-rtl={isRtl ? '' : undefined}>
+                {pages.map((i) => (
+                  <div key={i} className={(i === s) !== isRtl ? 'justify-end' : 'justify-start'}>
+                    {render(i, 'height')}
+                  </div>
+                ))}
               </div>
-            ),
+            </div>
+          ) : (
+            <div
+              key={s}
+              className="ws-rd-unit"
+              data-at={at - 1}
+              data-fit={layout === 'double' ? 'height' : fit}
+              data-kind={kind}
+              aria-hidden={side}
+              inert={side}
+            >
+              {render(s, layout === 'double' ? 'height' : fit)}
+            </div>
           )
-        )}
+        })}
       </div>
     )
 
