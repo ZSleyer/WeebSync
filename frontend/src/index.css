@@ -7,6 +7,70 @@
 @import "@fontsource/ibm-plex-mono/400.css";
 @import "@fontsource/ibm-plex-mono/500.css";
 @import "tailwindcss";
+
+/* Metric-matched stand-ins for the web fonts while they load (font-display:
+   swap): Arial, or its metric twin Liberation Sans on Linux, scaled so a line
+   of UI text runs as wide and as tall as in Chakra Petch / IBM Plex Sans.
+   The swap then repaints the glyphs and moves nothing. The figures come from
+   the fonts' own tables: size-adjust is the ratio of the average advance over
+   a sample of the app's German and English UI text, the overrides are the web
+   font's hhea ascent, descent and line gap divided by that ratio. A weight
+   from 600 up measures against the bold face. The stacks in the design
+   system name these right after the web font. */
+@font-face {
+  font-family: "Chakra Petch Fallback";
+  font-weight: 500;
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans");
+  size-adjust: 103.59%;
+  ascent-override: 95.76%;
+  descent-override: 29.73%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Chakra Petch Fallback";
+  font-weight: 600;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold");
+  size-adjust: 98.74%;
+  ascent-override: 100.46%;
+  descent-override: 31.19%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Chakra Petch Fallback";
+  font-weight: 700;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold");
+  size-adjust: 100.36%;
+  ascent-override: 98.85%;
+  descent-override: 30.69%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "IBM Plex Sans Fallback";
+  font-weight: 400;
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans");
+  size-adjust: 100.29%;
+  ascent-override: 102.21%;
+  descent-override: 27.42%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "IBM Plex Sans Fallback";
+  font-weight: 500;
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("LiberationSans");
+  size-adjust: 102.24%;
+  ascent-override: 100.26%;
+  descent-override: 26.9%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "IBM Plex Sans Fallback";
+  font-weight: 600;
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("LiberationSans-Bold");
+  size-adjust: 96.94%;
+  ascent-override: 105.73%;
+  descent-override: 28.37%;
+  line-gap-override: 0%;
+}
 /* the design system: theme tokens and component styles, then its Tailwind
    bridge (which also points Tailwind's content scan at the package) */
 @import "../../design-system/src/fluid-lycoris.css";
