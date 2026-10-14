@@ -80,6 +80,10 @@ const TEAL = ['/watches', '/files']
 const ENTER_MS = 1200
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
+// screens that belong to a tab without sitting under its path: the history
+// and a title card are Heute's, Rename is a tool of Files
+const ALSO: Record<string, string[]> = { '/': ['/history', '/title/'], '/files': ['/rename'] }
+const tabCurrent = (n: NavEntry, path: string) => onPath(n, path) || !!ALSO[n.to]?.some((p) => path.startsWith(p))
 
 // Signed out, or an admin before the first server: whole screens of their own
 // that a signed-in session never needs, so they load only when shown. Until
@@ -576,10 +580,16 @@ function Shell({ email }: { email: string }) {
       </button>
       <nav className="ws-side-nav" aria-label={t('nav.main')}>
         {TABS.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-side-link" data-tone={tone(n)}>
+          <Link
+            key={n.to}
+            to={n.to}
+            aria-current={tabCurrent(n, location.pathname) ? 'page' : undefined}
+            className="ws-side-link"
+            data-tone={tone(n)}
+          >
             {icon(n)}
             {t(n.key)}
-          </NavLink>
+          </Link>
         ))}
       </nav>
       {/* settings at the foot, apart from the pages: visited rarely, but
@@ -659,11 +669,17 @@ function Shell({ email }: { email: string }) {
       <TabBar aria-label={t('nav.main')} hidden={keyboard}>
         <div className="ws-tabs">
           {PHONE_TABS.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'} className="ws-tab" data-tone={tone(n)}>
+            <Link
+              key={n.to}
+              to={n.to}
+              aria-current={tabCurrent(n, location.pathname) ? 'page' : undefined}
+              className="ws-tab"
+              data-tone={tone(n)}
+            >
               <span aria-hidden className="ws-pip" />
               {icon(n)}
               <span>{t(n.key)}</span>
-            </NavLink>
+            </Link>
           ))}
           {/* the search as Ctrl+K is on the desktop: the last entry, where the
             thumb rests, drawn like the tabs but opening the search */}
