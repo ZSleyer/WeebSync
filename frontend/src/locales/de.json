@@ -2,6 +2,7 @@
   "errors": {
     "net": {"refused": "Der Server ist nicht erreichbar, er lehnt die Verbindung ab.", "timeout": "Der Server antwortet nicht rechtzeitig.", "noHost": "Der Servername lässt sich nicht auflösen.", "reset": "Die Verbindung zum Server ist abgebrochen.", "unreachable": "Der Server ist aus diesem Netz nicht erreichbar.", "auth": "Der Server hat die Anmeldung abgelehnt.", "tls": "Das Zertifikat des Servers wird nicht anerkannt."},
     "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "setupToken": "Der Setup-Code fehlt oder stimmt nicht. Er steht im Server-Log.",
     "awaitingApproval": "Dein Konto wartet noch auf die Freigabe durch einen Admin.",
     "upgradeRequired": "Dein Konto muss erst abgesichert werden.",
     "emailUnverified": "Bestätige zuerst deine E-Mail-Adresse: der Link ist in deinem Postfach.",
@@ -391,6 +392,8 @@
     },
     "stepDone": "Fertig",
     "accountHint": "Dieses Konto wird Admin der Instanz. Alles Weitere richtest du danach Schritt für Schritt ein.",
+    "token": "Setup-Code",
+    "tokenHint": "Steht im Server-Log (Zeile mit „setup_token“). Er schützt eine frische Instanz davor, dass jemand anderes sie zuerst einrichtet.",
     "oidcHint": "Optional: zusätzlicher Login über einen OIDC-Provider (SSO). Leer lassen und überspringen, wenn du nur das Passwort-Konto nutzen willst; nachträglich änderbar unter Einstellungen, Sicherheit.",
     "closeRegistration": "Registrierung nach der Einrichtung schließen (empfohlen)",
     "closeRegistrationHint": "Für öffentlich erreichbare Instanzen empfohlen: verhindert, dass sich Fremde ein Konto anlegen. Neue Nutzer legst du danach über die Nutzerverwaltung an. Bei aktivem OIDC ist die Passwort-Registrierung ohnehin deaktiviert; neue OIDC-Nutzer werden nur für die erlaubten Gruppen automatisch angelegt.",

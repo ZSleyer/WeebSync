@@ -40,6 +40,7 @@ func doReq(mux *http.ServeMux, method, path, body string, c *http.Cookie) *httpt
 	if body != "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	req.Header.Set(setupTokenHeader, testSetupToken)
 	if c != nil {
 		req.AddCookie(c)
 	}

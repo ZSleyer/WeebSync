@@ -90,7 +90,15 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// closed-by-default registration never locks a fresh instance out;
 	// afterwards open registration must be explicitly enabled.
 	var existing int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing); err != nil {
+		dbErr(w)
+		return
+	}
+	// the first account becomes the admin: only with the token from the log
+	if existing == 0 && !s.setupTokenOK(r) {
+		writeErr(w, http.StatusForbidden, "setup token required")
+		return
+	}
 	if existing > 0 && auth.RegistrationDisabled(s.DB) {
 		writeErr(w, http.StatusForbidden, "registration is disabled")
 		return
@@ -416,6 +424,10 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "setup already completed")
 		return
 	}
+	if !s.setupTokenOK(r) {
+		writeErr(w, http.StatusForbidden, "setup token required")
+		return
+	}
 	var in struct {
 		BaseURL          string `json:"baseUrl"`
 		OidcProviderName string `json:"oidcProviderName"`
@@ -501,6 +513,10 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	}
 	if u := auth.UserFrom(r.Context()); users > 0 && (u == nil || !u.IsAdmin) {
 		writeErr(w, http.StatusForbidden, "admin only")
+		return
+	}
+	if users == 0 && !s.setupTokenOK(r) {
+		writeErr(w, http.StatusForbidden, "setup token required")
 		return
 	}
 	var in struct {

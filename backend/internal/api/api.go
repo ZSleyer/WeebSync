@@ -104,6 +104,9 @@ type Server struct {
 	testLimiter *ipLimiter
 	// replaces the security notice's mail send in tests
 	securityMail func(to, subject, text, html string) error
+	// the first-run setup token (see setup_token.go)
+	setupMu    sync.Mutex
+	setupToken string
 	// the passkey challenge: the login page asks for one on every visit, so it
 	// gets a budget of its own instead of eating the password attempts
 	challengeLimiter *ipLimiter
@@ -140,6 +143,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// settings before the first request arrives; env still wins over them
 	s.applyProxyConfig()
 	s.hashLegacyVerifyTokens()
+	s.ensureSetupToken()
 	if s.OIDC != nil {
 		s.OIDC.OnPending = s.notifyPendingUser
 	}
@@ -192,7 +196,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("DELETE /api/auth/sessions/{id}", authed(http.HandlerFunc(s.handleSessionDelete)))
 	mux.Handle("PUT /api/auth/password", authed(s.authLimiter.limit(s.handlePasswordChange)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
-	mux.HandleFunc("POST /api/auth/setup/oidc", s.handleSetupOIDC)
+	mux.HandleFunc("POST /api/auth/setup/oidc", s.authLimiter.limit(s.handleSetupOIDC))
 	// optional session: guarded inside (open during first-run, admin afterwards)
 	mux.Handle("POST /api/auth/oidc/discover", auth.Middleware(s.DB, false)(http.HandlerFunc(s.handleOIDCDiscover)))
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)

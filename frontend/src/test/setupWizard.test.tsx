@@ -37,6 +37,8 @@ describe('Setup wizard', () => {
     expect(screen.getByLabelText('login.email')).toBeTruthy()
     fireEvent.click(screen.getByRole('switch'))
     expect(screen.queryByLabelText('login.email')).toBeNull()
+    // the code from the server log is asked for on either path
+    fireEvent.change(screen.getByLabelText('setup.token'), { target: { value: 'abcd-efgh' } })
     fireEvent.click(screen.getByRole('button', { name: 'setup.continue' }))
     expect(post).not.toHaveBeenCalled()
     expect(screen.getByRole('heading', { level: 2 }).textContent).toBe('setup.oidcTitle')

@@ -41,6 +41,26 @@ const storedStep = (initial: Step): Step => {
   return s && s !== 'account' && STEPS.includes(s) ? s : initial
 }
 
+// The first-run token from the server log: the account and provider steps
+// carry it until the first account exists. Kept for the tab, so the provider
+// detour of the OIDC-only path does not ask for it twice.
+const SETUP_TOKEN_KEY = 'ws-setup-token'
+function readSetupToken(): string {
+  try {
+    return sessionStorage.getItem(SETUP_TOKEN_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+function writeSetupToken(v: string) {
+  try {
+    sessionStorage.setItem(SETUP_TOKEN_KEY, v)
+  } catch {
+    // storage blocked: the field still holds it for this page
+  }
+}
+const setupHeader = () => ({ 'X-Setup-Token': readSetupToken() })
+
 export default function Setup({
   initialStep = 'account',
   onDone,
@@ -52,6 +72,7 @@ export default function Setup({
 }) {
   const { t, i18n } = useTranslation()
   const qc = useQueryClient()
+  const [setupToken, setSetupToken] = useState(readSetupToken)
   const [step, setStep] = useState<Step>(() => storedStep(initialStep))
   useEffect(() => {
     sessionStorage.setItem(STEP_KEY, step)
@@ -125,7 +146,7 @@ export default function Setup({
     if (password !== again) return setError(t('account.passwordMismatch'))
     run(async () => {
       // locale rides along so server-delivered texts match the ui language
-      await api.post('/api/auth/register', { email, password, locale: i18n.language })
+      await api.post('/api/auth/register', { email, password, locale: i18n.language }, setupHeader())
       setStep('oidc')
     })
   }
@@ -155,10 +176,11 @@ export default function Setup({
   // It only stores the config; the wizard then waits for the first OIDC login.
   const saveOidcOnly = () =>
     run(async () => {
-      const out = await api.post<{ oidcEnabled: boolean; oidcError?: string }>('/api/auth/setup/oidc', {
-        ...oidc,
-        baseUrl: window.location.origin,
-      })
+      const out = await api.post<{ oidcEnabled: boolean; oidcError?: string }>(
+        '/api/auth/setup/oidc',
+        { ...oidc, baseUrl: window.location.origin },
+        setupHeader(),
+      )
       if (out.oidcError || !out.oidcEnabled) {
         setError(out.oidcError || t('app.error'))
         return
@@ -174,7 +196,7 @@ export default function Setup({
 
   const discover = () =>
     run(async () => {
-      const out = await api.post<{ issuer: string }>('/api/auth/oidc/discover', { url: oidc.oidcIssuer })
+      const out = await api.post<{ issuer: string }>('/api/auth/oidc/discover', { url: oidc.oidcIssuer }, setupHeader())
       setOidc((o) => ({ ...o, oidcIssuer: out.issuer }))
       setDiscovered(out.issuer)
     })
@@ -260,6 +282,25 @@ export default function Setup({
             <div className="ws-su-body">
               {heading(t('setup.accountTitle'))}
               <p className="ws-quiet">{t('setup.accountHint')}</p>
+              <label htmlFor="setup-token" className="ws-lbl">
+                {t('setup.token')}
+              </label>
+              <Input
+                id="setup-token"
+                required
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby="setup-token-hint"
+                className="font-mono"
+                value={setupToken}
+                onChange={(e) => {
+                  setSetupToken(e.target.value)
+                  writeSetupToken(e.target.value)
+                }}
+              />
+              <p id="setup-token-hint" className="ws-login-hint">
+                {t('setup.tokenHint')}
+              </p>
               <Switch
                 label={<span className="text-sm font-medium">{t('setup.noLocalAccount')}</span>}
                 aria-describedby="setup-oidc-only-hint"
