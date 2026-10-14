@@ -1,0 +1,58 @@
+/* ── the user's own AniList entry on the series page ── */
+.ws-my {
+  margin: 0 0 1.25rem;
+  max-width: 44rem;
+}
+.ws-my-quiet {
+  margin: 0.5rem 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--fg-2);
+}
+.ws-my .ws-my-quiet {
+  margin-bottom: 0;
+}
+.ws-my-grid {
+  display: grid;
+  gap: 0.75rem 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  align-items: end;
+}
+.ws-my-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+.ws-my-field > label {
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-my-step {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ws-my-num {
+  width: 4.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.ws-my-of {
+  font-size: 0.875rem;
+  color: var(--fg-2);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ws-my-ro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin: 0;
+}
+.ws-my-ro dt {
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-my-ro dd {
+  margin: 0;
+  font-weight: 500;
+}

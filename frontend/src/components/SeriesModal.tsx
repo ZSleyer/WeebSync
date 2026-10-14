@@ -40,6 +40,7 @@ import { WatchExplain } from './WatchExplain'
 import { CheckButton } from './CheckButton'
 import { CoverImg } from './SmartImg'
 import { Cast, Community, MatchSection, MoreWatches, Similar } from './SeriesSections'
+import { MyAnilist } from './MyAnilist'
 import './series.css'
 
 /** What a caller hands the series page: which title, and what it already knows. */
@@ -1096,6 +1097,22 @@ function SeriesCard({
                         <h2 id={hid(k)} className="sr-only">
                           {t('series.tab.overview')}
                         </h2>
+                        {/* the user's own list entry first: what they will most often
+                            come to change. Episodes on disk count from the
+                            folder's first record episode */}
+                        {source === 'anilist' && stage > 0 && (
+                          <div className="ws-d-late">
+                            <MyAnilist
+                              mediaId={cur.id}
+                              title={name}
+                              onDisk={
+                                lead && lead.localFiles > 0
+                                  ? lead.localFiles + Math.max(lead.fromEpisode, 1) - 1
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        )}
                         {/* not in the morph's first frame (only the head morphs): it rises in after */}
                         {media && stage > 0 && (
                           <div className="ws-d-late">
