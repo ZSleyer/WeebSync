@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
+import { useLocation } from 'react-router'
 import { Badge, Button, Input, Select, SettingsField, Switch } from 'fluid-lycoris'
 import './integrations.css'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
@@ -117,8 +118,30 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
   )
 }
 
+// a link like /settings/integrations#anilist scrolls to its panel; the panels
+// come with the settings, so it looks for the target for a second of frames
+function useHashPanel() {
+  const { hash } = useLocation()
+  useEffect(() => {
+    const id = hash.slice(1)
+    if (!id) return
+    const still =
+      matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'off'
+    let tries = 0
+    let raf = 0
+    const go = () => {
+      const el = document.getElementById(id)
+      if (el) el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+      else if (tries++ < 60) raf = requestAnimationFrame(go)
+    }
+    raf = requestAnimationFrame(go)
+    return () => cancelAnimationFrame(raf)
+  }, [hash])
+}
+
 export default function Integrations() {
   const { t } = useTranslation()
+  useHashPanel()
   const { form, set, save, saved, locked, dirty, issue, reset } = useSettingsForm()
   if (!form) return null
 
