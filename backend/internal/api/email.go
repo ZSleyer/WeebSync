@@ -143,7 +143,9 @@ func (s *Server) sendVerifyEmail(to, token, locale string) {
 // sendResetEmail delivers a password reset link. Fire-and-forget like the
 // verification mail: the asker gets the same answer either way.
 func (s *Server) sendResetEmail(to, token, locale string) {
-	link := s.baseURL() + "/?reset=" + token
+	// in the fragment: a browser never sends it, so the token stays out of
+	// the reverse proxy's access log and the server's own
+	link := s.baseURL() + "/#reset=" + token
 	intro, ignore := tr(locale, "email.resetIntro"), tr(locale, "email.resetIgnore")
 	text := intro + "\r\n" + link + "\r\n\r\n" + ignore
 	button := `<p style="margin:18px 0"><a href="` + html.EscapeString(link) + `" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.resetButton")) + `</a></p>` +

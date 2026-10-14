@@ -21,9 +21,11 @@ interface AuthConfig {
 }
 
 // what the address brings, read once: the token of a password reset link, a
-// sign-in the provider refused, and a fresh logout
+// sign-in the provider refused, and a fresh logout. The reset token comes in
+// the fragment (never sent to a server, so never in an access log); links
+// mailed before that carried it in the query.
 const landing = new URLSearchParams(window.location.search)
-const resetToken = landing.get('reset') ?? ''
+const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? landing.get('reset') ?? ''
 const oidcError = landing.get('oidc_error') ?? ''
 const loggedOut = landing.has('loggedout')
 // a refused sign-in or a logout must not bounce back to the provider
