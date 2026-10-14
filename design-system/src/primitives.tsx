@@ -312,13 +312,13 @@ export interface LoadingIndicatorProps {
 
 /**
  * Indeterminate loading, the design's own: a red and a teal half that turn
- * and flow from shape to shape, two dots that run together, a yin and yang
- * twisted as if still stirring, a flower cut in two, two diamonds (shapes in
+ * and flow from shape to shape, two dots that run into a passing hint of a
+ * yin and yang and back out, a flower cut in two, two diamonds (shapes in
  * duo.ts). A light goo filter (blur, then a hard alpha edge) keeps every
  * outline liquid and round while the seams stay open. For a wait with
  * nothing to measure. It shows only once the wait has lasted a moment, so a
  * quick answer never flashes it; the status is in the tree from the start.
- * Motion off: the yin and yang, still.
+ * Motion off: the two dots, still.
  */
 export function LoadingIndicator({ label, showLabel, size = 'md', className }: LoadingIndicatorProps) {
   const goo = `goo${useId().replace(/\W/g, '')}`

@@ -1,6 +1,6 @@
 // The shapes of the loading duo (LoadingIndicator). Two halves, one red and
-// one teal: two dots, the dots run together, a yin and yang twisted as if
-// still stirring, a flower split down the middle, two diamonds. Each shape is
+// one teal: two dots, a small yin and yang twisted as if still stirring, a
+// flower split down the middle, two diamonds. Each shape is
 // the same number of points in the same order (from the top, clockwise), so
 // clip-path morphs one into the next in every engine; WebKit can't morph a
 // path. The goo filter over them rounds what a morph leaves sharp.
@@ -53,17 +53,36 @@ const poly = (pts: Pt[]) => `polygon(${resample(pts).map(([x, y]) => `${x.toFixe
 
 // red's half of the yin and yang, with a seam of 2G to teal's like the
 // flower's cut: teal's head (r 25 - G) leaves a hollow of r 25 + G in red,
-// red's own head is r 25 - G. Clockwise from the tip of red's tail, where
-// the hollow meets the rim: round the hollow, down red's head, back up the
-// rim. The tail tapers to that tip by itself.
-const G = 3
-const rimDeg = 180 - (Math.asin(((25 + G) ** 2 - 3125) / 2500) * 180) / Math.PI
-const tip: Pt = [50 + 50 * Math.cos(rad(rimDeg)), 50 + 50 * Math.sin(rad(rimDeg))]
-const hollowDeg = (Math.atan2(tip[1] - 25, tip[0] - 50) * 180) / Math.PI + 360
+// red's own head is r 25 - G. The tail stops at TAIL degrees round the rim
+// with a round end; run out to a point it was thinner than the goo filter
+// can hold and broke off square. Clockwise: round the hollow, down red's
+// head, up the rim, over the round end.
+const G = 5
+const TAIL = 215
+const deg = (a: number) => (a * 180) / Math.PI
+const tailEnd: Pt = [50 + 50 * Math.cos(rad(TAIL)), 50 + 50 * Math.sin(rad(TAIL))]
+const toHollow = Math.atan2(tailEnd[1] - 25, tailEnd[0] - 50)
+const tailIn: Pt = [50 + (25 + G) * Math.cos(toHollow), 25 + (25 + G) * Math.sin(toHollow)]
+const mid: Pt = [(tailEnd[0] + tailIn[0]) / 2, (tailEnd[1] + tailIn[1]) / 2]
+const from = deg(Math.atan2(tailEnd[1] - mid[1], tailEnd[0] - mid[0]))
+// the end bulges on along the rim, the way the tail was going
+const ahead = (sweep: number) => {
+  const a = rad(from + sweep / 2)
+  const r = Math.hypot(tailEnd[0] - mid[0], tailEnd[1] - mid[1])
+  return deg(Math.atan2(mid[1] + r * Math.sin(a) - 50, mid[0] + r * Math.cos(a) - 50) + 2 * Math.PI) % 360
+}
+const sweep = ahead(180) > ahead(-180) ? 180 : -180
+const capR = Math.hypot(tailEnd[0] - mid[0], tailEnd[1] - mid[1])
+// a hint, not the full sign: at 62 % it is gone again before it settles
 const yin = swirl(
-  [...arc(50, 25, 25 + G, hollowDeg, 90), ...arc(50, 75, 25 - G, -90, 90), ...arc(50, 50, 50, 90, rimDeg, 96)],
+  [
+    ...arc(50, 25, 25 + G, deg(toHollow) + 360, 90),
+    ...arc(50, 75, 25 - G, -90, 90),
+    ...arc(50, 50, 50, 90, TAIL, 96),
+    ...arc(mid[0], mid[1], capR, from, from + sweep, 24),
+  ],
   0.45,
-)
+).map(([x, y]): Pt => [50 + (x - 50) * 0.62, 50 + (y - 50) * 0.62])
 
 // red's half of an eight-petal flower: up the petals, the cut closes it
 const petal = (a: number) => 44 * (1 + 0.09 * Math.cos(8 * a))
@@ -82,10 +101,10 @@ const diamond = (cx: number, cy: number, r: number): Pt[] =>
 
 const dot = (cx: number, r: number) => arc(cx, 50, r, 0, 360, 128)
 
-const red = [dot(28, 18), dot(42, 20), yin, flower, diamond(34, 34, 24)]
-const teal = [dot(74, 13), dot(60, 15), turn(yin), mirror(flower), diamond(68, 68, 18)]
+const red = [dot(28, 18), yin, flower, diamond(34, 34, 24)]
+const teal = [dot(74, 13), turn(yin), mirror(flower), diamond(68, 68, 18)]
 
-/** --a0..4 (red) and --b0..4 (teal), for the duo's inline style */
+/** --a0..3 (red) and --b0..3 (teal), for the duo's inline style */
 export const DUO_SHAPES = Object.fromEntries([
   ...red.map((s, i) => [`--a${i}`, poly(s)]),
   ...teal.map((s, i) => [`--b${i}`, poly(s)]),
