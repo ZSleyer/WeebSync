@@ -1,6 +1,6 @@
 import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { newImageUrls, smoothRefresh } from '../smoothRefresh'
+import { newImageUrls, REFRESH_CAP_MS, smoothRefresh } from '../smoothRefresh'
 
 const doc = document as unknown as { startViewTransition?: unknown }
 
@@ -33,6 +33,28 @@ describe('smoothRefresh', () => {
     expect(order).toEqual(['done mark', 'swap'])
     expect(inside).toBe('v1')
     expect(qc.getQueryData(['k'])).toBe('v2')
+    off()
+  })
+
+  it('swaps what is in by the deadline and lands a slow answer later', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    const qc = new QueryClient()
+    let n = 0
+    let slow: (v: string) => void = () => {}
+    const off = watched(qc, () => (++n === 1 ? Promise.resolve('v1') : new Promise<string>((r) => (slow = r))))
+    await vi.waitFor(() => expect(qc.getQueryData(['k'])).toBe('v1'))
+    doc.startViewTransition = vi.fn((cb: () => Promise<void>) => ({ finished: cb() }))
+    let marked = false
+    const run = smoothRefresh(qc, () => {
+      marked = true
+    })
+    await vi.advanceTimersByTimeAsync(REFRESH_CAP_MS)
+    await vi.waitFor(() => expect(marked).toBe(true))
+    expect(qc.getQueryData(['k'])).toBe('v1')
+    slow('v2')
+    await vi.waitFor(() => expect(qc.getQueryData(['k'])).toBe('v2'))
+    vi.useRealTimers()
+    await run
     off()
   })
 
