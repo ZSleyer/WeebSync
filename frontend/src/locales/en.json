@@ -287,7 +287,6 @@
     "passkey": "Sign in with a passkey",
     "useSecurityKey": "Use security key",
     "passkeyFailed": "Passkey sign-in failed.",
-    "claim": "Fetches your series as soon as they air.",
     "modeLogin": "Sign in",
     "forgotShort": "Forgot?",
     "or": "or",

@@ -247,7 +247,6 @@ export default function Login() {
         <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
           <Brand variant="hero" slogan={t('login.tagline')} />
         </h1>
-        <p className="ws-login-claim">{t('login.claim')}</p>
       </div>
       <div className="ws-login-side">
         <div key={stage} className="ws-login-form ws-stage">

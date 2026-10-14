@@ -21,12 +21,6 @@
 .ws-login-hero h1 {
   margin: 0;
 }
-.ws-login-claim {
-  margin: 0;
-  color: var(--fg-3);
-  font-size: 0.875rem;
-  text-align: center;
-}
 .ws-login-side {
   display: grid;
   justify-items: center;
