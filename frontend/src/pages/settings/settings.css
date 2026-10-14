@@ -249,6 +249,27 @@
   opacity: 0.6;
 }
 
+/* ── A form in a dialog: title, the fields scrolling, a footer under a
+   hairline with Abbrechen and the main action ── */
+.form-dlg-h {
+  margin: 0;
+  padding: 1.25rem 1.25rem 0.75rem;
+  font: 600 var(--fs-sheet) / 1.25 var(--f-display);
+}
+.form-dlg-bd {
+  min-height: 0;
+  padding: 0 1.25rem 1.25rem;
+}
+.dlg-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  padding: 0.75rem 1.25rem calc(0.75rem + var(--safe-b, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--surface, var(--card));
+}
+
 /* ── The colour scheme: two cards, each with its pair of slanted swatches ── */
 .set-schemes {
   display: grid;

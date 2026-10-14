@@ -2012,6 +2012,8 @@
     "canceled": "abgebrochen"
   },
   "servers": {
+    "localColor": "Farbe für lokale Dateien",
+    "maxConn": "Max. {{n}} Verbindungen",
     "hostKeys": "Host-Keys",
     "hostKeysHint": "Der Schlüssel, dem WeebSync bei jedem SFTP-Server vertraut. Meldet ein Server einen anderen, stoppt jede Verbindung, bis du den neuen geprüft hast.",
     "hostKeyNone": "Noch keinem Schlüssel vertraut",
@@ -2038,7 +2040,7 @@
     "ruleSeason": "Jahreszeit",
     "ruleDelete": "Regel entfernen",
     "ruleConfirmDelete": "Regel entfernen? Ordner, die nur durch sie markiert waren, werden nicht mehr automatisch zugeordnet. Bereits gefundene Zuordnungen bleiben.",
-    "local": "Lokale Bibliothek",
+    "local": "Lokal",
     "ftpOption": "FTP (unverschlüsselt, veraltet)",
     "port": "Port",
     "host": "Host",

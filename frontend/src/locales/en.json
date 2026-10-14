@@ -2012,6 +2012,8 @@
     "canceled": "canceled"
   },
   "servers": {
+    "localColor": "Colour for local files",
+    "maxConn": "Max. {{n}} connections",
     "hostKeys": "Host keys",
     "hostKeysHint": "The key WeebSync trusts for each SFTP server. If a server presents another one, every connection stops until you have reviewed the new key.",
     "hostKeyNone": "No key trusted yet",
@@ -2038,7 +2040,7 @@
     "ruleSeason": "season",
     "ruleDelete": "Remove rule",
     "ruleConfirmDelete": "Remove this rule? Folders only it marked are no longer matched on their own. Matches already found stay.",
-    "local": "Local library",
+    "local": "Local",
     "ftpOption": "FTP (unencrypted, deprecated)",
     "port": "Port",
     "host": "Host",

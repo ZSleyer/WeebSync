@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { KeyRound, Lock, LockOpen, Pencil, Plus, PlugZap, Save, Trash2, X } from 'lucide-react'
+import { Plus, Server } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ActionBar, Badge, Button, Dialog, EmptyState, Field, Input, Panel, Segmented, Select } from 'fluid-lycoris'
+import { Badge, Button, Dialog, Field, Input, RowAction, Segmented, Select, SettingsField } from 'fluid-lycoris'
 import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
-import { PageFooter } from '../../components/PageActions'
 import { useAuth } from '../../hooks'
+import { SettingsPanel } from './ui'
 import { ScopeRules } from './Matching'
 import { SERVER_ICONS, ServerIcon } from '../../components/serverIcon'
 import {
@@ -72,54 +72,48 @@ export default function Servers() {
     setTestResult((r) => ({ ...r, [id]: t('servers.hostKeyRejected') }))
   }
 
-  return (
-    <div>
-      {/* the settings frame carries the title and the menu names the section,
-          so the page starts with its one primary action: top right on desktop,
-          the shell's footer row on a phone (a portal, so the hidden header
-          does not hide it there) */}
-      <header className="mb-4 hidden justify-end lg:flex">
-        <PageFooter>
-          <ActionBar aria-label={t('servers.add')} sticky={false}>
-            <Button variant="primary" onClick={() => openDialog(null)}>
-              <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('servers.add')}
-            </Button>
-          </ActionBar>
-        </PageFooter>
-      </header>
+  const status = (id: number) => {
+    const r = testResult[id]
+    if (!r) return null
+    if (r === '…') return <Badge>{t('servers.testing')}</Badge>
+    return r === 'ok' ? (
+      <Badge tone="ok">{t('servers.connected')}</Badge>
+    ) : (
+      <Badge tone="err">{t('servers.failed')}</Badge>
+    )
+  }
+  const sftp = servers.filter((s) => s.protocol === 'sftp')
 
-      {servers.length === 0 && <EmptyState>{t('servers.none')}</EmptyState>}
-      <LocalColor />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+  return (
+    <>
+      <SettingsPanel title={t('nav.servers')}>
+        {servers.length === 0 && <p className="sf-note">{t('servers.none')}</p>}
         {servers.map((s) => (
-          <Panel key={s.id} className="p-4">
-            <div className="mb-2 flex items-center gap-2">
-              <Badge tone={s.protocol === 'ftp' ? 'warn' : 'accent'}>
-                {s.protocol === 'ftp' ? <LockOpen aria-hidden size="1em" /> : <Lock aria-hidden size="1em" />}
-                {s.protocol}
-              </Badge>
-              <span aria-hidden className="t-src-dot" style={tint(serverColor(s.id, s.color))} />
-              <h3 className="min-w-0 flex-1 truncate font-display font-semibold">{s.name}</h3>
+          <article key={s.id} className="srv" aria-labelledby={`srv-${s.id}`}>
+            <div className="srv-h">
+              <span className="srv-ic" aria-hidden style={tint(serverColor(s.id, s.color))}>
+                {s.icon ? <ServerIcon name={s.icon} size="1.25rem" /> : <Server size="1.25rem" />}
+              </span>
+              <div className="t">
+                <strong id={`srv-${s.id}`}>{s.name}</strong>
+                <span className="font-mono">
+                  {s.protocol} · {s.username}@{s.host}:{s.port} · {s.rootPath}
+                </span>
+              </div>
+              <span aria-live="polite">{status(s.id)}</span>
             </div>
-            <p className="truncate font-mono text-xs text-t-muted" title={`${s.username}@${s.host}:${s.port}`}>
-              {s.username}@{s.host}:{s.port}
-            </p>
-            <p className="mb-3 font-mono text-xs text-t-muted">root: {s.rootPath}</p>
             {/* plain FTP still works, it is only on its way out: the card says so,
                 since a server set up long ago never opens the form again */}
             {s.protocol === 'ftp' && (
-              <p className="mb-3 text-xs text-warn" role="note">
+              <p className="sf-note text-warn" role="note">
                 {t('servers.ftpDeprecated')}
               </p>
             )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={() => test(s.id)}>
-                <PlugZap aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('servers.test')}
+            <div className="sf-acts">
+              <Button size="sm" onClick={() => test(s.id)} disabled={testResult[s.id] === '…'}>
+                {testResult[s.id] === '…' ? t('servers.testing') : t('servers.test')}
               </Button>
               <Button size="sm" onClick={() => openDialog(s)}>
-                <Pencil aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.edit')}
               </Button>
               <Button
@@ -130,21 +124,12 @@ export default function Servers() {
                     del.mutate(s.id)
                 }}
               >
-                <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 {t('servers.delete')}
               </Button>
-              {testResult[s.id] && (
-                <Badge tone={testResult[s.id] === 'ok' ? 'ok' : testResult[s.id] === '…' ? 'neutral' : 'err'}>
-                  {testResult[s.id] === 'ok'
-                    ? t('servers.connected')
-                    : testResult[s.id] === '…'
-                      ? t('servers.testing')
-                      : t('servers.failed')}
-                </Badge>
-              )}
+              <span className="text-ctl-sm text-t-muted">{t('servers.maxConn', { n: s.maxConnections })}</span>
             </div>
             {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && !keyConflict[s.id] && (
-              <p className="mt-2 break-all text-xs text-err" role="alert">
+              <p className="sf-issue mt-2 break-all" role="alert">
                 {testResult[s.id]}
               </p>
             )}
@@ -160,65 +145,63 @@ export default function Servers() {
                 onRejected={() => rejectKey(s.id)}
               />
             )}
-          </Panel>
+          </article>
         ))}
-      </div>
+        <div className="sf-acts">
+          <Button variant="primary" onClick={() => openDialog(null)}>
+            <Plus aria-hidden size="1em" />
+            {t('servers.add')}
+          </Button>
+        </div>
+      </SettingsPanel>
 
       {/* every SFTP server's pinned key in one place: a check shows a changed
           key as the old and the new fingerprint, to accept or reject */}
-      {servers.some((s) => s.protocol === 'sftp') && (
-        <section className="mt-8" aria-labelledby="host-keys">
-          <h3 id="host-keys" className="mb-1 font-display font-semibold tracking-wider">
-            {t('servers.hostKeys')}
-          </h3>
-          <p className="mb-3 text-sm text-pretty text-t-secondary">{t('servers.hostKeysHint')}</p>
-          <Panel>
-            <ul className="divide-y divide-border-subtle">
-              {servers
-                .filter((s) => s.protocol === 'sftp')
-                .map((s) => (
-                  <li key={s.id} className="grid gap-2 p-3">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <span className="min-w-28 flex-1 font-medium sm:flex-none">{s.name}</span>
-                      {s.hostKey ? (
-                        <code className="order-last w-full font-mono text-xs break-all text-t-secondary sm:order-none sm:w-auto sm:min-w-0 sm:flex-1">
-                          {s.hostKey}
-                        </code>
-                      ) : (
-                        <span className="order-last w-full text-sm text-warn sm:order-none sm:w-auto sm:flex-1">
-                          {t('servers.hostKeyNone')}
-                        </span>
-                      )}
-                      {checkedIn[s.id] === 'keys' && testResult[s.id] === 'ok' && (
-                        <Badge tone="ok">{t('servers.hostKeySame')}</Badge>
-                      )}
-                      <Button size="sm" onClick={() => test(s.id, 'keys')}>
-                        <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                        {t('servers.hostKeyCheck')}
-                      </Button>
-                    </div>
-                    {checkedIn[s.id] === 'keys' && keyConflict[s.id] && (
-                      <HostKeyPrompt
-                        serverId={s.id}
-                        conflict={keyConflict[s.id]!}
-                        onAccepted={() => {
-                          qc.invalidateQueries({ queryKey: ['servers'] })
-                          void test(s.id, 'keys')
-                        }}
-                        onRejected={() => rejectKey(s.id)}
-                      />
+      {sftp.length > 0 && (
+        <SettingsPanel title={t('servers.hostKeys')} desc={t('servers.hostKeysHint')}>
+          <ul className="t-rows">
+            {sftp.map((s) => (
+              <li key={s.id} className="t-row">
+                <div className="t-row-in">
+                  <div className="t-row-t">
+                    <strong>{s.name}</strong>
+                    {s.hostKey ? (
+                      <code className="block font-mono text-ctl-sm break-all text-t-muted">{s.hostKey}</code>
+                    ) : (
+                      <span className="text-warn">{t('servers.hostKeyNone')}</span>
                     )}
-                  </li>
-                ))}
-            </ul>
-          </Panel>
-        </section>
+                  </div>
+                  {checkedIn[s.id] === 'keys' && testResult[s.id] === 'ok' && (
+                    <Badge tone="ok">{t('servers.hostKeySame')}</Badge>
+                  )}
+                  <RowAction onClick={() => test(s.id, 'keys')}>{t('servers.hostKeyCheck')}</RowAction>
+                </div>
+                {checkedIn[s.id] === 'keys' && keyConflict[s.id] && (
+                  <HostKeyPrompt
+                    className="mb-3"
+                    serverId={s.id}
+                    conflict={keyConflict[s.id]!}
+                    onAccepted={() => {
+                      qc.invalidateQueries({ queryKey: ['servers'] })
+                      void test(s.id, 'keys')
+                    }}
+                    onRejected={() => rejectKey(s.id)}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </SettingsPanel>
       )}
+
+      <SettingsPanel title={t('servers.local')}>
+        <LocalColor />
+      </SettingsPanel>
 
       {/* an admin finds the folder rules with the index and the matches */}
       {!user?.isAdmin && <ScopeRules />}
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
-    </div>
+    </>
   )
 }
 
@@ -312,11 +295,14 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}
     >
       {/* key remounts the form so defaultValues follow the edited server */}
-      <form key={editing?.id ?? 'new'} onSubmit={submit} onChange={() => setDirty(true)} className="p-6">
-        <h3 className="mb-4 font-display text-lg font-semibold tracking-wider">
-          {editing ? t('servers.editTitle') : t('servers.newTitle')}
-        </h3>
-        <div className="grid gap-3 sm:grid-cols-2">
+      <form
+        key={editing?.id ?? 'new'}
+        onSubmit={submit}
+        onChange={() => setDirty(true)}
+        className="dialog-body form-dlg"
+      >
+        <h2 className="form-dlg-h">{editing ? t('servers.editTitle') : t('servers.newTitle')}</h2>
+        <div className="form-dlg-bd grid gap-3 overflow-y-auto sm:grid-cols-2">
           <Field label={t('servers.name')} className="sm:col-span-2">
             <Input name="name" required defaultValue={editing?.name} />
           </Field>
@@ -398,22 +384,18 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             </p>
           )}
           <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
+          {error && (
+            <p className="sf-issue sm:col-span-2" role="alert">
+              {error}
+            </p>
+          )}
         </div>
-        {error && (
-          <p className="mt-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-            {error}
-          </p>
-        )}
-        <div className="mt-5 flex justify-end gap-2">
-          <Button onClick={cancel}>
-            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('servers.cancel')}
-          </Button>
+        <footer className="dlg-foot">
+          <Button onClick={cancel}>{t('servers.cancel')}</Button>
           <Button type="submit" variant="primary" disabled={busy}>
-            <Save aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
             {t('servers.save')}
           </Button>
-        </div>
+        </footer>
       </form>
     </Dialog>
   )
@@ -461,9 +443,7 @@ function LocalColor() {
   const { t } = useTranslation()
   const [value, setValue] = useState<string>(localColor)
   return (
-    <Panel className="mb-3 flex flex-wrap items-center gap-3 p-4">
-      <span aria-hidden className="t-src-dot" style={tint(localColor())} />
-      <span className="min-w-0 flex-1 font-display font-semibold">{t('palette.local')}</span>
+    <SettingsField label={t('servers.localColor')}>
       <ColorChoice
         value={value === LOCAL_DEFAULT ? '' : value}
         auto={LOCAL_DEFAULT}
@@ -473,6 +453,6 @@ function LocalColor() {
           setValue(next)
         }}
       />
-    </Panel>
+    </SettingsField>
   )
 }
