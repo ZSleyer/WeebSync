@@ -184,7 +184,7 @@ const sectionOf = (name: string) =>
   document.getElementById(screen.getByRole('link', { name }).getAttribute('href')!.slice(1))!
 
 describe('SeriesModalProvider', () => {
-  it('opens the one series page with the record and the caller rows', () => {
+  it('opens the one series page with the record and the caller rows', async () => {
     serve()
     target = { id: 7, media, extra: <p>Versionen: 2</p> }
     app()
@@ -192,7 +192,9 @@ describe('SeriesModalProvider', () => {
     fireEvent.click(screen.getByText('öffnen'))
     const page = screen.getByRole('dialog', { name: 'Frieren' })
     expect(page).toHaveTextContent('Frieren')
-    expect(page).toHaveTextContent('Eine Elfe.')
+    // the first frame is the head alone (what a morph snapshots), the overview follows
+    expect(page).not.toHaveTextContent('Eine Elfe.')
+    await waitFor(() => expect(page).toHaveTextContent('Eine Elfe.'))
     expect(page).toHaveTextContent('Versionen: 2')
   })
 
@@ -216,7 +218,8 @@ describe('SeriesModalProvider', () => {
     // no modal: no <dialog>, no scrim; the sidebar and tab bar stay usable
     expect(document.querySelector('dialog')).toBeNull()
     expect(page).toHaveAttribute('aria-modal', 'false')
-    expect(page).toHaveFocus()
+    // a frame after the commit, not inside the morph's snapshot frame
+    await waitFor(() => expect(page).toHaveFocus())
     // the shell hides <main> while this is set
     expect(document.documentElement.dataset.overlay).toBe('series')
 
@@ -303,6 +306,8 @@ describe('SeriesModalProvider', () => {
     // the lazy sections wait until they come near
     const extrasAsked = () => get.mock.calls.some(([u]) => u.startsWith('/api/media/extras'))
     expect(extrasAsked()).toBe(false)
+    // the observers read sizes, so they are set up a frame after the commit
+    await waitFor(() => expect(observers().ahead).toBeDefined())
     const { spy, ahead } = observers()
     ahead.fire(sectionOf('series.tab.cast'), true)
     expect(await screen.findByText('Fern')).toBeInTheDocument()

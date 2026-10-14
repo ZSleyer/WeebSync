@@ -717,22 +717,38 @@ function SeriesCard({
     })
   }
   useEffect(() => () => cancelAnimationFrame(frame.current), [])
+  // What reads sizes or moves focus waits a frame after the commit: an
+  // opening page commits inside the morph's update callback, where a size
+  // read or focus() forces the whole new page through style and layout
+  // while the view under it is still restyling (twice the work, in the one
+  // frame the morph snapshots).
   useEffect(() => {
     const root = scroller.current
     const h = title.current
     if (!root || !h || typeof IntersectionObserver === 'undefined') return
-    const bar = root.querySelector<HTMLElement>('.ws-d-bar')?.offsetHeight ?? 52
-    const io = new IntersectionObserver(
-      ([e]) => root.toggleAttribute('data-docked', !e.isIntersecting && (e.boundingClientRect?.top ?? 0) < bar + 30),
-      { root, rootMargin: `-${bar}px 0px 0px 0px` },
-    )
-    io.observe(h)
-    return () => io.disconnect()
+    let io: IntersectionObserver | undefined
+    const id = requestAnimationFrame(() => {
+      const bar = root.querySelector<HTMLElement>('.ws-d-bar')?.offsetHeight ?? 52
+      io = new IntersectionObserver(
+        ([e]) => root.toggleAttribute('data-docked', !e.isIntersecting && (e.boundingClientRect?.top ?? 0) < bar + 30),
+        { root, rootMargin: `-${bar}px 0px 0px 0px` },
+      )
+      io.observe(h)
+    })
+    return () => {
+      cancelAnimationFrame(id)
+      io?.disconnect()
+    }
   }, [viewOn])
 
   // focus moves into the page as it opens: the page under it is hidden
-  useLayoutEffect(() => {
-    scroller.current?.focus({ preventScroll: true })
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      const el = scroller.current
+      // a section the page jumped to in the meantime keeps its focus
+      if (el && !el.contains(document.activeElement)) el.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(id)
   }, [])
 
   // The jump row marks the section being read (aria-current): the first one
@@ -761,28 +777,35 @@ function SeriesCard({
       const passed = inBand.filter((k) => sec.current[k]!.getBoundingClientRect().top <= line)
       return passed.length ? passed[passed.length - 1] : inBand[0]
     }
-    const spy = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => seen.set(e.target, e.isIntersecting))
-        // a jump holds its mark while the page glides there
-        if (performance.now() < jumpLock.current) return
-        // scrolled to the end, the last section is the one being read even
-        // though a short one never reaches the top of the band
-        const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
-        const first = end ? sections[sections.length - 1] : root.scrollTop < 2 ? sections[0] : readNow()
-        if (first) setCurrent(first)
-      },
-      { root, rootMargin: `-${sticky()}px 0px -55% 0px` },
-    )
-    const ahead = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), {
-      root,
-      rootMargin: '0px 0px 100% 0px',
+    let spy: IntersectionObserver | undefined
+    let ahead: IntersectionObserver | undefined
+    const id = requestAnimationFrame(() => {
+      const s = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => seen.set(e.target, e.isIntersecting))
+          // a jump holds its mark while the page glides there
+          if (performance.now() < jumpLock.current) return
+          // scrolled to the end, the last section is the one being read even
+          // though a short one never reaches the top of the band
+          const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
+          const first = end ? sections[sections.length - 1] : root.scrollTop < 2 ? sections[0] : readNow()
+          if (first) setCurrent(first)
+        },
+        { root, rootMargin: `-${sticky()}px 0px -55% 0px` },
+      )
+      const a = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setNear(true), {
+        root,
+        rootMargin: '0px 0px 100% 0px',
+      })
+      sections.forEach((k) => sec.current[k] && s.observe(sec.current[k]))
+      if (sec.current.cast) a.observe(sec.current.cast)
+      spy = s
+      ahead = a
     })
-    sections.forEach((k) => sec.current[k] && spy.observe(sec.current[k]))
-    if (sec.current.cast) ahead.observe(sec.current.cast)
     return () => {
-      spy.disconnect()
-      ahead.disconnect()
+      cancelAnimationFrame(id)
+      spy?.disconnect()
+      ahead?.disconnect()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sections.join(), viewOn, cur.id])
@@ -791,14 +814,17 @@ function SeriesCard({
   // to the middle, sideways only (scrollIntoView would move the page too)
   const tabRow = useRef<HTMLElement>(null)
   useEffect(() => {
-    const row = tabRow.current
-    const a = row?.querySelector<HTMLElement>('[aria-current="true"]')
-    if (!row || !a) return
-    row.scrollTo?.({
-      left: a.offsetLeft - (row.clientWidth - a.offsetWidth) / 2,
-      behavior: reducedMotion() ? 'auto' : 'smooth',
+    const id = requestAnimationFrame(() => {
+      const row = tabRow.current
+      const a = row?.querySelector<HTMLElement>('[aria-current="true"]')
+      if (!row || !a) return
+      row.scrollTo?.({
+        left: a.offsetLeft - (row.clientWidth - a.offsetWidth) / 2,
+        behavior: reducedMotion() ? 'auto' : 'smooth',
+      })
+      markOverflow(row)
     })
-    markOverflow(row)
+    return () => cancelAnimationFrame(id)
   }, [current, sections.length])
 
   const jump = (k: SeriesTab, smooth = true) => {
@@ -1028,7 +1054,8 @@ function SeriesCard({
                         <h2 id={hid(k)} className="sr-only">
                           {t('series.tab.overview')}
                         </h2>
-                        {media && (
+                        {/* not in the morph's first frame: only the head morphs */}
+                        {media && stage > 0 && (
                           <MediaDetail
                             media={media}
                             source={source}
