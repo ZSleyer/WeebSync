@@ -1,11 +1,13 @@
 import { useId, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Input, Panel } from 'fluid-lycoris'
+import { Badge, Button, Dialog, Input, Row, RowAction, Rows, SettingsField } from 'fluid-lycoris'
 import { api, type UserAccount } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useAuth } from '../../hooks'
 import type { SettingsState } from './useSettingsForm'
+import { SettingsPanel } from './ui'
+import './security.css'
 
 export default function Users() {
   const { t } = useTranslation()
@@ -13,6 +15,8 @@ export default function Users() {
   const qc = useQueryClient()
   const { data: user } = useAuth()
   const meId = user?.id ?? 0
+  const emailId = useId()
+  const pwId = useId()
   const { data: settings } = useQuery<SettingsState>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
@@ -20,6 +24,7 @@ export default function Users() {
   // when OIDC group mapping is set, the IdP owns roles - the backend
   // rejects local role changes with 409, so don't offer the toggle
   const rolesManagedByOidc = !!settings?.oidcAdminValues.trim()
+  const passwordMode = settings?.authMode === 'password'
   const { data: users } = useQuery<UserAccount[]>({
     queryKey: ['users'],
     queryFn: () => api.get('/api/users'),
@@ -63,87 +68,104 @@ export default function Users() {
     ...opts,
   })
 
+  // how accounts sign in and where their role comes from: the instance's
+  // mode, the API has no per-account method
+  const via = passwordMode
+    ? t('settings.usersViaPassword')
+    : t('settings.usersViaOidc', { name: settings?.oidcProviderName || 'OIDC' })
+  const role = rolesManagedByOidc
+    ? t('settings.usersRoleFromGroup', { groups: settings?.oidcAdminValues.split(',').join(', ') })
+    : ''
+
   return (
-    <Panel as="section" className="mb-4 p-5" aria-label={t('settings.users')}>
-      <Badge tone="accent">{t('settings.users')}</Badge>
-      {rolesManagedByOidc && <p className="mt-2 text-xs text-t-muted">{t('settings.rolesManagedByOidc')}</p>}
-      <ul className="mt-3 grid grid-cols-1 gap-2">
+    <SettingsPanel id="users" title={t('settings.users')}>
+      <Rows>
         {(users ?? []).map((u) => (
-          <li key={u.id} className="flex flex-wrap items-center gap-2 border-b border-border-subtle pb-2 text-sm">
-            {/* full row on phones so the address stays readable */}
-            <span
-              className="min-w-0 basis-full truncate font-mono text-xs text-t-secondary sm:flex-1 sm:basis-auto"
-              title={u.email}
-            >
-              {u.email}
-            </span>
-            {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
-            {u.isAdmin && <Badge tone="accent">{t('settings.usersAdmin')}</Badge>}
-            {!u.emailVerified && <Badge tone="warn">{t('settings.usersUnverified')}</Badge>}
-            <Button
-              size="sm"
-              disabled={rolesManagedByOidc || toggle.isPending}
-              onClick={async () => {
-                // demoting yourself takes this very page away at once: ask first
-                if (
-                  u.id === meId &&
-                  u.isAdmin &&
-                  !(await confirm({
-                    message: t('settings.usersConfirmSelfDemote'),
-                    confirmLabel: t('settings.usersRemoveAdmin'),
-                    destructive: true,
-                  }))
-                )
-                  return
-                toggle.mutate(u)
-              }}
-            >
-              {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
-            </Button>
-            {settings?.authMode === 'password' && (
-              <Button size="sm" onClick={() => setPwFor(u)}>
-                {t('settings.usersSetPassword')}
-              </Button>
-            )}
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={u.id === meId || del.isPending}
-              onClick={async () => {
-                if (await confirm({ message: t('settings.usersConfirmDelete', { email: u.email }), destructive: true }))
-                  del.mutate(u.id)
-              }}
-            >
-              {t('servers.delete')}
-            </Button>
-          </li>
+          <Row
+            key={u.id}
+            title={
+              <span className="ws-user-t">
+                <span className="min-w-0 truncate" title={u.email}>
+                  {u.email}
+                </span>
+                {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
+                {u.isAdmin && <Badge tone="ok">{t('settings.usersAdmin')}</Badge>}
+                {!u.emailVerified && <Badge tone="warn">{t('settings.usersUnverified')}</Badge>}
+              </span>
+            }
+            sub={[via, role].filter(Boolean).join(' · ')}
+            trailing={
+              <span className="ws-user-acts">
+                {!rolesManagedByOidc && (
+                  <RowAction
+                    disabled={toggle.isPending}
+                    onClick={async () => {
+                      // demoting yourself takes this very page away at once: ask first
+                      if (
+                        u.id === meId &&
+                        u.isAdmin &&
+                        !(await confirm({
+                          message: t('settings.usersConfirmSelfDemote'),
+                          confirmLabel: t('settings.usersRemoveAdmin'),
+                          destructive: true,
+                        }))
+                      )
+                        return
+                      toggle.mutate(u)
+                    }}
+                  >
+                    {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
+                  </RowAction>
+                )}
+                {passwordMode && <RowAction onClick={() => setPwFor(u)}>{t('settings.usersSetPassword')}</RowAction>}
+                {u.id !== meId && (
+                  <RowAction
+                    className="text-err"
+                    disabled={del.isPending}
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          message: t('settings.usersConfirmDelete', { email: u.email }),
+                          destructive: true,
+                        })
+                      )
+                        del.mutate(u.id)
+                    }}
+                  >
+                    {t('servers.delete')}
+                  </RowAction>
+                )}
+              </span>
+            }
+          />
         ))}
-      </ul>
-      {settings && settings.authMode !== 'password' ? (
-        <p className="mt-4 text-xs text-t-muted">{t('settings.usersOidcOnly')}</p>
+      </Rows>
+      {rolesManagedByOidc && <p className="sf-note">{t('settings.rolesManagedByOidc')}</p>}
+      {settings && !passwordMode ? (
+        <p className="sf-note">{t('settings.usersOidcOnly')}</p>
       ) : (
         <form
-          className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+          className="ws-user-new"
           onSubmit={(e) => {
             e.preventDefault()
             create.mutate({ email, password })
           }}
         >
-          <label className="text-xs text-t-muted">
-            {t('login.email')}
+          <SettingsField label={t('login.email')} htmlFor={emailId}>
             <Input
-              className="mt-1 font-mono"
+              id={emailId}
+              className="font-mono"
               type="email"
               required
               autoComplete="off"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </label>
-          <label className="text-xs text-t-muted">
-            {t('login.password')}
+          </SettingsField>
+          <SettingsField label={t('login.password')} htmlFor={pwId}>
             <Input
-              className="mt-1 font-mono"
+              id={pwId}
+              className="font-mono"
               type="password"
               required
               minLength={10}
@@ -151,18 +173,18 @@ export default function Users() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
-          <Button className="self-end" type="submit" disabled={create.isPending}>
+          </SettingsField>
+          <Button type="submit" disabled={create.isPending}>
             {t('settings.usersCreate')}
           </Button>
         </form>
       )}
       {error && (
-        <p className="mt-2 text-xs text-err" role="alert">
+        <p className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}
-      <p role="status" className="mt-2 text-xs text-ok empty:hidden">
+      <p role="status" className="t-sf-h mt-2 text-ok empty:hidden">
         {notice}
       </p>
       {pwFor && (
@@ -174,7 +196,7 @@ export default function Users() {
           }}
         />
       )}
-    </Panel>
+    </SettingsPanel>
   )
 }
 
@@ -183,6 +205,7 @@ export default function Users() {
 function SetPasswordDialog({ user, onClose }: { user: UserAccount; onClose: (done: boolean) => void }) {
   const { t } = useTranslation()
   const titleId = useId()
+  const pwId = useId()
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -200,18 +223,14 @@ function SetPasswordDialog({ user, onClose }: { user: UserAccount; onClose: (don
   }
   return (
     <Dialog onClose={() => onClose(false)} width="max-w-md" aria-labelledby={titleId}>
-      <form onSubmit={submit}>
-        <header className="border-b border-border-subtle px-5 py-4">
-          <h3 id={titleId} className="font-display font-semibold tracking-wider">
-            {t('settings.usersSetPasswordTitle', { email: user.email })}
-          </h3>
-        </header>
-        <div className="space-y-2 px-5 py-4">
-          <p className="text-sm text-t-secondary">{t('settings.usersSetPasswordHint')}</p>
-          <label className="block text-xs text-t-muted">
-            {t('account.passwordNew')}
+      <form onSubmit={submit} className="ws-form-dlg">
+        <div className="ws-form-dlg-bd">
+          <h2 id={titleId}>{t('settings.usersSetPasswordTitle', { email: user.email })}</h2>
+          <p className="sf-note">{t('settings.usersSetPasswordHint')}</p>
+          <SettingsField label={t('account.passwordNew')} htmlFor={pwId}>
             <Input
-              className="mt-1 font-mono"
+              id={pwId}
+              className="font-mono"
               type="password"
               required
               minLength={10}
@@ -220,14 +239,14 @@ function SetPasswordDialog({ user, onClose }: { user: UserAccount; onClose: (don
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </label>
+          </SettingsField>
           {error && (
-            <p className="text-xs text-err" role="alert">
+            <p className="sf-issue" role="alert">
               {error}
             </p>
           )}
         </div>
-        <footer className="flex justify-end gap-2 border-t border-border-subtle px-5 py-3">
+        <footer className="ws-dlg-foot">
           <Button type="button" onClick={() => onClose(false)}>
             {t('common.cancel')}
           </Button>

@@ -1,35 +1,37 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useId, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel } from 'fluid-lycoris'
+import { Badge, Button, Input, Row, RowAction, Rows, SettingsField } from 'fluid-lycoris'
 import { api, type SessionInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { registerCredential } from '../../webauthn'
 import { useAuth } from '../../hooks'
+import { SettingsPanel } from './ui'
+import './security.css'
 
 interface AuthConfig {
   authMode: 'password' | 'oidc-only' | 'oidc-auto'
+  oidcName?: string
 }
 
 export default function Account() {
   const { t } = useTranslation()
   const { data: cfg } = useQuery<AuthConfig>({ queryKey: ['authConfig'], queryFn: () => api.get('/api/auth/config') })
   return (
-    <section className="max-w-xl" aria-label={t('settings.nav.account')}>
+    <>
       {cfg && cfg.authMode !== 'password' ? (
-        <div className="space-y-4">
-          <Panel className="p-5 text-sm text-t-muted">{t('account.oidcOnly')}</Panel>
-          <SessionsSection />
-        </div>
+        <SettingsPanel title={t('account.loginTitle')}>
+          <p className="sf-note">{t('account.oidcNote', { name: cfg.oidcName || 'OIDC' })}</p>
+        </SettingsPanel>
       ) : (
-        <div className="space-y-4">
+        <>
           <PasswordSection />
           <PasskeySection />
           <TotpSection />
-          <SessionsSection />
-        </div>
+        </>
       )}
-    </section>
+      <SessionsSection />
+    </>
   )
 }
 
@@ -44,6 +46,7 @@ function PasswordSection() {
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
   const [busy, setBusy] = useState(false)
+  const id = useId()
   if (!me?.hasPassword) return null
 
   const submit = async (e: FormEvent) => {
@@ -66,55 +69,57 @@ function PasswordSection() {
   }
 
   return (
-    <Panel as="form" className="p-5" aria-label={t('account.passwordTitle')} onSubmit={submit}>
-      <Badge tone="accent">{t('account.passwordTitle')}</Badge>
-      <p className="mt-2 text-xs text-t-muted">{t('account.passwordHint')}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <label className="grid gap-1">
-          <span className="t-label">{t('account.passwordCurrent')}</span>
+    <SettingsPanel title={t('account.passwordTitle')} desc={t('account.passwordHint')}>
+      <form onSubmit={submit}>
+        <SettingsField label={t('account.passwordCurrent')} htmlFor={id + 'c'}>
           <Input
+            id={id + 'c'}
             type="password"
             autoComplete="current-password"
             required
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
           />
-        </label>
-        <label className="grid gap-1">
-          <span className="t-label">{t('account.passwordNew')}</span>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={10}
-            value={next}
-            onChange={(e) => setNext(e.target.value)}
-          />
-        </label>
-        <label className="grid gap-1">
-          <span className="t-label">{t('account.passwordAgain')}</span>
-          <Input
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={10}
-            value={again}
-            onChange={(e) => setAgain(e.target.value)}
-          />
-        </label>
-      </div>
-      <Button type="submit" size="sm" variant="primary" className="mt-3" disabled={busy}>
-        {t('account.passwordChange')}
-      </Button>
-      <p role="status" className="mt-3 text-sm text-ok empty:hidden">
-        {done ? t('account.passwordChanged') : ''}
-      </p>
-      {error && (
-        <p className="mt-3 text-sm text-err" role="alert">
-          {error}
+        </SettingsField>
+        <div className="sf-2">
+          <SettingsField label={t('account.passwordNew')} htmlFor={id + 'n'}>
+            <Input
+              id={id + 'n'}
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={10}
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+            />
+          </SettingsField>
+          <SettingsField label={t('account.passwordAgain')} htmlFor={id + 'a'}>
+            <Input
+              id={id + 'a'}
+              type="password"
+              autoComplete="new-password"
+              required
+              minLength={10}
+              value={again}
+              onChange={(e) => setAgain(e.target.value)}
+            />
+          </SettingsField>
+        </div>
+        <div className="sf-acts">
+          <Button type="submit" size="sm" variant="primary" disabled={busy}>
+            {t('account.passwordChange')}
+          </Button>
+        </div>
+        <p role="status" className="t-sf-h mt-2 text-ok empty:hidden">
+          {done ? t('account.passwordChanged') : ''}
         </p>
-      )}
-    </Panel>
+        {error && (
+          <p className="sf-issue mt-2" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+    </SettingsPanel>
   )
 }
 
@@ -144,6 +149,7 @@ function PasskeySection() {
   // the device's name is typed beside the buttons, not asked in a dialog
   // after the click; empty, it falls back to the kind
   const [name, setName] = useState('')
+  const nameId = useId()
 
   const add = (kind: 'passkey' | 'key') => async () => {
     const fallback = kind === 'passkey' ? 'Passkey' : 'Security Key'
@@ -183,43 +189,48 @@ function PasskeySection() {
   }
 
   return (
-    <Panel className="p-5" aria-label={t('account.passkeyTitle')}>
-      <Badge tone="accent">{t('account.passkeyTitle')}</Badge>
-      <p className="mt-2 text-xs text-t-muted">{t('account.passkeyHint')}</p>
+    <SettingsPanel title={t('account.passkeyTitle')} desc={t('account.passkeyHint')}>
       {creds && creds.length > 0 && (
-        <ul className="mt-3 divide-y divide-border-subtle/50">
+        <Rows dense>
           {creds.map((c) => (
-            <li key={c.id} className="flex items-center gap-2 py-2 text-sm">
-              <span className="min-w-0 flex-1 truncate text-t-secondary">{c.name}</span>
-              <Badge>{c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}</Badge>
-              <Button size="sm" variant="danger" disabled={busy} onClick={remove(c)}>
-                {t('account.remove')}
-              </Button>
-            </li>
+            <Row
+              key={c.id}
+              title={c.name}
+              sub={c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}
+              trailing={
+                <RowAction className="text-err" disabled={busy} onClick={remove(c)}>
+                  {t('account.remove')}
+                </RowAction>
+              }
+            />
           ))}
-        </ul>
+        </Rows>
       )}
       {!oidcOnly && (
-        <div className="mt-3 flex flex-wrap items-end gap-2">
-          <label className="grid min-w-0 flex-1 basis-48 gap-1">
-            <span className="t-label">{t('account.passkeyName')}</span>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('account.passkeyNameHint')} />
-          </label>
-          <Button size="sm" variant="primary" disabled={busy} onClick={add('passkey')}>
+        <div className="ws-inline">
+          <SettingsField label={t('account.passkeyName')} htmlFor={nameId}>
+            <Input
+              id={nameId}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t('account.passkeyNameHint')}
+            />
+          </SettingsField>
+          <Button variant="primary" disabled={busy} onClick={add('passkey')}>
             {t('account.passkeyAdd')}
           </Button>
-          <Button size="sm" disabled={busy} onClick={add('key')}>
+          <Button disabled={busy} onClick={add('key')}>
             {t('account.keyAdd')}
           </Button>
         </div>
       )}
-      {oidcOnly && <p className="mt-2 text-xs text-t-muted">{t('account.passkeyNeedsPassword')}</p>}
+      {oidcOnly && <p className="sf-note">{t('account.passkeyNeedsPassword')}</p>}
       {error && (
-        <p className="mt-3 text-sm text-err" role="alert">
+        <p className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}
-    </Panel>
+    </SettingsPanel>
   )
 }
 
@@ -244,6 +255,7 @@ function TotpSection() {
   // user copies them by hand
   const [copied, setCopied] = useState<'' | 'ok' | 'select'>('')
   const codesRef = useRef<HTMLUListElement>(null)
+  const id = useId()
   const copyCodes = async (codes: string[]) => {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard')
@@ -284,87 +296,87 @@ function TotpSection() {
     })
 
   return (
-    <Panel className="p-5" aria-label={t('account.totpTitle')}>
-      <Badge tone="accent">{t('account.totpTitle')}</Badge>
-      <p className="mt-2 text-xs text-t-muted">{t('account.totpHint')}</p>
-
+    <SettingsPanel
+      title={t('account.totpTitle')}
+      badge={!recovery && data?.enabled ? <Badge tone="ok">{t('account.totpOn')}</Badge> : undefined}
+      desc={t('account.totpHint')}
+    >
       {recovery && (
-        <div className="mt-4 rounded-lg border border-warn/40 bg-warn/5 p-4">
-          <p className="mb-2 text-sm text-warn">{t('account.recoveryTitle')}</p>
-          <p className="mb-3 text-xs text-t-muted">{t('account.recoveryHint')}</p>
-          <ul ref={codesRef} className="grid grid-cols-2 gap-1 font-mono text-sm">
+        <div className="ws-codes">
+          <p className="sf-note mt-0 font-medium text-warn">{t('account.recoveryTitle')}</p>
+          <p className="t-sf-h">{t('account.recoveryHint')}</p>
+          <ul ref={codesRef}>
             {recovery.map((c) => (
               <li key={c}>{c}</li>
             ))}
           </ul>
-          <Button size="sm" className="mt-3" onClick={() => copyCodes(recovery)}>
-            {t('account.copy')}
-          </Button>
-          <Button
-            size="sm"
-            className="mt-3 ml-2"
-            onClick={() => {
-              setRecovery(null)
-              setCopied('')
-            }}
-          >
-            {t('remote.close')}
-          </Button>
-          <p role="status" className={`mt-2 text-xs empty:hidden ${copied === 'ok' ? 'text-ok' : 'text-warn'}`}>
+          <div className="sf-acts">
+            <Button size="sm" onClick={() => copyCodes(recovery)}>
+              {t('account.copy')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setRecovery(null)
+                setCopied('')
+              }}
+            >
+              {t('remote.close')}
+            </Button>
+          </div>
+          <p role="status" className={`t-sf-h mt-2 empty:hidden ${copied === 'ok' ? 'text-ok' : 'text-warn'}`}>
             {copied === 'ok' ? t('account.copied') : copied === 'select' ? t('account.copySelect') : ''}
           </p>
         </div>
       )}
 
       {!recovery && data?.enabled && (
-        <div className="mt-4">
-          <Badge tone="ok">{t('account.totpOn')}</Badge>
-          <div className="mt-3 flex flex-wrap items-end gap-2">
-            {!oidcOnly && (
-              <label className="text-xs text-t-muted">
-                {t('login.password')}
-                <Input
-                  className="mt-1"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </label>
-            )}
-            <Button size="sm" variant="danger" disabled={busy || (!oidcOnly && !password)} onClick={disable}>
-              {t('account.totpDisable')}
-            </Button>
-          </div>
+        <div className="ws-inline">
+          {!oidcOnly && (
+            <SettingsField label={t('login.password')} htmlFor={id + 'p'}>
+              <Input
+                id={id + 'p'}
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </SettingsField>
+          )}
+          <Button variant="danger" disabled={busy || (!oidcOnly && !password)} onClick={disable}>
+            {t('account.totpDisable')}
+          </Button>
         </div>
       )}
 
       {!recovery && !data?.enabled && !setup && oidcOnly && (
-        <p className="mt-2 text-xs text-t-muted">{t('account.passkeyNeedsPassword')}</p>
+        <p className="sf-note">{t('account.passkeyNeedsPassword')}</p>
       )}
       {!recovery && !data?.enabled && !setup && !oidcOnly && (
-        <Button size="sm" variant="primary" className="mt-4" disabled={busy} onClick={start}>
-          {t('account.totpEnable')}
-        </Button>
+        <div className="sf-acts">
+          <Button size="sm" variant="primary" disabled={busy} onClick={start}>
+            {t('account.totpEnable')}
+          </Button>
+        </div>
       )}
 
       {!recovery && setup && (
-        <div className="mt-4 space-y-3">
-          {setup.qr && <img src={setup.qr} alt="" className="border border-border-subtle" width={180} height={180} />}
-          <p className="text-xs text-t-muted">
-            {t('account.totpManual')} <span className="font-mono text-t-secondary">{setup.secret}</span>
+        <div className="mt-3">
+          {setup.qr && <img src={setup.qr} alt="" className="rounded-md bg-white p-2" width={180} height={180} />}
+          <p className="sf-note">
+            {t('account.totpManual')} <span className="font-mono break-all">{setup.secret}</span>
           </p>
-          <label className="block text-xs text-t-muted">
-            {t('account.totpEnterCode')}
+          <SettingsField label={t('account.totpEnterCode')} htmlFor={id + 'c'}>
             <Input
-              className="mt-1 font-mono tracking-[0.3em]"
+              id={id + 'c'}
+              className="sf-num font-mono tracking-[0.3em]"
               inputMode="numeric"
               autoComplete="one-time-code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
-          </label>
-          <div className="flex flex-wrap gap-2">
+          </SettingsField>
+          <div className="sf-acts">
             <Button size="sm" variant="primary" disabled={busy || !code} onClick={confirm}>
               {t('account.totpConfirm')}
             </Button>
@@ -386,11 +398,11 @@ function TotpSection() {
       )}
 
       {error && (
-        <p className="mt-3 text-sm text-err" role="alert">
+        <p className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}
-    </Panel>
+    </SettingsPanel>
   )
 }
 
@@ -467,48 +479,45 @@ function SessionsSection() {
         })
       : ''
   return (
-    <Panel className="p-5" aria-label={t('account.sessionsTitle')}>
-      <Badge tone="accent">{t('account.sessionsTitle')}</Badge>
-      <p className="mt-2 text-xs text-t-muted">{t('account.sessionsHint')}</p>
+    <SettingsPanel title={t('account.sessionsTitle')} desc={t('account.sessionsHint')}>
       {sessions && (
-        <ul className="mt-3 divide-y divide-border-subtle/50">
+        <Rows>
           {sessions.map((x) => (
-            <li key={x.id} className="flex items-center gap-2 py-2 text-sm">
-              <span className="min-w-0 flex-1" title={x.userAgent}>
-                <span className="block truncate text-t-secondary">
-                  {browserOf(x.userAgent) || t('account.sessionsUnknown')}
+            <Row
+              key={x.id}
+              title={
+                <span className="ws-user-t" title={x.userAgent}>
+                  <span className="min-w-0 truncate">{browserOf(x.userAgent) || t('account.sessionsUnknown')}</span>
+                  {x.current && <Badge>{t('account.sessionsThis')}</Badge>}
                 </span>
-                <span className="block text-xs text-t-muted">
-                  {x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')}
-                  {x.oidc ? ` · ${t('account.sessionsSso')}` : ''}
-                </span>
-              </span>
-              {x.current ? (
-                <Badge tone="ok">{t('account.sessionsThis')}</Badge>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => void run(() => api.del(`/api/auth/sessions/${x.id}`))}
-                >
-                  {t('account.sessionsEnd')}
-                </Button>
-              )}
-            </li>
+              }
+              sub={
+                (x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')) +
+                (x.oidc ? ` · ${t('account.sessionsSso')}` : '')
+              }
+              trailing={
+                x.current ? undefined : (
+                  <RowAction disabled={busy} onClick={() => void run(() => api.del(`/api/auth/sessions/${x.id}`))}>
+                    {t('account.sessionsEnd')}
+                  </RowAction>
+                )
+              }
+            />
           ))}
-        </ul>
+        </Rows>
       )}
       {others.length > 1 && (
-        <Button size="sm" className="mt-3" disabled={busy} onClick={endOthers}>
-          {t('account.sessionsEndOthers')}
-        </Button>
+        <div className="sf-acts">
+          <Button size="sm" disabled={busy} onClick={endOthers}>
+            {t('account.sessionsEndOthers')}
+          </Button>
+        </div>
       )}
       {error && (
-        <p className="mt-3 text-sm text-err" role="alert">
+        <p className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}
-    </Panel>
+    </SettingsPanel>
   )
 }
