@@ -8,18 +8,18 @@
 // Chromium's own input pipeline, which means the browser really does arbitrate
 // the gesture and really can swallow it.
 //
-//   WS_TOKEN=<raw session token> node tools/ui-audit/sheet.mjs [--base http://127.0.0.1:8080]
+//   WS_EMAIL=... WS_PASSWORD=... node tools/ui-audit/sheet.mjs [--base http://127.0.0.1:8080]
 //
 // Chromium only: Playwright's Firefox driver dispatches neither touch events
 // nor pointer events for synthetic input, so there is nothing to drive there.
 import { chromium } from 'playwright'
+import { signIn } from './auth.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
   return i > 0 ? process.argv[i + 1] : d
 }
 const BASE = arg('base', 'http://127.0.0.1:8080')
-const TOKEN = process.env.WS_TOKEN || ''
 
 // the two phones the app is actually used on, at their real CSS sizes
 const VIEWPORTS = [
@@ -47,11 +47,8 @@ for (const vp of VIEWPORTS) {
     hasTouch: true,
     colorScheme: 'dark',
   })
-  if (TOKEN)
-    await ctx.addCookies([
-      { name: 'weebsync_session', value: TOKEN, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
-    ])
   const page = await ctx.newPage()
+  await signIn(ctx, page, BASE)
   const cdp = await ctx.newCDPSession(page)
   const tag = vp.name
   console.log(`\n== ${tag} ==`)
@@ -195,14 +192,14 @@ for (const vp of VIEWPORTS) {
   await page.goto(`${BASE}/watches`, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(5000)
   if (!(await open())) {
-    bad(`${tag}: kein Sheet-Dialog erreichbar`)
+    bad(`${tag}: no sheet dialog reachable`)
     await ctx.close()
     continue
   }
 
   const rest = await state()
   if (Math.abs(rest.h / rest.vh - OPENING) > 0.02)
-    bad(`${tag}: öffnet auf ${((rest.h / rest.vh) * 100).toFixed(1)}%, erwartet ${OPENING * 100}%`)
+    bad(`${tag}: opens at ${((rest.h / rest.vh) * 100).toFixed(1)}%, expected ${OPENING * 100}%`)
 
   // the height difference between the two detents, for the pulls below
   const span = Math.round(rest.vh * (FULL - OPENING))
@@ -211,22 +208,22 @@ for (const vp of VIEWPORTS) {
   let g = await geo()
   let r = await swipe(g.x, g.face, 110)
   if (!/translate3d\(0(px)?, 1[01]\d/.test(r.during.transform || ''))
-    bad(`${tag}: kurzer Zug auf der Fläche bewegt nichts (transform "${r.during.transform}")`)
-  else if (!r.after.open) bad(`${tag}: 110px-Zug hat geschlossen`)
-  else if (r.after.transform) bad(`${tag}: federt nicht zurück (transform "${r.after.transform}")`)
-  else if (r.motion.max > JUMP) bad(`${tag}: Rückfedern springt um ${r.motion.max}px in einem Frame`)
-  else good(`kurzer Zug auf der Fläche folgt und federt zurück (max ${r.motion.max}px/Frame)`)
+    bad(`${tag}: short pull on the face moves nothing (transform "${r.during.transform}")`)
+  else if (!r.after.open) bad(`${tag}: 110px pull closed it`)
+  else if (r.after.transform) bad(`${tag}: does not spring back (transform "${r.after.transform}")`)
+  else if (r.motion.max > JUMP) bad(`${tag}: spring-back jumps ${r.motion.max}px in one frame`)
+  else good(`short pull on the face follows and springs back (max ${r.motion.max}px/frame)`)
   // the backdrop dims with the pull and is dark again once the sheet is back
-  if (!(r.during.backdrop < 0.95)) bad(`${tag}: Backdrop dimmt beim Zug nicht mit (opacity ${r.during.backdrop})`)
-  else if (r.after.backdrop !== 1) bad(`${tag}: Backdrop kommt nach dem Zug nicht zurück (opacity ${r.after.backdrop})`)
-  else good(`Backdrop folgt dem Zug (opacity ${r.during.backdrop.toFixed(2)} -> ${r.after.backdrop})`)
+  if (!(r.during.backdrop < 0.95)) bad(`${tag}: backdrop does not dim with the pull (opacity ${r.during.backdrop})`)
+  else if (r.after.backdrop !== 1) bad(`${tag}: backdrop does not come back after the pull (opacity ${r.after.backdrop})`)
+  else good(`backdrop follows the pull (opacity ${r.during.backdrop.toFixed(2)} -> ${r.after.backdrop})`)
 
   // 2 - a long pull from the opening height dismisses
   await open()
   g = await geo()
   r = await swipe(g.x, g.face, Math.round(g.h * 0.25) + 70)
-  if (r.after.open) bad(`${tag}: langer Zug auf der Fläche schliesst nicht`)
-  else good('langer Zug auf der Fläche schliesst')
+  if (r.after.open) bad(`${tag}: long pull on the face does not close`)
+  else good('long pull on the face closes')
 
   // 3a - a short pull up, let go before the midpoint, sinks back to the
   //      opening height: the lift's offset slides back and the height swaps
@@ -234,13 +231,13 @@ for (const vp of VIEWPORTS) {
   await open()
   g = await geo()
   r = await swipe(g.x, g.face, -Math.max(20, Math.round(span / 2) - 40))
-  if (r.after.expanded) bad(`${tag}: kurzer Zug nach oben öffnet schon`)
+  if (r.after.expanded) bad(`${tag}: short pull up already expands`)
   else if (Math.abs(r.after.h / r.after.vh - OPENING) > 0.015)
-    bad(`${tag}: nach kurzem Zug nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${OPENING * 100}%`)
-  else if (r.after.transform) bad(`${tag}: kurzer Zug nach oben bleibt versetzt (transform "${r.after.transform}")`)
-  else if (r.motion.max > JUMP) bad(`${tag}: Zurücksinken springt um ${r.motion.max}px in einem Frame`)
-  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Zurücksinken um ${r.motion.footer}px in einem Frame`)
-  else good(`kurzer Zug nach oben sinkt zurück (max ${r.motion.max}px/Frame)`)
+    bad(`${tag}: after a short pull up at ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, expected ${OPENING * 100}%`)
+  else if (r.after.transform) bad(`${tag}: short pull up stays offset (transform "${r.after.transform}")`)
+  else if (r.motion.max > JUMP) bad(`${tag}: sinking back jumps ${r.motion.max}px in one frame`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: footer jumps ${r.motion.footer}px in one frame while sinking back`)
+  else good(`short pull up sinks back (max ${r.motion.max}px/frame)`)
 
   // 3 - a pull up lifts the sheet with the finger (as one block: the full
   //     height is on, offset down, and the pull takes the offset away), and
@@ -252,43 +249,43 @@ for (const vp of VIEWPORTS) {
   const lift = Math.round(span / 2) + 40
   r = await swipe(g.x, g.face, -lift)
   if (Math.abs(top0 - r.during.top - lift) > 12)
-    bad(`${tag}: Zug nach oben folgt dem Finger nicht (Oberkante ${top0} -> ${r.during.top}, Zug ${lift}px)`)
+    bad(`${tag}: pull up does not follow the finger (top edge ${top0} -> ${r.during.top}, pull ${lift}px)`)
   else if (r.during.foot > r.during.vh + 1)
-    bad(`${tag}: Footer fällt beim Zug nach oben aus dem Bild (Unterkante ${r.during.foot}, Viewport ${r.during.vh})`)
-  else if (!r.after.expanded) bad(`${tag}: Zug nach oben öffnet nicht`)
+    bad(`${tag}: footer falls out of view during the pull up (bottom edge ${r.during.foot}, Viewport ${r.during.vh})`)
+  else if (!r.after.expanded) bad(`${tag}: pull up does not expand`)
   else if (Math.abs(r.after.h / r.after.vh - FULL) > 0.015)
-    bad(`${tag}: nach oben auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, erwartet ${FULL * 100}%`)
-  else if (r.motion.max > JUMP) bad(`${tag}: Öffnen auf volle Höhe springt um ${r.motion.max}px in einem Frame`)
-  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Öffnen um ${r.motion.footer}px in einem Frame`)
-  else good(`Zug nach oben folgt und öffnet auf ${((r.after.h / r.after.vh) * 100).toFixed(1)}% (max ${r.motion.max}px/Frame)`)
+    bad(`${tag}: pulled up to ${((r.after.h / r.after.vh) * 100).toFixed(1)}%, expected ${FULL * 100}%`)
+  else if (r.motion.max > JUMP) bad(`${tag}: expanding to full height jumps ${r.motion.max}px in one frame`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: footer jumps ${r.motion.footer}px in one frame while expanding`)
+  else good(`pull up follows and expands to ${((r.after.h / r.after.vh) * 100).toFixed(1)}% (max ${r.motion.max}px/frame)`)
 
   // 4a - from the full height a short slow pull is not a step back: the
   //      threshold is half the height difference, not a fixed few pixels
   g = await geo()
   r = await swipe(g.x, g.face, 60)
-  if (!r.after.open) bad(`${tag}: 60px-Zug aus voller Höhe schliesst`)
-  else if (!r.after.expanded) bad(`${tag}: 60px-Zug aus voller Höhe klappt schon ein (Schwelle ist ${Math.round(span / 2)}px)`)
-  else if (r.after.transform) bad(`${tag}: kurzer Zug aus voller Höhe federt nicht zurück (transform "${r.after.transform}")`)
-  else good('kurzer Zug aus voller Höhe federt zurück')
+  if (!r.after.open) bad(`${tag}: 60px pull from full height closes`)
+  else if (!r.after.expanded) bad(`${tag}: 60px pull from full height already collapses (threshold is ${Math.round(span / 2)}px)`)
+  else if (r.after.transform) bad(`${tag}: short pull from full height does not spring back (transform "${r.after.transform}")`)
+  else good('short pull from full height springs back')
 
   // 4 - from the full height a pull past the midpoint gives the opening
   //     height back; the top edge must not jump when the height changes
   g = await geo()
   r = await swipe(g.x, g.face, Math.round(span / 2) + 40)
-  if (!r.after.open) bad(`${tag}: Zug nach unten aus voller Höhe schliesst statt einzuklappen`)
-  else if (r.after.expanded) bad(`${tag}: klappt nicht auf die Öffnungshöhe zurück`)
-  else if (r.motion.max > JUMP) bad(`${tag}: Einklappen springt um ${r.motion.max}px in einem Frame (${r.motion.from} -> ${r.motion.to})`)
+  if (!r.after.open) bad(`${tag}: pull down from full height closes instead of collapsing`)
+  else if (r.after.expanded) bad(`${tag}: does not collapse to the opening height`)
+  else if (r.motion.max > JUMP) bad(`${tag}: collapsing jumps ${r.motion.max}px in one frame (${r.motion.from} -> ${r.motion.to})`)
   else if (r.during.foot > r.during.vh + 1)
-    bad(`${tag}: Footer fällt beim Zug nach unten aus dem Bild (Unterkante ${r.during.foot}, Viewport ${r.during.vh})`)
-  else if (r.motion.footer > JUMP) bad(`${tag}: Footer springt beim Einklappen um ${r.motion.footer}px in einem Frame`)
-  else if (r.after.foot > r.after.vh + 1) bad(`${tag}: Footer nach dem Einklappen nicht im Bild (Unterkante ${r.after.foot})`)
-  else good(`Zug nach unten aus voller Höhe klappt ein ohne Sprung (max ${r.motion.max}px/Frame)`)
+    bad(`${tag}: footer falls out of view during the pull down (bottom edge ${r.during.foot}, Viewport ${r.during.vh})`)
+  else if (r.motion.footer > JUMP) bad(`${tag}: footer jumps ${r.motion.footer}px in one frame while collapsing`)
+  else if (r.after.foot > r.after.vh + 1) bad(`${tag}: footer not in view after collapsing (bottom edge ${r.after.foot})`)
+  else good(`pull down from full height collapses without a jump (max ${r.motion.max}px/frame)`)
 
   // 5 - and the next one from there does dismiss
   g = await geo()
   r = await swipe(g.x, g.face, Math.round(g.h * 0.25) + 70)
-  if (r.after.open) bad(`${tag}: zweiter Zug nach unten schliesst nicht`)
-  else good('zweiter Zug schliesst')
+  if (r.after.open) bad(`${tag}: second pull down does not close`)
+  else good('second pull closes')
 
   // 5b - one long pull from the full height - past the opening height and a
   //      dismissal's distance beyond it - closes in one go
@@ -297,8 +294,8 @@ for (const vp of VIEWPORTS) {
   await swipe(g.x, g.face, -Math.round(span / 2) - 40)
   g = await geo()
   r = await swipe(g.x, g.face, span + Math.round((g.h - span) * 0.25) + 60, { steps: 20 })
-  if (r.after.open) bad(`${tag}: langer Zug aus voller Höhe schliesst nicht in einem Zug (expanded ${r.after.expanded})`)
-  else good('ein langer Zug aus voller Höhe schliesst direkt')
+  if (r.after.open) bad(`${tag}: long pull from full height does not close in one go (expanded ${r.after.expanded})`)
+  else good('one long pull from full height closes directly')
 
   // 6 - inside scrolled content the content scrolls and the sheet stays put
   await open()
@@ -315,13 +312,13 @@ for (const vp of VIEWPORTS) {
     const r = s.getBoundingClientRect()
     return { top: s.scrollTop, x: Math.round(r.x + r.width / 2), y: Math.round(r.y + r.height / 2) }
   })
-  if (!sc || sc.top < 50) console.log('  – kein gescrollter Bereich in diesem Dialog, Regel nicht prüfbar')
+  if (!sc || sc.top < 50) console.log('  – no scrolled area in this dialog, rule not checkable')
   else {
     await page.waitForTimeout(260) // the hook ignores a press right after a scroll
     r = await swipe(sc.x, sc.y, 100)
-    if (r.during.transform) bad(`${tag}: gescrollter Bereich - das Sheet zieht mit ("${r.during.transform}")`)
-    else if (!r.after.open) bad(`${tag}: gescrollter Bereich - das Sheet hat geschlossen`)
-    else good(`gescrollter Bereich: Sheet bleibt stehen, scrollTop ${sc.top} -> ${r.during.scrollTop}`)
+    if (r.during.transform) bad(`${tag}: scrolled area - the sheet moves along ("${r.during.transform}")`)
+    else if (!r.after.open) bad(`${tag}: scrolled area - the sheet closed`)
+    else good(`scrolled area: sheet stays put, scrollTop ${sc.top} -> ${r.during.scrollTop}`)
   }
 
   // 7 - the calendar deck: a second swipe that lands while the first is still
@@ -337,7 +334,7 @@ for (const vp of VIEWPORTS) {
     const head = () => z.querySelector('h3')?.textContent ?? ''
     return { x: Math.round(r.x + r.width / 2), y: Math.round(r.y + Math.min(r.height / 2, 200)), w: Math.round(r.width), head: head() }
   })
-  if (!deck) console.log('  – kein Kalender-Deck auf der Seite, Regel nicht prüfbar')
+  if (!deck) console.log('  – no calendar deck on the page, rule not checkable')
   else {
     const heading = () =>
       page.evaluate(
@@ -374,10 +371,10 @@ for (const vp of VIEWPORTS) {
     const motion = await frames
     await page.waitForTimeout(500)
     const after = await heading()
-    if (motion.max > deck.w / 4) bad(`${tag}: Deck springt um ${motion.max}px in einem Frame bei zwei schnellen Wischern`)
-    else if (slow === before) bad(`${tag}: zwei Wischer haben die Seite nicht gewechselt ("${before}")`)
-    else if (after !== slow) bad(`${tag}: zwei schnelle Wischer landen auf "${after}", zwei langsame auf "${slow}" - ein Seitenwechsel ging verloren`)
-    else good(`zwei schnelle Wischer im Kalender ohne Sprung (max ${motion.max}px/Frame): "${before}" -> "${after}"`)
+    if (motion.max > deck.w / 4) bad(`${tag}: deck jumps ${motion.max}px in one frame on two quick swipes`)
+    else if (slow === before) bad(`${tag}: two swipes did not turn the page ("${before}")`)
+    else if (after !== slow) bad(`${tag}: two quick swipes land on "${after}", two slow ones on "${slow}" - a page turn was lost`)
+    else good(`two quick swipes in the calendar without a jump (max ${motion.max}px/frame): "${before}" -> "${after}"`)
   }
 
   await ctx.close()
@@ -386,7 +383,7 @@ await browser.close()
 
 console.log(
   findings.length
-    ? `\n${findings.length} Befunde:\n` + findings.map((f) => '  ' + f).join('\n')
-    : `\n✓ ${VIEWPORTS.length} Viewports, Gesten wie erwartet: keine Befunde`,
+    ? `\n${findings.length} findings:\n` + findings.map((f) => '  ' + f).join('\n')
+    : `\n✓ ${VIEWPORTS.length} viewports, gestures as expected: no findings`,
 )
 process.exitCode = findings.length ? 1 : 0

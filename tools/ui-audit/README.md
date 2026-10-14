@@ -49,13 +49,19 @@ one that finds labels which no longer fit on a single line.
   known failure, to check that a clean run is not a blind one.
 
 `--viewports phone,wide` (448x998 and 1440x900) and `--browsers chromium`
-narrow `e2e.mjs` and `modals.mjs` to a subset. Without `WS_TOKEN` all three
-log in with `WS_EMAIL` and `WS_PASSWORD`.
+narrow `e2e.mjs` and `modals.mjs` to a subset.
+
+`auth.mjs` is how every pass gets in: `WS_TOKEN` (the raw token whose SHA-256
+sits in the `sessions` table, the way in when the instance is OIDC-only) wins,
+otherwise a password login with `WS_EMAIL` and `WS_PASSWORD`. There are no
+default credentials; a pass started without either stops before it opens a
+browser, and one whose login is refused stops too, rather than auditing the
+login screen and calling it clean.
 
 A chip that is prose rather than a chip - a page subtitle, a status line
 carrying a user name - opts out of the wrap check with `<Badge multiline>`.
 
-Both need `playwright` and a logged-in session. The version is pinned exactly in
+All passes need `playwright` and a logged-in session. The version is pinned exactly in
 `package.json` and locked in `yarn.lock`, because each release expects browser
 builds of its own - 1.62.0 wants chromium-1234 and firefox-1538. Install both
 here once:
@@ -64,9 +70,11 @@ here once:
 
 Then run the passes from the repo root:
 
-    WS_TOKEN=<raw session token> node tools/ui-audit/e2e.mjs --base http://127.0.0.1:8080
-    WS_TOKEN=<raw session token> node tools/ui-audit/modals.mjs --base http://127.0.0.1:8080
-    WS_TOKEN=<raw session token> node tools/ui-audit/sheet.mjs --base http://127.0.0.1:8080
+    export WS_EMAIL=<account e-mail> WS_PASSWORD=<account password>
+    node tools/ui-audit/e2e.mjs --base http://127.0.0.1:8080
+    node tools/ui-audit/modals.mjs --base http://127.0.0.1:8080
+    node tools/ui-audit/sheet.mjs --base http://127.0.0.1:8080
+    node tools/ui-audit/contrast.mjs --base http://127.0.0.1:8080
 
 **Point `--base` at an instance that actually serves the frontend.** The backend
 does not embed it; without `WEEBSYNC_WEB` pointing at a built `frontend/dist`
@@ -74,23 +82,25 @@ every route answers 404, and both passes then report a clean bill of health for
 pages they never saw. `curl -o /dev/null -w '%{http_code}' <base>/` returning 200
 is the check worth doing before believing a green run.
 
-Half of these dialogs only exist where there is data behind them, so `modals.mjs`
-prints which trigger fired where and **fails on a trigger that never fired
-anywhere** - a renamed button (the English label drifting away from the German
-one) would otherwise make a whole dialog invisible and still report a clean run.
-What the run needs to reach all of them:
+`modals.mjs` prints which trigger fired where and **fails on a trigger that
+never fired anywhere** - a renamed button (the English label drifting away from
+the German one) would otherwise make a whole dialog invisible and still report
+a clean run. A few dialogs only exist where there is data behind them; their
+triggers carry an `optional` note, are listed as skipped with what they need,
+and do not fail the run. What a run needs to reach all of them:
 
 - a backend started with the `WEEBSYNC_SECRET` its stored server credentials
   were encrypted with, otherwise every listing answers `decrypt failed` and the
   catalogue stays empty,
-- a reachable server with a folder that matched a title (the catalogue dialogs),
-- a watch whose local folder has a gap in its episode numbers, e.g. `S01E01`,
-  `S01E02`, `S01E04` (the episode-list dialog behind the gap badge).
+- at least one watch (the series page's action sheet),
+- a local library with at least one folder (its catalogue dialogs),
+- a reachable server with a folder that matched a title (the remote catalogue
+  dialogs),
+- a connected Plex server (the Plex series picker in the watch editor),
+- a transfer in progress (the live activity's transfer sheet).
 
-`WS_TOKEN` is the raw token whose SHA-256 sits in the `sessions` table - the
-way in when the instance is OIDC-only. Without it both fall back to a password
-login. `--routes /a,/b` limits `e2e.mjs` to a subset, `--out` and `--tag` steer
-where the screenshots land.
+`--routes /a,/b` limits `e2e.mjs` to a subset, `--out` and `--tag` steer where
+the screenshots land.
 
 ## On a real device
 

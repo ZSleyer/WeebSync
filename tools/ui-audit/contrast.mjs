@@ -17,13 +17,13 @@
 //     [--viewports phone,wide] [--themes dark,light] [--routes /a,/b] [--inject '<css>']
 import { chromium } from 'playwright'
 import { writeFileSync } from 'node:fs'
+import { signIn } from './auth.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
   return i > 0 ? process.argv[i + 1] : d
 }
 const BASE = arg('base', 'http://127.0.0.1:8080')
-const LOGIN = { email: process.env.WS_EMAIL || 'a@example.com', password: process.env.WS_PASSWORD || 'testpassword123' }
 const ROUTES = arg('routes', '')
   ? arg('routes', '').split(',')
   : [
@@ -380,10 +380,7 @@ for (const theme of THEMES)
       await page.evaluate(() => { for (const el of [document.scrollingElement, document.querySelector('main')]) if (el) el.scrollTop = 0 })
       const focus = await focusRing(page)
       report.push({ theme, viewport: vpName, route, text: [...seen.text.values()], exempt: [...seen.exempt.values()], nontext: [...seen.nontext.values()], focus })
-      if (route === '(login)')
-        await page.evaluate(async (l) => {
-          await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(l) })
-        }, LOGIN)
+      if (route === '(login)') await signIn(ctx, page, BASE)
     }
     await ctx.close()
   }
@@ -395,10 +392,10 @@ for (const r of report) {
   const n = r.text.length + r.nontext.length + r.focus.length
   if (!n) continue
   bad++
-  console.log(`✗ ${r.theme}/${r.viewport} ${r.route}: ${r.text.length}x Text, ${r.nontext.length}x Nicht-Text, ${r.focus.length}x Fokus`)
-  for (const t of r.text.slice(0, 6)) console.log(`    Text ${t.ratio}:1 < ${t.need} "${t.text}" (${t.el})${t.overImage ? ' [Bild]' : ''}${t.bg ? ' auf ' + t.bg : ''}`)
+  console.log(`✗ ${r.theme}/${r.viewport} ${r.route}: ${r.text.length}x text, ${r.nontext.length}x non-text, ${r.focus.length}x focus`)
+  for (const t of r.text.slice(0, 6)) console.log(`    Text ${t.ratio}:1 < ${t.need} "${t.text}" (${t.el})${t.overImage ? ' [image]' : ''}${t.bg ? ' on ' + t.bg : ''}`)
   for (const t of r.nontext.slice(0, 6)) console.log(`    ${t.what} ${t.ratio}:1 ${t.el} ${t.type || t.label || ''}`)
-  for (const t of r.focus.slice(0, 4)) console.log(`    Fokus ${t.kind} ${t.ratio}:1 "${t.name}"`)
+  for (const t of r.focus.slice(0, 4)) console.log(`    focus ${t.kind} ${t.ratio}:1 "${t.name}"`)
 }
-console.log(bad ? `\n${bad}/${report.length} Läufe mit Befunden` : `\n✓ ${report.length} Läufe: keine Kontrastbefunde`)
+console.log(bad ? `\n${bad}/${report.length} runs with findings` : `\n✓ ${report.length} runs: no contrast findings`)
 if (bad) process.exitCode = 1

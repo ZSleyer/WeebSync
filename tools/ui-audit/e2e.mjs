@@ -4,10 +4,11 @@
 // heights per family, labels that wrapped, and whether the mobile shell stays
 // pinned - and leaves one screenshot per route/browser/viewport behind.
 //
-//   node .ds-sync/e2e.mjs [--base http://127.0.0.1:8099] [--out ./e2e-shots] [--tag before]
+//   WS_EMAIL=... WS_PASSWORD=... node tools/ui-audit/e2e.mjs [--base http://127.0.0.1:8099] [--out ./e2e-shots] [--tag before]
 import { chromium, firefox } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { scanLayout } from './overlap.mjs'
+import { signIn } from './auth.mjs'
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -16,11 +17,6 @@ const arg = (name, dflt) => {
 const BASE = arg('base', 'http://127.0.0.1:8099')
 const OUT = arg('out', './e2e-shots')
 const TAG = arg('tag', '')
-// Two ways in, because the test DB may be OIDC-only: a session token handed in
-// via WS_TOKEN (inserted straight into the sessions table) wins, otherwise the
-// password login of a local account.
-const TOKEN = process.env.WS_TOKEN || ''
-const LOGIN = { email: process.env.WS_EMAIL || 'a@example.com', password: process.env.WS_PASSWORD || 'testpassword123' }
 
 const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
@@ -35,8 +31,8 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
 // States a route only shows after a click: extra fields that fold in. Each is
 // audited as a route of its own, after the click.
 const STATES = [
-  { route: '/settings/sync', label: 'Unterordner Serientitel', click: /^Serientitel$|^Series title$/ },
-  { route: '/settings/sync', label: 'Unterordner Remote-Ordner', click: /^Remote-Ordner$|^Remote folder$/ },
+  { route: '/settings/sync', label: 'subfolder series title', click: /^Serientitel$|^Series title$/ },
+  { route: '/settings/sync', label: 'subfolder remote folder', click: /^Remote-Ordner$|^Remote folder$/ },
 ]
 
 const ALL_VIEWPORTS = {
@@ -420,22 +416,13 @@ const run = async (name, browserType) => {
     page.on('console', (m) => m.type() === 'error' && !noise.test(m.text()) && errors.push(m.text().slice(0, 160)))
     page.on('pageerror', (e) => !noise.test(e.message) && errors.push('pageerror: ' + e.message.slice(0, 160)))
 
-    if (TOKEN) {
-      const u = new URL(BASE)
-      await ctx.addCookies([
-        { name: 'weebsync_session', value: TOKEN, domain: u.hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
-      ])
-      await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
-    } else {
-      await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
-      await page.evaluate(async (l) => {
-        await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(l) })
-      }, LOGIN)
-    }
+    await signIn(ctx, page, BASE)
+    await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
 
-    // The catalogue is a view, not a route: a plain /remote shows the classic
-    // list, so the tile grid - the densest layout in the app, and the one whose
-    // buttons hung over the card edge - was never in this sweep. Ask the API
+    // The catalogue's poster grid only fills where a folder matched a title,
+    // and a server's root rarely has one - so the densest layout in the app,
+    // the one whose buttons hung over the card edge, would never be in this
+    // sweep. Ask the API
     // for a folder that actually matched a title instead of hardcoding a path
     // out of somebody's library.
     const extra = await page.evaluate(async () => {
@@ -505,30 +492,30 @@ for (const f of all) {
   const problems = []
   if (f.missing) {
     bad++
-    console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: Zustand nicht erreichbar`)
+    console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: state not reachable`)
     continue
   }
   const lay = f.layout || { overlaps: [], escapes: [], clipped: [] }
-  if (lay.overlaps.length) problems.push(`${lay.overlaps.length}x Text über Text`)
-  if (lay.escapes.length) problems.push(`${lay.escapes.length}x Text ragt aus seiner Box`)
-  if (lay.clipped.length) problems.push(`${lay.clipped.length}x Text abgeschnitten`)
-  if (f.contrast.length) problems.push(`${f.contrast.length}x Kontrast (min ${Math.min(...f.contrast.map((c) => c.ratio))}:1)`)
-  if (f.targets.length) problems.push(`${f.targets.length}x Zielgröße`)
-  if (f.errors.length) problems.push(`${f.errors.length}x Konsolenfehler`)
-  if (f.scroll?.length) problems.push(`${f.scroll.length}x Scrollbalken`)
-  if (f.wrapped?.length) problems.push(`${f.wrapped.length}x Label umgebrochen`)
-  if (f.shell?.length) problems.push(`${f.shell.length}x Shell verrutscht`)
-  for (const [fam, rows] of Object.entries(f.offenders || {})) problems.push(`${fam}: ${rows.length}x Höhen in einer Zeile uneinheitlich`)
+  if (lay.overlaps.length) problems.push(`${lay.overlaps.length}x text over text`)
+  if (lay.escapes.length) problems.push(`${lay.escapes.length}x text escapes its box`)
+  if (lay.clipped.length) problems.push(`${lay.clipped.length}x text clipped`)
+  if (f.contrast.length) problems.push(`${f.contrast.length}x contrast (min ${Math.min(...f.contrast.map((c) => c.ratio))}:1)`)
+  if (f.targets.length) problems.push(`${f.targets.length}x target size`)
+  if (f.errors.length) problems.push(`${f.errors.length}x console error`)
+  if (f.scroll?.length) problems.push(`${f.scroll.length}x scrollbar`)
+  if (f.wrapped?.length) problems.push(`${f.wrapped.length}x label wrapped`)
+  if (f.shell?.length) problems.push(`${f.shell.length}x shell shifted`)
+  for (const [fam, rows] of Object.entries(f.offenders || {})) problems.push(`${fam}: ${rows.length}x mixed heights in a row`)
   if (problems.length) {
     bad++
     console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: ${problems.join(' · ')}`)
-    for (const o of lay.overlaps.slice(0, 6)) console.log(`    Überlappung ${o.w}x${o.h}px "${o.a}" (${o.ae}) / "${o.b}" (${o.be})`)
-    for (const o of lay.escapes.slice(0, 6)) console.log(`    Ragt ${o.dx}/${o.dy}px aus ${o.box}: "${o.text}"`)
-    for (const o of lay.clipped.slice(0, 6)) console.log(`    Abgeschnitten von ${o.by}: "${o.text}" (${o.el})`)
-    for (const c of f.contrast.slice(0, 4)) console.log(`    Kontrast ${c.ratio}:1 ${c.size}px "${c.text}"`)
-    for (const t of f.targets.slice(0, 4)) console.log(`    Ziel ${t.w}x${t.h} <${t.tag}> "${t.text}"`)
+    for (const o of lay.overlaps.slice(0, 6)) console.log(`    overlap ${o.w}x${o.h}px "${o.a}" (${o.ae}) / "${o.b}" (${o.be})`)
+    for (const o of lay.escapes.slice(0, 6)) console.log(`    escapes ${o.box} by ${o.dx}/${o.dy}px: "${o.text}"`)
+    for (const o of lay.clipped.slice(0, 6)) console.log(`    clipped by ${o.by}: "${o.text}" (${o.el})`)
+    for (const c of f.contrast.slice(0, 4)) console.log(`    contrast ${c.ratio}:1 ${c.size}px "${c.text}"`)
+    for (const t of f.targets.slice(0, 4)) console.log(`    target ${t.w}x${t.h} <${t.tag}> "${t.text}"`)
     for (const sc of (f.scroll || []).slice(0, 4)) console.log(`    Scroll ${sc.axis} +${sc.overflow}px in "${sc.where}"`)
-    for (const w of (f.wrapped || []).slice(0, 6)) console.log(`    Umbruch ${w.lines} Zeilen: ${w.w}px vorhanden, ${w.needs}px nötig "${w.text}"`)
+    for (const w of (f.wrapped || []).slice(0, 6)) console.log(`    wrap ${w.lines} lines: ${w.w}px available, ${w.needs}px needed "${w.text}"`)
     for (const s of (f.shell || []).slice(0, 4)) console.log(`    Shell ${s.what}${s.when ? ` (${s.when})` : ''}: ${s.off}px`)
     for (const [fam, rows] of Object.entries(f.offenders || {}))
       for (const r of rows) console.log(`    ${fam} ${r.h}px x${r.n}  ${r.sample}`)
@@ -536,5 +523,5 @@ for (const f of all) {
   }
 }
 console.log(bad === 0
-  ? `\n✓ ${all.length} Seitenläufe (${BROWSERS.length} Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${new Set(all.map((r) => r.route)).size} Routen): keine Befunde`
-  : `\n${bad}/${all.length} Seitenläufe mit Befunden`)
+  ? `\n✓ ${all.length} page runs (${BROWSERS.length} browsers x ${Object.keys(VIEWPORTS).length} viewports x ${new Set(all.map((r) => r.route)).size} routes): no findings`
+  : `\n${bad}/${all.length} page runs with findings`)
