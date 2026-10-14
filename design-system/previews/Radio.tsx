@@ -22,7 +22,7 @@ export const InGroup = () => (
       <Radio
         name="preview-b"
         labelClassName="min-w-0 text-t-secondary"
-        label={<span className="truncate font-mono text-[11px]">/BD [Exclusive]/Golden Time</span>}
+        label={<span className="truncate font-mono text-[11px]">/BD/Golden Time</span>}
         defaultChecked
       />
       <Radio

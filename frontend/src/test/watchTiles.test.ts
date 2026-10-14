@@ -89,7 +89,7 @@ describe('the list columns', () => {
     expect(nextCell(t, w(), now)).toBe('watch.list.noDate')
   })
   it('takes the disk from the first folder past the mount point', () => {
-    expect(diskName('/media/disk1/Anime/Frieren')).toBe('haibara')
+    expect(diskName('/media/disk1/Anime/Frieren')).toBe('disk1')
     expect(diskName('/srv/ran/x')).toBe('ran')
     expect(diskName('/downloads')).toBe('downloads')
   })
