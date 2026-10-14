@@ -37,6 +37,9 @@
   padding: calc(env(safe-area-inset-top, 0px) + 6px) 0 calc(env(safe-area-inset-bottom, 0px) + 6px);
 }
 .ws-rd-unit[data-fit='width'] { align-items: flex-start; overflow-y: auto; }
+/* the neighbours wait a screen to each side for the drag to bring them in */
+.ws-rd-unit[data-at='-1'] { translate: -100% 0; }
+.ws-rd-unit[data-at='1'] { translate: 100% 0; }
 .ws-rd-unit img,
 .ws-rd-unit canvas { user-select: none; -webkit-user-drag: none; background: #fff; }
 .ws-rd-unit[data-kind='pdf'] canvas { box-shadow: 0 2px 16px rgb(0 0 0 / 0.5); }

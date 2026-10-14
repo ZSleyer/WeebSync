@@ -460,7 +460,7 @@ export function Paged({
     if (scroll) {
       widen(i)
       requestAnimationFrame(() => strip.current?.querySelector(`[data-page="${i}"]`)?.scrollIntoView())
-    } else box.current?.querySelector('[data-fit="width"]')?.scrollTo({ top: 0 })
+    } else box.current?.querySelector('[data-at="0"][data-fit="width"]')?.scrollTo({ top: 0 })
   }
   const go = (d: number) => {
     if (ended) {
@@ -683,9 +683,26 @@ export function Paged({
             </div>
           </div>
         ) : (
-          <div className="ws-rd-unit" data-fit={layout === 'double' ? 'height' : fit} data-kind={kind}>
-            {render(start, layout === 'double' ? 'height' : fit)}
-          </div>
+          // the page and, a screen to each side, the ones a drag brings in, so
+          // the next page is already there while the finger pulls. Keyed by
+          // page: on a turn the neighbour's element, picture loaded, simply
+          // becomes the middle one. ponytail: single pages only, a spread
+          // still slides in after the turn
+          [isRtl ? start + 1 : start - 1, start, isRtl ? start - 1 : start + 1].map((i, at) =>
+            i < 0 || i >= count || (at !== 1 && layout === 'double') ? null : (
+              <div
+                key={i}
+                className="ws-rd-unit"
+                data-at={at - 1}
+                data-fit={layout === 'double' ? 'height' : fit}
+                data-kind={kind}
+                aria-hidden={at !== 1 || undefined}
+                inert={at !== 1 || undefined}
+              >
+                {render(i, layout === 'double' ? 'height' : fit)}
+              </div>
+            ),
+          )
         )}
       </div>
     )
