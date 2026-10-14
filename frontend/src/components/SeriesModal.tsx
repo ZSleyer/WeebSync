@@ -753,6 +753,14 @@ function SeriesCard({
     const root = scroller.current
     if (!root || viewOn || typeof IntersectionObserver === 'undefined') return
     const seen = new Map<Element, boolean>()
+    // of the sections in the band, the last one whose top has passed under
+    // the sticky rows; a short section's tail must not outvote it
+    const readNow = () => {
+      const inBand = sections.filter((k) => seen.get(sec.current[k]!))
+      const line = root.getBoundingClientRect().top + sticky() + 1
+      const passed = inBand.filter((k) => sec.current[k]!.getBoundingClientRect().top <= line)
+      return passed.length ? passed[passed.length - 1] : inBand[0]
+    }
     const spy = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => seen.set(e.target, e.isIntersecting))
@@ -761,11 +769,7 @@ function SeriesCard({
         // scrolled to the end, the last section is the one being read even
         // though a short one never reaches the top of the band
         const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
-        const first = end
-          ? sections[sections.length - 1]
-          : root.scrollTop < 2
-            ? sections[0]
-            : sections.find((k) => seen.get(sec.current[k]!))
+        const first = end ? sections[sections.length - 1] : root.scrollTop < 2 ? sections[0] : readNow()
         if (first) setCurrent(first)
       },
       { root, rootMargin: `-${sticky()}px 0px -55% 0px` },

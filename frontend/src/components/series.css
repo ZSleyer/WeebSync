@@ -156,11 +156,11 @@ html[data-overlay] .app-shell > main {
   gap: 0.5rem;
   margin-top: 0.125rem;
 }
-.ws-d-acts > .t-btn {
+.ws-d-acts .t-btn {
   flex: 1;
   background: color-mix(in oklab, var(--bg) 70%, transparent);
 }
-.ws-d-acts > .t-btn--primary {
+.ws-d-acts .t-btn--primary {
   background: var(--accent);
 }
 @media (width >= 64rem) {
@@ -185,7 +185,7 @@ html[data-overlay] .app-shell > main {
     align-self: start;
     margin-top: 0;
   }
-  .ws-d-acts > .t-btn {
+  .ws-d-acts .t-btn {
     flex: none;
   }
 }

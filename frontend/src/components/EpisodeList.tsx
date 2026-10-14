@@ -518,9 +518,9 @@ function EpisodeFacts({
     [t('series.ep.size'), fmtBytes(file.size)],
     ...(video
       ? ([
-          [t('series.ep.picture'), p?.video ? `${p.video.height}p · ${p.video.codec.toUpperCase()}` : pending || '?'],
-          [t('series.ep.sound'), p ? langs(p.audio) : pending || '?'],
-          [t('series.ep.subs'), p ? langs(p.subs) : pending || '?'],
+          [t('series.ep.picture'), p?.video ? `${p.video.height}p · ${p.video.codec.toUpperCase()}` : pending || ''],
+          [t('series.ep.sound'), p ? langs(p.audio) : pending || ''],
+          [t('series.ep.subs'), p ? langs(p.subs) : pending || ''],
         ] as [string, string][])
       : []),
     [t('series.ep.source'), watch?.serverName || (file.server === 0 ? t('series.ep.local') : '')],
