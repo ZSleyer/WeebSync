@@ -2187,8 +2187,12 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 /* a heading's block starts after its marker, which stands from the start */
 .t-sec-title.t-wipe::after { inset-inline-start: 1.25rem; }
 @media (prefers-reduced-motion: no-preference) {
-  :is([data-wipe="in"] .t-wipe, .t-wipe[data-wipe="in"]) { animation: t-wipe-text 560ms linear calc(var(--i, 0) * 110ms) both; }
-  :is([data-wipe="in"] .t-wipe, .t-wipe[data-wipe="in"])::after { animation: t-wipe-block 560ms linear calc(var(--i, 0) * 110ms) both; }
+  /* "in" fills backwards only: each ends on the element's own look, and an
+     animation that stays in effect keeps its layer, which was torn down (and
+     the page re-rastered, its pictures decoded again) all at once when the
+     mark came off a second later */
+  :is([data-wipe="in"] .t-wipe, .t-wipe[data-wipe="in"]) { animation: t-wipe-text 560ms linear calc(var(--i, 0) * 110ms) backwards; }
+  :is([data-wipe="in"] .t-wipe, .t-wipe[data-wipe="in"])::after { animation: t-wipe-block 560ms linear calc(var(--i, 0) * 110ms) backwards; }
   :is([data-wipe="out"] .t-wipe, .t-wipe[data-wipe="out"]) { animation: t-wipe-text-out 420ms linear calc(var(--i, 0) * 70ms) both; }
   :is([data-wipe="out"] .t-wipe, .t-wipe[data-wipe="out"])::after { animation: t-wipe-block-out 420ms linear calc(var(--i, 0) * 70ms) both; }
 }
@@ -2215,10 +2219,10 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 @media (prefers-reduced-motion: no-preference) {
   [data-wipe="in"] .t-progress:not(.t-progress--wave) > .t-progress-bar:not(.t-progress-running) {
     transform-origin: left;
-    animation: t-fill 900ms var(--spring-calm) 200ms both;
+    animation: t-fill 900ms var(--spring-calm) 200ms backwards;
   }
   [data-wipe="in"] :is(.t-rows > .t-row, .t-shelf > *, [data-rise] > *, .t-rise):not(.t-reveal) {
-    animation: t-enter-rise 520ms var(--spring-calm) var(--rd, 0ms) both;
+    animation: t-enter-rise 520ms var(--spring-calm) var(--rd, 0ms) backwards;
   }
 }
 @keyframes t-fill { from { transform: scaleX(0); } }

@@ -113,9 +113,13 @@ export function enterPage(root: HTMLElement, extra: HTMLElement[] = []) {
   })
   items.forEach((el, i) => el.style.setProperty('--rd', `${riseDelay(lefts[i], width)}ms`))
   for (const el of new Set([root, ...extra])) {
-    el.removeAttribute('data-wipe')
-    // a reflow between, so the same value starts the animation again
-    void el.offsetWidth
+    // a reflow between, so the same value starts the animation again; only
+    // when it is still set from the last run: on a fresh page the reflow
+    // forced a second full layout in the frame the entry starts
+    if (el.hasAttribute('data-wipe')) {
+      el.removeAttribute('data-wipe')
+      void el.offsetWidth
+    }
     el.dataset.wipe = 'in'
   }
 }
