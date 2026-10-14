@@ -2,7 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useEffectEvent, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Input } from 'fluid-lycoris'
+import { Button, Input, SettingsField } from 'fluid-lycoris'
 import { api } from '../../api'
 import i18n from '../../locales'
 
@@ -119,12 +119,13 @@ export interface LogLine {
   attrs?: Record<string, unknown>
 }
 
+// the log box is dark in both themes, so the levels have colours of their own
 export const LOG_COLOR: Record<LogLevel, string> = {
-  trace: 'text-t-muted',
-  debug: 'text-t-secondary',
-  info: 'text-accent',
-  warn: 'text-warn',
-  error: 'text-err',
+  trace: 'log-trace',
+  debug: 'log-debug',
+  info: 'log-info',
+  warn: 'log-warn',
+  error: 'log-error',
 }
 
 export interface CacheEntry {
@@ -272,7 +273,8 @@ export function NumEdit({
       <Input
         id={id}
         key={value}
-        className="h-6 w-20 px-2 py-1 text-right font-mono text-xs tabular-nums"
+        size="sm"
+        className="w-20 text-right font-mono tabular-nums"
         type="text"
         inputMode="numeric"
         title={title}
@@ -285,6 +287,44 @@ export function NumEdit({
         }}
       />
     </>
+  )
+}
+
+// The same uncontrolled number editor as a settings field: label above, the
+// short field, the hint under it. For the crawler's interval and batch.
+export function NumField({
+  id,
+  label,
+  value,
+  hint,
+  onCommit,
+}: {
+  id: string
+  label: string
+  value: number
+  hint?: string
+  onCommit: (n: number) => void
+}) {
+  const { t } = useTranslation()
+  const help = hint ? `${hint}. ${t('settings.jobs.zeroDefault')}` : t('settings.jobs.zeroDefault')
+  return (
+    <SettingsField label={label} htmlFor={id} hint={help} hintId={id + '-h'}>
+      <Input
+        id={id}
+        key={value}
+        className="sf-num font-mono tabular-nums"
+        type="text"
+        inputMode="numeric"
+        aria-describedby={id + '-h'}
+        defaultValue={value}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+        onBlur={(e) => {
+          if (e.target.value.trim() === '') return
+          const n = Number(e.target.value)
+          if (Number.isInteger(n) && n >= 0 && n !== value) onCommit(n)
+        }}
+      />
+    </SettingsField>
   )
 }
 

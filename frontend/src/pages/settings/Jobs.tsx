@@ -1,11 +1,12 @@
-import { Pause, Play, Trash2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Panel, Select } from 'fluid-lycoris'
+import { Button, Row, Rows, Select } from 'fluid-lycoris'
 import { api, type JobsStatus } from '../../api'
 import { jobFamily, jobLabel } from '../../jobs'
 import { fmtLogTime, LOG_COLOR, LOG_LEVELS, useAdminJobs, type LogLevel, type LogLine } from './maintenance'
+import { SettingsPanel } from './ui'
+import './maintenance.css'
 
 // LogPanel is the admin live log: an SSE stream of backend records (backlog
 // first, then live) with a runtime level switch, a client-side level filter,
@@ -21,7 +22,7 @@ function LogPanel({ level }: { level: LogLevel }) {
   useEffect(() => {
     pausedRef.current = paused
   }, [paused])
-  const logRef = useRef<HTMLDivElement>(null)
+  const logRef = useRef<HTMLPreElement>(null)
 
   const setLevel = useMutation({
     mutationFn: (lvl: LogLevel) => api.put('/api/admin/loglevel', { level: lvl }),
@@ -64,79 +65,62 @@ function LogPanel({ level }: { level: LogLevel }) {
       : ''
 
   return (
-    <Panel as="section" id="log" className="mb-4 p-5" aria-label={t('settings.jobs.logs.title')}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Badge tone="accent">{t('settings.jobs.logs.title')}</Badge>
-        <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs text-t-muted" htmlFor="log-level">
-            {t('settings.jobs.logs.level')}
-          </label>
-          <Select
-            id="log-level"
-            size="sm"
-            value={level}
-            disabled={setLevel.isPending}
-            onChange={(e) => setLevel.mutate(e.target.value as LogLevel)}
-          >
-            {LOG_LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </Select>
-          <label className="text-xs text-t-muted" htmlFor="log-filter">
-            {t('settings.jobs.logs.filter')}
-          </label>
-          <Select
-            id="log-filter"
-            size="sm"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value as LogLevel | 'all')}
-          >
-            <option value="all">{t('settings.jobs.logs.all')}</option>
-            {LOG_LEVELS.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </Select>
-          <Button size="sm" onClick={() => setPaused((p) => !p)}>
-            {paused ? (
-              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            ) : (
-              <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            )}
-            {paused ? t('settings.jobs.logs.resume') : t('settings.jobs.logs.pause')}
-          </Button>
-          <Button size="sm" onClick={() => setLines([])}>
-            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('settings.jobs.logs.clear')}
-          </Button>
-        </div>
+    <SettingsPanel id="log" title={t('settings.jobs.logs.title')} desc={t('settings.jobs.logs.hint')}>
+      <div className="log-bar">
+        <Select
+          size="sm"
+          aria-label={t('settings.jobs.logs.level')}
+          title={t('settings.jobs.logs.level')}
+          value={level}
+          disabled={setLevel.isPending}
+          onChange={(e) => setLevel.mutate(e.target.value as LogLevel)}
+        >
+          {LOG_LEVELS.map((l) => (
+            <option key={l} value={l}>
+              {t('settings.jobs.logs.levelIs', { level: l })}
+            </option>
+          ))}
+        </Select>
+        <Select
+          size="sm"
+          aria-label={t('settings.jobs.logs.filter')}
+          title={t('settings.jobs.logs.filter')}
+          value={filter}
+          onChange={(e) => setFilter(e.target.value as LogLevel | 'all')}
+        >
+          <option value="all">{t('settings.jobs.logs.showAll')}</option>
+          {LOG_LEVELS.map((l) => (
+            <option key={l} value={l}>
+              {t('settings.jobs.logs.showOnly', { level: l })}
+            </option>
+          ))}
+        </Select>
+        <Button size="sm" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
+          {paused ? t('settings.jobs.logs.resume') : t('settings.jobs.logs.pause')}
+        </Button>
+        <Button size="sm" onClick={() => setLines([])}>
+          {t('settings.jobs.logs.clear')}
+        </Button>
       </div>
-      <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.logs.hint')}</p>
-      <div
-        ref={logRef}
-        className="mt-3 h-[50dvh] overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary p-2 font-mono text-xs leading-relaxed lg:h-auto lg:max-h-[60dvh]"
-      >
-        {shown.length === 0 ? (
-          <p className="text-t-secondary">{t('settings.jobs.logs.empty')}</p>
-        ) : (
-          shown.map((l, i) => (
-            <div key={i} className="whitespace-pre-wrap wrap-break-word">
-              <span className="text-t-muted">{fmtLogTime(l.ts)}</span>{' '}
-              <span className={`${LOG_COLOR[l.level] ?? ''} font-semibold uppercase`}>{l.level}</span>{' '}
-              <span>{l.msg}</span>
-              {l.attrs && Object.keys(l.attrs).length > 0 && <span className="text-t-muted"> {fmtAttrs(l.attrs)}</span>}
-            </div>
-          ))
-        )}
-      </div>
-    </Panel>
+      {/* a scrolling region a keyboard has to reach: focusable, named (axe
+          scrollable-region-focusable) */}
+      {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
+      <pre ref={logRef} className="log" tabIndex={0} aria-label={t('settings.jobs.logs.title')}>
+        {shown.length === 0
+          ? t('settings.jobs.logs.empty')
+          : shown.map((l, i) => (
+              <div key={i}>
+                <span className="opacity-70">{fmtLogTime(l.ts)}</span>{' '}
+                <span className={`${LOG_COLOR[l.level] ?? ''} font-semibold uppercase`}>{l.level}</span> {l.msg}
+                {l.attrs && Object.keys(l.attrs).length > 0 && <span className="opacity-70"> {fmtAttrs(l.attrs)}</span>}
+              </div>
+            ))}
+      </pre>
+    </SettingsPanel>
   )
 }
 
-// Tasks and log: what runs right now, what is held, and the live stream
+// Tasks and log: what runs right now and what is held, then the live stream
 // of the backend's records. The index, the matches and the data inventory
 // have sections of their own.
 export default function Jobs() {
@@ -168,62 +152,73 @@ export default function Jobs() {
   })
 
   if (!data) return null
-  const idle = data.running.length === 0
+  const held = jobsStatus?.paused ?? []
+  const idle = data.running.length === 0 && held.length === 0
 
   return (
     <>
       {error && (
-        <p className="mb-3 text-xs text-err" role="alert">
+        <p className="sf-issue mb-3" role="alert">
           {error}
         </p>
       )}
-      <Panel as="section" id="activity" className="mb-4 p-5" aria-label={t('settings.jobs.activity')}>
-        <Badge tone="accent">{t('settings.jobs.activity')}</Badge>
-        <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.hint')}</p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {idle && <Badge tone="ok">{t('settings.jobs.idle')}</Badge>}
-          {data.running.map((job) => (
-            <span key={job} className="flex items-center gap-1">
-              <Badge className="font-mono">{job}</Badge>
-              <Button
-                size="sm"
-                title={t('jobs.holdHint')}
-                aria-label={`${t('jobs.hold')}: ${jobLabel(t, jobFamily(job))}`}
-                disabled={hold.isPending}
-                onClick={() => hold.mutate({ family: jobFamily(job), paused: true })}
-              >
-                <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('jobs.hold')}
-              </Button>
-            </span>
-          ))}
-          {(jobsStatus?.paused ?? []).map((family) => (
-            <span key={family} className="flex items-center gap-1">
-              <Badge tone="warn">
-                {jobLabel(t, family)} · {t('jobs.paused')}
-              </Badge>
-              <Button
-                size="sm"
-                aria-label={`${t('jobs.resume')}: ${jobLabel(t, family)}`}
-                disabled={hold.isPending}
-                onClick={() => hold.mutate({ family, paused: false })}
-              >
-                <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('jobs.resume')}
-              </Button>
-            </span>
-          ))}
-          {data.matchQueue > 0 && (
-            <Badge tone="warn" className="tabular-nums">
-              {t('settings.jobs.queue', { count: data.matchQueue })}
-            </Badge>
-          )}
-        </div>
-        {(jobsStatus?.paused ?? []).length > 0 && <p className="mt-2 text-xs text-warn">{t('jobs.pausedNote')}</p>}
-        <p className="mt-2 text-xs text-t-muted">
+      <SettingsPanel id="activity" title={t('settings.jobs.activity')} desc={t('settings.jobs.hint')}>
+        {idle ? (
+          <p className="sf-note">{t('settings.jobs.idleLine')}</p>
+        ) : (
+          <Rows dense>
+            {data.running.map((job) => {
+              const name = jobLabel(t, jobFamily(job))
+              return (
+                <Row
+                  key={job}
+                  leading={<span className="run-dot" />}
+                  title={name}
+                  sub={
+                    <>
+                      {t('settings.jobs.running')} · <span className="font-mono">{job}</span>
+                    </>
+                  }
+                  trailing={
+                    <Button
+                      size="sm"
+                      title={t('jobs.holdHint')}
+                      aria-label={`${t('jobs.hold')}: ${name}`}
+                      disabled={hold.isPending}
+                      onClick={() => hold.mutate({ family: jobFamily(job), paused: true })}
+                    >
+                      {t('jobs.hold')}
+                    </Button>
+                  }
+                />
+              )
+            })}
+            {held.map((family) => (
+              <Row
+                key={family}
+                leading={<span className="run-dot held" />}
+                title={jobLabel(t, family)}
+                sub={t('jobs.paused')}
+                trailing={
+                  <Button
+                    size="sm"
+                    aria-label={`${t('jobs.resume')}: ${jobLabel(t, family)}`}
+                    disabled={hold.isPending}
+                    onClick={() => hold.mutate({ family, paused: false })}
+                  >
+                    {t('jobs.resume')}
+                  </Button>
+                }
+              />
+            ))}
+          </Rows>
+        )}
+        {held.length > 0 && <p className="sf-note">{t('jobs.pausedNote')}</p>}
+        <p className="sf-note">
           {t('settings.jobs.watchSummary', { count: data.watch.count, min: data.watch.intervalMin })}
+          {data.matchQueue > 0 && <> · {t('settings.jobs.queue', { count: data.matchQueue })}</>}
         </p>
-      </Panel>
+      </SettingsPanel>
 
       <LogPanel level={data.logLevel} />
     </>

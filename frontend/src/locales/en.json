@@ -1678,9 +1678,15 @@
       "about": "About WeebSync"
     },
     "jobs": {
-      "activity": "Active tasks",
-      "hint": "What runs right now and what is on hold. Refreshes every 5 seconds.",
+      "noMatchYet": "no match yet",
+      "running": "running",
+      "idleLine": "Nothing is running and nothing is on hold.",
+      "activity": "Tasks",
+      "hint": "Running now or on hold. A hold lasts until resumed. Refreshes every 5 seconds.",
       "logs": {
+        "showOnly": "Only {{level}}",
+        "showAll": "Show all",
+        "levelIs": "Level {{level}}",
         "title": "Live log",
         "hint": "Live stream of backend activity. A higher level (debug/trace) shows decisions and reasons, applies at once and without a restart.",
         "level": "Level",
@@ -1716,7 +1722,7 @@
       "indexHint": "After a flush the crawler rebuilds the index step by step, at the interval set per server.",
       "oldestListing": "oldest listing",
       "matched": "{{n}} matched",
-      "unmatched": "{{n}} unmatched",
+      "unmatched": "{{n}} without a match",
       "rematchMissing": "Rematch missing",
       "rematchAll": "Rematch all",
       "confirmRematchAll": "Re-search all automatic matches on \"{{name}}\"? Manual assignments are kept.",
@@ -1739,14 +1745,14 @@
       "next": "Next",
       "pageInfo": "{{from}}–{{to}} of {{total}}",
       "ttlH": "TTL (h)",
-      "interval": "Interval (min)",
-      "batch": "Batch",
+      "interval": "Crawl every … minutes",
+      "batch": "Folders per pass",
       "batchHint": "Folders per run",
       "zeroDefault": "0 = default",
       "plex": "Plex cache",
       "moreActions": "More actions",
-      "rematchAllServers": "Rematch everything (all servers)",
-      "rematchAllServersHint": "Rematches every automatic match on every server and spends many API requests doing so.",
+      "rematchAllServers": "Rematch everything",
+      "rematchAllServersHint": "Searches again for every automatic match on every server and spends many API requests doing so. Manual matches stay.",
       "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests.",
       "data": {
         "kindTitle": {
@@ -2012,6 +2018,7 @@
     "canceled": "canceled"
   },
   "servers": {
+    "ruleWhere": "on {{parent}} · {{kind}}",
     "localColor": "Colour for local files",
     "maxConn": "Max. {{n}} connections",
     "hostKeys": "Host keys",
