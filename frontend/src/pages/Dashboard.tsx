@@ -25,7 +25,7 @@ import { HeroBanner } from './today/HeroBanner'
 import { buildNeeds, hiddenNeeds } from './today/needs'
 import { Needs } from './today/Needs'
 import { NewShelf } from './today/NewShelf'
-import { useRiseOnData } from './today/shared'
+import { useAfterFirstPaint, useRiseOnData } from './today/shared'
 import './today/today.css'
 
 /**
@@ -82,6 +82,8 @@ export default function Dashboard() {
   const date = new Date(now).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
   const wide = useMediaQuery(WIDE_MQ)
   const loading = isLoading || watchesLoading
+  // the hero and the shelf first; the rest a frame later (useAfterFirstPaint)
+  const late = useAfterFirstPaint()
 
   return (
     <div className="td-view">
@@ -89,13 +91,17 @@ export default function Dashboard() {
       <div className="td-cols">
         <div className="td-main">
           <NewShelf downloads={downloads} meta={meta} watches={watches} loading={isLoading} />
-          <Needs downloads={downloads} meta={meta} watches={watches} hints={hints} loading={loading} />
-          {wide && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
+          {late && <Needs downloads={downloads} meta={meta} watches={watches} hints={hints} loading={loading} />}
+          {late && wide && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
         </div>
         <div className="td-aside">
-          <Agenda watches={watches} loading={watchesLoading} />
-          <Storage />
-          <BackgroundWork />
+          {late && (
+            <>
+              <Agenda watches={watches} loading={watchesLoading} />
+              <Storage />
+              <BackgroundWork />
+            </>
+          )}
         </div>
       </div>
     </div>

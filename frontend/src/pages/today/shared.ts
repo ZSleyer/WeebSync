@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { enterPage } from 'fluid-lycoris'
 import type { Watch } from '../../api'
 
@@ -10,6 +10,22 @@ export const seriesTarget = (w: Watch) => ({
   watchId: w.id,
   title: w.titleOverride || undefined,
 })
+
+/**
+ * False for the render that mounts the page, true a frame later: what lies
+ * below the first screen mounts in its own render after the first paint, so
+ * entering the page is not one long task. Not a transition: a sliced render
+ * could miss the shell's entry, which reads the boxes two frames after the
+ * mount; this one is in place by then and rises with the rest.
+ */
+export function useAfterFirstPaint() {
+  const [late, setLate] = useState(false)
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setLate(true))
+    return () => cancelAnimationFrame(id)
+  }, [])
+  return late
+}
 
 /** how long a rise plays before its mark comes off, so rows mounted later by a poll do not rise again */
 const RISE_MS = 1200

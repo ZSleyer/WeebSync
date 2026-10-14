@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigationType } from 'react-router'
 import { useMediaQuery } from 'fluid-lycoris'
 import { api } from '../../api'
 import type { Schemas } from '../../api.gen'
@@ -15,6 +15,15 @@ type Banners = Schemas['api.todayBannersResponse']
 export const PHONE_HERO_MQ = '(max-width: 719px)'
 const LAST_KEY = 'weebsync.today.pattern'
 const NO_BANNERS: Banners = { banners: [], watches: 1 }
+
+// the deal last shown: a step back in history to the page shows it again
+// (same banners from the cache, same cut) instead of fetching and decoding
+// a new set while the page comes back
+interface Deal {
+  visit: number
+  seeds: { last: number; a: number; b: number }
+}
+let lastDeal: Deal | null = null
 
 // the pattern shown last, across reloads of the tab: the next visit draws another
 function lastPattern(): number {
@@ -49,8 +58,18 @@ export interface HeroBannerProps {
 export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   const { t } = useTranslation()
   const phone = useMediaQuery(PHONE_HERO_MQ)
-  // a new draw per visit: the key changes with every mount
-  const [visit] = useState(() => Date.now())
+  // a new draw per visit: the key changes with every mount, except on a
+  // step back in history, which returns to the page as it was
+  const navType = useNavigationType()
+  const [deal0] = useState<Deal>(() =>
+    navType === 'POP' && lastDeal
+      ? lastDeal
+      : { visit: Date.now(), seeds: { last: lastPattern(), a: Math.random(), b: Math.random() } },
+  )
+  useEffect(() => {
+    lastDeal = deal0
+  }, [deal0])
+  const { visit, seeds } = deal0
   const {
     data: got,
     isPending,
@@ -69,7 +88,6 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   // the cut: one pattern per visit and layout (crossing to a phone deals again)
   // the draws of this visit, taken once: a cut for the desktop page, one for
   // the phone's single banner, so crossing the breakpoint deals anew
-  const [seeds] = useState(() => ({ last: lastPattern(), a: Math.random(), b: Math.random() }))
   const cut = useMemo(
     () =>
       data
@@ -98,7 +116,9 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
           : { w: el.clientWidth, h: el.clientHeight, r },
       )
     }
-    measure()
+    // the observer reports once after the first layout: measuring right here
+    // forced a layout of the page being mounted. The panels slide in only
+    // after the deal anyway, so the frame without them is never seen.
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()

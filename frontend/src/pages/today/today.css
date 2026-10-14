@@ -162,7 +162,9 @@ span.td-pn { cursor: default; }
 }
 
 /* ── Neu da: the shelf of what landed ── */
-.td-shelf { margin-inline: -1rem; padding-inline: 1rem; }
+/* the snap edge sits where the padding ends: without it the shelf snapped
+   itself a few pixels sideways as it mounted (a scroll, an edge check, a re-render) */
+.td-shelf { margin-inline: -1rem; padding-inline: 1rem; scroll-padding-inline: 1rem; }
 .td-tile { display: block; align-self: flex-start; width: 6.5rem; text-align: left; border-radius: var(--r-cover); }
 .td-cv { position: relative; display: block; aspect-ratio: 2 / 3; }
 .td-cv > .t-cover { position: absolute; inset: 0; border-radius: var(--r-cover); }
@@ -181,7 +183,7 @@ span.td-pn { cursor: default; }
 .td-capt > .td-when { color: var(--fg-3); }
 .td-tile[data-fresh] .td-when { color: var(--ok); }
 @media (width >= 64rem) {
-  .td-shelf { margin-inline: 0; padding-inline: 0; gap: 1rem; }
+  .td-shelf { margin-inline: 0; padding-inline: 0; scroll-padding-inline: 0; gap: 1rem; }
   .td-tile { width: 8.25rem; }
 }
 /* skeleton tiles hold the shelf's real height: cover plus three lines */
