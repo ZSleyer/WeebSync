@@ -45,11 +45,10 @@ export default function UpdateToast() {
     const onVisible = () => {
       if (!document.hidden && Date.now() - lastCheck.current > FOCUS_GAP) check()
     }
-    // a chunk that is gone is the surest sign: the build it belonged to is
-    const onPreloadError = (e: Event) => {
-      e.preventDefault()
-      arm()
-    }
+    // a chunk that is gone is the surest sign: the build it belonged to is.
+    // The import still fails, so the route's error screen reloads (App.tsx);
+    // held back, it would resolve to nothing and fail somewhere less clear
+    const onPreloadError = () => arm()
     const timer = setInterval(check, CHECK_EVERY)
     document.addEventListener('visibilitychange', onVisible)
     window.addEventListener('vite:preloadError', onPreloadError)
