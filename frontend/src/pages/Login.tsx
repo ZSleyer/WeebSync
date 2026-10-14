@@ -2,12 +2,13 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Fingerprint, KeyRound, LogIn } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLink, Input, Panel } from 'fluid-lycoris'
-import { api, type User } from '../api'
+import { Button, ButtonLink, Input, Segmented, Slot } from 'fluid-lycoris'
+import { api, ApiError, type User } from '../api'
 import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPasskeyLogin } from '../webauthn'
 import Loading from '../components/Loading'
 import Setup from './Setup'
 import Brand from '../components/Brand'
+import './auth.css'
 
 interface AuthConfig {
   oidc: boolean
@@ -26,6 +27,26 @@ const oidcError = landing.get('oidc_error') ?? ''
 const loggedOut = landing.has('loggedout')
 // a refused sign-in or a logout must not bounce back to the provider
 const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
+// the backend's minimum (auth.ErrWeakPassword)
+export const MIN_PASSWORD = 10
+const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
+
+// The 401 of a wrong email or password counts what the rate limit leaves.
+interface LoginRefused {
+  attemptsLeft?: number
+  pauseSeconds?: number
+}
+
+/** The refusal in words, with the attempts left before the pause when the server counts them. */
+export function refusedText(err: unknown, t: (k: string, o?: Record<string, unknown>) => string): string | null {
+  if (!(err instanceof ApiError) || err.status !== 401) return null
+  const d = err.data as LoginRefused | undefined
+  if (d?.attemptsLeft == null) return null
+  const s = d.pauseSeconds ?? 0
+  return `${err.message} ${
+    d.attemptsLeft > 0 ? t('login.attemptsLeft', { count: d.attemptsLeft, s }) : t('login.attemptsNone', { s })
+  }`
+}
 
 export default function Login() {
   const { t, i18n } = useTranslation()
@@ -43,9 +64,16 @@ export default function Login() {
   const [busy, setBusy] = useState(false)
   const [twoFA, setTwoFA] = useState<{ token: string; totp: boolean; webauthn: boolean } | null>(null)
   const [code, setCode] = useState('')
-  const [autofill, setAutofill] = useState(false) // browser supports passkey autofill
   // the forgotten-password detours: asking for a link, and using one
   const [detour, setDetour] = useState<'forgot' | 'reset' | null>(resetToken ? 'reset' : null)
+  // an alternative under way: its button says what it waits for
+  const [waiting, setWaiting] = useState<'passkey' | 'sso' | null>(null)
+  // counts refusals, so the same message shakes again
+  const [errorTick, setErrorTick] = useState(0)
+  const fail = (msg: string) => {
+    setError(msg)
+    setErrorTick((n) => n + 1)
+  }
 
   // email verification redirect lands here with ?verify=ok|invalid, a refused
   // OIDC sign-in with ?oidc_error=<code>, a logout with ?loggedout
@@ -101,7 +129,7 @@ export default function Login() {
       }
       await afterAuth()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
+      fail(refusedText(err, t) ?? (err instanceof Error ? err.message : t('app.error')))
     } finally {
       setBusy(false)
     }
@@ -112,8 +140,8 @@ export default function Login() {
   const twoFactorFailed = (msg: string) => {
     if (msg === i18n.t('errors.loginExpired')) {
       setTwoFA(null)
-      setError(t('login.twoFactorExpired'))
-    } else setError(msg)
+      fail(t('login.twoFactorExpired'))
+    } else fail(msg)
   }
 
   const submitTotp = async (e: FormEvent) => {
@@ -145,7 +173,6 @@ export default function Login() {
     let active = true
     supportsPasskeyAutofill().then((ok) => {
       if (!active) return
-      setAutofill(ok)
       if (ok)
         conditionalPasskeyLogin()
           .then(() => {
@@ -160,14 +187,16 @@ export default function Login() {
   }, [cfg?.authMode])
   const passkeyLogin = async () => {
     setBusy(true)
+    setWaiting('passkey')
     setError('')
     try {
       await loginPasskey()
       await afterAuth()
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('login.passkeyFailed'))
+      fail(err instanceof Error ? err.message : t('login.passkeyFailed'))
     } finally {
       setBusy(false)
+      setWaiting(null)
     }
   }
   const securityKey2FA = async () => {
@@ -196,51 +225,52 @@ export default function Login() {
 
   const oidcOnly = cfg.oidc && (cfg.authMode === 'oidc-only' || (cfg.authMode === 'oidc-auto' && !noRedirect))
   const oidcLabel = cfg.oidcName ? t('login.oidcNamed', { name: cfg.oidcName }) : t('login.oidc')
+  const ssoWaiting = cfg.oidcName ? t('login.ssoWaitingNamed', { name: cfg.oidcName }) : t('login.ssoWaiting')
+  // which screen is up: the key restarts the slide-in on every change
+  const stage = oidcOnly ? 'sso' : detour ? detour : twoFA ? 'totp' : mode
+  const errorLine = error && (
+    <p key={errorTick} className="ws-login-err" data-shake={errorTick > 0 || undefined} role="alert">
+      {error}
+    </p>
+  )
+  const noticeLine = notice && (
+    <p className="ws-login-note" role="status">
+      {notice}
+    </p>
+  )
+  const passkeys = mode === 'login' && webauthn
+  const tooShort = Math.max(0, MIN_PASSWORD - password.length)
 
   return (
-    // a desktop splits the screen: the mark on its own half, the form on the
-    // other; a phone stacks them as before
-    <main className="grid min-h-dvh lg:grid-cols-2">
-      <div className="hidden place-items-center border-r border-border-subtle bg-bg-secondary p-10 lg:grid">
-        <div className="text-center">
-          <p className="font-display text-3xl font-bold tracking-[0.25em]" aria-hidden>
-            <Brand variant="hero" slogan={t('login.tagline')} className="mb-2" />
-          </p>
-        </div>
+    // a phone stacks the mark over the form; a desktop gives each a half
+    <main className="ws-login">
+      <div className="ws-login-hero">
+        <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
+          <Brand variant="hero" slogan={t('login.tagline')} />
+        </h1>
+        <p className="ws-login-claim">{t('login.claim')}</p>
       </div>
-      <div className="grid content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
-        <div className="w-full max-w-sm">
-          <div className="mb-6 text-center">
-            <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
-              <span className="lg:hidden">
-                <Brand variant="hero" slogan={t('login.tagline')} className="mb-2" />
-              </span>
-              <span className="hidden text-2xl tracking-wider lg:inline">{t('login.login')}</span>
-            </h1>
-          </div>
-
+      <div className="ws-login-side">
+        <div key={stage} className="ws-login-form ws-stage">
           {oidcOnly ? (
-            <Panel className="animate-fadeIn p-6 text-center">
+            <>
               {cfg.authMode === 'oidc-auto' && !holdRedirect ? (
-                <p className="mb-4 text-sm text-t-secondary" role="status">
+                <p className="ws-quiet" role="status">
                   {t('login.redirecting')}
                 </p>
               ) : null}
-              {notice && (
-                <p className="mb-4 text-sm text-ok" role="status">
-                  {notice}
-                </p>
-              )}
-              {error && (
-                <p className="mb-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                  {error}
-                </p>
-              )}
-              <ButtonLink variant="primary" className="block w-full" href="/api/auth/oidc/login">
+              {noticeLine}
+              {errorLine}
+              <ButtonLink
+                variant="primary"
+                className="ws-login-go"
+                href="/api/auth/oidc/login"
+                onClick={() => setWaiting('sso')}
+              >
                 <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {oidcLabel}
+                <Slot step={waiting === 'sso' ? 1 : 0}>{waiting === 'sso' ? ssoWaiting : oidcLabel}</Slot>
               </ButtonLink>
-            </Panel>
+            </>
           ) : detour ? (
             <PasswordDetour
               kind={detour}
@@ -252,27 +282,19 @@ export default function Login() {
               }}
             />
           ) : twoFA ? (
-            <Panel as="form" className="animate-fadeIn p-6" onSubmit={submitTotp}>
-              <h2 className="mb-1 font-display font-semibold tracking-wider">{t('login.totpTitle')}</h2>
+            <form className="grid" onSubmit={submitTotp}>
+              <h2 className="ws-login-h">{t('login.totpTitle')}</h2>
               {/* with only a security key there is no code field to point at */}
-              <p className="mb-4 text-xs text-t-muted">
-                {twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}
-              </p>
-              {twoFA.webauthn && (
-                <Button className="mb-4 block w-full" disabled={busy} onClick={securityKey2FA}>
-                  <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('login.useSecurityKey')}
-                </Button>
-              )}
+              <p className="ws-quiet">{twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}</p>
               {twoFA.totp && (
                 <>
-                  <Badge as="label" htmlFor="totp-code" className="mb-1 block w-fit">
+                  <label htmlFor="totp-code" className="sr-only">
                     {t('login.totpCode')}
-                  </Badge>
+                  </label>
                   <Input
                     id="totp-code"
                     name="code"
-                    className="mb-4 text-center font-mono text-lg tracking-[0.5em]"
+                    className="ws-login-code"
                     autoComplete="one-time-code"
                     inputMode="numeric"
                     maxLength={6}
@@ -288,58 +310,59 @@ export default function Login() {
                   />
                 </>
               )}
-              {error && (
-                <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                  {error}
-                </p>
-              )}
+              {errorLine}
               {twoFA.totp && (
-                <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-                  {t('login.submitLogin')}
+                <Button type="submit" variant="primary" className="ws-login-go" disabled={busy}>
+                  {t('login.confirm')}
                 </Button>
               )}
-              <Button
-                className="mt-3 block w-full text-center"
+              {twoFA.webauthn && (
+                <Button
+                  className={twoFA.totp ? 'ws-login-alt' : 'ws-login-go'}
+                  variant={twoFA.totp ? 'default' : 'primary'}
+                  disabled={busy}
+                  onClick={securityKey2FA}
+                >
+                  <KeyRound aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('login.useSecurityKey')}
+                </Button>
+              )}
+              <button
+                type="button"
+                className="ws-login-back"
                 onClick={() => {
                   setTwoFA(null)
                   setCode('')
                   setError('')
                 }}
               >
-                {t('servers.cancel')}
-              </Button>
-            </Panel>
+                {t('login.back')}
+              </button>
+            </form>
           ) : (
-            <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
-              {/* tab bar only when there's a real choice (registration open) */}
+            <form className="grid" onSubmit={submit}>
+              {/* a choice only when registration is open */}
               {cfg.registrationOpen && (
-                <div className="mb-4 flex gap-1" role="group" aria-label={t('login.tabs')}>
-                  <Button
-                    aria-pressed={mode === 'login'}
-                    size="sm"
-                    variant={mode === 'login' ? 'primary' : 'default'}
-                    className="flex-1"
-                    onClick={() => setMode('login')}
-                  >
-                    {t('login.login')}
-                  </Button>
-                  <Button
-                    aria-pressed={mode === 'register'}
-                    size="sm"
-                    variant={mode === 'register' ? 'primary' : 'default'}
-                    className="flex-1"
-                    onClick={() => setMode('register')}
-                  >
-                    {t('login.register')}
-                  </Button>
-                </div>
+                <Segmented
+                  aria-label={t('login.tabs')}
+                  size="md"
+                  className="mb-1 w-full"
+                  value={mode}
+                  onChange={(m) => {
+                    setMode(m)
+                    setError('')
+                  }}
+                  options={[
+                    { value: 'login', label: t('login.modeLogin') },
+                    { value: 'register', label: t('login.register') },
+                  ]}
+                />
               )}
-              <Badge as="label" htmlFor="email" className="mb-1 block w-fit">
+              <label htmlFor="email" className="ws-lbl">
                 {t('login.email')}
-              </Badge>
+              </label>
               <Input
                 id="email"
-                className="mb-4"
                 type="email"
                 // "webauthn" arms passkey autofill on this field (conditional UI)
                 autoComplete="username webauthn"
@@ -347,23 +370,38 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-              <Badge as="label" htmlFor="password" className="mb-1 block w-fit">
-                {t('login.password')}
-              </Badge>
-              <div className="relative mb-4">
+              <div className="ws-lbl-row">
+                <label htmlFor="password" className="ws-lbl">
+                  {t('login.password')}
+                </label>
+                {mode === 'login' && cfg.passwordReset && (
+                  <button
+                    type="button"
+                    className="ws-login-link"
+                    onClick={() => {
+                      setNotice('')
+                      setError('')
+                      setDetour('forgot')
+                    }}
+                  >
+                    {t('login.forgotShort')}
+                  </button>
+                )}
+              </div>
+              <div className="ws-login-pw">
                 <Input
                   id="password"
-                  className="pr-20"
                   type={showPw ? 'text' : 'password'}
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
-                  minLength={mode === 'register' ? 10 : undefined}
+                  minLength={mode === 'register' ? MIN_PASSWORD : undefined}
+                  aria-describedby={mode === 'register' ? 'password-hint' : undefined}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
-                  className="absolute inset-y-0 right-0 min-w-16 px-3 text-ctl-sm text-accent hover:underline"
+                  className="ws-login-link ws-login-eye"
                   aria-pressed={showPw}
                   aria-controls="password"
                   onClick={() => setShowPw((v) => !v)}
@@ -371,43 +409,40 @@ export default function Login() {
                   {t(showPw ? 'login.hidePassword' : 'login.showPassword')}
                 </button>
               </div>
-              {notice && (
-                <p className="mb-3 rounded-md border border-ok/40 px-3 py-2 text-sm text-ok" role="status">
-                  {notice}
+              {mode === 'register' && (
+                <p id="password-hint" className="ws-login-hint" data-ok={tooShort === 0 || undefined}>
+                  {tooShort > 0 ? t('login.lengthLeft', { min: MIN_PASSWORD, n: tooShort }) : t('login.lengthOk')}
                 </p>
               )}
-              {error && (
-                <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-                  {error}
-                </p>
-              )}
-              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-                {mode === 'login' ? t('login.submitLogin') : t('login.submitRegister')}
+              {noticeLine}
+              {errorLine}
+              <Button type="submit" variant="primary" className="ws-login-go" disabled={busy}>
+                {busy && !waiting
+                  ? t('login.checking')
+                  : mode === 'login'
+                    ? t('login.submitLogin')
+                    : t('login.submitRegister')}
               </Button>
-              {mode === 'login' && cfg.passwordReset && (
-                <Button
-                  className="mt-3 block w-full text-center"
-                  onClick={() => {
-                    setNotice('')
-                    setDetour('forgot')
-                  }}
-                >
-                  {t('login.forgot')}
-                </Button>
+              {(passkeys || cfg.oidc) && (
+                <>
+                  <p className="ws-login-or">{t('login.or')}</p>
+                  {passkeys && (
+                    <Button className="ws-login-alt" disabled={busy} onClick={passkeyLogin}>
+                      <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                      <Slot step={waiting === 'passkey' ? 1 : 0}>
+                        {waiting === 'passkey' ? t('login.passkeyWaiting') : t('login.passkey')}
+                      </Slot>
+                    </Button>
+                  )}
+                  {cfg.oidc && (
+                    <ButtonLink className="ws-login-alt" href="/api/auth/oidc/login" onClick={() => setWaiting('sso')}>
+                      <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                      <Slot step={waiting === 'sso' ? 1 : 0}>{waiting === 'sso' ? ssoWaiting : oidcLabel}</Slot>
+                    </ButtonLink>
+                  )}
+                </>
               )}
-              {mode === 'login' && !autofill && (
-                <Button className="mt-3 block w-full text-center" disabled={busy} onClick={passkeyLogin}>
-                  <Fingerprint aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {t('login.passkey')}
-                </Button>
-              )}
-              {cfg.oidc && (
-                <ButtonLink className="mt-3 block w-full text-center" href="/api/auth/oidc/login">
-                  <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                  {oidcLabel}
-                </ButtonLink>
-              )}
-            </Panel>
+            </form>
           )}
         </div>
       </div>
@@ -433,6 +468,8 @@ function PasswordDetour({
   const [again, setAgain] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // the link is asked for: the screen says where to look next
+  const [sent, setSent] = useState(false)
 
   const leave = (notice: string) => {
     // the token is spent (or abandoned): a reload must not show the form again
@@ -447,7 +484,8 @@ function PasswordDetour({
     try {
       if (kind === 'forgot') {
         await api.post('/api/auth/forgot', { email })
-        leave(t('login.forgotSent'))
+        setSent(true)
+        setBusy(false)
       } else {
         await api.post('/api/auth/reset', { token: resetToken, password })
         leave(t('login.resetDone'))
@@ -458,20 +496,30 @@ function PasswordDetour({
     }
   }
 
+  if (sent)
+    return (
+      <div key="sent" className="grid ws-stage">
+        <h2 className="ws-login-h">{t('login.sentTitle')}</h2>
+        <p className="ws-quiet" role="status">
+          {t('login.forgotSent')}
+        </p>
+        <Button variant="primary" className="ws-login-go" onClick={() => leave('')}>
+          {t('login.toLogin')}
+        </Button>
+      </div>
+    )
+
   return (
-    <Panel as="form" className="animate-fadeIn p-6" onSubmit={submit}>
-      <h2 className="mb-1 font-display font-semibold tracking-wider">
-        {kind === 'forgot' ? t('login.forgotTitle') : t('login.resetTitle')}
-      </h2>
-      <p className="mb-4 text-xs text-t-muted">{kind === 'forgot' ? t('login.forgotHint') : t('login.resetHint')}</p>
+    <form className="grid" onSubmit={submit}>
+      <h2 className="ws-login-h">{kind === 'forgot' ? t('login.forgotTitle') : t('login.resetTitle')}</h2>
+      <p className="ws-quiet">{kind === 'forgot' ? t('login.forgotHint') : t('login.resetHint')}</p>
       {kind === 'forgot' ? (
         <>
-          <Badge as="label" htmlFor="forgot-email" className="mb-1 block w-fit">
+          <label htmlFor="forgot-email" className="ws-lbl">
             {t('login.email')}
-          </Badge>
+          </label>
           <Input
             id="forgot-email"
-            className="mb-4"
             type="email"
             autoComplete="username"
             autoFocus
@@ -482,46 +530,44 @@ function PasswordDetour({
         </>
       ) : (
         <>
-          <Badge as="label" htmlFor="reset-password" className="mb-1 block w-fit">
+          <label htmlFor="reset-password" className="ws-lbl">
             {t('account.passwordNew')}
-          </Badge>
+          </label>
           <Input
             id="reset-password"
-            className="mb-4"
             type="password"
             autoComplete="new-password"
             autoFocus
             required
-            minLength={10}
+            minLength={MIN_PASSWORD}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <Badge as="label" htmlFor="reset-again" className="mb-1 block w-fit">
+          <label htmlFor="reset-again" className="ws-lbl">
             {t('account.passwordAgain')}
-          </Badge>
+          </label>
           <Input
             id="reset-again"
-            className="mb-4"
             type="password"
             autoComplete="new-password"
             required
-            minLength={10}
+            minLength={MIN_PASSWORD}
             value={again}
             onChange={(e) => setAgain(e.target.value)}
           />
         </>
       )}
       {error && (
-        <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+        <p className="ws-login-err" role="alert">
           {error}
         </p>
       )}
-      <Button type="submit" variant="primary" className="w-full" disabled={busy}>
+      <Button type="submit" variant="primary" className="ws-login-go" disabled={busy}>
         {kind === 'forgot' ? t('login.forgotSubmit') : t('login.resetSubmit')}
       </Button>
-      <Button className="mt-3 block w-full text-center" onClick={() => leave('')}>
-        {t('servers.cancel')}
-      </Button>
-    </Panel>
+      <button type="button" className="ws-login-back" onClick={() => leave('')}>
+        {t('login.toLogin')}
+      </button>
+    </form>
   )
 }
