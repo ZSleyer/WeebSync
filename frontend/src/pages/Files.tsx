@@ -3,6 +3,7 @@ import { flushSync } from 'react-dom'
 import {
   BookOpen,
   Check,
+  ChevronDown,
   CircleHelp,
   Copy,
   Download,
@@ -15,6 +16,7 @@ import {
   Music,
   PenLine,
   Pencil,
+  Pin,
   Play,
   RefreshCw,
   Replace,
@@ -50,6 +52,7 @@ import {
   Switch,
   enterPage,
   localTransition,
+  useMediaQuery,
   useMenu,
   useReveal,
 } from 'fluid-lycoris'
@@ -80,14 +83,14 @@ import {
 import { CatalogPendingTile, CatalogTile, useTileRise, vtName } from '../components/CatalogTile'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 import SourcePicker from '../components/SourcePicker'
-import { scopeChanged, useCatalogView } from '../components/useCatalogView'
+import { scopeChanged, useCatalogView, useScopeInfo } from '../components/useCatalogView'
 import ScopeRuleLine from '../components/ScopeRuleLine'
 import { FileBrowser, LocalPicker, openKind, PathCrumbs, PHONE_SORTS } from '../components/FileBrowser'
 import { useStored } from '../hooks/useStored'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
-import PageActions, { PageToolbar } from '../components/PageActions'
+import PageActions, { PageToolbar, WIDE_MQ } from '../components/PageActions'
 import { TrashButton } from './Trash'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
@@ -606,6 +609,7 @@ export default function Files() {
       {/* the shell carries the page title (app bar on a phone, title row on
           a desktop); the trash rides with it */}
       <PageActions>
+        <CatalogViewSwitch value={viewValue} onChange={setView} />
         <TrashButton />
       </PageActions>
 
@@ -619,29 +623,32 @@ export default function Files() {
       ) : (
         <div className="flex min-h-0 flex-1 gap-8">
           <section className="flex min-h-64 min-w-0 flex-1 flex-col lg:min-h-0" aria-label={t('files.title')}>
-            <CatalogViewSwitch value={viewValue} onChange={setView} />
             <div className="ws-cl-bar">
-              {/* names the source, switches it, and holds the way to a new one */}
-              <SourcePicker value={source} servers={servers} onChange={pickSource} className="ws-src" />
-              {!isLocal && (
-                <label className="ws-cl-search">
-                  <Search aria-hidden size={18} />
-                  <input
-                    type="search"
-                    placeholder={
-                      path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
-                    }
-                    aria-label={t('remote.search')}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onFocus={() => setSearchFocus(true)}
-                    onBlur={() => {
-                      setSearchFocus(false)
-                      rememberSearch(query)
-                    }}
-                  />
-                </label>
-              )}
+              {/* the source and the search as one field on a phone: the server
+                  is the chip at the start of the search */}
+              <div className="ws-cl-field">
+                {/* names the source, switches it, and holds the way to a new one */}
+                <SourcePicker value={source} servers={servers} onChange={pickSource} className="ws-src" />
+                {!isLocal && (
+                  <label className="ws-cl-search">
+                    <Search aria-hidden size={18} />
+                    <input
+                      type="search"
+                      placeholder={
+                        path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
+                      }
+                      aria-label={t('remote.search')}
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      onFocus={() => setSearchFocus(true)}
+                      onBlur={() => {
+                        setSearchFocus(false)
+                        rememberSearch(query)
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
               {view === 'classic' && !query.trim() && (
                 <Select
                   wrapperClassName="ws-cl-sort"
@@ -735,6 +742,10 @@ export default function Files() {
               <CatalogGrid
                 serverId={active}
                 path={path}
+                pin={{
+                  on: viewValue === 'catalogPersist',
+                  toggle: () => setView(viewValue === 'catalogPersist' ? 'catalogOnce' : 'catalogPersist'),
+                }}
                 onNavigate={navigate}
                 onSelect={setSelection}
                 selected={selection?.path}
@@ -1011,9 +1022,12 @@ export function CatalogGrid({
   onOpenFiles,
   cardActions,
   renaming,
+  pin,
 }: {
   serverId: number
   path: string
+  /** phone: the pin (keep this folder a catalog folder) lives in the overflow menu */
+  pin?: { on: boolean; toggle: () => void }
   onNavigate: (path: string) => void
   onSelect: (e: Entry) => void
   selected?: string
@@ -1052,6 +1066,33 @@ export function CatalogGrid({
   const [rematchInCard, setRematchInCard] = useState(false)
   // the folder whose match is being explained
   const [why, setWhy] = useState<CatalogItem | null>(null)
+  // phone: the source chip's sheet (choice, rule, why)
+  const [scopeSheet, setScopeSheet] = useState(false)
+  const wide = useMediaQuery(WIDE_MQ)
+  // a scope rule marks this folder: the source chip carries a dot for it
+  const ruleInfo = useScopeInfo(serverId, path).data
+  const ruleOn = !!(ruleInfo?.ruleId && ruleInfo.ruleKind === ruleInfo.scope)
+  // under the source choice, in the sheet and the popover alike: the rule that
+  // marks folders like this one, and why a title matched. `close` shuts the
+  // sheet before the why dialog opens over it
+  const scopeMore = (close: () => void) =>
+    path || (whyHere && data?.scope) ? (
+      <div className="ws-scope-more">
+        {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
+        {whyHere && data?.scope !== '' && (
+          <button
+            type="button"
+            className="t-link self-start text-sm"
+            onClick={() => {
+              close()
+              setWhy(whyHere)
+            }}
+          >
+            {t('explain.whySource')}
+          </button>
+        )}
+      </div>
+    ) : null
   // the folder's source shows on any title matching looked at: the first one
   const whyHere = (data?.items ?? []).find((it) => it.source && !it.pending)
   const toast = useToast()
@@ -1458,20 +1499,17 @@ export function CatalogGrid({
 
   return (
     <div ref={root} className="flex min-h-0 flex-1 flex-col">
-      {crumbs}
-      {/* touch-action is only read up to the nearest scroll container, and on a
-          phone this one fills the screen - the page's swipe zone sits above it
-          and the browser never sees it, so a sideways drag in here became a
-          scroll gesture and the page never turned. It has to allow the
-          horizontal axis itself. */}
-      <div className="min-h-0 flex-1 overflow-y-auto pt-2 pb-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
-        {/* how the tiles are ordered and which airing state they show, the
-            rest behind the overflow: one line on a phone too */}
-        <div className="ws-cat-head">
+      {/* the path, then one row of chips: order, airing state, the source and
+          the overflow. Stacked on a phone, side by side on a desktop; outside
+          the scroller, so its scrollbar can't clip the last chip */}
+      <div className="ws-cat-top">
+        {crumbs}
+        <div className="ws-cat-chips">
           {tiles.length + (status ? 1 : 0) > 1 && (
             <>
               <Select
-                wrapperClassName="ws-cat-sel"
+                size="sm"
+                wrapperClassName="ws-chip-sel"
                 aria-label={t('remote.sort')}
                 value={sort}
                 onChange={(e) => reflow(() => setSort(e.target.value as CatalogSort))}
@@ -1483,7 +1521,8 @@ export function CatalogGrid({
                 ))}
               </Select>
               <Select
-                wrapperClassName="ws-cat-sel"
+                size="sm"
+                wrapperClassName="ws-chip-sel"
                 aria-label={t('remote.statusFilter')}
                 value={status}
                 onChange={(e) => reflow(() => setStatus(e.target.value as CatalogStatus | ''))}
@@ -1497,38 +1536,34 @@ export function CatalogGrid({
               </Select>
             </>
           )}
+          <ScopeChip
+            wide={wide}
+            value={data?.scope ?? ''}
+            label={data?.scope === '' ? t('remote.scopeNone') : scopeLabel(data?.scope ?? '')}
+            ruleOn={ruleOn}
+            options={scopeOptions}
+            onPick={(v) => void setScope(v)}
+            onSheet={() => setScopeSheet(true)}
+            more={scopeMore}
+          />
           <CatalogActions
             canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
             noMatchCount={noMatchCount}
             onRematch={triggerRematch}
             onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
+            pin={pin}
           />
         </div>
-        {/* what the folder is matched against, as a sentence holding its
-            choice, with the way to why and the rule that marks folders like it */}
+      </div>
+      {/* touch-action is only read up to the nearest scroll container, and on a
+          phone this one fills the screen - the page's swipe zone sits above it
+          and the browser never sees it, so a sideways drag in here became a
+          scroll gesture and the page never turned. It has to allow the
+          horizontal axis itself. */}
+      <div className="min-h-0 flex-1 overflow-y-auto pt-2 pb-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
+        {/* the notes on the folder's source: an error, the ask to pick one,
+            the matching still running */}
         <div className="ws-cat-info">
-          <div className="ws-cat-scope">
-            <span id="cat-scope-l">{t('remote.scopeAs')}</span>
-            <Select
-              size="sm"
-              wrapperClassName="ws-cat-scope-sel"
-              aria-labelledby="cat-scope-l"
-              value={data?.scope ?? ''}
-              onChange={(e) => void setScope(e.target.value)}
-            >
-              {data?.scope === '' && <option value="">{t('remote.scopeNone')}</option>}
-              {scopeOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </Select>
-            {whyHere && data?.scope !== '' && (
-              <button type="button" className="t-link" onClick={() => setWhy(whyHere)}>
-                {t('explain.whySource')}
-              </button>
-            )}
-          </div>
           {scopeError && (
             <p className="ws-cat-note text-err!" role="alert">
               {scopeError}
@@ -1545,7 +1580,6 @@ export function CatalogGrid({
               </p>
             )
           )}
-          {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
         </div>
         {/* a leaf folder holds files, not titles: offer the classic list instead
           of leaving the user at a dead end */}
@@ -1677,6 +1711,36 @@ export function CatalogGrid({
           elsewhere={data?.elsewhere ?? {}}
           onOpenFolder={onOpenFiles}
         />
+        {scopeSheet && (
+          // the source chip's sheet: what the folder is matched against, the
+          // rule that marks folders like it, and why a title matched
+          <Dialog sheet width="max-w-sm" aria-labelledby="cat-scope-h" onClose={() => setScopeSheet(false)}>
+            <header className="px-5 pt-4 pb-1">
+              <h2 id="cat-scope-h" className="font-display text-lg font-semibold">
+                {t('remote.scopeAs')}
+              </h2>
+            </header>
+            <div role="radiogroup" aria-labelledby="cat-scope-h" className="ws-scope-opts px-4">
+              {scopeOptions.map((o) => (
+                <button
+                  key={o.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={data?.scope === o.value}
+                  className="ws-scope-opt"
+                  onClick={() => {
+                    setScopeSheet(false)
+                    if (data?.scope !== o.value) void setScope(o.value)
+                  }}
+                >
+                  <span aria-hidden className="ws-radio" />
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <div className="mx-4 mb-4">{scopeMore(() => setScopeSheet(false))}</div>
+          </Dialog>
+        )}
         {why && (
           <CatalogWhy
             serverId={serverId}
@@ -1752,6 +1816,75 @@ const ruleOf = (f: WatchFields): RenameRule => ({
   renameSeriesId: f.renameSeriesId,
 })
 
+// The folder's source as a chip: what its titles are looked up as. A tap opens
+// the choice with the rule and the why under it, as a sheet on a phone and as
+// a popover hanging from the chip on a desktop. A dot on the chip says a rule
+// marked the folder; an unset source shows in the accent and asks for one.
+function ScopeChip({
+  wide,
+  value,
+  label,
+  ruleOn,
+  options,
+  onPick,
+  onSheet,
+  more,
+}: {
+  wide: boolean
+  value: string
+  label: string
+  ruleOn: boolean
+  options: { value: string; label: string }[]
+  onPick: (value: string) => void
+  onSheet: () => void
+  /** the rule and the why under the choice; `close` shuts the popover first */
+  more: (close: () => void) => ReactNode
+}) {
+  const { t } = useTranslation()
+  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
+  const chip = (
+    <button
+      type="button"
+      className="ws-chip"
+      data-unset={value === '' || undefined}
+      aria-haspopup={wide ? 'listbox' : 'dialog'}
+      aria-expanded={wide ? open : undefined}
+      onClick={() => (wide ? setOpen((o) => !o) : onSheet())}
+    >
+      {ruleOn && <span aria-hidden className="ws-chip-dot" />}
+      <span className="sr-only">{t('remote.scopeAs')} </span>
+      {label}
+      <ChevronDown aria-hidden size={14} />
+    </button>
+  )
+  if (!wide) return chip
+  return (
+    <div className="relative" ref={ref} style={anchorStyle}>
+      {chip}
+      {open && (
+        <Menu anchor={anchor} placement="bottom-end" aria-label={t('remote.scopeAs')} className="ws-scope-pop">
+          {options.map((o) => (
+            <MenuItem
+              key={o.value}
+              selected={o.value === value}
+              trailing={o.value === value ? <Check aria-hidden size={16} /> : undefined}
+              onClick={() => {
+                setOpen(false)
+                if (o.value !== value) onPick(o.value)
+              }}
+            >
+              {o.label}
+            </MenuItem>
+          ))}
+          <li role="none" className="ws-scope-pop-more">
+            {more(() => setOpen(false))}
+          </li>
+        </Menu>
+      )}
+    </div>
+  )
+}
+
 // CatalogActions holds what a catalog folder can have done to it: pull the
 // automatic matches again, and forget the source this folder was marked with.
 // Behind an overflow button, because none of it is part of looking at the
@@ -1761,16 +1894,19 @@ function CatalogActions({
   noMatchCount,
   onRematch,
   onClearScope,
+  pin,
 }: {
   canRematch: boolean
   noMatchCount: number
   onRematch: (all: boolean) => void
   /** absent while the folder carries no source mark */
   onClearScope?: () => void
+  /** phone: keep the folder a catalog folder, the desktop's pin button */
+  pin?: { on: boolean; toggle: () => void }
 }) {
   const { t } = useTranslation()
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
-  if (!canRematch && !onClearScope) return null
+  if (!canRematch && !onClearScope && !pin) return null
   return (
     <div className="relative" ref={ref} style={anchorStyle}>
       <IconButton
@@ -1785,6 +1921,22 @@ function CatalogActions({
       </IconButton>
       {open && (
         <Menu kind="menu" anchor={anchor} aria-label={t('remote.catalogActions')}>
+          {pin && (
+            <>
+              <MenuItem
+                role="menuitemcheckbox"
+                aria-checked={pin.on}
+                onClick={() => {
+                  setOpen(false)
+                  pin.toggle()
+                }}
+              >
+                <Pin aria-hidden size={16} className="mr-2 inline" fill={pin.on ? 'currentColor' : 'none'} />
+                {t('remote.catalogPersist')}
+              </MenuItem>
+              {(canRematch || onClearScope) && <li role="separator" className="my-1 border-t border-border-subtle" />}
+            </>
+          )}
           {canRematch && noMatchCount > 0 && (
             <MenuItem
               onClick={() => {

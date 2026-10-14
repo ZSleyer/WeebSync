@@ -1,9 +1,6 @@
 /* ═══ Dateien: the view switch, the source and search bar, the bars for a
    picked entry and a multi-selection, and the desktop details panel ═══ */
 
-.ws-fseg { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-.ws-fseg > .t-seg { flex: 1; }
-.ws-fseg [data-on] { color: var(--accent-2); }
 
 .ws-cl-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
 .ws-src { flex: none; }
@@ -135,3 +132,33 @@
 .ws-fi-dl dd.font-mono { font-size: 0.78125rem; }
 .ws-fi-acts { display: grid; gap: 0.5rem; }
 .ws-fi-acts .t-btn { justify-content: flex-start; }
+
+/* ── the head: the grid/list switch sits in the title row, the source is a
+   chip at the start of the search field (capped on a desktop) ── */
+.ws-viewsw { flex: none; }
+.ws-viewsw .t-seg-btn { min-height: 2rem; padding: 0 0.5rem; }
+.ws-cl-field {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  gap: 0.125rem;
+  height: 2.75rem;
+  padding: 0 0.3125rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg);
+}
+@media (width >= 64rem) { .ws-cl-field { flex: 0 1 34rem; } }
+.ws-cl-field:focus-within { border-color: var(--accent); }
+.ws-cl-field .ws-src .t-pill {
+  height: 2.125rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 0.5rem 0 0.625rem;
+  font-size: 0.875rem;
+  background: color-mix(in oklab, var(--fg) 9%, var(--bg));
+}
+.ws-cl-field .ws-src .t-pill svg:first-child { width: 16px; height: 16px; }
+.ws-cl-field .ws-cl-search { height: 100%; padding: 0 0.625rem 0 0.375rem; border: 0; background: none; }
+.ws-cl-field .ws-cl-search:focus-within { border: 0; }

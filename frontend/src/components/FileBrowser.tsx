@@ -72,22 +72,40 @@ export function PathCrumbs({
         </button>
         {crumbs.map((c, i) =>
           i === crumbs.length - 1 ? (
-            <b key={i} aria-current="location">
-              {c}
-            </b>
+            // the folder you are in: a tap types a path instead, the phone's
+            // way in (it has no pencil)
+            canEdit ? (
+              <button
+                key={i}
+                type="button"
+                aria-current="location"
+                className="ws-crumb-here"
+                title={t('remote.editPath')}
+                onClick={() => {
+                  setDraft(path)
+                  setEditing(true)
+                }}
+              >
+                {c}
+              </button>
+            ) : (
+              <b key={i} aria-current="location">
+                {c}
+              </b>
+            )
           ) : (
             <span key={i} className="contents">
               <button type="button" onClick={() => onNavigate(crumbs.slice(0, i + 1).join('/'))}>
                 {c}
               </button>
-              <span aria-hidden>/</span>
+              <span aria-hidden className="ws-crumb-sep" />
             </span>
           ),
         )}
       </nav>
       {canEdit && (
         <IconButton
-          className="ws-icon-sm"
+          className="ws-icon-sm ws-crumbs-edit"
           aria-label={t('remote.editPath')}
           title={t('remote.editPath')}
           onClick={() => {

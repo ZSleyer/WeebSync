@@ -13,7 +13,7 @@
   overflow-x: auto;
   white-space: nowrap;
   scrollbar-width: none;
-  font: 500 0.8125rem/1 var(--f-mono);
+  font: 400 0.875rem/1.2 var(--f-sans);
   color: var(--fg-3);
 }
 .ws-crumbs::-webkit-scrollbar { display: none; }
@@ -169,3 +169,10 @@
 @media (prefers-reduced-motion: no-preference) {
   .ws-cl-row[data-pressing] .ws-cl-in { scale: 0.98; transition: scale 160ms var(--ease-in) 80ms; }
 }
+
+/* a chevron between the folders; the folder you are in opens the path field
+   (a phone's only way in, a desktop keeps a small pencil beside it) */
+.ws-crumb-sep::before { content: "›"; opacity: 0.7; }
+.ws-crumbs .ws-crumb-here { color: var(--fg); font-weight: 600; }
+@media (width < 64rem) { .ws-crumbs-edit { display: none !important; } }
+@media (width >= 64rem) { .ws-crumbs-edit { width: 1.75rem !important; height: 1.75rem !important; min-width: 1.75rem; } .ws-crumbs-edit svg { width: 15px; height: 15px; } }
