@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from 'fluid-lycoris'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { api, fmtEps, type Watch, type WatchExplain as Explain } from '../api'
 import { behindLabel, dubOverdueLabel, dubProgressLabel, dubWaitingLabel, langWaitingLabel } from '../attention'
 import { dayWord } from './MediaDetail'
@@ -212,6 +213,9 @@ export function WatchExplain({ watch: w, now }: { watch: Watch; now: number }) {
           </details>
         </>
       )}
+      <Link to="/rules#sync" className="ws-ex-link">
+        {t('explain.rulesLink.sync')}
+      </Link>
     </section>
   )
 }

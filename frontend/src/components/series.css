@@ -1061,3 +1061,7 @@ ol.ws-skips li::before {
     opacity: 0;
   }
 }
+
+/* the way from an explanation to every rule behind it */
+.ws-ex-link { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent-2); font-size: 0.875rem; }
+.ws-ex-link:hover { text-decoration: underline; }

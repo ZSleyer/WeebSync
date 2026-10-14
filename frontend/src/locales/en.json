@@ -2099,20 +2099,6 @@
     "hostKeyReject": "Reject",
     "hostKeyRejected": "Host key rejected - nothing was saved."
   },
-  "audio": {
-    "title": "Playback",
-    "open": "Open the audio player",
-    "back15": "Back 15 seconds",
-    "fwd30": "Forward 30 seconds",
-    "repeat": "Repeat: {{mode}}",
-    "repeat_off": "off",
-    "repeat_all": "folder",
-    "repeat_one": "track",
-    "inFolder": "In this folder",
-    "sleepOff": "Off",
-    "minutes": "{{n}} min",
-    "sleepEnd": "End of track"
-  },
   "reader": {
     "back": "Back",
     "hint": "Tap an edge to turn the page, tap the middle to show the bars",
@@ -2147,6 +2133,20 @@
     "font": "Typeface",
     "serif": "Serif",
     "sans": "Sans"
+  },
+  "audio": {
+    "title": "Playback",
+    "open": "Open the audio player",
+    "back15": "Back 15 seconds",
+    "fwd30": "Forward 30 seconds",
+    "repeat": "Repeat: {{mode}}",
+    "repeat_off": "off",
+    "repeat_all": "folder",
+    "repeat_one": "track",
+    "inFolder": "In this folder",
+    "sleepOff": "Off",
+    "minutes": "{{n}} min",
+    "sleepEnd": "End of track"
   },
   "plex": {
     "openBrowser": "Open in browser",
@@ -2458,6 +2458,7 @@
     "tapToResume": "tap to resume"
   },
   "explain": {
+    "rulesLink": { "match": "All matching rules", "sync": "All Auto-Sync rules" },
     "whySource": "Why?",
     "why": "Why?",
     "whyMatch": "Why this series?",

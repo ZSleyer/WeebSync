@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Badge, Button, Dialog, Skeleton } from 'fluid-lycoris'
 import { useId } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router'
 import { api, type CatalogExplain } from '../api'
 import { NameTrace } from './NameTrace'
 
@@ -66,7 +67,10 @@ export function CatalogWhy({
           <Body x={q.data} onRematch={onRematch} />
         )}
       </div>
-      <footer className="flex justify-end border-t border-border-subtle px-5 py-3">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
+        <Link to="/rules#match" onClick={onClose} className="text-sm text-accent-2 hover:underline">
+          {t('explain.rulesLink.match')}
+        </Link>
         <Button onClick={onClose}>{t('common.close')}</Button>
       </footer>
     </Dialog>

@@ -2099,20 +2099,6 @@
     "hostKeyReject": "Ablehnen",
     "hostKeyRejected": "Host-Key abgelehnt - es wurde nichts gespeichert."
   },
-  "audio": {
-    "title": "Wiedergabe",
-    "open": "Audio-Player öffnen",
-    "back15": "15 Sekunden zurück",
-    "fwd30": "30 Sekunden vor",
-    "repeat": "Wiederholen: {{mode}}",
-    "repeat_off": "aus",
-    "repeat_all": "Ordner",
-    "repeat_one": "Titel",
-    "inFolder": "Im Ordner",
-    "sleepOff": "Aus",
-    "minutes": "{{n}} min",
-    "sleepEnd": "Ende des Titels"
-  },
   "reader": {
     "back": "Zurück",
     "hint": "Tippen am Rand blättert, in der Mitte blendet die Leisten ein",
@@ -2147,6 +2133,20 @@
     "font": "Schrift",
     "serif": "Serif",
     "sans": "Sans"
+  },
+  "audio": {
+    "title": "Wiedergabe",
+    "open": "Audio-Player öffnen",
+    "back15": "15 Sekunden zurück",
+    "fwd30": "30 Sekunden vor",
+    "repeat": "Wiederholen: {{mode}}",
+    "repeat_off": "aus",
+    "repeat_all": "Ordner",
+    "repeat_one": "Titel",
+    "inFolder": "Im Ordner",
+    "sleepOff": "Aus",
+    "minutes": "{{n}} min",
+    "sleepEnd": "Ende des Titels"
   },
   "plex": {
     "openBrowser": "Im Browser öffnen",
@@ -2458,6 +2458,7 @@
     "tapToResume": "tippen zum Fortsetzen"
   },
   "explain": {
+    "rulesLink": { "match": "Alle Regeln zur Zuordnung", "sync": "Alle Regeln zu Auto-Sync" },
     "whySource": "Warum?",
     "why": "Warum?",
     "whyMatch": "Warum diese Serie?",
