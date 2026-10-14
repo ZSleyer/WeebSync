@@ -128,11 +128,19 @@
     "files": "Dateien"
   },
   "assistant": {
+    "allUpgrades": "Alle Upgrades stehen unter Entdecken",
+    "stepsDone_other": "{{count}} Schritte",
+    "stepsDone_one": "{{count}} Schritt",
+    "working": "Arbeitet …",
+    "template": "Vorlage",
+    "source": "Quelle",
+    "verified": "Vom Server geprüft",
+    "message": "Nachricht",
     "title": "Assistent",
     "you": "Du",
     "sub": "listen · season · upgrades",
-    "intro": "Frag nach deiner Liste, der aktuellen Season oder besseren Kopien. Jeden Vorschlag bestätigst du im gewohnten Dialog.",
-    "placeholder": "Wie kann ich dir heute helfen?",
+    "intro": "Ich kenne deine Bibliothek, die Merkliste und den Server-Index. Vorschläge prüft der Server, bevor du sie annimmst.",
+    "placeholder": "Frag nach Serien, Folgen, Upgrades",
     "send": "Senden",
     "placeholderQueue": "Nachfrage einreihen …",
     "queued": "wartet auf das Ende der Antwort",
@@ -149,7 +157,7 @@
     "research": "Recherche",
     "researchHint": "Mehrere Suchen und Seiten, am Ende ein Bericht mit Quellen",
     "webSearchOff": "In den Einstellungen unter KI-Assistent eine SearXNG-URL eintragen",
-    "greeting": "Was schauen wir heute?",
+    "greeting": "Was soll ich nachsehen?",
     "add": "Hinzufügen",
     "addPhoto": "Bild oder Foto hinzufügen",
     "dictate": "Diktieren",
@@ -221,9 +229,9 @@
     "modelDefault": "{{model}} (Standard)",
     "exampleChips": {"seasonal": "Season", "watch": "Auto-Sync", "upgrade": "Upgrades"},
     "examples": {
-      "seasonal": "Was läuft diese Season, das zu meiner Liste passt?",
-      "watch": "Richte einen Auto-Sync für eine Serie ein, die ich gerade schaue",
-      "upgrade": "Gibt es bessere Kopien von Serien, die ich schon habe?"
+      "seasonal": "Was läuft diese Saison, das zu mir passt?",
+      "watch": "Leg eine Auto-Sync für eine Serie an, die ich gerade schaue",
+      "upgrade": "Welche meiner Serien gibt es in besserer Qualität?"
     },
     "done": "erledigt",
     "createAll": "Alle {{count}} anlegen",

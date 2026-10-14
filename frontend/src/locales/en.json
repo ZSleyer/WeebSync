@@ -128,11 +128,19 @@
     "files": "Files"
   },
   "assistant": {
+    "allUpgrades": "All upgrades are under Discover",
+    "stepsDone_other": "{{count}} steps",
+    "stepsDone_one": "{{count}} step",
+    "working": "Working …",
+    "template": "Template",
+    "source": "Source",
+    "verified": "Checked by the server",
+    "message": "Message",
     "title": "Assistant",
     "you": "You",
     "sub": "lists · season · upgrades",
-    "intro": "Ask about your list, this season or better copies of what you own. You confirm each proposal in the usual dialog.",
-    "placeholder": "How can I help you today?",
+    "intro": "I know your library, the watchlist and the server index. The server checks every proposal before you accept it.",
+    "placeholder": "Ask about series, episodes, upgrades",
     "send": "Send",
     "placeholderQueue": "Queue a follow-up …",
     "queued": "waits for the answer to finish",
@@ -149,7 +157,7 @@
     "research": "Research",
     "researchHint": "Several searches and pages, a report with sources at the end",
     "webSearchOff": "Set a SearXNG URL under AI assistant in the settings",
-    "greeting": "What are we watching today?",
+    "greeting": "What should I look up?",
     "add": "Add",
     "addPhoto": "Add a picture or photo",
     "dictate": "Dictate",
@@ -221,9 +229,9 @@
     "modelDefault": "{{model}} (default)",
     "exampleChips": {"seasonal": "Season", "watch": "Auto-sync", "upgrade": "Upgrades"},
     "examples": {
-      "seasonal": "What airs this season that fits my list?",
-      "watch": "Set up an auto-sync for a show I am watching",
-      "upgrade": "Are there better copies of series I own?"
+      "seasonal": "What is airing this season that suits me?",
+      "watch": "Set up an Auto-Sync for a series I am watching",
+      "upgrade": "Which of my series are available in better quality?"
     },
     "done": "done",
     "createAll": "Create all {{count}}",

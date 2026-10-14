@@ -3,37 +3,22 @@ import {
   ArrowUp,
   Check,
   ChevronDown,
-  ChevronRight,
-  CircleArrowUp,
   Globe,
   History,
   ImagePlus,
   Mic,
   Plus,
   RefreshCw,
-  Sparkles,
   Square,
   Telescope,
+  TriangleAlert,
   Trash2,
   X,
 } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import {
-  Badge,
-  Button,
-  Dialog,
-  EmptyState,
-  IconButton,
-  MediaCard,
-  Menu,
-  MenuItem,
-  Panel,
-  Rows,
-  useMediaQuery,
-  useMenu,
-} from 'fluid-lycoris'
+import { Button, Dialog, IconButton, Menu, MenuItem, Rows, useMediaQuery, useMenu } from 'fluid-lycoris'
 import {
   api,
   mediaTitle,
@@ -50,6 +35,10 @@ import {
   type UpgradeVariant,
 } from '../api'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
+import { CoverImg } from '../components/SmartImg'
+import { coverSet } from '../images'
+import { discoverPath } from '../discoverRoutes'
+import { EmptyNote } from './DiscoverParts'
 import { usePersistedQuery } from '../hooks'
 import { useSeriesModal } from '../components/SeriesModal'
 import Markdown from '../components/Markdown'
@@ -122,7 +111,6 @@ const DICTATE_ERRORS: Record<string, string> = {
 }
 
 const EXAMPLES = ['seasonal', 'watch', 'upgrade'] as const
-const EXAMPLE_ICON = { seasonal: Sparkles, watch: RefreshCw, upgrade: CircleArrowUp } as const
 
 // The assistant chats over the user's own data and can only propose: every
 // card opens the ordinary watch dialog, and what the dialog saves goes
@@ -607,18 +595,16 @@ export default function Assistant() {
 
   if (status && !status.configured) {
     return (
-      <div className="mx-auto max-w-2xl">
-        <EmptyState label={t('assistant.title')}>
-          <p>{t('assistant.unconfigured')}</p>
-          {user?.isAdmin && (
-            <p className="mt-2">
-              <Link to="/settings/integrations" className="text-accent underline">
-                {t('assistant.unconfiguredAdmin')}
-              </Link>
-            </p>
-          )}
-        </EmptyState>
-      </div>
+      <EmptyNote
+        title={t('assistant.unconfigured')}
+        sub={
+          user?.isAdmin ? (
+            <Link to="/settings/integrations" className="t-link">
+              {t('assistant.unconfiguredAdmin')}
+            </Link>
+          ) : undefined
+        }
+      />
     )
   }
 
@@ -645,46 +631,43 @@ export default function Assistant() {
     if (next.length) setAttachments((a) => [...a, ...next].slice(0, 4))
   }
 
-  // the page's secondary controls, in the app bar on a phone and in a row
-  // under the header on desktop: the model menu only when there is a choice,
-  // the clear button only once there is something to clear
+  // the saved chats and a new chat: in the app bar on a phone, at the top
+  // right of the chat on a desktop; the new chat once there is one to leave
   const actions = (
     <PageActions>
-      <div className="flex items-center gap-2 lg:mb-4 lg:justify-end">
-        <Button
-          size="sm"
+      <div className="flex items-center justify-end gap-1">
+        <IconButton
           aria-label={t('assistant.history')}
           title={t('assistant.history')}
           aria-pressed={wide ? histOpen : undefined}
           onClick={() => setHistOpen(!histOpen)}
         >
           <History aria-hidden size="1.2em" />
-        </Button>
+        </IconButton>
         {!empty && (
-          <Button size="sm" aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={() => newChat()}>
+          <IconButton aria-label={t('assistant.clear')} title={t('assistant.clear')} onClick={() => newChat()}>
             <Plus aria-hidden size="1.2em" />
-          </Button>
+          </IconButton>
         )}
       </div>
     </PageActions>
   )
 
-  // the empty screen greets and puts the composer in the middle with the
-  // examples as chips under it; once there is a conversation the log takes
-  // the room and the composer sits at the bottom
+  // The composer: one box sticky at the foot. On a phone two rows, the text
+  // on top and the controls under it (a row of buttons beside the field left
+  // it two words wide); from 64rem one row: add, text, model, dictation, send.
+  // Pictures land here by drop, paste, the menu or a phone's camera.
   const composer = (
     <>
       {notice && (
-        <Badge tone="ok" role="status" className="mt-2 self-start">
+        <p className="as-ok mb-2" role="status">
+          <Check aria-hidden size="1em" />
           {notice}
-        </Badge>
+        </p>
       )}
-      {/* the composer: one quiet box - the text on top, and under it the add
-          menu, the model pill and, at the right end, dictation and the round
-          send button (stop while an answer runs).
-          Pictures land here by drop, paste, the menu or a phone's camera */}
       <form
-        className="mt-3"
+        className="as-comp"
+        data-drag={dragging || undefined}
         onSubmit={(e) => {
           e.preventDefault()
           void send()
@@ -701,524 +684,474 @@ export default function Assistant() {
           void addImages(e.dataTransfer.files)
         }}
       >
-        {/* relative: both menus open above the whole box. Anchored at their
-            button they would grow past the screen, and <main> clips - which is
-            what cut the model names */}
-        <div
-          className={`relative rounded-xl border bg-bg-card transition-colors ${dragging ? 'border-accent' : 'border-border-input focus-within:border-accent/60'}`}
-        >
-          {attachments.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5 px-3 pt-3">
-              {attachments.map((src, i) => (
-                <li key={i} className="relative">
-                  <img src={src} alt="" className="h-14 w-14 rounded-xs border border-border-subtle object-cover" />
-                  <button
-                    type="button"
-                    className="absolute -top-2 -right-2 grid size-6 place-items-center rounded-full border border-border-subtle bg-bg-card text-t-muted hover:text-err"
-                    aria-label={t('assistant.removeImage')}
-                    onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
-                  >
-                    <X aria-hidden size="0.8em" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {/* the text on its own line, the controls under it: on a phone a
-              row of buttons beside the field left it two words wide */}
-          {dictation.active ? (
-            // three lines at most, scrolled to the end: a long dictation cut
-            // at "..." hid the words just spoken, which are the ones being
-            // checked. The dots sit on the last line, where the text is
-            <p className="flex min-h-9 min-w-0 items-end gap-3 px-3 pt-3 pb-1 text-base" aria-live="polite">
-              <span
-                ref={sayRef}
-                className={`max-h-[4.5rem] min-w-0 flex-1 overflow-y-auto leading-6 ${dictation.text ? 'text-t-primary' : 'text-t-muted italic'}`}
-              >
-                {dictation.text || t('assistant.listening')}
-              </span>
-              <span className="ai-dots mb-1.5 shrink-0" aria-hidden>
-                <i />
-                <i />
-                <i />
-              </span>
-            </p>
-          ) : (
-            <label className="flex">
-              <span className="sr-only">{t('assistant.placeholder')}</span>
-              <textarea
-                ref={taRef}
-                rows={1}
-                className="max-h-40 w-full resize-none bg-transparent px-3 pt-3 pb-1 text-base leading-6 text-t-primary outline-none placeholder:text-t-faint"
-                placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={onKey}
-                onPaste={(e) => {
-                  const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
-                  if (files.length) {
-                    e.preventDefault()
-                    void addImages(files)
-                  }
-                }}
-                // not on a phone: focusing on arrival raises the keyboard and
-                // shrinks the whole shell before anything was read
-                autoFocus={wide}
-              />
-            </label>
-          )}
-          <div className="flex items-center gap-2 px-2 pt-1 pb-2">
-            <div ref={addRef} style={addAnchorStyle}>
-              <IconButton
-                aria-label={t('assistant.add')}
-                title={t('assistant.add')}
-                aria-haspopup="menu"
-                aria-expanded={addOpen}
-                className="size-9! rounded-full! border border-border-input text-t-muted hover:text-accent"
-                onClick={() => setAddOpen((o) => !o)}
-              >
-                <Plus aria-hidden size="1.3em" />
-              </IconButton>
-              {addOpen && (
-                <Menu kind="menu" anchor={addAnchor} placement="top-start" aria-label={t('assistant.add')}>
-                  <MenuItem
-                    aria-disabled={vision === false}
-                    title={vision === false ? t('assistant.attachNoVision') : undefined}
-                    onClick={() => {
-                      setAddOpen(false)
-                      if (vision !== false) fileRef.current?.click()
-                    }}
-                  >
-                    <span className="flex items-center gap-2">
-                      <ImagePlus aria-hidden size="1em" className={vision === false ? 'opacity-50' : ''} />
-                      <span className={vision === false ? 'opacity-50' : ''}>{t('assistant.addPhoto')}</span>
-                    </span>
-                  </MenuItem>
-                  <li role="separator" className="my-1 border-t border-border-subtle" />
-                  <MenuItem
-                    selected={webTools.search || webTools.research}
-                    aria-disabled={!webReady}
-                    title={webReady ? undefined : t('assistant.webSearchOff')}
-                    trailing={
-                      (webTools.search || webTools.research) && <Check aria-hidden size="1.2em" className="shrink-0" />
-                    }
-                    onClick={() => {
-                      if (!webReady) return
-                      // switching the search off takes research with it
-                      setTools(
-                        webTools.search || webTools.research ? { search: false, research: false } : { search: true },
-                      )
-                    }}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Globe aria-hidden size="1em" className={webReady ? '' : 'opacity-50'} />
-                      <span className={webReady ? '' : 'opacity-50'}>{t('assistant.webSearch')}</span>
-                    </span>
-                  </MenuItem>
-                  <MenuItem
-                    selected={webTools.research}
-                    aria-disabled={!webReady}
-                    title={webReady ? t('assistant.researchHint') : t('assistant.webSearchOff')}
-                    trailing={webTools.research && <Check aria-hidden size="1.2em" className="shrink-0" />}
-                    onClick={() => {
-                      if (!webReady) return
-                      setTools(webTools.research ? { research: false } : { search: true, research: true })
-                    }}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Telescope aria-hidden size="1em" className={webReady ? '' : 'opacity-50'} />
-                      <span className={webReady ? '' : 'opacity-50'}>{t('assistant.research')}</span>
-                    </span>
-                  </MenuItem>
-                </Menu>
-              )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="sr-only"
-                tabIndex={-1}
-                onChange={(e) => {
-                  void addImages(e.target.files ?? [])
-                  e.target.value = ''
-                }}
-              />
-            </div>
-            {modelList.length > 1 && (
-              <div className="min-w-0" ref={modelRef} style={modelAnchorStyle}>
+        {attachments.length > 0 && (
+          <ul className="as-att">
+            {attachments.map((src, i) => (
+              <li key={i}>
+                <img src={src} alt="" />
                 <button
                   type="button"
-                  className="t-pill text-xs text-t-secondary hover:text-t-primary"
-                  aria-haspopup="listbox"
-                  aria-expanded={modelOpen}
-                  aria-label={t('assistant.model')}
-                  title={modelInUse}
-                  onClick={() => setModelOpen((o) => !o)}
+                  aria-label={t('assistant.removeImage')}
+                  onClick={() => setAttachments((a) => a.filter((_, j) => j !== i))}
                 >
-                  <span className="truncate">{modelChip(modelInUse)}</span>
-                  <ChevronDown aria-hidden size="0.9em" className="shrink-0" />
+                  <X aria-hidden size="0.8em" />
                 </button>
-                {modelOpen && (
-                  <Menu anchor={modelAnchor} placement="top-start" aria-label={t('assistant.model')}>
-                    {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
-                      <MenuItem
-                        key={m}
-                        selected={effectiveModel === m}
-                        trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
-                        onClick={() => {
-                          pickModel(m)
-                          setModelOpen(false)
-                        }}
-                      >
-                        <span className="font-mono text-xs wrap-anywhere">
-                          {m || t('assistant.modelDefault', { model: defaultModel })}
-                        </span>
-                      </MenuItem>
-                    ))}
-                  </Menu>
-                )}
-              </div>
-            )}
-            {webReady && (webTools.search || webTools.research) && (
-              <span className="inline-flex shrink-0 items-center gap-1 text-xs text-accent">
-                {webTools.research ? <Telescope aria-hidden size="0.9em" /> : <Globe aria-hidden size="0.9em" />}
-                <span className="sr-only">{t(webTools.research ? 'assistant.research' : 'assistant.webSearch')}</span>
-              </span>
-            )}
-            <span className="ml-auto flex shrink-0 items-center gap-1.5">
-              {dictation.active ? (
-                <>
-                  <IconButton
-                    aria-label={t('assistant.dictateCancel')}
-                    title={t('assistant.dictateCancel')}
-                    className="size-9! rounded-full! text-t-muted hover:text-err"
-                    onClick={dictation.cancel}
-                  >
-                    <X aria-hidden size="1.3em" />
-                  </IconButton>
-                  <IconButton
-                    aria-label={t('assistant.dictateDone')}
-                    title={t('assistant.dictateDone')}
-                    className="size-9! rounded-full! bg-accent text-bg-primary"
+              </li>
+            ))}
+          </ul>
+        )}
+        <div ref={addRef} style={addAnchorStyle}>
+          <IconButton
+            aria-label={t('assistant.add')}
+            title={t('assistant.add')}
+            aria-haspopup="menu"
+            aria-expanded={addOpen}
+            onClick={() => setAddOpen((o) => !o)}
+          >
+            <Plus aria-hidden size="1.3em" />
+          </IconButton>
+          {addOpen && (
+            <Menu kind="menu" anchor={addAnchor} placement="top-start" aria-label={t('assistant.add')}>
+              <MenuItem
+                aria-disabled={vision === false}
+                title={vision === false ? t('assistant.attachNoVision') : undefined}
+                onClick={() => {
+                  setAddOpen(false)
+                  if (vision !== false) fileRef.current?.click()
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <ImagePlus aria-hidden size="1em" className={vision === false ? 'opacity-50' : ''} />
+                  <span className={vision === false ? 'opacity-50' : ''}>{t('assistant.addPhoto')}</span>
+                </span>
+              </MenuItem>
+              <li role="separator" className="my-1 border-t border-border-subtle" />
+              <MenuItem
+                selected={webTools.search || webTools.research}
+                aria-disabled={!webReady}
+                title={webReady ? undefined : t('assistant.webSearchOff')}
+                trailing={
+                  (webTools.search || webTools.research) && <Check aria-hidden size="1.2em" className="shrink-0" />
+                }
+                onClick={() => {
+                  if (!webReady) return
+                  // switching the search off takes research with it
+                  setTools(webTools.search || webTools.research ? { search: false, research: false } : { search: true })
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <Globe aria-hidden size="1em" className={webReady ? '' : 'opacity-50'} />
+                  <span className={webReady ? '' : 'opacity-50'}>{t('assistant.webSearch')}</span>
+                </span>
+              </MenuItem>
+              <MenuItem
+                selected={webTools.research}
+                aria-disabled={!webReady}
+                title={webReady ? t('assistant.researchHint') : t('assistant.webSearchOff')}
+                trailing={webTools.research && <Check aria-hidden size="1.2em" className="shrink-0" />}
+                onClick={() => {
+                  if (!webReady) return
+                  setTools(webTools.research ? { research: false } : { search: true, research: true })
+                }}
+              >
+                <span className="flex items-center gap-2">
+                  <Telescope aria-hidden size="1em" className={webReady ? '' : 'opacity-50'} />
+                  <span className={webReady ? '' : 'opacity-50'}>{t('assistant.research')}</span>
+                </span>
+              </MenuItem>
+            </Menu>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="sr-only"
+            tabIndex={-1}
+            onChange={(e) => {
+              void addImages(e.target.files ?? [])
+              e.target.value = ''
+            }}
+          />
+        </div>
+        {dictation.active ? (
+          // three lines at most, scrolled to the end: the words just spoken
+          // are the ones being checked
+          <p className="as-say" aria-live="polite">
+            <span ref={sayRef} data-empty={dictation.text ? undefined : ''}>
+              {dictation.text || t('assistant.listening')}
+            </span>
+            <span className="ai-dots mb-1.5 shrink-0" aria-hidden>
+              <i />
+              <i />
+              <i />
+            </span>
+          </p>
+        ) : (
+          <label className="as-field">
+            <span className="sr-only">{t('assistant.message')}</span>
+            <textarea
+              ref={taRef}
+              rows={1}
+              placeholder={streaming ? t('assistant.placeholderQueue') : t('assistant.placeholder')}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKey}
+              onPaste={(e) => {
+                const files = [...e.clipboardData.files].filter((f) => f.type.startsWith('image/'))
+                if (files.length) {
+                  e.preventDefault()
+                  void addImages(files)
+                }
+              }}
+              // not on a phone: focusing on arrival raises the keyboard and
+              // shrinks the whole shell before anything was read
+              autoFocus={wide}
+            />
+          </label>
+        )}
+        {/* the model in use as quiet text; a menu only when there is a choice */}
+        {modelList.length > 1 ? (
+          <div className="min-w-0" ref={modelRef} style={modelAnchorStyle}>
+            <button
+              type="button"
+              className="as-model"
+              aria-haspopup="listbox"
+              aria-expanded={modelOpen}
+              aria-label={`${t('assistant.model')}: ${modelInUse}`}
+              title={modelInUse}
+              onClick={() => setModelOpen((o) => !o)}
+            >
+              <span className="truncate">{modelChip(modelInUse)}</span>
+              <ChevronDown aria-hidden size="1em" className="shrink-0" />
+            </button>
+            {modelOpen && (
+              <Menu anchor={modelAnchor} placement="top-start" aria-label={t('assistant.model')}>
+                {['', ...modelList.filter((m) => m !== defaultModel)].map((m) => (
+                  <MenuItem
+                    key={m}
+                    selected={effectiveModel === m}
+                    trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
                     onClick={() => {
-                      const said = dictation.accept()
-                      if (said) setInput((v) => (v ? `${v} ${said}` : said))
+                      pickModel(m)
+                      setModelOpen(false)
                     }}
                   >
-                    <Check aria-hidden size="1.3em" />
-                  </IconButton>
-                </>
-              ) : (
-                <>
-                  {dictation.supported && !streaming && (
-                    <IconButton
-                      aria-label={t('assistant.dictate')}
-                      title={t('assistant.dictate')}
-                      className="size-9! rounded-full! text-t-muted hover:text-accent"
-                      onClick={dictation.start}
-                    >
-                      <Mic aria-hidden size="1.3em" />
-                    </IconButton>
-                  )}
-                  {/* stop sits where send does, at the end of the row: on a
-                      phone a text button under the box was easy to miss */}
-                  {streaming && (
-                    <IconButton
-                      aria-label={t('assistant.stop')}
-                      title={t('assistant.stop')}
-                      className="size-9! rounded-full! border border-border-input text-t-primary hover:text-err"
-                      onClick={() => abortRef.current?.abort()}
-                    >
-                      <Square aria-hidden size="1.1em" />
-                    </IconButton>
-                  )}
-                  {(input.trim() || attachments.length > 0) && (
-                    <button
-                      type="submit"
-                      className="t-iconbtn size-9! rounded-full! bg-accent text-bg-primary"
-                      aria-label={t('assistant.send')}
-                      title={t('assistant.send')}
-                    >
-                      <ArrowUp aria-hidden size="1.3em" />
-                    </button>
-                  )}
-                </>
-              )}
-            </span>
-          </div>
-        </div>
-        {dictation.error && dictation.error !== 'aborted' && (
-          <p className="mt-1.5 px-1 text-xs text-err" role="alert">
-            {t(DICTATE_ERRORS[dictation.error] ?? 'assistant.dictateFailed', { code: dictation.error })}
-          </p>
-        )}
-      </form>
-    </>
-  )
-  return (
-    <div className="page-fill flex min-h-0 w-full flex-1">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {actions}
-        {empty ? (
-          // on a phone the greeting and its chips sit in the middle of the
-          // screen and the composer stays at the bottom, where the thumb and the
-          // keyboard are; from lg on the three are one centered group, greeting
-          // over composer over chips
-          <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col lg:justify-center lg:pb-10">
-            <h2 className="mt-auto mb-5 text-center font-display text-2xl font-semibold tracking-wider lg:mt-0">
-              <Sparkles aria-hidden size="0.9em" className="mr-2 inline align-[-0.1em] text-accent" />
-              {t('assistant.greeting')}
-            </h2>
-            <ul className="mb-auto flex flex-wrap justify-center gap-2 lg:order-last lg:mt-5 lg:mb-0">
-              {EXAMPLES.map((k) => {
-                const Icon = EXAMPLE_ICON[k]
-                return (
-                  <li key={k}>
-                    <Button
-                      size="sm"
-                      onClick={() => void send(t(`assistant.examples.${k}`))}
-                      title={t(`assistant.examples.${k}`)}
-                    >
-                      <Icon aria-hidden size="1em" className="mr-1.5 text-accent" />
-                      {t(`assistant.exampleChips.${k}`)}
-                    </Button>
-                  </li>
-                )
-              })}
-            </ul>
-            {composer}
+                    <span className="font-mono text-xs wrap-anywhere">
+                      {m || t('assistant.modelDefault', { model: defaultModel })}
+                    </span>
+                  </MenuItem>
+                ))}
+              </Menu>
+            )}
           </div>
         ) : (
-          <>
-            <div
-              ref={logRef}
-              role="log"
-              aria-live="polite"
-              aria-label={t('assistant.title')}
-              className="min-h-0 flex-1 overflow-y-auto"
-            >
-              <ol className="space-y-5">
-                {turns.map((tr, ti) => (
-                  <li key={ti} className={tr.role === 'user' ? 'ai-turn flex justify-end' : 'ai-turn'}>
-                    {tr.role === 'user' ? (
-                      <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2 text-base">
-                        <span className="sr-only">{t('assistant.you')}: </span>
-                        {tr.images?.length ? (
-                          <ul className="mb-2 flex flex-wrap gap-2">
-                            {tr.images.map((src, i) => (
-                              <li key={i}>
-                                <img
-                                  src={src}
-                                  alt=""
-                                  className="max-h-40 max-w-full rounded-xs border border-border-subtle"
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        {tr.content && <p className="whitespace-pre-wrap wrap-break-word">{tr.content}</p>}
-                      </div>
-                    ) : (
-                      <div className="min-w-0 text-base leading-relaxed">
-                        {/* the words in a bubble like the user's, so they read
-                          against a plain ground and not the shell's hatching;
-                          the cards stay outside, they are tiles of their own */}
-                        <div className="max-w-[85%] rounded-lg bg-bg-hover px-3 py-2">
-                          <span className="sr-only">{t('assistant.title')}: </span>
-                          {tr.steps?.length ? (
-                            <details
-                              className="group mb-2"
-                              open={tr.stepsOpen ?? false}
-                              onToggle={(e) => {
-                                const isOpen = (e.target as HTMLDetailsElement).open
-                                setTurns((prev) =>
-                                  prev.map((x, i) =>
-                                    i === ti && isOpen !== (x.stepsOpen ?? false)
-                                      ? { ...x, stepsOpen: isOpen, stepsTouched: true }
-                                      : x,
-                                  ),
-                                )
-                              }}
-                            >
-                              <summary className="inline-flex min-h-6 cursor-pointer items-center gap-1 text-xs text-t-muted">
-                                <ChevronRight
-                                  aria-hidden
-                                  size="1em"
-                                  className="transition-transform group-open:rotate-90"
-                                />
-                                {t('assistant.steps', { count: tr.steps.length })}
-                              </summary>
-                              <ol className="mt-2 space-y-2 border-l border-border-subtle pl-3 text-sm">
-                                {tr.steps.map((st, si) =>
-                                  st.kind === 'reasoning' ? (
-                                    <li key={si} className="whitespace-pre-wrap wrap-break-word text-t-muted italic">
-                                      {st.text}
-                                    </li>
-                                  ) : (
-                                    <li key={si} className="text-t-secondary">
-                                      {toolSentence(t, st.name, 'start', st.params)}
-                                      {st.stats !== undefined && (
-                                        <span className="text-t-muted">
-                                          {' '}
-                                          {toolSentence(t, st.name, 'done', st.stats)}
-                                        </span>
-                                      )}
-                                    </li>
-                                  ),
-                                )}
-                              </ol>
-                            </details>
-                          ) : null}
-                          {tr.content && (
-                            <Markdown
-                              text={stripWrittenCall(tr.content)}
-                              titles={(tr.links ?? []).flatMap((c) =>
-                                [c.media.title.preferred, c.media.title.english, c.media.title.romaji]
-                                  .filter((x): x is string => !!x)
-                                  .map((title) => ({ title, onClick: () => setCard(c) })),
-                              )}
-                            >
-                              {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
-                            </Markdown>
-                          )}
-                          {tr.tool && (
-                            <p className="mt-2 flex items-center gap-2 text-sm text-accent">
-                              <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
-                              {t('assistant.toolRunning', {
-                                name: t(`assistant.tools.${tr.tool}`, { defaultValue: tr.tool }),
-                              })}
-                            </p>
-                          )}
-                          {!tr.content && !tr.tool && !tr.error && streaming && ti === last && (
-                            <p className="flex items-center gap-2 text-sm text-t-muted">
-                              <span className="ai-dots" aria-hidden>
-                                <i />
-                                <i />
-                                <i />
-                              </span>
-                              {t('assistant.thinking')}
-                            </p>
-                          )}
-                          {tr.error && (
-                            <p className="mt-2 text-sm text-err" role="alert">
-                              {t('assistant.error')}: {tr.error}
-                            </p>
-                          )}
-                        </div>
-                        {/* min-w-0 on the items: a grid item's automatic minimum is
-                          its content's min-content width, and a truncated title
-                          reports its full text there - the card grew past a phone's
-                          viewport and the log scrolled sideways */}
-                        {tr.cards?.length ? (
-                          <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                            {tr.cards.map((c) => (
-                              <li key={`${c.source}:${c.media.id}`} className="min-w-0">
-                                <MediaCard
-                                  className="h-full"
-                                  title={mediaTitle(c.media)}
-                                  cover={c.media.coverImage?.large}
-                                  coverTint={c.media.coverImage?.color ?? undefined}
-                                  onCover={() => setCard(c)}
-                                  coverLabel={t('remote.detailsFor', { name: mediaTitle(c.media) })}
-                                  meta={c.why}
-                                  badges={
-                                    <>
-                                      {c.media.seasonYear > 0 && <Badge size="sm">{c.media.seasonYear}</Badge>}
-                                      {c.media.format && <Badge size="sm">{c.media.format}</Badge>}
-                                      {c.media.averageScore > 0 && (
-                                        <Badge size="sm" tone="accent">
-                                          {c.media.averageScore}
-                                        </Badge>
-                                      )}
-                                    </>
-                                  }
-                                  actions={
-                                    <Button
-                                      size="sm"
-                                      onClick={() => setCard(c)}
-                                      aria-label={t('remote.detailsFor', { name: mediaTitle(c.media) })}
-                                    >
-                                      {t('remote.details')}
-                                    </Button>
-                                  }
-                                />
-                              </li>
-                            ))}
-                          </ul>
-                        ) : null}
-                        {tr.upgrades?.length ? (
-                          <Rows className="mt-3">
-                            {tr.upgrades.map((u) => (
-                              <UpgradeCard
-                                key={u.key}
-                                u={u}
-                                dims={dims}
-                                chosen={choice[u.key] ?? u.to}
-                                onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-                                onSync={(r) =>
-                                  setUpSync({
-                                    ...r,
-                                    initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
-                                  })
-                                }
-                                onDetails={setDetail}
-                              />
-                            ))}
-                          </Rows>
-                        ) : null}
-                        {tr.proposals?.map((p, pi) => (
-                          <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
-                        ))}
-                        {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
-                          <Button
-                            variant="primary"
-                            className="mt-3"
-                            aria-disabled={creatingAll || undefined}
-                            onClick={() => void createAll(ti)}
-                          >
-                            {t('assistant.createAll', {
-                              count: tr.proposals!.filter((p) => !p.done && !p.unverified).length,
-                            })}
-                          </Button>
-                        )}
-                      </div>
-                    )}
+          modelInUse && (
+            <span className="as-model" title={modelInUse}>
+              {modelChip(modelInUse)}
+            </span>
+          )
+        )}
+        {webReady && (webTools.search || webTools.research) && (
+          <span className="as-web" title={t(webTools.research ? 'assistant.research' : 'assistant.webSearch')}>
+            {webTools.research ? <Telescope aria-hidden size="1em" /> : <Globe aria-hidden size="1em" />}
+            <span className="sr-only">{t(webTools.research ? 'assistant.research' : 'assistant.webSearch')}</span>
+          </span>
+        )}
+        <span className="as-end">
+          {dictation.active ? (
+            <>
+              <IconButton
+                aria-label={t('assistant.dictateCancel')}
+                title={t('assistant.dictateCancel')}
+                onClick={dictation.cancel}
+              >
+                <X aria-hidden size="1.3em" />
+              </IconButton>
+              <button
+                type="button"
+                className="as-send"
+                aria-label={t('assistant.dictateDone')}
+                title={t('assistant.dictateDone')}
+                onClick={() => {
+                  const said = dictation.accept()
+                  if (said) setInput((v) => (v ? `${v} ${said}` : said))
+                }}
+              >
+                <Check aria-hidden size="1.2em" />
+              </button>
+            </>
+          ) : (
+            <>
+              {dictation.supported && !streaming && (
+                <IconButton
+                  aria-label={t('assistant.dictate')}
+                  title={t('assistant.dictate')}
+                  onClick={dictation.start}
+                >
+                  <Mic aria-hidden size="1.3em" />
+                </IconButton>
+              )}
+              {/* stop sits where send does: a text button under the box was easy to miss */}
+              {streaming && (
+                <button
+                  type="button"
+                  className="as-send as-stop"
+                  aria-label={t('assistant.stop')}
+                  title={t('assistant.stop')}
+                  onClick={() => abortRef.current?.abort()}
+                >
+                  <Square aria-hidden size="1em" />
+                </button>
+              )}
+              {(!streaming || input.trim() || attachments.length > 0) && (
+                <button
+                  type="submit"
+                  className="as-send"
+                  aria-label={t('assistant.send')}
+                  title={t('assistant.send')}
+                  disabled={!(input.trim() || attachments.length > 0)}
+                >
+                  <ArrowUp aria-hidden size="1.2em" />
+                </button>
+              )}
+            </>
+          )}
+        </span>
+      </form>
+      {dictation.error && dictation.error !== 'aborted' && (
+        <p className="as-dict-err" role="alert">
+          {t(DICTATE_ERRORS[dictation.error] ?? 'assistant.dictateFailed', { code: dictation.error })}
+        </p>
+      )}
+    </>
+  )
+
+  return (
+    <div className="page-fill as-wrap">
+      <div className="as-main">
+        {actions}
+        <div ref={logRef} role="log" aria-live="polite" aria-label={t('assistant.title')} className="as-log">
+          {empty ? (
+            // left aligned: the question, what the assistant knows, and three
+            // whole questions to start with
+            <div className="as-hello">
+              <h2>
+                <span className="t-wipe">{t('assistant.greeting')}</span>
+              </h2>
+              <p>{t('assistant.intro')}</p>
+              <ul className="as-ex">
+                {EXAMPLES.map((k) => (
+                  <li key={k}>
+                    <button type="button" className="as-exq" onClick={() => void send(t(`assistant.examples.${k}`))}>
+                      {t(`assistant.examples.${k}`)}
+                    </button>
                   </li>
                 ))}
-              </ol>
-              {queue.length > 0 && (
-                <ol className="mt-5 space-y-3" aria-label={t('assistant.queued')}>
-                  {queue.map((q, i) => (
-                    <li key={`${i}-${q}`} className="ai-turn flex items-start justify-end gap-2">
-                      <p className="max-w-[85%] whitespace-pre-wrap wrap-break-word rounded-lg border border-dashed border-border-subtle px-3 py-2 text-base text-t-secondary">
-                        <span className="sr-only">{t('assistant.you')}: </span>
-                        {q}
-                        <span className="mt-1 block text-xs text-t-muted">{t('assistant.queued')}</span>
-                      </p>
-                      <Button
-                        size="sm"
-                        aria-label={t('assistant.dequeue')}
-                        title={t('assistant.dequeue')}
-                        onClick={() => setQueue((qs) => qs.filter((_, j) => j !== i))}
-                      >
-                        <X aria-hidden size="1em" />
-                      </Button>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              </ul>
             </div>
-            {composer}
-          </>
-        )}
+          ) : (
+            <ol className="as-turns">
+              {turns.map((tr, ti) =>
+                tr.role === 'user' ? (
+                  <li key={ti} className="ai-turn as-u-row">
+                    <div className="as-u">
+                      <span className="sr-only">{t('assistant.you')}: </span>
+                      {tr.images?.length ? (
+                        <ul className="mb-2 flex flex-wrap gap-2">
+                          {tr.images.map((src, i) => (
+                            <li key={i}>
+                              <img src={src} alt="" className="max-h-40 max-w-full rounded-md" />
+                            </li>
+                          ))}
+                        </ul>
+                      ) : null}
+                      {tr.content && <p className="whitespace-pre-wrap wrap-break-word">{tr.content}</p>}
+                    </div>
+                  </li>
+                ) : (
+                  <li key={ti} className="ai-turn as-a">
+                    <span className="sr-only">{t('assistant.title')}: </span>
+                    {tr.steps?.length ? (
+                      <details
+                        className="as-steps"
+                        open={tr.stepsOpen ?? false}
+                        onToggle={(e) => {
+                          const isOpen = (e.target as HTMLDetailsElement).open
+                          setTurns((prev) =>
+                            prev.map((x, i) =>
+                              i === ti && isOpen !== (x.stepsOpen ?? false)
+                                ? { ...x, stepsOpen: isOpen, stepsTouched: true }
+                                : x,
+                            ),
+                          )
+                        }}
+                      >
+                        <summary>
+                          {streaming && ti === last
+                            ? t('assistant.working')
+                            : t('assistant.stepsDone', { count: tr.steps.length })}
+                        </summary>
+                        <ol>
+                          {tr.steps.map((st, si) =>
+                            st.kind === 'reasoning' ? (
+                              <li key={si} className="reason">
+                                {st.text}
+                              </li>
+                            ) : (
+                              <li key={si}>
+                                {toolSentence(t, st.name, 'start', st.params)}
+                                {st.stats !== undefined && ` ${toolSentence(t, st.name, 'done', st.stats)}`}
+                              </li>
+                            ),
+                          )}
+                        </ol>
+                      </details>
+                    ) : null}
+                    {tr.content && (
+                      <div className="min-w-0 leading-relaxed">
+                        <Markdown
+                          text={stripWrittenCall(tr.content)}
+                          titles={(tr.links ?? []).flatMap((c) =>
+                            [c.media.title.preferred, c.media.title.english, c.media.title.romaji]
+                              .filter((x): x is string => !!x)
+                              .map((title) => ({ title, onClick: () => setCard(c) })),
+                          )}
+                        >
+                          {streaming && ti === last && !tr.tool && <span className="ai-cursor" aria-hidden />}
+                        </Markdown>
+                      </div>
+                    )}
+                    {tr.tool && (
+                      <p className="as-status">
+                        <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
+                        {t('assistant.toolRunning', {
+                          name: t(`assistant.tools.${tr.tool}`, { defaultValue: tr.tool }),
+                        })}
+                      </p>
+                    )}
+                    {!tr.content && !tr.tool && !tr.error && streaming && ti === last && (
+                      <p className="as-status">
+                        <span className="ai-dots" aria-hidden>
+                          <i />
+                          <i />
+                          <i />
+                        </span>
+                        {t('assistant.thinking')}
+                      </p>
+                    )}
+                    {tr.error && (
+                      <p className="as-err" role="alert">
+                        {t('assistant.error')}: {tr.error}
+                      </p>
+                    )}
+                    {tr.cards?.length ? (
+                      <ul className="as-media">
+                        {tr.cards.map((c) => (
+                          <li key={`${c.source}:${c.media.id}`}>
+                            <button
+                              type="button"
+                              onClick={() => setCard(c)}
+                              aria-label={t('remote.detailsFor', { name: mediaTitle(c.media) })}
+                            >
+                              <span className="as-cov">
+                                <CoverImg
+                                  set={coverSet(c.media.coverImage)}
+                                  tint={c.media.coverImage?.color}
+                                  title={mediaTitle(c.media)}
+                                  sizes="2.5rem"
+                                />
+                              </span>
+                              <span className="as-mt">
+                                <b>{mediaTitle(c.media)}</b>
+                                <span>
+                                  {[
+                                    c.media.seasonYear > 0 ? String(c.media.seasonYear) : '',
+                                    c.media.studios?.[0] ?? '',
+                                    c.why ?? '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                                </span>
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    {tr.upgrades?.length ? (
+                      <Rows>
+                        {tr.upgrades.map((u) => (
+                          <UpgradeCard
+                            key={u.key}
+                            u={u}
+                            dims={dims}
+                            chosen={choice[u.key] ?? u.to}
+                            onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
+                            onSync={(r) =>
+                              setUpSync({
+                                ...r,
+                                initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
+                              })
+                            }
+                            onDetails={setDetail}
+                          />
+                        ))}
+                      </Rows>
+                    ) : null}
+                    {tr.upgrades?.length ? (
+                      <p>
+                        <Link to={discoverPath('upgrades')} className="t-link">
+                          {t('assistant.allUpgrades')}
+                        </Link>
+                      </p>
+                    ) : null}
+                    {tr.proposals?.map((p, pi) => (
+                      <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
+                    ))}
+                    {(tr.proposals?.filter((p) => !p.done && !p.unverified).length ?? 0) >= 2 && (
+                      <Button
+                        variant="primary"
+                        className="justify-self-start"
+                        aria-disabled={creatingAll || undefined}
+                        onClick={() => void createAll(ti)}
+                      >
+                        {t('assistant.createAll', {
+                          count: tr.proposals!.filter((p) => !p.done && !p.unverified).length,
+                        })}
+                      </Button>
+                    )}
+                  </li>
+                ),
+              )}
+              {queue.map((q, i) => (
+                <li key={`q-${i}-${q}`} className="ai-turn as-u-row">
+                  <IconButton
+                    size="sm"
+                    aria-label={t('assistant.dequeue')}
+                    title={t('assistant.dequeue')}
+                    onClick={() => setQueue((qs) => qs.filter((_, j) => j !== i))}
+                  >
+                    <X aria-hidden size="1em" />
+                  </IconButton>
+                  <p className="as-u queued whitespace-pre-wrap wrap-break-word">
+                    <span className="sr-only">{t('assistant.you')}: </span>
+                    {q}
+                    <span className="mt-1 block text-xs">{t('assistant.queued')}</span>
+                  </p>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+        {composer}
       </div>
       {histOpen &&
         (wide ? (
           // not modal: the chat stays usable beside it
           <aside
             aria-label={t('assistant.history')}
-            className="ml-4 hidden w-72 shrink-0 flex-col overflow-hidden rounded-(--r-panel) border border-border-subtle bg-bg-card lg:flex"
+            className="as-hist"
             onKeyDown={(e) => e.key === 'Escape' && setHistOpen(false)}
           >
             <ChatHistory current={chatId} onOpen={(id) => void openChat(id)} onDelete={(id) => void deleteChat(id)} />
@@ -1336,43 +1269,60 @@ function targetOf(p: AiProposal): string {
 function ProposalCard({ p, onOpen }: { p: AiProposal & { done?: boolean; error?: string }; onOpen: () => void }) {
   const { t } = useTranslation()
   return (
-    <Panel className="mt-3 p-4 text-base">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone="accent">{t(`assistant.kind.${p.kind}`)}</Badge>
-        <span className="font-display text-lg font-semibold">{p.title}</span>
-        {p.unverified && <Badge tone="warn">{t('assistant.unverified')}</Badge>}
-        {p.done && (
-          <Badge tone="ok">
-            <Check aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('assistant.done')}
-          </Badge>
-        )}
-      </div>
-      <p className="mt-2 break-all font-mono text-sm text-t-muted">
-        {p.serverName}: {p.remotePath}
-      </p>
-      <p className="break-all font-mono text-sm text-t-muted">
-        {t('assistant.target')}: {targetOf(p)}
-        {p.fields.template && <span className="text-t-faint"> · {p.fields.template}</span>}
-      </p>
-      {p.error && (
-        <p className="mt-2 text-sm text-err" role="alert">
-          {p.error}
+    // a proposal the server has checked: where it comes from, where it goes
+    // and how it is named; the button opens the usual dialog to confirm
+    <div className="as-prop">
+      <h3>
+        {p.title} <span className="sg-season">· {t(`assistant.kind.${p.kind}`)}</span>
+      </h3>
+      {p.unverified ? (
+        <p className="as-unv">
+          <TriangleAlert aria-hidden size="1em" />
+          {t('assistant.unverified')}
+        </p>
+      ) : (
+        <p className="as-ok">
+          <Check aria-hidden size="1em" />
+          {t('assistant.verified')}
         </p>
       )}
+      <dl className="fi-dl">
+        <dt>{t('assistant.source')}</dt>
+        <dd className="mono">
+          {p.serverName}: {p.remotePath}
+        </dd>
+        <dt>{t('assistant.target')}</dt>
+        <dd className="mono">{targetOf(p)}</dd>
+        {p.fields.template && (
+          <>
+            <dt>{t('assistant.template')}</dt>
+            <dd className="mono">{p.fields.template}</dd>
+          </>
+        )}
+      </dl>
       {p.info?.length ? (
-        <ul className="mt-2 list-inside list-disc text-sm text-t-secondary">
+        <ul>
           {p.info.map((line, i) => (
             <li key={i}>{line}</li>
           ))}
         </ul>
       ) : null}
-      {!p.done && (
-        <Button variant="primary" className="mt-3" onClick={onOpen}>
+      {p.error && (
+        <p className="as-err" role="alert">
+          {p.error}
+        </p>
+      )}
+      {p.done ? (
+        <p className="as-ok">
+          <Check aria-hidden size="1em" />
+          {t('assistant.done')}
+        </p>
+      ) : (
+        <Button variant="primary" onClick={onOpen}>
           {p.kind === 'watch' ? t('assistant.create') : t('assistant.queue')}
         </Button>
       )}
-    </Panel>
+    </div>
   )
 }
 
