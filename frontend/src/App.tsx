@@ -38,6 +38,7 @@ import { SeriesModalProvider, TITLE_PATH } from './components/SeriesModal'
 import Setup, { FINISHING_KEY } from './pages/Setup'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
+import History from './pages/History'
 import Files from './pages/Files'
 import Trash from './pages/Trash'
 import Watches from './pages/Watches'
@@ -192,6 +193,7 @@ export const router = createBrowserRouter(
         path="/calendar"
         element={<RedirectWithQuery to="/watches" rewrite={(p) => (p.set('view', 'calendar'), p)} />}
       />
+      <Route path="/history" element={<History />} handle={h('history.title', '/', 'nav.dashboard')} />
       <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
       {/* Entdecken: every section a tab of one page, the assistant and the
           ignored items included; the index opens the last one used */}
