@@ -1871,6 +1871,37 @@ li.t-swiperow { border-radius: 0; }
   clip-path: polygon(30% 0, 100% 0, 70% 100%, 0 100%);
 }
 .t-sec-title[data-tone="accent-2"]::before { background: var(--accent-2); }
+/* a folding section: the title is the button, a chevron after it points
+   down while open and to the side when folded */
+.t-sec-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  min-height: 2.75rem;
+  margin-block: -0.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.t-sec-fold::after {
+  content: "";
+  flex: none;
+  width: 0.45em;
+  height: 0.45em;
+  margin-top: -0.2em;
+  border: solid var(--fg-3);
+  border-width: 0 2px 2px 0;
+  rotate: 45deg;
+  transition: rotate var(--dur-2) var(--spring-calm), margin var(--dur-2) var(--spring-calm);
+}
+.t-sec-fold[aria-expanded="false"]::after { rotate: -45deg; margin-top: 0; }
+.t-sec-fold:hover::after { border-color: var(--fg); }
+.t-sec-fold:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
 
 .t-link {
   display: inline-flex;

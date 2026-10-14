@@ -17,6 +17,8 @@ export interface SectionHeadingProps {
   level?: 2 | 3
   id?: string
   className?: string
+  /** makes the title a disclosure button folding the section's body away */
+  fold?: { open: boolean; onToggle: () => void; controls: string }
 }
 
 /**
@@ -25,12 +27,24 @@ export interface SectionHeadingProps {
  * class, so a page entering with `data-wipe="in"` reveals it (the marker
  * stands at once).
  */
-export function SectionHeading({ title, tone = 'accent', action, level = 2, id, className }: SectionHeadingProps) {
+export function SectionHeading({ title, tone = 'accent', action, level = 2, id, className, fold }: SectionHeadingProps) {
   const H = level === 3 ? 'h3' : 'h2'
   return (
     <div className={cx('t-sec-h', className)}>
       <H id={id} className="t-sec-title t-wipe" data-tone={tone === 'accent-2' ? 'accent-2' : undefined}>
-        {title}
+        {fold ? (
+          <button
+            type="button"
+            className="t-sec-fold"
+            aria-expanded={fold.open}
+            aria-controls={fold.controls}
+            onClick={fold.onToggle}
+          >
+            {title}
+          </button>
+        ) : (
+          title
+        )}
       </H>
       {action}
     </div>
