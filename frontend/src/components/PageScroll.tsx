@@ -60,20 +60,23 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     let mode: 'none' | 'pull' | 'off' = 'off'
     let busy = false
     let armed = false
-    const page = () => main.firstElementChild as HTMLElement | null
+    // everything in <main> ahead of the mark: the page and whatever stands
+    // over it (the install hint), or the pull slides one under the other
+    const page = () => {
+      const all = [...main.children] as HTMLElement[]
+      return all.slice(0, all.indexOf(mark))
+    }
     // the page and the mark above it come down together; the mark turns
     // with the pull and fades in on the way
     const show = (d: number) => {
-      const p = page()
-      if (p) p.style.transform = d > 0 ? `translateY(${d}px)` : ''
+      for (const p of page()) p.style.transform = d > 0 ? `translateY(${d}px)` : ''
       mark.style.top = `${main.offsetTop}px`
       mark.style.setProperty('--d', `${d}px`)
       mark.style.setProperty('--pull', String(clamp(d / PULL_AT)))
     }
     const glide = (on: boolean) => {
       const v = on ? 'transform var(--dur-2) var(--ease-out)' : 'none'
-      const p = page()
-      if (p) p.style.transition = v
+      for (const p of page()) p.style.transition = v
       mark.style.transition = on
         ? 'translate var(--dur-2) var(--ease-out), opacity var(--dur-2) var(--ease-out)'
         : 'none'
@@ -83,8 +86,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       show(0)
       // never leave a transform behind: it would trap position:fixed children
       setTimeout(() => {
-        const p = page()
-        if (p) p.style.transition = ''
+        for (const p of page()) p.style.transition = ''
         mark.style.transition = ''
         delete mark.dataset.state
       }, 250)
@@ -169,8 +171,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       main.removeEventListener('touchmove', onMove)
       main.removeEventListener('touchend', onEnd)
       main.removeEventListener('touchcancel', onCancel)
-      const p = page()
-      if (p) p.style.transform = ''
+      for (const p of page()) p.style.transform = ''
     }
   }, [wide, stacked, qc, t])
 

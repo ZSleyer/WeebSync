@@ -61,6 +61,20 @@ describe('PageScroll', () => {
     pull(200)
     await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
   })
+  // the install hint stands in <main> ahead of the page: both come down, or
+  // the pull slides the hint over the page
+  it('brings a hint above the page along with it', () => {
+    const { container } = page(false)
+    const main = container.querySelector('main')!
+    const hint = main.insertBefore(document.createElement('aside'), main.firstElementChild)
+    const content = hint.nextElementSibling as HTMLElement
+    fireEvent.touchStart(main, { touches: [{ clientX: 100, clientY: 100 }] })
+    fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 110 }] })
+    fireEvent.touchMove(main, { touches: [{ clientX: 100, clientY: 160 }] })
+    expect(hint.style.transform).toBe('translateY(30px)')
+    expect(content.style.transform).toBe('translateY(30px)')
+    fireEvent.touchCancel(main)
+  })
   // Files has no large title; a pull there lists the folder again
   it('reloads a top-level page without a large title too', async () => {
     const qc = new QueryClient()
