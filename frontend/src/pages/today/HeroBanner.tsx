@@ -19,6 +19,10 @@ const NO_BANNERS: Banners = { banners: [], watches: 1 }
 // how a refresh's new page takes over from the old one: drawn anew each
 // time, a plain fade where motion is turned down
 const BLENDS = ['zoom', 'blur', 'dots', 'wipe', 'duo', 'push'] as const
+// what a panel shows: a refresh blends only the panels where this changed
+function panelLook(p?: { b: Banner | null; tone: string; fill: string; style: CSSProperties }): string {
+  return p ? JSON.stringify([p.b?.url, p.tone, p.fill, p.style]) : ''
+}
 function pickBlend(): string {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'fade'
   return BLENDS[Math.floor(Math.random() * BLENDS.length)]
@@ -215,16 +219,21 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
     })
   }, [cut, box, data, usable])
 
-  // a refresh deals new banners: the old page stays on top and leaves over
-  // the new one (already decoded by the refresh) instead of swapping in one
-  // frame. A resize or a dropped picture redraws without it.
+  // a refresh deals new banners: each panel whose picture changed keeps the
+  // old one on top, leaving over the new one (already decoded by the
+  // refresh) instead of swapping in one frame. A panel dealt the same
+  // picture stays still; a resize or a dropped picture redraws without it.
   const [seen, setSeen] = useState({ data, panels })
   const [gone, setGone] = useState<{ panels: typeof panels; blend: string } | null>(null)
   if (seen.panels !== panels) {
     setSeen({ data, panels })
-    if (enter && seen.data && data && seen.data !== data && seen.panels.length)
-      setGone({ panels: seen.panels, blend: pickBlend() })
+    if (enter && seen.data && data && seen.data !== data) {
+      const was = new Map(seen.panels.map((p) => [p.key, panelLook(p)]))
+      const changed = seen.panels.filter((p) => was.get(p.key) !== panelLook(panels.find((n) => n.key === p.key)))
+      if (changed.length) setGone({ panels: changed, blend: pickBlend() })
+    }
   }
+  const fresh = new Set(gone?.panels.map((p) => p.key))
   useEffect(() => {
     if (!gone) return
     const id = setTimeout(() => setGone(null), 1000)
@@ -270,6 +279,7 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
               data-band=""
               data-tone={p.tone}
               data-phone={p.phone || undefined}
+              data-fresh={fresh.has(p.key) || undefined}
               aria-label={t('today.openSeries', { title: b.title })}
               onClick={() => openPanel(b)}
               style={style}

@@ -97,12 +97,12 @@ span.td-pn { cursor: default; }
 
 /* zoom: the new art settles from a step closer */
 .td-hero[data-blend="zoom"] .td-pn.td-gone { animation: td-fade 420ms linear forwards; }
-.td-hero[data-blend="zoom"] .td-pn:not(.td-gone) .t-art { animation: td-zoom-in 840ms var(--ease-enter) backwards; }
+.td-hero[data-blend="zoom"] .td-pn[data-fresh] .t-art { animation: td-zoom-in 840ms var(--ease-enter) backwards; }
 @keyframes td-zoom-in { from { scale: 1.08; } }
 
 /* blur: the old one dissolves, the new comes into focus */
 .td-hero[data-blend="blur"] .td-pn.td-gone { animation: td-blur-out 600ms var(--ease-out) forwards; }
-.td-hero[data-blend="blur"] .td-pn:not(.td-gone) .t-art { animation: td-blur-in 600ms var(--ease-out) backwards; }
+.td-hero[data-blend="blur"] .td-pn[data-fresh] .t-art { animation: td-blur-in 600ms var(--ease-out) backwards; }
 @keyframes td-blur-out { to { opacity: 0; filter: blur(14px); } }
 @keyframes td-blur-in { from { filter: blur(14px); } }
 
@@ -127,22 +127,28 @@ span.td-pn { cursor: default; }
 }
 @keyframes td-wipe { from { --td-x: -20%; } to { --td-x: 125%; } }
 
-/* duo: the old page flips into the teal duotone and goes, the new comes
-   out of red into colour */
-.td-hero[data-blend="duo"] .td-pn.td-gone { animation: td-duo-out 600ms linear forwards; }
-.td-hero[data-blend="duo"] .td-pn:not(.td-gone) .t-art { animation: td-duo-in 900ms var(--ease-out) backwards; }
-@keyframes td-duo-out {
-  45% { opacity: 1; filter: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.4) brightness(0.7); }
-  to { opacity: 0; filter: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.4) brightness(0.7); }
+/* duo: the old page takes the teal duotone and goes, the new one comes out
+   of red into colour. The tone is a colour layer, not a filter: a filter
+   chain interpolates through olive on its way */
+.td-hero[data-blend="duo"] .td-pn.td-gone { animation: td-duo-out 560ms linear forwards; }
+.td-hero[data-blend="duo"] .td-pn:is(.td-gone, [data-fresh])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  mix-blend-mode: color;
+  pointer-events: none;
 }
-@keyframes td-duo-in {
-  from, 45% { filter: grayscale(1) sepia(1) hue-rotate(-30deg) saturate(3) brightness(0.8); }
-}
+.td-hero[data-blend="duo"] .td-pn.td-gone::after { background: var(--accent-2); animation: td-duo-tint 120ms linear backwards; }
+.td-hero[data-blend="duo"] .td-pn[data-fresh]::after { background: var(--accent); animation: td-duo-clear 900ms var(--ease-out) forwards; }
+@keyframes td-duo-out { 40% { opacity: 1; } to { opacity: 0; } }
+@keyframes td-duo-tint { from { opacity: 0; } }
+@keyframes td-duo-clear { 0%, 50% { opacity: 1; } to { opacity: 0; } }
 
 /* push: the new art pushes the old out to the left, each inside its panel */
 .td-hero[data-blend="push"] .td-pn.td-gone { animation: none; }
 .td-hero[data-blend="push"] .td-pn.td-gone .t-art { animation: td-push-out 600ms var(--ease-out) forwards; }
-.td-hero[data-blend="push"] .td-pn:not(.td-gone) .t-art { animation: td-push-in 600ms var(--ease-out) backwards; }
+.td-hero[data-blend="push"] .td-pn[data-fresh] .t-art { animation: td-push-in 600ms var(--ease-out) backwards; }
 @keyframes td-push-out { to { translate: -100% 0; } }
 @keyframes td-push-in { from { translate: 100% 0; } }
 
