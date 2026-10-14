@@ -194,11 +194,19 @@ type LoginRefusedResponse struct {
 	PauseSeconds int    `json:"pauseSeconds,omitempty"`
 }
 
-// loginRefused answers a wrong email or password, counting what is left.
-func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request) {
+// loginRefused answers a wrong email or password, counting the failure
+// against the account and saying what is left: the tighter of the address's
+// and the account's budget.
+func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request, email string) {
+	s.accountFailed(r, email)
 	out := LoginRefusedResponse{Error: "invalid credentials"}
 	if s.authLimiter != nil {
 		if n, pause, ok := s.authLimiter.left(auth.ClientIP(r)); ok {
+			if s.accountLimiter != nil {
+				if an, apause, _ := s.accountLimiter.left(email); an < n {
+					n, pause = an, apause
+				}
+			}
 			out.AttemptsLeft = &n
 			out.PauseSeconds = int(math.Ceil(pause.Seconds()))
 		}
@@ -229,6 +237,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
+	if wait := s.accountWait(r, c.Email); wait > 0 {
+		tooMany(w, wait)
+		return
+	}
 	var id int64
 	var hash string
 	var verified int
@@ -239,12 +251,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	if err == sql.ErrNoRows || hash == "" {
 		auth.DummyVerify(c.Password) // equalize timing so unknown emails aren't distinguishable
-		s.loginRefused(w, r)
+		s.loginRefused(w, r, c.Email)
 		return
 	}
 	ok, legacy := auth.VerifyPasswordLegacy(c.Password, hash)
 	if !ok {
-		s.loginRefused(w, r)
+		s.loginRefused(w, r, c.Email)
 		return
 	}
 	// a hash over the unnormalised bytes is renewed while the password is
@@ -287,6 +299,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
+	s.accountSignedIn(c.Email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: id, Email: c.Email})
 }
 

@@ -238,10 +238,19 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
+	// the code counts against the account like the password does: a fresh
+	// pending token per correct password must not reset the guessing
+	var email string
+	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
+	if wait := s.accountWait(r, email); wait > 0 {
+		tooMany(w, wait)
+		return
+	}
 	sec, ok := s.totpSecret(userID)
 	code := normalizeTotpCode(in.Code)
 	if !ok || (!(totp.Validate(code, sec) && s.totpAccept(userID, code)) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
 		s.failLoginPending(in.Token)
+		s.accountFailed(r, email)
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
@@ -253,8 +262,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	var email string
-	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
+	s.accountSignedIn(email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }
 

@@ -3,7 +3,9 @@ package api
 import (
 	"math"
 	"net/http"
+	"net/netip"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -54,21 +56,57 @@ func (l *ipLimiter) resetAll() {
 }
 
 type ipStatus struct {
+	// the address, an IPv6 /64, or for an account bucket the email it is
+	// keyed by
 	IP      string `json:"ip"`
+	Kind    string `json:"kind" enums:"ip,account"`
 	Blocked bool   `json:"blocked"` // no tokens left right now
 	Tokens  int    `json:"tokens"`  // remaining, rounded down
 }
 
-// status lists tracked IPs and whether each is currently rate-limited.
-func (l *ipLimiter) status() []ipStatus {
+// status lists tracked keys and whether each is currently rate-limited.
+func (l *ipLimiter) status(kind string) []ipStatus {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	out := make([]ipStatus, 0, len(l.ips))
 	for ip, e := range l.ips {
 		tok := e.lim.Tokens()
-		out = append(out, ipStatus{IP: ip, Blocked: tok < 1, Tokens: int(tok)})
+		out = append(out, ipStatus{IP: ip, Kind: kind, Blocked: tok < 1, Tokens: int(tok)})
 	}
 	return out
+}
+
+// limitKey is the bucket an address counts against. An IPv6 client usually
+// holds a whole /64 and picks addresses from it at will, so one bucket per
+// address would hand it 2^64 of them; the /64 is what it actually controls.
+func limitKey(ip string) string {
+	a, err := netip.ParseAddr(ip)
+	if err != nil || !a.Unmap().Is6() {
+		return ip
+	}
+	p, _ := a.Prefix(64)
+	return p.String()
+}
+
+// resetKey is limitKey for what an admin passes to unblock: an address, or a
+// key exactly as the status list shows it.
+func resetKey(ip string) string {
+	if strings.Contains(ip, "/") {
+		return ip
+	}
+	return limitKey(ip)
+}
+
+// blockedFor reports how long key still has to wait, without spending
+// anything; 0 when it may go ahead.
+func (l *ipLimiter) blockedFor(key string) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	e, ok := l.ips[key]
+	if !ok || e.lim.Tokens() >= 1 {
+		return 0
+	}
+	return time.Duration((1 - e.lim.Tokens()) / float64(l.rate) * float64(time.Second))
 }
 
 // allow reports whether the ip may proceed, consuming one token.
@@ -113,7 +151,7 @@ func (l *ipLimiter) left(ip string) (n int, pause time.Duration, ok bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	n = l.burst
-	if e, found := l.ips[ip]; found {
+	if e, found := l.ips[limitKey(ip)]; found {
 		n = max(int(e.lim.Tokens()), 0)
 	}
 	return n, time.Duration(float64(time.Second) / float64(l.rate)), true
@@ -138,11 +176,14 @@ func (s *Server) ipTrusted(ipStr string) bool {
 // @Security     CookieAuth
 // @Router       /api/auth/ratelimit [get]
 func (s *Server) handleRateLimitList(w http.ResponseWriter, r *http.Request) {
-	if s.authLimiter == nil {
-		writeJSON(w, http.StatusOK, []ipStatus{})
-		return
+	out := []ipStatus{}
+	if s.authLimiter != nil {
+		out = append(out, s.authLimiter.status("ip")...)
 	}
-	writeJSON(w, http.StatusOK, s.authLimiter.status())
+	if s.accountLimiter != nil {
+		out = append(out, s.accountLimiter.status("account")...)
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleRateLimitReset clears the throttle for one IP or all tracked IPs.
@@ -168,11 +209,15 @@ func (s *Server) handleRateLimitReset(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if s.authLimiter != nil {
+	for _, l := range []*ipLimiter{s.authLimiter, s.accountLimiter} {
+		if l == nil {
+			continue
+		}
 		if in.All {
-			s.authLimiter.resetAll()
+			l.resetAll()
 		} else if in.IP != "" {
-			s.authLimiter.reset(in.IP)
+			l.reset(resetKey(in.IP))
+			l.reset(strings.ToLower(strings.TrimSpace(in.IP)))
 		}
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -187,12 +232,48 @@ func (l *ipLimiter) limit(next http.HandlerFunc) http.HandlerFunc {
 			next(w, r)
 			return
 		}
-		if ok, wait := l.take(ip); !ok {
-			// the login page tells how long to wait instead of a bare "slow down"
-			w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
-			writeErr(w, http.StatusTooManyRequests, "too many attempts, slow down")
+		if ok, wait := l.take(limitKey(ip)); !ok {
+			tooMany(w, wait)
 			return
 		}
 		next(w, r)
+	}
+}
+
+// tooMany answers 429; the login page tells how long to wait instead of a
+// bare "slow down".
+func tooMany(w http.ResponseWriter, wait time.Duration) {
+	w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(wait.Seconds()))))
+	writeErr(w, http.StatusTooManyRequests, "too many attempts, slow down")
+}
+
+// The account side of the brute-force guard. The per-IP buckets alone let a
+// botnet or an IPv6 /64 spread guesses at one account over as many addresses
+// as it has; this counts the failures against the account itself. Keyed by
+// the email as typed, whether or not an account has it, so a 429 says nothing
+// about which addresses are registered. Only failures spend, and a bucket
+// refills instead of locking, so a stranger can slow an owner down but never
+// shut them out for good - and not at all from a trusted network, which is
+// the way back in for an owner whose account is under attack.
+
+// accountWait is how long the account behind email must wait; 0 lets it in.
+func (s *Server) accountWait(r *http.Request, email string) time.Duration {
+	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) {
+		return 0
+	}
+	return s.accountLimiter.blockedFor(email)
+}
+
+// accountFailed counts a wrong password or second factor against email.
+func (s *Server) accountFailed(r *http.Request, email string) {
+	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) {
+		s.accountLimiter.take(email)
+	}
+}
+
+// accountSignedIn forgets the failures once the whole sign-in succeeded.
+func (s *Server) accountSignedIn(email string) {
+	if s.accountLimiter != nil {
+		s.accountLimiter.reset(email)
 	}
 }

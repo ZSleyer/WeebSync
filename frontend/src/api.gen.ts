@@ -2227,7 +2227,12 @@ export interface Schemas {
      * no tokens left right now
      */
     blocked: boolean
+    /**
+     * the address, an IPv6 /64, or for an account bucket the email it is
+     * keyed by
+     */
     ip: string
+    kind: "ip" | "account"
     /**
      * remaining, rounded down
      */

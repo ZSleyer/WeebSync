@@ -289,11 +289,12 @@ function ApiTokenSection() {
 
 interface IpStatus {
   ip: string
+  kind: 'ip' | 'account'
   blocked: boolean
   tokens: number
 }
 
-// Addresses with failed sign-ins, and the way to free one at once.
+// Addresses and accounts with failed sign-ins, and the way to free one at once.
 function RateLimitSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -323,9 +324,12 @@ function RateLimitSection() {
           <Rows dense>
             {list.map((s) => (
               <Row
-                key={s.ip}
+                key={s.kind + s.ip}
                 title={<span className="font-mono">{s.ip}</span>}
-                sub={s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk')}
+                sub={
+                  (s.kind === 'account' ? t('settings.rateLimitAccount') + ' · ' : '') +
+                  (s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk'))
+                }
                 trailing={
                   <RowAction disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
                     {t('settings.rateLimitUnblock')}

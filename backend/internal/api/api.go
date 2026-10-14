@@ -95,6 +95,8 @@ type Server struct {
 
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
+	// failed sign-ins per account (see accountWait), admin-inspectable too
+	accountLimiter *ipLimiter
 	// the passkey challenge: the login page asks for one on every visit, so it
 	// gets a budget of its own instead of eating the password attempts
 	challengeLimiter *ipLimiter
@@ -135,6 +137,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// admin-configured trusted networks bypass the limit
 	if s.authLimiter == nil {
 		s.authLimiter = newIPLimiter(5, 5, s.ipTrusted)
+	}
+	// ten tries, then one every five minutes: under 300 a day against one
+	// account, however many addresses they come from (NIST 800-63B-4 3.2.2)
+	if s.accountLimiter == nil {
+		s.accountLimiter = newIPLimiter(0.2, 10, nil)
 	}
 	// a challenge guesses nothing; the cap only keeps the ceremony store small
 	if s.challengeLimiter == nil {
