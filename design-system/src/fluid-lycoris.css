@@ -777,7 +777,11 @@ summary::-webkit-details-marker { display: none; }
 /* The caption/control spacing is a gap, not padding on the control: padding
    here would override the control's own and make it shorter than a <select>
    next to it. */
-.t-field { display: flex; flex-direction: column; height: 100%; gap: 4px; }
+/* No height of its own: a field in a two-column row is a grid item and
+   stretches to the row, which pushes its control down to line up. A
+   percentage height filled any stretched parent instead, so the text after
+   the field ran over the next one. */
+.t-field { display: flex; flex-direction: column; gap: 4px; }
 .t-field > :last-child { margin-top: auto; }
 
 /* Inputs */
