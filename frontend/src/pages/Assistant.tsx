@@ -30,6 +30,7 @@ import {
   Menu,
   MenuItem,
   Panel,
+  Rows,
   useMediaQuery,
   useMenu,
 } from 'fluid-lycoris'
@@ -1146,23 +1147,26 @@ export default function Assistant() {
                             ))}
                           </ul>
                         ) : null}
-                        {tr.upgrades?.map((u) => (
-                          <div key={u.key} className="mt-3">
-                            <UpgradeCard
-                              u={u}
-                              dims={dims}
-                              chosen={choice[u.key] ?? u.to}
-                              onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-                              onSync={(r) =>
-                                setUpSync({
-                                  ...r,
-                                  initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
-                                })
-                              }
-                              onDetails={setDetail}
-                            />
-                          </div>
-                        ))}
+                        {tr.upgrades?.length ? (
+                          <Rows className="mt-3">
+                            {tr.upgrades.map((u) => (
+                              <UpgradeCard
+                                key={u.key}
+                                u={u}
+                                dims={dims}
+                                chosen={choice[u.key] ?? u.to}
+                                onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
+                                onSync={(r) =>
+                                  setUpSync({
+                                    ...r,
+                                    initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
+                                  })
+                                }
+                                onDetails={setDetail}
+                              />
+                            ))}
+                          </Rows>
+                        ) : null}
                         {tr.proposals?.map((p, pi) => (
                           <ProposalCard key={pi} p={p} onOpen={() => setOpen({ turn: ti, idx: pi })} />
                         ))}

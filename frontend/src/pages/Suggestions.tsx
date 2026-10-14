@@ -1,63 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
+  ArrowDown,
+  ArrowUp,
   Bookmark,
   Bot,
-  ChevronDown,
-  ChevronUp,
   CircleArrowUp,
   CircleDashed,
   Copy,
-  Download,
-  Eye,
   EyeOff,
-  FolderOpen,
-  ListVideo,
-  Plus,
   RefreshCw,
-  RotateCcw,
-  CalendarClock,
-  Check,
-  Clapperboard,
-  Pause,
-  Play,
-  Server,
   Sparkles,
-  Star,
   TrendingUp,
-  Tv,
-  X,
   type LucideIcon,
-  Trash2,
 } from 'lucide-react'
-
-// icon per AniList watch status, shown inside the t-label chips
-const WATCH_STATUS_ICON: Record<string, LucideIcon> = {
-  PLANNING: CalendarClock,
-  CURRENT: Play,
-  COMPLETED: Check,
-  PAUSED: Pause,
-  DROPPED: X,
-  REPEATING: RefreshCw,
-}
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useToast, useFailToast } from '../components/toast'
 import { useLocation, useNavigate } from 'react-router'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Count,
-  Cover,
-  Disclosure,
-  IconButton,
-  PageHeader,
-  Panel,
-  SuggestionCard,
-  Tab,
-  Tabs,
-  useMediaQuery,
-} from 'fluid-lycoris'
+import { Button, Checkbox, IconButton, Rows, TextLink } from 'fluid-lycoris'
+import { useToast, useFailToast } from '../components/toast'
 import {
   api,
   type SuggestionItem,
@@ -67,7 +27,6 @@ import {
   type UpgradeVariant,
   type UpgradeDims,
   type DismissedItem,
-  type DuplicateItem,
   type SyncResult,
   suggestionSource,
   syncOutcome,
@@ -75,335 +34,162 @@ import {
   fmtBytes,
 } from '../api'
 import { SeriesCardView, useSeriesModal } from '../components/SeriesModal'
-import { ProviderBadges } from '../components/ProviderBadges'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
-import { fmtEpisodeRanges, guessSeason, syncFields, variantQuality } from '../components/upgradeQuality'
+import { fmtEpisodeRanges, guessSeason, syncFields } from '../components/upgradeQuality'
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
 import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/watchDefaults'
-import { useAiStatus, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
-import { WIDE_MQ } from '../components/PageActions'
-import { DISCOVER_BASE, rememberSection, sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
+import ActionMenu from '../components/ActionMenu'
+import { CatalogTile, useTileRise } from '../components/CatalogTile'
+import { useAiStatus, useNow, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
+import { rememberSection, sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
 import { SectionOutlet } from '../components/RouteTransition'
-import { SectionNav, type SectionGroup } from '../components/SectionNav'
-import { SkeletonCards } from '../components/Loading'
+import type { SectionGroup } from '../components/SectionNav'
+import { coverSet } from '../images'
+import {
+  DiscoverGroup,
+  DiscoverHead,
+  DiscoverNav,
+  EmptyNote,
+  SkeletonRows,
+  SugRow,
+  useDismiss,
+  useLateRise,
+  type DiscoverNavGroup,
+} from './DiscoverParts'
+import { asOfLine, copyLine, listOf, metaLine, progressLine, shortPath } from './discoverText'
+import './discover.css'
 
-// Suggestions, tabbed by FUNCTION (not by provider): Trending, Watchlist,
-// Upgrades and Incomplete. Every item is deduplicated per series and carries
-// which integrations recognise it, links to each, a series-wide ignore, and a
-// rematch. Data comes unified from GET /api/suggestions (+ /api/upgrades).
-// Each section has its own address under /discover (discoverRoutes.ts).
-type Bucket = 'watchlist' | 'recommended' | 'trending' | 'upgrades' | 'incomplete' | 'duplicates' | 'ignored'
+// Entdecken: the suggestion lists by what they are for (Merkliste,
+// Empfohlen, Trending), what the library lacks or holds twice (Upgrades,
+// Unvollständig, Duplikate), and the questions (Assistent, Ausgeblendet).
+// One blob from GET /api/suggestions feeds every list. Each section has its
+// own address under /discover (discoverRoutes.ts).
+type ListSection = Exclude<DiscoverSection, 'assistant' | 'ignored'>
 
-// The sections in their groups, with the count each shows in the menu. The
-// blob is the same query every section reads, so the menu costs no request.
-// An entry's `to` is its slug, relative to /discover.
-export function useSuggestionGroups(): SectionGroup[] {
-  const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
-  const { data: dismissed } = usePersistedQuery<DismissedItem[]>('dismissed', () =>
-    api.get('/api/suggestions/dismissed'),
-  )
-  const { data: ai } = useAiStatus()
-  const n = (k: Exclude<Bucket, 'ignored'>) => (data && !data.building ? (data[k]?.length ?? 0) : undefined)
-  const item = (id: DiscoverSection, key: string, icon: LucideIcon, count?: number) => ({
-    to: slugOf(id),
-    key,
-    icon,
-    hint: `suggestions.hub.${id}`,
-    count,
+const useSuggestions = () =>
+  usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
+    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
   })
-  return [
-    // the assistant is optional: without a configured endpoint its entry
-    // stays out of the menu (the page itself explains when opened directly)
-    ...(ai?.configured
-      ? [{ label: 'suggestions.groupAssistant', items: [item('assistant', 'nav.assistant', Bot)] }]
-      : []),
-    {
-      label: 'suggestions.groupDiscover',
-      items: [
-        item('watchlist', 'suggestions.tabWatchlist', Bookmark, n('watchlist')),
-        item('recommended', 'suggestions.tabRecommended', Sparkles, n('recommended')),
-        item('trending', 'suggestions.tabTrending', TrendingUp, n('trending')),
-      ],
-    },
-    {
-      label: 'suggestions.groupLibrary',
-      items: [
-        item('upgrades', 'suggestions.tabUpgrades', CircleArrowUp, n('upgrades')),
-        item('incomplete', 'suggestions.tabIncomplete', CircleDashed, n('incomplete')),
-        item('duplicates', 'suggestions.tabDuplicates', Copy, n('duplicates')),
-      ],
-    },
-    { label: 'suggestions.groupHidden', items: [item('ignored', 'suggestions.ignored', EyeOff, dismissed?.length)] },
-  ]
+const useDismissed = () => usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+
+// the sections in their groups, in the mock's order; the assistant only
+// with a configured endpoint (the page itself explains when opened directly)
+const LAYOUT: { label: string; items: [DiscoverSection, string, LucideIcon][] }[] = [
+  {
+    label: 'suggestions.groupDiscover',
+    items: [
+      ['watchlist', 'suggestions.tabWatchlist', Bookmark],
+      ['recommended', 'suggestions.tabRecommended', Sparkles],
+      ['trending', 'suggestions.tabTrending', TrendingUp],
+    ],
+  },
+  {
+    label: 'suggestions.groupLibrary',
+    items: [
+      ['upgrades', 'suggestions.tabUpgrades', CircleArrowUp],
+      ['incomplete', 'suggestions.tabIncomplete', CircleDashed],
+      ['duplicates', 'suggestions.tabDuplicates', Copy],
+    ],
+  },
+  {
+    label: 'discover.groupAsk',
+    items: [
+      ['assistant', 'nav.assistant', Bot],
+      ['ignored', 'suggestions.ignored', EyeOff],
+    ],
+  },
+]
+
+/** Every section with its count. The counts come from the blob, stale ones included, and show 0. */
+function useCounts(): Partial<Record<DiscoverSection, number>> {
+  const { data } = useSuggestions()
+  const { data: dismissed } = useDismissed()
+  const n = (k: ListSection) => (data ? (data[k]?.length ?? 0) : undefined)
+  return {
+    watchlist: n('watchlist'),
+    recommended: n('recommended'),
+    trending: n('trending'),
+    upgrades: n('upgrades'),
+    incomplete: n('incomplete'),
+    duplicates: n('duplicates'),
+    ignored: dismissed?.length,
+  }
 }
 
-// The frame around the sections: heading and side menu on desktop. A phone
-// gets every section as a row of tabs under the heading, the assistant and
-// the ignored items included, so the next one is a tap to the side instead
-// of back to a menu and in again. The open section is remembered: the next
-// visit to Entdecken opens on it.
+/** The sections as the command palette lists them: groups of routes with icons and counts. */
+export function useSuggestionGroups(): SectionGroup[] {
+  const { data: ai } = useAiStatus()
+  const counts = useCounts()
+  return LAYOUT.map((g) => ({
+    label: g.label,
+    items: g.items
+      .filter(([id]) => id !== 'assistant' || ai?.configured)
+      .map(([id, key, icon]) => ({ to: slugOf(id), key, icon, hint: `suggestions.hub.${id}`, count: counts[id] })),
+  })).filter((g) => g.items.length > 0)
+}
+
+// the head of each list section: title and the quiet line under it
+const HEADS: Record<Exclude<DiscoverSection, 'assistant'>, string> = {
+  watchlist: 'suggestions.tabWatchlist',
+  recommended: 'suggestions.tabRecommended',
+  trending: 'suggestions.tabTrending',
+  upgrades: 'suggestions.tabUpgrades',
+  incomplete: 'suggestions.tabIncomplete',
+  duplicates: 'suggestions.tabDuplicates',
+  ignored: 'suggestions.ignored',
+}
+
+/**
+ * The frame: the sections menu (a sticky strip on a phone, a column on a
+ * desktop) and the open section with its head. The open section is
+ * remembered, the next visit to Entdecken opens on it.
+ */
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
-  const groups = useSuggestionGroups()
-  const { data } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'))
+  const { data: ai } = useAiStatus()
+  const { data } = useSuggestions()
+  const counts = useCounts()
   const { pathname } = useLocation()
-  const navigate = useNavigate()
-  const wide = useMediaQuery(WIDE_MQ)
-  const slug = pathname.split('/')[2]
-  const section = sectionOf(slug)
+  const section = sectionOf(pathname.split('/')[2])
   useEffect(() => {
     if (section) rememberSection(section)
   }, [section])
-  // the note about the blob being built belongs to the lists it feeds, not
-  // to the assistant, which answers from the catalog either way
-  const onList = section !== 'assistant'
-  // the wrappers are flex columns down to the section, so a section that
-  // fills the screen by design (the assistant's log and composer) can claim
-  // the remaining height; a list section is unaffected
+  const groups: DiscoverNavGroup[] = LAYOUT.map((g) => ({
+    label: t(g.label),
+    items: g.items
+      .filter(([id]) => id !== 'assistant' || ai?.configured || section === 'assistant')
+      .map(([id, key]) => ({ id, to: slugOf(id), label: t(key), count: counts[id] })),
+  }))
+  const onList = section && section !== 'assistant'
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <PageHeader className="mb-4 lg:mb-6" title={t('suggestions.title')} sub={t('suggestions.sub')} />
-      <div className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row">
-        <SectionNav label={t('suggestions.navLabel')} groups={groups} />
-        {!wide && (
-          // a change of tab replaces the entry: the back gesture leaves the
-          // page, it does not walk back through the tabs
-          <Tabs scroll aria-label={t('suggestions.navLabel')} className="t-tabs--line -mt-2 -mx-4 px-4">
-            {groups.map((g, gi) => [
-              gi > 0 && <span key={g.label} aria-hidden className="mx-1 my-2 w-px shrink-0 bg-border-subtle" />,
-              ...g.items.map((i) => (
-                <Tab
-                  key={i.to}
-                  selected={i.to === slug}
-                  onClick={() => navigate(`${DISCOVER_BASE}/${i.to}`, { replace: true })}
-                >
-                  {t(i.key)}
-                  {i.count != null && <Count className="ml-1.5">{i.count}</Count>}
-                </Tab>
-              )),
-            ])}
-          </Tabs>
+    <div className="dc">
+      <DiscoverNav label={t('discover.navLabel')} groups={groups} current={section} />
+      <div className="dc-body">
+        {onList && (
+          <DiscoverHead title={t(HEADS[section])} sub={t(`discover.sub.${section}`, { count: counts[section] ?? 0 })} />
         )}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          {/* the blob is assembled in the background every half hour; while it
-              is, the counts in the menu are missing and a bucket may be short */}
-          {onList && data?.building && (
-            <Badge multiline role="status" className="mb-4 self-start">
-              <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
-              {t('suggestions.building')}
-            </Badge>
-          )}
-          <SectionOutlet />
-        </div>
+        {/* the blob is assembled in the background every half hour; while it
+            is, a list may be short or empty */}
+        {onList && section !== 'ignored' && data?.building && (
+          <p className="dc-building" role="status">
+            <RefreshCw aria-hidden size="1em" className="animate-spin motion-reduce:animate-none" />
+            {t('suggestions.building')}
+          </p>
+        )}
+        <SectionOutlet />
       </div>
     </div>
   )
 }
 
-// Content-category blocks, in reading order: Anime, then Western animation
-// (Zeichentrick, non-Japanese), then live-action. Movies before series.
-const CATS = ['anime-movie', 'anime-tv', 'animation-movie', 'animation-tv', 'movie', 'tv'] as const
+type WatchReq = { serverId: number; name: string; initial: WatchFields; inCard?: boolean }
 
-// BucketSection renders one functional bucket. Trending and Watchlist are
-// sub-grouped into the four categories (Anime series/movies, series, movies);
-// Incomplete is a flat list.
-export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
-  const { t } = useTranslation()
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
-    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
-  })
-  // `inCard`: set up from the title card, which shows the form in its place
-  const [watch, setWatch] = useState<{
-    serverId: number
-    name: string
-    initial: WatchFields
-    inCard?: boolean
-  } | null>(null)
-  const toast = useToast()
-  const qc = useQueryClient()
-  const [sync, setSync] = useState<{ serverId: number; name: string; initial: WatchFields } | null>(null)
-  const [notice, setNotice] = useState('')
-
-  if (isLoading) return <SkeletonCards />
-  const items = (data?.[bucket] ?? []) as SuggestionItem[]
-  if (!items.length && data?.building) return <SkeletonCards />
-  if (!items.length)
-    return <Badge multiline>{t(bucket === 'recommended' ? 'suggestions.emptyRecommended' : 'suggestions.empty')}</Badge>
-
-  const cards = (list: SuggestionItem[]) => (
-    <ul className="grid grid-cols-1 gap-2">
-      {list.map((it) => (
-        <SugCard key={it.refKey} it={it} onWatch={setWatch} onSync={setSync} onNotice={setNotice} />
-      ))}
-    </ul>
-  )
-
-  // Watchlist: grouped by status (Planned / Watching / Completed, in that
-  // order), each status collapsible with the content categories (Animefilme /
-  // Animeserien / Filme / Serien) as collapsible sub-groups. Items without a
-  // status fall into Planned; Completed starts collapsed and is never
-  // proactively suggested.
-  const statusOf = (it: SuggestionItem) =>
-    it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING'
-  const statusRows = [
-    ['PLANNING', 'suggestions.statusPlanning'],
-    ['CURRENT', 'suggestions.statusCurrent'],
-    ['COMPLETED', 'suggestions.statusCompleted'],
-  ] as const
-  const watchlistGroups = (
-    <div className="space-y-6">
-      {statusRows.map(([key, label]) => {
-        const statusItems = items.filter((it) => statusOf(it) === key)
-        if (!statusItems.length) return null
-        return (
-          <Disclosure key={key} title={t(label)} count={statusItems.length} defaultOpen={key !== 'COMPLETED'}>
-            <div className="space-y-3">
-              {CATS.map((cat) => {
-                const list = statusItems.filter((it) => it.category === cat)
-                if (!list.length) return null
-                return (
-                  <Disclosure key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
-                    {cards(list)}
-                  </Disclosure>
-                )
-              })}
-            </div>
-          </Disclosure>
-        )
-      })}
-    </div>
-  )
-
-  // Incomplete: episode gaps inside seasons you own are one finding, missing
-  // seasons and sequels another; each group has the content categories as
-  // collapsible sub-groups, so a flood of films never buries a missing episode
-  const incompleteRows = [
-    ['episodes', 'suggestions.groupEpisodes', (it: SuggestionItem) => it.kind === 'episodes'],
-    ['seasons', 'suggestions.groupSeasons', (it: SuggestionItem) => it.kind !== 'episodes'],
-  ] as const
-  const incompleteGroups = (
-    <div className="space-y-6">
-      {incompleteRows.map(([key, label, pick]) => {
-        const groupItems = items.filter(pick)
-        if (!groupItems.length) return null
-        return (
-          <Disclosure key={key} title={t(label)} count={groupItems.length}>
-            <div className="space-y-3">
-              {CATS.map((cat) => {
-                const list = groupItems.filter((it) => it.category === cat)
-                if (!list.length) return null
-                return (
-                  <Disclosure key={cat} small title={t(`suggestions.cat_${cat}`)} count={list.length}>
-                    {cards(list)}
-                  </Disclosure>
-                )
-              })}
-            </div>
-          </Disclosure>
-        )
-      })}
-    </div>
-  )
-
-  return (
-    <div className="space-y-4">
-      {notice && <Badge tone="accent">{notice}</Badge>}
-      {bucket === 'watchlist'
-        ? watchlistGroups
-        : bucket === 'incomplete'
-          ? incompleteGroups
-          : // trending and recommended: grouped by content category (Animefilme /
-            // Animeserien / Filme / Serien), like the rest of the suggestions
-            CATS.map((cat) => {
-              const list = items.filter((it) => it.category === cat)
-              if (!list.length) return null
-              return (
-                <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
-                  {cards(list)}
-                </Disclosure>
-              )
-            })}
-      {watch &&
-        (watch.inCard ? (
-          <SeriesCardView onClose={() => setWatch(null)}>
-            {(v) => (
-              <WatchForm
-                {...v}
-                title={watch.name}
-                serverId={watch.serverId}
-                initial={watch.initial}
-                onSave={async (f) => {
-                  await api.post('/api/watches', { serverId: watch.serverId, ...f })
-                  // back on the card, its auto-sync section shows the new watch
-                  await qc.invalidateQueries({ queryKey: ['watches'] })
-                  toast({ message: t('watch.created') })
-                }}
-                onClose={() => setWatch(null)}
-              />
-            )}
-          </SeriesCardView>
-        ) : (
-          <WatchDialog
-            title={watch.name}
-            serverId={watch.serverId}
-            initial={watch.initial}
-            onSave={async (f) => {
-              await api.post('/api/watches', { serverId: watch.serverId, ...f })
-              // a toast like the in-card branch: a notice badge stayed for the
-              // whole visit, and the auto-sync list has to learn of the watch
-              qc.invalidateQueries({ queryKey: ['watches'] })
-              toast({ message: t('watch.created') })
-            }}
-            onClose={() => setWatch(null)}
-          />
-        ))}
-      {sync && (
-        <WatchDialog
-          title={sync.name}
-          serverId={sync.serverId}
-          initial={sync.initial}
-          saveLabel={t('suggestions.syncOnce')}
-          onSave={async (f) => {
-            const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: sync.serverId, ...f })
-            // nothing queued: hand the reason back so the dialog stays open and
-            // shows it, instead of closing onto a notice far above the fold
-            const why = syncOutcome(r, t)
-            if (why) return why
-            setNotice(t('remote.queued', { count: r.queued }))
-          }}
-          onClose={() => setSync(null)}
-        />
-      )}
-    </div>
-  )
-}
-
-// SugCard: cover, title, provider badges (linking to each integration), the
-// category- and status-specific info, and the actions available everywhere -
-// watch, sync, open, ignore, rematch (+ AniList +1 for watchlist entries).
-function SugCard({
-  it,
-  onWatch,
-  onSync,
-  onNotice,
-}: {
-  it: SuggestionItem
-  onWatch: (w: { serverId: number; name: string; initial: WatchFields; inCard?: boolean }) => void
-  onSync: (w: { serverId: number; name: string; initial: WatchFields }) => void
-  onNotice: (s: string) => void
-}) {
-  const { t } = useTranslation()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const StatusIcon = it.status ? WATCH_STATUS_ICON[it.status] : undefined
-
+/** The sync form a suggestion starts from: its own plan when it has one, else a template by kind. */
+function usePrefill() {
   const { data: defaults } = useWatchDefaults()
-  const prefill = (path: string): WatchFields => {
-    // a missing-unit card already carries the resolved target - the season
-    // folder and the template with its fixed season number. plexFolder is only
-    // a basename (and empty on those cards), so it would resolve under the
-    // primary download root instead of the Plex library. The user's defaults
-    // fill whatever is still blank after that.
+  return (it: SuggestionItem, path: string): WatchFields => {
+    // a missing-unit row carries the resolved target (season folder, template
+    // with its season); plexFolder is only a basename and empty on those
     const kind = suggestionKind(it.category)
     if (it.sync?.localPath) return applyDefaults(syncFields(it.sync, it.title, path), kind, defaults)
     const season = guessSeason(it.title)
@@ -440,25 +226,243 @@ function SugCard({
       defaults,
     )
   }
+}
 
-  const syncOnce = async (serverId: number, path: string) => {
+/**
+ * A list section: Merkliste in its status groups, Empfohlen flat, Trending
+ * as a cover grid, Unvollständig split into missing episodes and missing
+ * seasons. No grouping by category: the category is in each row's meta line.
+ */
+export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
+  const { t } = useTranslation()
+  const { data, isLoading } = useSuggestions()
+  const [watch, setWatch] = useState<WatchReq | null>(null)
+  const [sync, setSync] = useState<WatchReq | null>(null)
+  const toast = useToast()
+  const qc = useQueryClient()
+  const prefill = usePrefill()
+  const { open: openSeries } = useSeriesModal()
+  const list = useRef<HTMLDivElement>(null)
+  const items = (data?.[bucket] ?? []) as SuggestionItem[]
+  const waiting = isLoading || (!items.length && !!data?.building)
+  useLateRise(list, !waiting)
+  const grid = useRef<HTMLDivElement>(null)
+  useTileRise(grid, bucket === 'trending' && !waiting)
+
+  // the series card, with "Auto-Sync anlegen" when a server holds it
+  const open = (it: SuggestionItem) =>
+    openSeries({
+      source: suggestionSource(it),
+      id: it.media.id,
+      media: it.media,
+      title: it.title,
+      actions: it.candidates[0]
+        ? [
+            {
+              key: 'watch',
+              label: t('series.action.setupWatch'),
+              primary: true,
+              onClick: () =>
+                setWatch({
+                  serverId: it.candidates[0].serverId,
+                  name: it.title,
+                  initial: prefill(it, it.candidates[0].path),
+                  inCard: true,
+                }),
+            },
+          ]
+        : [],
+    })
+
+  let body
+  if (waiting) body = bucket === 'trending' ? <SkeletonRows n={4} /> : <SkeletonRows />
+  else if (!items.length)
+    body =
+      bucket === 'recommended' ? (
+        <EmptyNote title={t('suggestions.empty')} sub={t('suggestions.emptyRecommended')} />
+      ) : (
+        <EmptyNote title={t('suggestions.empty')} />
+      )
+  else if (bucket === 'trending')
+    body = (
+      <div ref={grid} className="ws-cat-grid dc-wide">
+        {items.map((it, i) => (
+          <div key={it.refKey} className="ws-cat-cell">
+            <CatalogTile
+              media={it.media}
+              name={it.title}
+              sub={t(`discover.cat.${it.category}`, { defaultValue: '' })}
+              onOpen={() => open(it)}
+              eager={i < 6}
+              priority={i === 0}
+            />
+          </div>
+        ))}
+      </div>
+    )
+  else {
+    const rows = (l: SuggestionItem[]) => (
+      <Rows>
+        {l.map((it, i) => (
+          <SugItemRow
+            key={it.refKey}
+            it={it}
+            section={bucket}
+            eager={i < 8}
+            onOpen={() => open(it)}
+            onWatch={(c) => setWatch({ serverId: c.serverId, name: it.title, initial: prefill(it, c.path) })}
+            onSync={(c) => setSync({ serverId: c.serverId, name: it.title, initial: prefill(it, c.path) })}
+          />
+        ))}
+      </Rows>
+    )
+    if (bucket === 'watchlist') {
+      // Läuft, Geplant (paused, dropped and repeating with it), Fertig closed
+      const statusOf = (it: SuggestionItem) =>
+        it.status === 'CURRENT' || it.status === 'COMPLETED' ? it.status : 'PLANNING'
+      body = (
+        <>
+          {(
+            [
+              ['CURRENT', 'discover.status.current', true],
+              ['PLANNING', 'discover.status.planning', true],
+              ['COMPLETED', 'discover.status.completed', false],
+            ] as const
+          ).map(([key, label, isOpen]) => {
+            const l = items.filter((it) => statusOf(it) === key)
+            return l.length ? (
+              <DiscoverGroup key={key} title={t(label)} count={l.length} open={isOpen}>
+                {rows(l)}
+              </DiscoverGroup>
+            ) : null
+          })}
+        </>
+      )
+    } else if (bucket === 'incomplete') {
+      body = (
+        <>
+          {(
+            [
+              ['episodes', 'suggestions.groupEpisodes', (it: SuggestionItem) => it.kind === 'episodes'],
+              ['seasons', 'suggestions.groupSeasons', (it: SuggestionItem) => it.kind !== 'episodes'],
+            ] as const
+          ).map(([key, label, pick]) => {
+            const l = items.filter(pick)
+            return l.length ? (
+              <DiscoverGroup key={key} title={t(label)} count={l.length}>
+                {rows(l)}
+              </DiscoverGroup>
+            ) : null
+          })}
+        </>
+      )
+    } else body = rows(items)
+  }
+
+  return (
+    <div ref={list}>
+      {body}
+      {watch &&
+        (watch.inCard ? (
+          <SeriesCardView onClose={() => setWatch(null)}>
+            {(v) => (
+              <WatchForm
+                {...v}
+                title={watch.name}
+                serverId={watch.serverId}
+                initial={watch.initial}
+                onSave={async (f) => {
+                  await api.post('/api/watches', { serverId: watch.serverId, ...f })
+                  await qc.invalidateQueries({ queryKey: ['watches'] })
+                  toast({ message: t('discover.watchCreated', { name: watch.name }) })
+                }}
+                onClose={() => setWatch(null)}
+              />
+            )}
+          </SeriesCardView>
+        ) : (
+          <WatchDialog
+            title={watch.name}
+            serverId={watch.serverId}
+            initial={watch.initial}
+            onSave={async (f) => {
+              await api.post('/api/watches', { serverId: watch.serverId, ...f })
+              qc.invalidateQueries({ queryKey: ['watches'] })
+              toast({ message: t('discover.watchCreated', { name: watch.name }) })
+            }}
+            onClose={() => setWatch(null)}
+          />
+        ))}
+      {sync && (
+        <WatchDialog
+          title={sync.name}
+          serverId={sync.serverId}
+          initial={sync.initial}
+          saveLabel={t('suggestions.syncOnce')}
+          onSave={async (f) => {
+            const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: sync.serverId, ...f })
+            // nothing queued: the reason goes back into the open dialog
+            const why = syncOutcome(r, t)
+            if (why) return why
+            qc.invalidateQueries({ queryKey: ['downloads'] })
+            toast({ message: t('discover.queued', { name: sync.name, count: r.queued }) })
+          }}
+          onClose={() => setSync(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+type Cand = SuggestionItem['candidates'][number]
+
+/**
+ * One suggestion of a list: the meta line, the progress or the reason, the
+ * first server copy (the others behind "und N weitere"), and the actions.
+ * +1, rematch and the file browser sit in the row's menu.
+ */
+function SugItemRow({
+  it,
+  section,
+  eager,
+  onOpen,
+  onWatch,
+  onSync,
+}: {
+  it: SuggestionItem
+  section: ListSection
+  eager?: boolean
+  onOpen: () => void
+  onWatch: (c: Cand) => void
+  onSync: (c: Cand) => void
+}) {
+  const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const fail = useFailToast()
+  const hide = useDismiss()
+  const [more, setMore] = useState(false)
+  const c0 = it.candidates[0]
+
+  // a one-off copy straight into the queue when the suggestion has no plan
+  // of its own; with one the dialog shows where it lands first
+  const once = async (c: Cand) => {
+    if (it.sync?.localPath) return onSync(c)
     try {
       const r = await api.post<{ queued: number }>('/api/downloads', {
-        serverId,
-        remotePath: path,
+        serverId: c.serverId,
+        remotePath: c.path,
         localPath: it.plexFolder ?? '',
       })
-      onNotice(t('remote.queued', { count: r.queued }))
+      qc.invalidateQueries({ queryKey: ['downloads'] })
+      toast({ message: t('discover.queued', { name: it.title, count: r.queued }) })
     } catch (e) {
-      onNotice(e instanceof Error ? e.message : t('app.error'))
+      fail(e)
     }
   }
 
-  const hide = useDismiss()
-  const dismiss = () => hide('suggestion', it.refKey, it.title)
-
   const rematch = async () => {
-    if (!it.candidates.length) return
     let n = 0
     for (const c of it.candidates) {
       try {
@@ -468,11 +472,10 @@ function SugCard({
         /* keep going */
       }
     }
-    onNotice(t('suggestions.rematchQueued', { count: n }))
+    toast({ message: t('suggestions.rematchQueued', { count: n }) })
   }
 
-  // one step at a time: a second click before the first answer would send
-  // the same count again
+  // one step at a time: a second +1 before the first answer would send the same count
   const [stepping, setStepping] = useState(false)
   const plusOne = async () => {
     if (stepping) return
@@ -480,9 +483,8 @@ function SugCard({
     const progress = (it.progress ?? 0) + 1
     try {
       await api.post('/api/anilist/progress', { mediaId: it.media.id, progress })
-      // the new count shows at once, the next +1 builds on it
-      const bump = (list: SuggestionsResponse['watchlist']) =>
-        list.map((x) => (x.media.id === it.media.id && x.status ? { ...x, progress } : x))
+      const bump = (l: SuggestionsResponse['watchlist']) =>
+        l.map((x) => (x.media.id === it.media.id && x.status ? { ...x, progress } : x))
       qc.setQueryData<SuggestionsResponse>(['suggestions'], (d) =>
         d
           ? {
@@ -496,242 +498,169 @@ function SugCard({
       )
       qc.invalidateQueries({ queryKey: ['suggestions'] })
     } catch (e) {
-      onNotice(e instanceof Error ? e.message : t('app.error'))
+      fail(e)
     } finally {
       setStepping(false)
     }
   }
 
-  const { open: openSeries } = useSeriesModal()
-  const watchIcon = <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+  const menu = [
+    ...(it.status ? [{ key: 'plus', label: t('suggestions.plusOne'), onClick: () => void plusOne() }] : []),
+    ...(c0 ? [{ key: 'rematch', label: t('suggestions.rematch'), onClick: () => void rematch() }] : []),
+    ...(c0
+      ? [
+          {
+            key: 'open',
+            label: t('plex.openBrowser'),
+            onClick: () => navigate(`/files?server=${c0.serverId}&path=${encodeURIComponent(c0.path)}`),
+          },
+        ]
+      : []),
+  ]
+
+  const season = it.isMovie
+    ? undefined
+    : it.season && it.season > 0
+      ? t('suggestions.season', { season: it.season })
+      : undefined
+  const because = it.because ?? []
+  const [pre, post = ''] = t('discover.because', { titles: '\u0001' }).split('\u0001')
+  const target = it.kind && it.sync?.localPath ? it.sync.localPath : it.plexFolder
   return (
-    // a reveal tied to the scroll for a mouse where the engine has view
-    // timelines; elsewhere the card is simply there (no observer for a list
-    // built by a helper)
-    <li className="t-reveal">
-      <SuggestionCard
-        cover={it.cover}
-        onCover={
-          it.media
-            ? () =>
-                openSeries({
-                  source: suggestionSource(it),
-                  id: it.media.id,
-                  media: it.media,
-                  title: it.title,
-                  // the first server folder found for it, as the card's own way
-                  // to start syncing it; the rest stay on the suggestion
-                  actions: it.candidates[0]
-                    ? [
-                        {
-                          key: 'watch',
-                          label: t('series.action.setupWatch'),
-                          icon: watchIcon,
-                          primary: true,
-                          onClick: () =>
-                            onWatch({
-                              serverId: it.candidates[0].serverId,
-                              name: it.title,
-                              initial: prefill(it.candidates[0].path),
-                              inCard: true,
-                            }),
-                        },
-                      ]
-                    : [],
-                })
-            : undefined
-        }
-        coverLabel={it.media ? t('remote.detailsFor', { name: it.title }) : undefined}
-        title={it.title}
-        year={it.year}
-        badges={
-          <>
-            {it.isMovie ? (
-              <Badge tone="accent">{t('suggestions.movie')}</Badge>
-            ) : it.season && it.season > 0 ? (
-              <Badge tone="accent">{t('suggestions.season', { season: it.season })}</Badge>
-            ) : null}
-            <ProviderBadges providers={it.providers} links={it.links} />
-            {it.status && (
-              <Badge tone={it.status === 'CURRENT' ? 'accent' : 'neutral'}>
-                {StatusIcon && <StatusIcon aria-hidden size="1em" />}
-                {t(`suggestions.status${it.status}`)}
-              </Badge>
-            )}
-            {it.status && it.media.episodes > 0 && (
-              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-                <Eye aria-hidden size="1em" />
-                {t('suggestions.seen', { seen: it.progress ?? 0, total: it.media.episodes })}
+    <SugRow
+      title={it.title}
+      season={season}
+      meta={metaLine(
+        {
+          year: it.year,
+          category: it.category,
+          episodes: it.isMovie ? 0 : it.media.episodes,
+          score: it.media.averageScore,
+          library: it.library,
+        },
+        t,
+      )}
+      cover={coverSet(it.media.coverImage) ?? (it.cover ? { src: it.cover } : undefined)}
+      coverTint={it.media.coverImage?.color}
+      onOpen={it.media ? onOpen : undefined}
+      openLabel={t('remote.detailsFor', { name: it.title })}
+      eager={eager}
+    >
+      {it.status && it.status !== 'PLANNING' && (it.progress ?? 0) > 0 && (
+        <span className="sg-prog">{progressLine(it.progress ?? 0, it.media.episodes, t)}</span>
+      )}
+      {because.length > 0 && (
+        <span className="sg-why">
+          {pre}
+          {(() => {
+            try {
+              return new Intl.ListFormat(i18n.language, { type: 'conjunction' })
+                .formatToParts(because)
+                .map((p, k) => (p.type === 'element' ? <b key={k}>{p.value}</b> : p.value))
+            } catch {
+              return listOf(because, i18n.language)
+            }
+          })()}
+          {post}
+        </span>
+      )}
+      {it.why && <span className="sg-why">{it.why}</span>}
+      {it.missing?.length ? (
+        <span className="sg-why sg-warn">
+          {t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
+        </span>
+      ) : null}
+      {it.sequel && (
+        <span className="sg-why">
+          {t('suggestions.missing')}: {mediaTitle(it.sequel)}
+        </span>
+      )}
+      {c0 ? (
+        <span className="sg-cand">
+          {t('discover.onServer')} <span className="mono">{shortPath(c0.path)}</span>
+          {it.candidates.length > 1 && (
+            <>
+              {' '}
+              <button type="button" className="sg-more" aria-expanded={more} onClick={() => setMore(!more)}>
+                {t('discover.moreCands', { count: it.candidates.length - 1 })}
+              </button>
+            </>
+          )}
+        </span>
+      ) : (
+        <span className="sg-cand none">{t('discover.noCand')}</span>
+      )}
+      {more && (
+        <ul className="sg-cands">
+          {it.candidates.map((c) => (
+            <li key={`${c.serverId}-${c.path}`}>
+              <span className="mono" title={c.path}>
+                {c.path}
               </span>
-            )}
-            {it.need ? (
-              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-                <ListVideo aria-hidden size="1em" />
-                {t('suggestions.haveNeed', { have: it.have, need: it.need })}
-              </span>
-            ) : null}
-            {it.missing?.length ? (
-              <Badge
-                tone="warn"
-                multiline
-                aria-label={t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
+              <span>{c.serverName}</span>
+              <TextLink onClick={() => onWatch(c)}>{t('discover.autoSync')}</TextLink>
+              <TextLink onClick={() => void once(c)}>{t('discover.once')}</TextLink>
+              <TextLink
+                tone="accent-2"
+                onClick={() => navigate(`/files?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}
               >
-                {t('suggestions.missingEpisodes', { list: fmtEpisodeRanges(it.missing) })}
-              </Badge>
-            ) : null}
-            {it.media.format && (
-              <Badge>
-                {it.media.format === 'MOVIE' ? <Clapperboard aria-hidden size="1em" /> : <Tv aria-hidden size="1em" />}
-                {it.media.format === 'MOVIE' ? t('suggestions.movie') : t('suggestions.show')}
-              </Badge>
-            )}
-            {!it.status && it.media.format !== 'MOVIE' && it.media.episodes > 0 && (
-              <span className="inline-flex items-center gap-1 pl-1 text-t-muted">
-                <ListVideo aria-hidden size="1em" />
-                {t('suggestions.episodes', { count: it.media.episodes })}
-              </span>
-            )}
-            {it.media.averageScore > 0 && (
-              <Badge tone="accent">
-                <Star
-                  aria-hidden
-                  size="1em"
-                  className="mr-0.5 inline align-[-0.125em]"
-                  fill="currentColor"
-                  strokeWidth={0}
-                />
-                {it.media.averageScore}
-              </Badge>
-            )}
-            {it.library && <Badge aria-label={t('suggestions.library', { name: it.library })}>{it.library}</Badge>}
-          </>
-        }
-        actionsPlacement="inline"
-        actions={
+                {t('plex.openBrowser')}
+              </TextLink>
+            </li>
+          ))}
+        </ul>
+      )}
+      {section === 'incomplete' && target && (
+        <span className="sg-cand">
+          {t('discover.target')} <span className="mono">{target}</span>
+        </span>
+      )}
+      <span className="sg-acts">
+        {c0 && (
           <>
-            {it.status && (
-              <Button
-                size="sm"
-                title={t('suggestions.plusOneHint')}
-                aria-disabled={stepping || undefined}
-                onClick={plusOne}
-              >
-                <Plus aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('suggestions.plusOne')}
-              </Button>
-            )}
-            {it.candidates.length > 0 && (
-              <Button size="sm" onClick={rematch}>
-                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                {t('suggestions.rematch')}
-              </Button>
-            )}
-            <Button size="sm" onClick={dismiss}>
-              <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('suggestions.dismiss')}
+            <Button size="sm" variant="primary" onClick={() => onWatch(c0)}>
+              {t('discover.autoSync')}
+            </Button>
+            <Button size="sm" onClick={() => void once(c0)}>
+              {t('discover.once')}
             </Button>
           </>
-        }
-      >
-        {/* two differently styled detail lines plus the candidate list - more
-            than the card's single `detail` slot, so they ride along as children */}
-        {!!it.because?.length && (
-          <p className="mt-1 text-ctl-sm text-t-muted">{t('suggestions.because', { titles: it.because.join(', ') })}</p>
         )}
-        {it.why && <p className="mt-1 text-ctl-sm text-t-secondary">{it.why}</p>}
-        {it.sequel && (
-          <p className="mt-1 truncate text-ctl-sm text-t-muted">
-            {t('suggestions.missing')}: {mediaTitle(it.sequel)}
-          </p>
+        <TextLink
+          onClick={(e) =>
+            void hide(
+              { kind: 'suggestion', refKey: it.refKey, label: it.title, cover: it.cover, section },
+              e.currentTarget,
+            )
+          }
+        >
+          {t('suggestions.dismiss')}
+        </TextLink>
+        {menu.length > 0 && (
+          <span className="sg-end">
+            <ActionMenu label={t('discover.more')} title={it.title} actions={menu} />
+          </span>
         )}
-        {it.plexFolder && (
-          <p className="mt-1 break-all font-mono text-ctl-sm text-t-muted" title={it.plexFolder}>
-            {t('suggestions.localPath')}: {it.plexFolder}
-          </p>
-        )}
-
-        {/* per-candidate sync/watch/open */}
-        {it.candidates.length > 0 && (
-          <ul className="mt-2 space-y-1">
-            {it.candidates.map((c) => (
-              <li key={`${c.serverId}-${c.path}`} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-                <span className="min-w-0 flex-1 break-all font-mono text-ctl-sm text-t-secondary" title={c.path}>
-                  <Badge className="mr-1">
-                    <Server aria-hidden size="1em" />
-                    {c.serverName}
-                  </Badge>
-                  {c.path}
-                </span>
-                <span className="flex gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => onWatch({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })}
-                  >
-                    <Eye aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('watch.add')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() =>
-                      it.sync?.localPath
-                        ? onSync({ serverId: c.serverId, name: it.title, initial: prefill(c.path) })
-                        : syncOnce(c.serverId, c.path)
-                    }
-                  >
-                    <Download aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('plex.syncOnce')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => navigate(`/files?server=${c.serverId}&path=${encodeURIComponent(c.path)}`)}
-                  >
-                    <FolderOpen aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                    {t('plex.open')}
-                  </Button>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SuggestionCard>
-    </li>
+      </span>
+    </SugRow>
   )
 }
 
-// Hiding a suggestion, an upgrade or a duplicate: gone at once, back with the
-// toast's undo instead of a trip to the ignored list
-function useDismiss() {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const toast = useToast()
-  const fail = useFailToast()
-  const refresh = () => {
-    qc.invalidateQueries({ queryKey: ['suggestions'] })
-    qc.invalidateQueries({ queryKey: ['dismissed'] })
-  }
-  return async (kind: 'suggestion' | 'upgrade' | 'duplicate', refKey: string, label: string) => {
-    try {
-      await api.post('/api/suggestions/dismiss', { kind, refKey, label })
-      refresh()
-      toast({
-        message: t('suggestions.hidden', { name: label }),
-        undo: () => void api.del('/api/suggestions/dismiss', { kind, refKey }).then(refresh, fail),
-      })
-    } catch (e) {
-      fail(e)
-    }
-  }
+/** What a hidden item came from, by the section it was hidden in, else by its kind. */
+function sectionLabel(d: DismissedItem, t: (k: string) => string): string {
+  const s = sectionOf(d.section)
+  if (s && s !== 'assistant' && s !== 'ignored') return t(HEADS[s])
+  return t(`suggestions.ignoredKind_${d.kind}`)
 }
 
-// The ignored bucket lists dismissed suggestions, upgrades and duplicates and
-// restores them. A bucket like the others, not a modal: on a phone a modal
-// over the list was one more layer to close.
+/** Ausgeblendet: what was hidden, with its cover and the list it came from, and the way back. */
 export function IgnoredSection() {
   const fail = useFailToast()
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { data } = usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
+  const { data, isLoading } = useDismissed()
+  const list = useRef<HTMLDivElement>(null)
+  useLateRise(list, !isLoading)
   const items = data ?? []
   const restore = async (d: DismissedItem) => {
     try {
@@ -742,48 +671,48 @@ export function IgnoredSection() {
       fail(e)
     }
   }
-  if (!items.length) return <Badge>{t('suggestions.noIgnored')}</Badge>
   return (
-    <ul className="space-y-1">
-      {items.map((d) => (
-        <li
-          key={`${d.kind}-${d.refKey}`}
-          className="flex items-center justify-between gap-2 border-b border-border-subtle/50 py-1 text-sm"
-        >
-          <span className="min-w-0 truncate">
-            {d.label || d.refKey} <Badge>{t(`suggestions.ignoredKind_${d.kind}`, d.kind)}</Badge>
-          </span>
-          <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
-            <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-            {t('suggestions.restore')}
-          </Button>
-        </li>
-      ))}
-    </ul>
+    <div ref={list}>
+      {isLoading ? (
+        <SkeletonRows n={4} />
+      ) : !items.length ? (
+        <EmptyNote title={t('discover.empty.ignored')} />
+      ) : (
+        <Rows>
+          {items.map((d) => (
+            <li key={`${d.kind}-${d.refKey}`} className="t-row">
+              <div className="t-row-in">
+                {d.cover && (
+                  <span className="sg-cov" aria-hidden>
+                    <img src={d.cover} alt="" loading="lazy" className="size-full object-cover" />
+                  </span>
+                )}
+                <span className="t-row-t">
+                  <strong>{d.label || d.refKey}</strong>
+                  <span>{sectionLabel(d, t)}</span>
+                </span>
+                <Button size="sm" className="shrink-0" onClick={() => restore(d)}>
+                  {t('suggestions.restore')}
+                </Button>
+              </div>
+            </li>
+          ))}
+        </Rows>
+      )}
+    </div>
   )
 }
 
 // ── Upgrades ──
 
-export function UpgradesSection() {
-  const { t } = useTranslation()
-  const { data: defaults } = useWatchDefaults()
-  const navigate = useNavigate()
-  const qc = useQueryClient()
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
-    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
-  })
-  const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
-  const [sync, setSync] = useState<SyncRequest | null>(null)
-  const [notice, setNotice] = useState('')
-  const { open: openSeries } = useSeriesModal()
-  // per-card chosen sync source among the remote copies; default = recommended
-  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
+const AXES = ['res', 'soft', 'sub', 'dub'] as const
+type Axis = (typeof AXES)[number]
 
-  // the axes in the user's priority order, disabled ones after them so a row
-  // can be switched on without losing its place; every change is saved whole
-  const AXES = ['res', 'soft', 'sub', 'dub'] as const
-  type Axis = (typeof AXES)[number]
+/** What counts as an upgrade: the axes in their order, each on or off, moved up and down. */
+function UpgradeAxes() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   // each change applies to the latest dims, so a second click before the
   // first save returns builds on it instead of undoing it
   const saveDims = useWholeSave<UpgradeDims>(
@@ -795,6 +724,7 @@ export function UpgradesSection() {
     ...(d.order ?? []).filter((a): a is Axis => (AXES as readonly string[]).includes(a)),
     ...AXES.filter((a) => !(d.order ?? []).includes(a)),
   ]
+  // the disabled axes sink below the enabled ones, so a row switched back on keeps its place
   const toggle = (key: Axis) =>
     saveDims((d) => {
       const on = !d[key]
@@ -809,87 +739,115 @@ export function UpgradesSection() {
       ;[next[i], next[j]] = [next[j], next[i]]
       return { ...d, order: next.filter((a) => d[a]) }
     })
-  const order: Axis[] = dims ? orderOf(dims) : [...AXES]
-  const hide = useDismiss()
-  const dismiss = (u: UpgradeSuggestion) => hide('upgrade', u.key, u.title)
-
-  const items = data?.upgrades ?? []
+  if (!dims) return null
+  const order = orderOf(dims)
   return (
-    <div className="space-y-3">
-      {notice && <Badge tone="accent">{notice}</Badge>}
-      {dims && (
-        <Disclosure
-          small
-          defaultOpen={false}
-          title={t('suggestions.upgradeWhat')}
-          count={order.filter((a) => dims[a]).length}
-        >
-          <Panel className="px-3 py-2.5">
-            <p className="text-xs text-t-muted">{t('suggestions.upgradeOrderHint')}</p>
-            <ol className="mt-2 space-y-1">
-              {order.map((k, i) => (
-                <li key={k} className={`flex items-center gap-2 ${dims[k] ? '' : 'text-t-muted'}`}>
-                  <span className="w-5 shrink-0 font-mono text-xs text-t-muted" aria-hidden>
-                    {dims[k] ? `${i + 1}.` : ''}
-                  </span>
-                  <Checkbox checked={dims[k]} onChange={() => toggle(k)} label={t(`suggestions.upgradeWhat_${k}`)} />
-                  <span className="ml-auto flex gap-1">
-                    <IconButton
-                      aria-label={t('suggestions.moveUp', { axis: t(`suggestions.upgradeWhat_${k}`) })}
-                      disabled={!dims[k] || i === 0}
-                      onClick={() => move(k, -1)}
-                    >
-                      <ChevronUp aria-hidden size="1em" />
-                    </IconButton>
-                    <IconButton
-                      aria-label={t('suggestions.moveDown', { axis: t(`suggestions.upgradeWhat_${k}`) })}
-                      disabled={!dims[k] || i === order.length - 1 || !dims[order[i + 1]]}
-                      onClick={() => move(k, 1)}
-                    >
-                      <ChevronDown aria-hidden size="1em" />
-                    </IconButton>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </Panel>
-        </Disclosure>
-      )}
-      {isLoading ? (
-        <SkeletonCards />
+    <details className="dc-axes">
+      <summary>{t('discover.axesTitle')}</summary>
+      <p className="dc-axes-hint">{t('suggestions.upgradeOrderHint')}</p>
+      <ol className="axes">
+        {order.map((k, i) => {
+          const name = t(`discover.axis.${k}`)
+          return (
+            <li key={k} data-off={dims[k] ? undefined : ''}>
+              <Checkbox checked={dims[k]} onChange={() => toggle(k)} label={name} />
+              <span>
+                <IconButton
+                  size="sm"
+                  aria-label={t('suggestions.moveUp', { axis: name })}
+                  disabled={!dims[k] || i === 0}
+                  onClick={() => move(k, -1)}
+                >
+                  <ArrowUp aria-hidden size="1em" />
+                </IconButton>
+                <IconButton
+                  size="sm"
+                  aria-label={t('suggestions.moveDown', { axis: name })}
+                  disabled={!dims[k] || i === order.length - 1 || !dims[order[i + 1]]}
+                  onClick={() => move(k, 1)}
+                >
+                  <ArrowDown aria-hidden size="1em" />
+                </IconButton>
+              </span>
+            </li>
+          )
+        })}
+      </ol>
+    </details>
+  )
+}
+
+/** Upgrades: better copies of what is on disk, loaded with one button, the old one to the trash. */
+export function UpgradesSection() {
+  const { t } = useTranslation()
+  const { data: defaults } = useWatchDefaults()
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+  const toast = useToast()
+  const fail = useFailToast()
+  const { data, isLoading } = useSuggestions()
+  const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
+  const [sync, setSync] = useState<SyncRequest | null>(null)
+  const { open: openSeries } = useSeriesModal()
+  // per-row chosen copy among the server copies; default = the recommended one
+  const [choice, setChoice] = useState<Record<string, UpgradeVariant>>({})
+  const hide = useDismiss()
+  const list = useRef<HTMLDivElement>(null)
+  const items = data?.upgrades ?? []
+  const waiting = isLoading || (!items.length && !!data?.building)
+  useLateRise(list, !waiting)
+
+  const withDefaults = (r: SyncRequest, u: UpgradeSuggestion): SyncRequest => ({
+    ...r,
+    initial: applyDefaults(r.initial, suggestionKind(u.category), defaults),
+  })
+  const load = async (r: SyncRequest, u: UpgradeSuggestion, replaceOld: boolean) => {
+    try {
+      const res = await api.post<SyncResult>('/api/downloads/sync', {
+        serverId: r.serverId,
+        ...withDefaults(r, u).initial,
+        replaceOld,
+      })
+      const why = syncOutcome(res, t)
+      if (why) {
+        toast({ message: why })
+        return
+      }
+      qc.invalidateQueries({ queryKey: ['downloads'] })
+      toast({ message: t(replaceOld ? 'discover.upgradeRunsTrash' : 'discover.upgradeRuns', { name: u.title }) })
+    } catch (e) {
+      fail(e)
+    }
+  }
+
+  return (
+    <div ref={list}>
+      <UpgradeAxes />
+      {waiting ? (
+        <SkeletonRows />
       ) : !items.length ? (
-        <Badge>{t('suggestions.noUpgrades')}</Badge>
+        <EmptyNote title={t('suggestions.noUpgrades')} />
       ) : (
-        (() => {
-          const render = (u: UpgradeSuggestion, i: number) => (
+        <Rows>
+          {items.map((u, i) => (
             <UpgradeCard
               key={u.key || `${u.showKey}-${u.season}-${i}`}
               u={u}
               dims={dims}
               chosen={choice[u.key] ?? u.to}
               onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
-              onSync={(r) => setSync({ ...r, initial: applyDefaults(r.initial, suggestionKind(u.category), defaults) })}
-              onDismiss={dismiss}
+              onSync={(r) => setSync(withDefaults(r, u))}
+              onLoad={(r, replaceOld) => void load(r, u, replaceOld)}
+              onDismiss={(x, from) =>
+                void hide({ kind: 'upgrade', refKey: x.key, label: x.title, cover: x.cover, section: 'upgrades' }, from)
+              }
               onOpenRemote={(v) => navigate(`/files?server=${v.serverId}&path=${encodeURIComponent(v.folder)}`)}
-              onDetails={(u) =>
-                openSeries({ source: suggestionSource(u), id: u.media!.id, media: u.media, title: u.title })
+              onDetails={(x) =>
+                openSeries({ source: suggestionSource(x), id: x.media!.id, media: x.media, title: x.title })
               }
             />
-          )
-          return (
-            <div className="space-y-4">
-              {CATS.map((cat) => {
-                const list = items.filter((u) => u.category === cat)
-                if (!list.length) return null
-                return (
-                  <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
-                    <div className="space-y-3">{list.map(render)}</div>
-                  </Disclosure>
-                )
-              })}
-            </div>
-          )
-        })()
+          ))}
+        </Rows>
       )}
       {sync && (
         <WatchDialog
@@ -897,14 +855,13 @@ export function UpgradesSection() {
           serverId={sync.serverId}
           initial={sync.initial}
           info={sync.info}
-          saveLabel={t('suggestions.syncOnce')}
+          saveLabel={t('discover.upgradeLoad')}
           onSave={async (f) => {
             const r = await api.post<SyncResult>('/api/downloads/sync', { serverId: sync.serverId, ...f })
-            // nothing queued: hand the reason back so the dialog stays open and
-            // shows it, instead of closing onto a notice far above the fold
             const why = syncOutcome(r, t)
             if (why) return why
-            setNotice(t('remote.queued', { count: r.queued }))
+            qc.invalidateQueries({ queryKey: ['downloads'] })
+            toast({ message: t('discover.queued', { name: sync.name, count: r.queued }) })
           }}
           onClose={() => setSync(null)}
         />
@@ -915,25 +872,24 @@ export function UpgradesSection() {
 
 // ── Duplicates ──
 
-// DuplicatesSection lists what the library holds twice. It only shows; which
-// copy goes is decided in Plex or on disk, the card just marks the one the
-// quality order would keep.
+/** Duplikate: what the library holds twice, the copy the quality order keeps marked. */
 export function DuplicatesSection() {
   const fail = useFailToast()
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   const { data: user } = useAuth()
-  const [notice, setNotice] = useState('')
-  const { data, isLoading } = usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
-    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
-  })
+  const { data, isLoading } = useSuggestions()
   const hide = useDismiss()
-  const dismiss = (d: DuplicateItem) => hide('duplicate', d.refKey, d.title)
+  const now = useNow()
+  const list = useRef<HTMLDivElement>(null)
+  const items = data?.duplicates ?? []
+  const waiting = isLoading || (!items.length && !!data?.building)
+  useLateRise(list, !waiting)
+
   // one copy (a folder, or one file of a doubled episode) goes to the trash
-  // folder beside it; the server rebuilds the suggestions afterwards. The
-  // trash keeps it, so no question first: the line's undo takes it back out
-  // of the trash, found by the folder it came from and its name.
+  // folder beside it. The trash keeps it, so no question first: the undo
+  // takes it back out, found by the folder it came from and its name.
   const trash = async (path: string) => {
     const name = path.split('/').findLast(Boolean) ?? path
     const dir = path.slice(0, path.lastIndexOf('/'))
@@ -956,113 +912,96 @@ export function DuplicatesSection() {
           })().catch(fail),
       })
     } catch (e) {
-      setNotice(e instanceof Error ? e.message : String(e))
+      fail(e)
     }
   }
-  const trashButton = (path: string) =>
-    user?.isAdmin ? (
-      <Button size="sm" onClick={() => trash(path)}>
-        <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-        {t('suggestions.dupTrash')}
-      </Button>
-    ) : null
-  if (isLoading) return <SkeletonCards />
-  const items = data?.duplicates ?? []
-  if (!items.length) return <Badge multiline>{t('suggestions.noDuplicates')}</Badge>
-  const card = (d: DuplicateItem) => {
-    const seasonLabel = d.isMovie
-      ? t('suggestions.movie')
-      : d.season > 0
-        ? t('suggestions.season', { season: d.season })
-        : ''
+  const trashLink = (path: string) =>
+    user?.isAdmin ? <TextLink onClick={() => void trash(path)}>{t('suggestions.dupTrash')}</TextLink> : null
+
+  if (waiting)
     return (
-      <Panel key={d.refKey} className="flex flex-wrap items-start gap-4 p-3">
-        <Cover src={d.cover} />
-        <div className="min-w-0 flex-1">
-          <h4 className="min-w-0 wrap-break-word font-display text-sm font-semibold tracking-wider">{d.title}</h4>
-          {d.why && <p className="mt-1 text-ctl-sm text-t-secondary">{d.why}</p>}
-          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-ctl-sm">
-            {seasonLabel && <Badge tone="accent">{seasonLabel}</Badge>}
-            {d.library && <Badge aria-label={t('suggestions.library', { name: d.library })}>{d.library}</Badge>}
-            {d.episodes?.length ? (
-              <Badge tone="warn" multiline>
-                {t('suggestions.dupEpisodes', { list: fmtEpisodeRanges(d.episodes) })}
-              </Badge>
-            ) : (
-              <Badge tone="warn">{t('suggestions.dupCopies', { count: d.copies.length })}</Badge>
-            )}
-          </p>
-          <ul className="mt-2 space-y-1">
-            {d.copies.map((c) => (
-              <li
-                key={c.folder}
-                className={`rounded-lg border p-2 text-xs ${c.folder === d.keep ? 'border-accent' : 'border-border-subtle'}`}
-              >
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {c.folder === d.keep && d.copies.length > 1 && (
-                    <Badge tone="accent">{t('suggestions.dupKeep')}</Badge>
-                  )}
-                  <span className="text-t-muted">
-                    {variantQuality(c, t)} · {t('suggestions.dupFiles', { count: c.files })} · {fmtBytes(c.bytes)}
-                  </span>
-                </div>
-                <div className="mt-1 break-all font-mono text-t-secondary" title={c.folder}>
-                  {c.folder}
-                </div>
-                {d.copies.length > 1 && c.folder !== d.keep && (
-                  <div className="mt-1.5 flex justify-end">{trashButton(c.folder)}</div>
-                )}
-              </li>
-            ))}
-          </ul>
-          {d.twice?.length ? (
-            <ul className="mt-2 space-y-1">
-              {d.twice.map((e) => (
-                <li key={e.episode} className="t-inset text-xs">
-                  <Badge tone="warn">{t('suggestions.dupEpisode', { n: e.episode })}</Badge>
-                  <ul className="mt-1 space-y-1">
-                    {e.files.map((f) => (
-                      <li key={f.path} className="flex flex-wrap items-center justify-between gap-1.5">
-                        <span className="min-w-0 break-all font-mono text-t-secondary" title={f.path}>
-                          {f.path.split('/').pop()} <span className="text-t-muted">· {fmtBytes(f.bytes)}</span>
-                        </span>
-                        {trashButton(f.path)}
-                      </li>
-                    ))}
-                  </ul>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <div className="mt-2 flex flex-wrap justify-end gap-1.5">
-            <Button size="sm" onClick={() => dismiss(d)}>
-              <EyeOff aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('suggestions.dismiss')}
-            </Button>
-          </div>
-        </div>
-      </Panel>
+      <div ref={list}>
+        <SkeletonRows n={3} />
+      </div>
     )
-  }
+  if (!items.length)
+    return (
+      <div ref={list}>
+        <EmptyNote
+          title={t('discover.empty.duplicates')}
+          sub={data?.builtAt ? asOfLine(data.builtAt * 1000, now, i18n.language, t) : t('discover.recheck')}
+        />
+      </div>
+    )
   return (
-    <div className="space-y-4">
-      {notice && (
-        <Badge tone="accent" multiline role="status">
-          {notice}
-        </Badge>
-      )}
-      {user?.isAdmin && <p className="text-xs text-t-muted">{t('suggestions.dupTrashHint')}</p>}
-      {CATS.map((cat) => {
-        const list = items.filter((d) => d.category === cat)
-        if (!list.length) return null
-        return (
-          <Disclosure key={cat} title={t(`suggestions.cat_${cat}`)} count={list.length}>
-            <div className="space-y-3">{list.map(card)}</div>
-          </Disclosure>
-        )
-      })}
+    <div ref={list}>
+      {user?.isAdmin && <p className="dc-axes-hint">{t('suggestions.dupTrashHint')}</p>}
+      <Rows>
+        {items.map((d) => (
+          <SugRow
+            key={d.refKey}
+            title={d.title}
+            season={d.isMovie ? undefined : d.season > 0 ? t('suggestions.season', { season: d.season }) : undefined}
+            meta={metaLine({ category: d.category, library: d.library }, t)}
+            cover={d.cover ? { src: d.cover } : undefined}
+          >
+            {d.why && <span className="sg-why">{d.why}</span>}
+            <span className="sg-why sg-warn">
+              {d.episodes?.length
+                ? t('suggestions.dupEpisodes', { list: fmtEpisodeRanges(d.episodes) })
+                : t('suggestions.dupCopies', { count: d.copies.length })}
+            </span>
+            <span className="dup-copies">
+              {d.copies.map((c) => {
+                const keep = c.folder === d.keep && d.copies.length > 1
+                return (
+                  <div key={c.folder} data-keep={keep || undefined}>
+                    <i>{keep ? t('suggestions.dupKeep') : t('discover.copy')}</i>
+                    <span>
+                      {copyLine(c, t)} · {t('suggestions.dupFiles', { count: c.files })} · {fmtBytes(c.bytes)}
+                    </span>
+                    <span className="mono" title={c.folder}>
+                      {c.folder}
+                    </span>
+                    {d.copies.length > 1 && c.folder !== d.keep && trashLink(c.folder)}
+                  </div>
+                )
+              })}
+            </span>
+            {d.twice?.length ? (
+              <ul className="dup-twice">
+                {d.twice.map((e) => (
+                  <li key={e.episode}>
+                    <span className="sg-warn">{t('suggestions.dupEpisode', { n: e.episode })}</span>
+                    <ul>
+                      {e.files.map((f) => (
+                        <li key={f.path}>
+                          <span className="mono" title={f.path}>
+                            {f.path.split('/').pop()} · {fmtBytes(f.bytes)}
+                          </span>
+                          {trashLink(f.path)}
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            <span className="sg-acts">
+              <TextLink
+                onClick={(e) =>
+                  void hide(
+                    { kind: 'duplicate', refKey: d.refKey, label: d.title, cover: d.cover, section: 'duplicates' },
+                    e.currentTarget,
+                  )
+                }
+              >
+                {t('suggestions.dismiss')}
+              </TextLink>
+            </span>
+          </SugRow>
+        ))}
+      </Rows>
     </div>
   )
 }
-
-// ── tab bar (ARIA tabs: underline, roving tabindex, arrow keys) ──
