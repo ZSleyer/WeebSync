@@ -94,10 +94,14 @@ export function Agenda({ watches, loading }: { watches: Watch[]; loading: boolea
             ) : (
               <>
                 {past.map((a) => row(a, true))}
-                <li className="td-now">
-                  <span aria-hidden>{hm(now)}</span>
-                  <span className="sr-only">{t('today.nowAt', { time: hm(now) })}</span>
-                </li>
+                {/* only where it parts the day: above an empty rest or under
+                    nothing earlier it marks nothing */}
+                {past.length > 0 && ahead.length > 0 && (
+                  <li className="td-now">
+                    <span aria-hidden>{hm(now)}</span>
+                    <span className="sr-only">{t('today.nowAt', { time: hm(now) })}</span>
+                  </li>
+                )}
                 {ahead.map((a) => row(a, false))}
                 {ahead.length === 0 && <li className="td-empty">{t('today.noneLeft')}</li>}
               </>
