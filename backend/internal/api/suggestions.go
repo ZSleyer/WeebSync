@@ -70,6 +70,9 @@ type SuggestionsResponse struct {
 	Incomplete  []SugItem           `json:"incomplete"`
 	Duplicates  []DuplicateItem     `json:"duplicates"` // the same season/movie held twice, or an episode twice in one folder
 	Building    bool                `json:"building"`
+	// BuiltAt is when the lists were assembled (unix seconds), so the page
+	// can say how current they are; 0 when not known (no blob yet).
+	BuiltAt int64 `json:"builtAt"`
 }
 
 type providerRef struct {
@@ -404,8 +407,10 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	var payload, fetched string
 	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched)
 	fresh := false
+	var fetchedAt time.Time
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= suggestTTL
+		fetchedAt = t
 	}
 	building := false
 	if payload == "" || !fresh || force {
@@ -439,6 +444,7 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 	resp.Duplicates = dups
 	resp.Building = building || payload == ""
+	resp.BuiltAt = builtAt(resp.BuiltAt, fetchedAt, payload != "")
 	if resp.Trending == nil {
 		resp.Trending = []SugItem{}
 	}
@@ -452,6 +458,20 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 		resp.Incomplete = []SugItem{}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// builtAt is when a served blob was assembled: its own stamp, or for a blob
+// from before the stamp existed the cache row's time, unless that is the
+// marker staleSuggestions writes to age a blob (it says nothing about when
+// the lists were made).
+func builtAt(stamp int64, fetched time.Time, have bool) int64 {
+	if stamp > 0 || !have {
+		return stamp
+	}
+	if fetched.Year() <= 2000 {
+		return 0
+	}
+	return fetched.Unix()
 }
 
 func filterDismissed(items []SugItem, dismissed map[string]bool) []SugItem {
@@ -568,6 +588,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Incomplete:  dedupIncomplete(inc.list(nil)),
 		Upgrades:    s.buildUpgrades(userID),
 		Duplicates:  s.addDuplicates(locale),
+		BuiltAt:     time.Now().Unix(),
 	}
 	if b, err := json.Marshal(resp); err == nil {
 		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))

@@ -674,6 +674,11 @@ export interface Schemas {
   'api.LocaleResponse': {
     locale: string
   }
+  'api.LoginRefusedResponse': {
+    attemptsLeft?: number
+    error: string
+    pauseSeconds?: number
+  }
   'api.LoginResponse': {
     email?: string
     id?: number
@@ -994,6 +999,11 @@ export interface Schemas {
   }
   'api.SuggestionsResponse': {
     building: boolean
+    /**
+     * BuiltAt is when the lists were assembled (unix seconds), so the page
+     * can say how current they are; 0 when not known (no blob yet).
+     */
+    builtAt: number
     /**
      * the same season/movie held twice, or an episode twice in one folder
      */

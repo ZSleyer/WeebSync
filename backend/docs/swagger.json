@@ -1505,6 +1505,23 @@
                 ],
                 "type": "object"
             },
+            "api.LoginRefusedResponse": {
+                "properties": {
+                    "attemptsLeft": {
+                        "type": "integer"
+                    },
+                    "error": {
+                        "type": "string"
+                    },
+                    "pauseSeconds": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "error"
+                ],
+                "type": "object"
+            },
             "api.LoginResponse": {
                 "properties": {
                     "email": {
@@ -2377,6 +2394,10 @@
                     "building": {
                         "type": "boolean"
                     },
+                    "builtAt": {
+                        "description": "BuiltAt is when the lists were assembled (unix seconds), so the page\ncan say how current they are; 0 when not known (no blob yet).",
+                        "type": "integer"
+                    },
                     "duplicates": {
                         "description": "the same season/movie held twice, or an episode twice in one folder",
                         "items": {
@@ -2428,7 +2449,8 @@
                     "upgrades",
                     "incomplete",
                     "duplicates",
-                    "building"
+                    "building",
+                    "builtAt"
                 ],
                 "type": "object"
             },
@@ -9712,7 +9734,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                    "$ref": "#/components/schemas/api.LoginRefusedResponse"
                                 }
                             }
                         },
