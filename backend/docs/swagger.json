@@ -2564,6 +2564,14 @@
                         "description": "the video or folder inside .weebsync-trash",
                         "type": "string"
                     },
+                    "reason": {
+                        "description": "Reason is why it is here: \"upgrade\" (a better copy replaced it) or\n\"duplicate\" (cleared from the duplicates view); empty for older rows",
+                        "type": "string"
+                    },
+                    "replacedBy": {
+                        "description": "ReplacedBy is the file name of the copy an upgrade put in its place",
+                        "type": "string"
+                    },
                     "size": {
                         "description": "bytes, sidecars and folder contents included",
                         "type": "integer"
@@ -2581,7 +2589,9 @@
                     "size",
                     "files",
                     "trashedAt",
-                    "expiresAt"
+                    "expiresAt",
+                    "reason",
+                    "replacedBy"
                 ],
                 "type": "object"
             },

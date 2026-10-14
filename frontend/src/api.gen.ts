@@ -1084,6 +1084,15 @@ export interface Schemas {
      */
     path: string
     /**
+     * Reason is why it is here: "upgrade" (a better copy replaced it) or
+     * "duplicate" (cleared from the duplicates view); empty for older rows
+     */
+    reason: string
+    /**
+     * ReplacedBy is the file name of the copy an upgrade put in its place
+     */
+    replacedBy: string
+    /**
      * bytes, sidecars and folder contents included
      */
     size: number

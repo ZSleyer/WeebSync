@@ -43,7 +43,7 @@ func (s *Server) handleDuplicateTrash(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "cannot trash a root")
 		return
 	}
-	if err := s.trashPath(abs); err != nil {
+	if err := s.trashPath(abs, trashWhy{Reason: "duplicate"}); err != nil {
 		writeErr(w, http.StatusNotFound, "not moved: "+logSafe(err.Error()))
 		return
 	}

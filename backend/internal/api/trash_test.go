@@ -16,10 +16,10 @@ func TestTrashEndpoints(t *testing.T) {
 	writeFiles(t, dir, map[string]int64{"Show - S01E01.mkv": 10, "Show - S01E01.en.srt": 2, "Show - S01E02.mkv": 10})
 	old := filepath.Join(root, "Show", "Season 01 (old)")
 	writeFiles(t, old, map[string]int64{"Show - S01E01.mkv": 5})
-	if err := s.trashPath(filepath.Join(dir, "Show - S01E01.mkv")); err != nil {
+	if err := s.trashPath(filepath.Join(dir, "Show - S01E01.mkv"), trashWhy{Reason: "duplicate"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.trashPath(old); err != nil {
+	if err := s.trashPath(old, trashWhy{Reason: "upgrade", By: "Show - S01E01 [1080p].mkv"}); err != nil {
 		t.Fatal(err)
 	}
 	trashedFile := filepath.Join(dir, trashDir, "Show - S01E01.mkv")
@@ -50,6 +50,13 @@ func TestTrashEndpoints(t *testing.T) {
 	}
 	if e := byPath[trashedDir]; !e.IsDir || e.Size != 5 || e.Files != 1 || e.Dir != filepath.Join(root, "Show") {
 		t.Errorf("folder entry: %+v", e)
+	}
+	// each entry says why it is here
+	if e := byPath[trashedFile]; e.Reason != "duplicate" || e.ReplacedBy != "" {
+		t.Errorf("file reason: %q by %q", e.Reason, e.ReplacedBy)
+	}
+	if e := byPath[trashedDir]; e.Reason != "upgrade" || e.ReplacedBy != "Show - S01E01 [1080p].mkv" {
+		t.Errorf("folder reason: %q by %q", e.Reason, e.ReplacedBy)
 	}
 
 	// the actions are admin only
@@ -102,7 +109,7 @@ func TestTrashEndpoints(t *testing.T) {
 	}
 
 	// empty everything
-	if err := s.trashPath(filepath.Join(dir, "Show - S01E02.mkv")); err != nil {
+	if err := s.trashPath(filepath.Join(dir, "Show - S01E02.mkv"), trashWhy{Reason: "duplicate"}); err != nil {
 		t.Fatal(err)
 	}
 	if rec := doReq(mux, "DELETE", "/api/trash", "", admin); rec.Code != 200 {

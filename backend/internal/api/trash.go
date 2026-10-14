@@ -19,6 +19,18 @@ type TrashEntry struct {
 	Files     int    `json:"files"`     // rows behind this entry: the video and its sidecars
 	TrashedAt int64  `json:"trashedAt"` // unix seconds
 	ExpiresAt int64  `json:"expiresAt"` // unix seconds: when the sweep deletes it
+	// Reason is why it is here: "upgrade" (a better copy replaced it) or
+	// "duplicate" (cleared from the duplicates view); empty for older rows
+	Reason string `json:"reason"`
+	// ReplacedBy is the file name of the copy an upgrade put in its place
+	ReplacedBy string `json:"replacedBy"`
+}
+
+// trashRow is what the table holds for one trash path.
+type trashRow struct {
+	at     int64
+	reason string
+	by     string
 }
 
 // TrashRequest names one trash entry by its path. An empty path on delete
@@ -27,20 +39,20 @@ type TrashRequest struct {
 	Path string `json:"path"`
 }
 
-// trashRows lists every recorded trash path with its time, newest first.
-func (s *Server) trashRows() (paths []string, at map[string]int64) {
-	at = map[string]int64{}
-	rows, err := s.DB.Query(`SELECT path, trashed_at FROM trash_files ORDER BY trashed_at DESC, path`)
+// trashRows lists every recorded trash path with its row, newest first.
+func (s *Server) trashRows() (paths []string, at map[string]trashRow) {
+	at = map[string]trashRow{}
+	rows, err := s.DB.Query(`SELECT path, trashed_at, reason, replaced_by FROM trash_files ORDER BY trashed_at DESC, path`)
 	if err != nil {
 		return nil, at
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p string
-		var t int64
-		if rows.Scan(&p, &t) == nil {
+		var r trashRow
+		if rows.Scan(&p, &r.at, &r.reason, &r.by) == nil {
 			paths = append(paths, p)
-			at[p] = t
+			at[p] = r
 		}
 	}
 	return paths, at
@@ -131,7 +143,9 @@ func (s *Server) handleTrashList(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		e := TrashEntry{Path: p, Name: name, Dir: filepath.Dir(dir), IsDir: fi.IsDir(), Size: size, Files: 1, TrashedAt: at[p], ExpiresAt: at[p] + int64(trashTTL.Seconds())}
+		row := at[p]
+		e := TrashEntry{Path: p, Name: name, Dir: filepath.Dir(dir), IsDir: fi.IsDir(), Size: size, Files: 1,
+			TrashedAt: row.at, ExpiresAt: row.at + int64(trashTTL.Seconds()), Reason: row.reason, ReplacedBy: row.by}
 		index[p] = len(entries)
 		entries = append(entries, e)
 	}

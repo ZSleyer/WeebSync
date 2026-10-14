@@ -46,6 +46,11 @@ func TestReplaceOldCopyEpisode(t *testing.T) {
 			t.Errorf("%s should be in the trash, left=%v trash=%v", gone, left[gone], trash[gone])
 		}
 	}
+	var reason, by string
+	s.DB.QueryRow(`SELECT reason, replaced_by FROM trash_files WHERE path = ?`, filepath.Join(dir, trashDir, "Show - 01.mkv")).Scan(&reason, &by)
+	if reason != "upgrade" || by != "Show - S01E01.mkv" {
+		t.Errorf("trash row: reason %q by %q", reason, by)
+	}
 	if !trash[".plexignore"] {
 		t.Error("trash folder needs its .plexignore")
 	}

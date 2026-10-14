@@ -110,7 +110,7 @@ func (s *Server) replaceOldCopy(d *transfer.Download) {
 		return
 	}
 	for _, name := range old {
-		s.trashFile(local, name, entries)
+		s.trashFile(local, name, entries, trashWhy{Reason: "upgrade", By: newBase})
 	}
 }
 
@@ -142,9 +142,16 @@ func sameEpisode(name string, se, ep int) bool {
 // openings, previews, trailers), whose number is not an episode number.
 var extraRe = regexp.MustCompile(`(?i)\bNC(OP|ED)\d*\b|\b(OP|ED|PV)\d+\b|preview|trailer|\bmenu\b|\bextra`)
 
+// trashWhy says why a copy went to the trash: Reason "upgrade" (By names the
+// file that replaced it) or "duplicate".
+type trashWhy struct {
+	Reason string
+	By     string
+}
+
 // trashFile moves one video and its sidecars (same stem, non-video extension)
 // into dir/.weebsync-trash and records them for the sweep.
-func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.DirEntry) error {
+func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.DirEntry, why trashWhy) error {
 	td := filepath.Join(local.Name, trashDir)
 	if err := local.Root.MkdirAll(td, 0o755); err != nil {
 		slog.Warn("trash folder not created", "dir", logSafe(local.Abs), "err", err)
@@ -173,7 +180,8 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 			continue
 		}
 		absDst := filepath.Join(local.Root.Name(), dst)
-		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, absDst, now)
+		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
+			absDst, now, why.Reason, why.By)
 		slog.Info("old copy moved to trash", "file", logSafe(n), "dir", logSafe(local.Abs))
 	}
 	return nil
@@ -182,7 +190,7 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 // trashPath moves a file (with its sidecars) or a whole folder into the trash
 // folder beside it. Used by the duplicates view; the upgrade hook goes through
 // trashFile directly.
-func (s *Server) trashPath(abs string) error {
+func (s *Server) trashPath(abs string, why trashWhy) error {
 	local, err := s.openLocal(abs)
 	if err != nil {
 		return err
@@ -205,7 +213,7 @@ func (s *Server) trashPath(abs string) error {
 			return err
 		}
 		local.Name, local.Abs = dir, filepath.Dir(local.Abs)
-		return s.trashFile(local, name, entries)
+		return s.trashFile(local, name, entries, why)
 	}
 	td := filepath.Join(dir, trashDir)
 	if err := local.Root.MkdirAll(td, 0o755); err != nil {
@@ -219,7 +227,8 @@ func (s *Server) trashPath(abs string) error {
 		return err
 	}
 	absDst := filepath.Join(local.Root.Name(), dst)
-	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at) VALUES (?, ?)`, absDst, time.Now().Unix())
+	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
+		absDst, time.Now().Unix(), why.Reason, why.By)
 	slog.Info("folder moved to trash", "dir", logSafe(abs))
 	return nil
 }
