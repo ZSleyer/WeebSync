@@ -1,5 +1,13 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideIcon } from 'lucide-react'
+import {
+  Fragment,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ComponentType,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react'
+import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideProps } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -16,7 +24,7 @@ import './palette.css'
 export interface PalettePage {
   to: string
   key: string
-  icon: LucideIcon
+  icon: ComponentType<LucideProps>
 }
 
 /** the kinds of hit, in the order their groups are listed while typing */
@@ -35,7 +43,7 @@ interface Entry {
   find?: string
   /** a folder path after the sub; cut from its start, the end names the place */
   path?: string
-  icon: LucideIcon
+  icon: ComponentType<LucideProps>
   /** a series' cover, drawn instead of the icon */
   cover?: string
   run: () => void
