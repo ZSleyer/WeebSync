@@ -311,6 +311,14 @@ func isHTTPS(r *http.Request) bool {
 		(cfg.trustsPeer(remoteIP(r)) && r.Header.Get("X-Forwarded-Proto") == "https")
 }
 
+// ArrivedOverHTTPS reports how this request actually came in: TLS here, or
+// HTTPS at a proxy we trust. Unlike IsHTTPS it ignores force_https, for
+// links that have to work the way the caller reached us.
+func ArrivedOverHTTPS(r *http.Request) bool {
+	cfg := proxyCfg.Load()
+	return r.TLS != nil || (cfg != nil && cfg.trustsPeer(remoteIP(r)) && r.Header.Get("X-Forwarded-Proto") == "https")
+}
+
 // IsHTTPS reports whether the request should be treated as HTTPS, honoring the
 // trusted-proxy / force-https env settings. For callers outside this package
 // that build redirect origins or set their own cookies.

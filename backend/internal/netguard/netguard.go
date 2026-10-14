@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -198,4 +199,26 @@ func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http
 			return allowed(req.URL.Hostname(), deny)
 		},
 	}
+}
+
+// LocalOnly reports whether host resolves only to loopback or private
+// addresses (RFC 1918, IPv6 ULA): traffic that never leaves the operator's
+// own network, where an http:// URL carrying a token may be acceptable.
+func LocalOnly(host string) bool {
+	var ips []net.IP
+	if ip := net.ParseIP(strings.Trim(host, "[]")); ip != nil {
+		ips = []net.IP{ip}
+	} else {
+		resolved, err := lookupIP(context.Background(), host)
+		if err != nil || len(resolved) == 0 {
+			return false
+		}
+		ips = resolved
+	}
+	for _, ip := range ips {
+		if !ip.IsLoopback() && !ip.IsPrivate() {
+			return false
+		}
+	}
+	return true
 }

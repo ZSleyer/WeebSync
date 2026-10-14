@@ -447,6 +447,10 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "issuer required")
 		return
 	}
+	if err := checkSecretURL(strings.TrimSpace(in.OidcIssuer)); err != nil {
+		writeErr(w, http.StatusBadRequest, "issuer: "+err.Error())
+		return
+	}
 	if strings.TrimSpace(in.BaseURL) != "" {
 		o, ok := origin(in.BaseURL)
 		if !ok {

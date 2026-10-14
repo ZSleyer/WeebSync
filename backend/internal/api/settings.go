@@ -235,12 +235,29 @@ func checkOutboundURL(raw string) error {
 	return netguard.Allowed(u.Hostname())
 }
 
+// checkSecretURL is checkOutboundURL for a URL that carries a credential (an
+// API key, a token, a client secret, a webhook id): plain http:// only to
+// a host inside the operator's own network, never across the internet.
+func checkSecretURL(raw string) error {
+	if err := checkOutboundURL(raw); err != nil || raw == "" {
+		return err
+	}
+	u, _ := url.Parse(raw)
+	if u.Scheme == "http" && !netguard.LocalOnly(u.Hostname()) {
+		return fmt.Errorf("http:// only for a host in your own network; use https")
+	}
+	return nil
+}
+
 // fieldIssues re-checks the stored outbound URLs so the UI can mark the one
 // that broke since it was saved, without that blocking any save.
 func fieldIssues(p settingsPayload) map[string]string {
 	out := map[string]string{}
-	for field, v := range map[string]string{"aiBaseUrl": p.AiBaseURL, "aiSearchUrl": p.AiSearchURL, "haWebhookUrl": p.HaWebhookURL} {
-		if err := checkOutboundURL(v); err != nil {
+	if err := checkOutboundURL(p.AiSearchURL); err != nil {
+		out["aiSearchUrl"] = err.Error()
+	}
+	for field, v := range map[string]string{"aiBaseUrl": p.AiBaseURL, "haWebhookUrl": p.HaWebhookURL, "plexUrl": p.PlexURL, "oidcIssuer": p.OidcIssuer} {
+		if err := checkSecretURL(v); err != nil {
 			out[field] = err.Error()
 		}
 	}
@@ -465,15 +482,23 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// Home Assistant webhook: the webhook id in the path is the secret per HA's
 	// own model
 	haURL := strings.TrimSpace(in.HaWebhookURL)
-	for _, f := range []struct{ field, value, stored string }{
-		{"aiBaseUrl", aiURL, cur.AiBaseURL},
-		{"aiSearchUrl", searchURL, cur.AiSearchURL},
-		{"haWebhookUrl", haURL, cur.HaWebhookURL},
+	plexURL := strings.TrimRight(strings.TrimSpace(in.PlexURL), "/")
+	for _, f := range []struct {
+		field, value, stored string
+		check                func(string) error
+	}{
+		{"aiBaseUrl", aiURL, cur.AiBaseURL, checkSecretURL},
+		{"aiSearchUrl", searchURL, cur.AiSearchURL, checkOutboundURL},
+		{"haWebhookUrl", haURL, cur.HaWebhookURL, checkSecretURL},
+		{"plexUrl", plexURL, cur.PlexURL, checkSecretURL},
+		// the issuer signs the ID tokens that carry the admin group: a
+		// forged one over plain HTTP would hand out the instance
+		{"oidcIssuer", in.OidcIssuer, cur.OidcIssuer, checkSecretURL},
 	} {
 		if f.value == f.stored {
 			continue
 		}
-		if err := checkOutboundURL(f.value); err != nil {
+		if err := f.check(f.value); err != nil {
 			bad(f.field, err.Error())
 			return
 		}

@@ -16,6 +16,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
 	"github.com/ch4d1/weebsync/internal/transfer"
@@ -502,8 +503,9 @@ func writeNewznabItem(b *strings.Builder, rel arrRelease, base, key string) {
 // arrBaseURL is how the app reached us, so the links it follows go back the
 // same way (a LAN address, not the public base URL).
 func arrBaseURL(r *http.Request) string {
+	// the forwarded scheme counts only from a trusted proxy, like everywhere
 	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+	if auth.ArrivedOverHTTPS(r) {
 		scheme = "https"
 	}
 	return scheme + "://" + r.Host
