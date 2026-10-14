@@ -6,6 +6,7 @@
     "invalidCode": "That code is wrong.",
     "loginExpired": "The sign-in has expired. Start again.",
     "passkeyFailed": "The key was not accepted.",
+    "passkeyCancelled": "Cancelled, or refused by the device.",
     "passkeyNoUv": "This passkey has to confirm it is you with a PIN, fingerprint or face. Sign in with your password.",
     "emailTaken": "There is already an account with this address.",
     "invalidEmail": "That is not a valid email address.",

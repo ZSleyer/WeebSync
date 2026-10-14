@@ -6,6 +6,7 @@
     "invalidCode": "Der Code ist falsch.",
     "loginExpired": "Die Anmeldung ist abgelaufen. Fang noch einmal an.",
     "passkeyFailed": "Der Schlüssel wurde nicht angenommen.",
+    "passkeyCancelled": "Abgebrochen oder vom Gerät abgelehnt.",
     "passkeyNoUv": "Dieser Passkey muss dich per PIN, Fingerabdruck oder Gesicht bestätigen. Melde dich mit deinem Passwort an.",
     "emailTaken": "Zu dieser Adresse gibt es schon ein Konto.",
     "invalidEmail": "Das ist keine gültige E-Mail-Adresse.",
