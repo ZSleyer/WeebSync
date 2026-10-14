@@ -195,13 +195,15 @@
    buttons carry their own. Touch overrides the values further down, so every
    rule can just reference the variable. */
 :root {
-  /* Material 3 Expressive's fast spatial spring (damping 0.9, stiffness
-     1400) as a curve: for things that move or grow, with the small overshoot
-     that makes a state change feel physical. Colour and opacity never use it */
-  --m3-spatial: linear(0, 0.21 4.5%, 0.53 10%, 0.79 16%, 0.95 22%, 1.03 29%, 1.05 35%, 1.04 43%, 1.015 57%, 1.002 75%, 1);
+  /* Material 3 Expressive's fast spatial motion, as a curve: for things
+     that move or grow. It starts at the spring's speed but glides to a stop
+     instead of overshooting: the overshoot and its settle read as a jolt at
+     the end. Colour and opacity never use it */
+  --m3-spatial: linear(0, 0.214 4%, 0.382 8%, 0.515 12%, 0.641 17%, 0.735 22%, 0.816 28%, 0.880 35%, 0.927 43%, 0.958 52%, 0.980 63%, 0.992 76%, 1);
   --m3-spatial-dur: 350ms;
-  /* the spring with one small overshoot, for the hero morphs and presses */
-  --spring: linear(0, 0.06 2.4%, 0.22 5.2%, 0.5 9%, 0.68 12%, 0.83 15.5%, 0.93 19.5%, 1.02 25%, 1.04 30%, 1.03 38%, 1.01 48%, 1 64%, 1);
+  /* the hero morphs and presses: quick off the mark, gliding out, no
+     overshoot to snap back from */
+  --spring: linear(0, 0.182 4%, 0.332 8%, 0.454 12%, 0.576 17%, 0.672 22%, 0.759 28%, 0.832 35%, 0.890 43%, 0.932 52%, 0.964 63%, 0.984 76%, 1);
   /* no overshoot: sheets, toasts, thumbs and other small parts */
   --spring-calm: linear(0, 0.1 3%, 0.32 8%, 0.6 15%, 0.8 22%, 0.91 30%, 0.97 40%, 0.99 52%, 1 70%, 1);
   /* type: Chakra Petch for display, IBM Plex for text and figures (the host
@@ -1667,7 +1669,7 @@ li.t-swiperow { border-radius: 0; }
 }
 :root[data-vt-back]::view-transition-group(morph-dialog) { animation-duration: var(--dur-2); animation-timing-function: var(--ease-in); }
 /* the hero morph (the live pill into its sheet): longer, on the spatial
-   spring with its small overshoot, both ways */
+   curve, both ways */
 :root[data-vt-hero]::view-transition-group(morph-dialog) { animation-duration: 420ms; animation-timing-function: var(--m3-spatial); border-radius: var(--r-dialog); }
 ::view-transition-old(morph-dialog),
 ::view-transition-new(morph-dialog) { height: 100%; object-fit: cover; }

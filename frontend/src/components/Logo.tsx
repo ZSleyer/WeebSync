@@ -21,7 +21,6 @@ const HEAD = 0.06 // the running head of a traced outline, as a share of its len
 
 const inOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 const outExpo = (t: number) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t))
-const outBack = (t: number) => 1 + 2.2 * Math.pow(t - 1, 3) + 1.2 * Math.pow(t - 1, 2)
 const lin = (t: number) => t
 // the wipe's edge runs on the slant of the mark itself
 const slant = (x: number) => `-300,0 ${x.toFixed(1)},0 ${(x - 216).toFixed(1)},${H} -300,${H}`
@@ -117,11 +116,11 @@ export default function Logo({
         set(el.lnS, 'stroke-opacity', fade)
         sheen(seg(1350, 1950, inOut))
       },
-      // the letters set down in turn and settle with a small overshoot
+      // the letters set down in turn and glide to a stop
       set: (_t, seg) => {
-        set(el.gw, 'transform', `translate(0 ${((1 - seg(0, 520, outBack)) * -50).toFixed(1)})`)
+        set(el.gw, 'transform', `translate(0 ${((1 - seg(0, 520, outExpo)) * -50).toFixed(1)})`)
         set(el.gw, 'opacity', seg(0, 200, lin))
-        set(el.gs, 'transform', `translate(0 ${((1 - seg(140, 660, outBack)) * 50).toFixed(1)})`)
+        set(el.gs, 'transform', `translate(0 ${((1 - seg(140, 660, outExpo)) * 50).toFixed(1)})`)
         set(el.gs, 'opacity', seg(140, 340, lin))
       },
       // the letters fill row by row, like the queue's progress bars
