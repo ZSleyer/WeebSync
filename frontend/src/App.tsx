@@ -50,7 +50,7 @@ import { BackLink } from './components/BackLink'
 import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
 import { FINISHING_KEY } from './pages/setupState'
 import Dashboard from './pages/Dashboard'
-import { DiscoverIndex, LegacySuggestions } from './components/DiscoverRedirect'
+import { LegacySuggestions } from './components/DiscoverRedirect'
 import { DISCOVER_BASE, discoverPath, slugOf } from './discoverRoutes'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
 
@@ -230,9 +230,9 @@ export const router = createBrowserRouter(
         handle={h('nav.watches')}
       />
       {/* Entdecken: every section a tab of one page, the assistant and the
-          ignored items included; the index opens the last one used */}
+          ignored items included; the index is the overview */}
       <Route path={DISCOVER_BASE} lazy={screen(discover, (m) => m.default)} handle={h('nav.suggestions')}>
-        <Route index element={<DiscoverIndex />} />
+        <Route index lazy={screen(discover, (m) => m.DiscoverHub)} />
         <Route
           path={slugOf('watchlist')}
           lazy={screen(discover, (m) => () => <m.BucketSection bucket="watchlist" />)}

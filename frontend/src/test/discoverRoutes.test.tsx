@@ -1,18 +1,8 @@
 import { render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
-import { DiscoverIndex, LegacySuggestions } from '../components/DiscoverRedirect'
-import {
-  DISCOVER_SECTIONS,
-  discoverPath,
-  lastSection,
-  legacyDiscoverPath,
-  rememberSection,
-  sectionOf,
-  slugOf,
-} from '../discoverRoutes'
-
-afterEach(() => localStorage.clear())
+import { LegacySuggestions } from '../components/DiscoverRedirect'
+import { DISCOVER_SECTIONS, discoverPath, legacyDiscoverPath, sectionOf, slugOf } from '../discoverRoutes'
 
 describe('discover sections', () => {
   it('give every section a German slug and read both slug and old id', () => {
@@ -54,15 +44,6 @@ describe('discover sections', () => {
     expect(legacyDiscoverPath('/files')).toBe('/files')
     expect(legacyDiscoverPath('/suggestionsx')).toBe('/suggestionsx')
   })
-
-  it('remember the last section per browser, Merkliste at first', () => {
-    expect(lastSection()).toBe('watchlist')
-    rememberSection('upgrades')
-    expect(lastSection()).toBe('upgrades')
-    // a stored value that names no section falls back to the default
-    localStorage.setItem('ws-dsec', 'bogus')
-    expect(lastSection()).toBe('watchlist')
-  })
 })
 
 const Where = () => {
@@ -76,7 +57,6 @@ const mount = (from: string) =>
     <MemoryRouter initialEntries={[from]}>
       <Routes>
         <Route path="/suggestions/*" element={<LegacySuggestions />} />
-        <Route path="/discover" element={<DiscoverIndex />} />
         <Route path="*" element={<Where />} />
       </Routes>
     </MemoryRouter>,
@@ -88,23 +68,8 @@ describe('discover redirects', () => {
     expect(screen.getByText('/discover/duplikate?sort=size#list')).toBeInTheDocument()
   })
 
-  it('open the bare old address on the last section used', () => {
-    rememberSection('trending')
+  it('open the bare old address on the overview', () => {
     mount('/suggestions')
-    expect(screen.getByText('/discover/trending')).toBeInTheDocument()
-  })
-
-  it('open /discover on Merkliste the first time and on the last section after', () => {
-    const first = mount('/discover')
-    expect(screen.getByText('/discover/merkliste')).toBeInTheDocument()
-    first.unmount()
-    rememberSection('assistant')
-    mount('/discover')
-    expect(screen.getByText('/discover/assistent')).toBeInTheDocument()
-  })
-
-  it('honour the old ?tab= on the new index too', () => {
-    mount('/discover?tab=incomplete')
-    expect(screen.getByText('/discover/unvollstaendig')).toBeInTheDocument()
+    expect(screen.getByText('/discover')).toBeInTheDocument()
   })
 })

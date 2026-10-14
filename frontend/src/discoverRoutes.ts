@@ -49,25 +49,3 @@ export function legacyDiscoverPath(path: string): string {
   const qs = params.toString()
   return `${id ? discoverPath(id) : DISCOVER_BASE}${qs ? `?${qs}` : ''}${hash ? `#${hash}` : ''}`
 }
-
-// the section Entdecken opens on, per browser: where the user was last time
-const LAST_KEY = 'ws-dsec'
-const DEFAULT: DiscoverSection = 'watchlist'
-
-/** The section the user had open last on this browser, Merkliste at first. */
-export function lastSection(): DiscoverSection {
-  try {
-    return sectionOf(localStorage.getItem(LAST_KEY)) ?? DEFAULT
-  } catch {
-    return DEFAULT
-  }
-}
-
-/** Remembers the open section for the next visit. */
-export function rememberSection(id: DiscoverSection) {
-  try {
-    localStorage.setItem(LAST_KEY, id)
-  } catch {
-    // storage off: the next visit opens on the default
-  }
-}

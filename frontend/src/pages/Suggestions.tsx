@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router'
 import { Button, Checkbox, IconButton, Rows, TextLink } from 'fluid-lycoris'
 import { useToast, useFailToast } from '../components/toast'
 import {
@@ -28,7 +28,7 @@ import { applyDefaults, suggestionKind, useWatchDefaults } from '../components/w
 import ActionMenu from '../components/ActionMenu'
 import { CatalogTile, useTileRise } from '../components/CatalogTile'
 import { useAiStatus, useNow, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
-import { rememberSection, sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
+import { sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
 import { SectionOutlet } from '../components/RouteTransition'
 import { coverSet } from '../images'
 import { ANILIST_SETTINGS, useAnilistMe } from '../anilistMe'
@@ -65,8 +65,8 @@ const HEADS: Record<Exclude<DiscoverSection, 'assistant'>, string> = {
 
 /**
  * The frame: the sections menu (a sticky strip on a phone, a column on a
- * desktop) and the open section with its head. The open section is
- * remembered, the next visit to Entdecken opens on it.
+ * desktop) and the open section with its head. /discover itself is the
+ * overview (DiscoverHub); on a phone it stands in for the strip.
  */
 export default function SuggestionsLayout() {
   const { t } = useTranslation()
@@ -75,18 +75,18 @@ export default function SuggestionsLayout() {
   const counts = useCounts()
   const { pathname } = useLocation()
   const section = sectionOf(pathname.split('/')[2])
-  useEffect(() => {
-    if (section) rememberSection(section)
-  }, [section])
-  const groups: DiscoverNavGroup[] = LAYOUT.map((g) => ({
-    label: t(g.label),
-    items: g.items
-      .filter(([id]) => id !== 'assistant' || ai?.configured || section === 'assistant')
-      .map(([id, key]) => ({ id, to: slugOf(id), label: t(key), count: counts[id] })),
-  }))
+  const groups: DiscoverNavGroup[] = [
+    { label: '', items: [{ id: 'hub', to: '', label: t('discover.hub') }] },
+    ...LAYOUT.map((g) => ({
+      label: t(g.label),
+      items: g.items
+        .filter(([id]) => id !== 'assistant' || ai?.configured || section === 'assistant')
+        .map(([id, key]) => ({ id, to: slugOf(id), label: t(key), count: counts[id] })),
+    })),
+  ]
   const onList = section && section !== 'assistant'
   return (
-    <div className="dc">
+    <div className="dc" data-hub={section ? undefined : ''}>
       <DiscoverNav label={t('discover.navLabel')} groups={groups} current={section} />
       <div className="dc-body">
         {onList && (
@@ -102,6 +102,70 @@ export default function SuggestionsLayout() {
         )}
         <SectionOutlet />
       </div>
+    </div>
+  )
+}
+
+/**
+ * /discover: what Entdecken holds at a glance, by group. Each section is a
+ * card with its count, what it is for and the first covers in it, so the
+ * page says where to look instead of dropping the user into one list. An
+ * old ?tab= address still opens its section.
+ */
+export function DiscoverHub() {
+  const { t, i18n } = useTranslation()
+  const [params] = useSearchParams()
+  const { data: ai } = useAiStatus()
+  const { data } = useSuggestions()
+  const { data: dismissed } = useDismissed()
+  const counts = useCounts()
+  const tab = sectionOf(params.get('tab'))
+  if (tab) return <Navigate replace to={slugOf(tab)} />
+  const covers = (id: DiscoverSection): string[] => {
+    const list: { cover?: string }[] =
+      id === 'ignored' ? (dismissed ?? []) : id === 'assistant' ? [] : (data?.[id] ?? [])
+    return list.flatMap((x) => (x.cover ? [x.cover] : [])).slice(0, 4)
+  }
+  return (
+    <div className="dc-hub">
+      <DiscoverHead title={t('discover.hub')} sub={t('discover.hubSub')} />
+      {LAYOUT.map((g) => {
+        const items = g.items.filter(([id]) => id !== 'assistant' || ai?.configured)
+        if (!items.length) return null
+        return (
+          <section key={g.label} aria-label={t(g.label)}>
+            <h3 className="dc-hub-g">{t(g.label)}</h3>
+            <ul className="dc-hub-grid">
+              {items.map(([id, key, Icon]) => {
+                const peek = covers(id)
+                return (
+                  <li key={id}>
+                    <Link to={slugOf(id)} className="dc-hub-card">
+                      <span className="dc-hub-icon">
+                        <Icon aria-hidden size={20} />
+                      </span>
+                      <span className="dc-hub-text">
+                        <strong>{t(key)}</strong>
+                        <span>{t(`suggestions.hub.${id}`)}</span>
+                      </span>
+                      {counts[id] != null && (
+                        <span className="dc-hub-count">{counts[id]!.toLocaleString(i18n.language)}</span>
+                      )}
+                      {peek.length > 0 && (
+                        <span className="dc-hub-peek" aria-hidden>
+                          {peek.map((src) => (
+                            <img key={src} src={src} alt="" loading="lazy" decoding="async" />
+                          ))}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )
+      })}
     </div>
   )
 }

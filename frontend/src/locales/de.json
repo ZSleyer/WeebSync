@@ -2298,6 +2298,8 @@
     "basisLangUnverified": "Der Sprachgewinn stammt aus dem Dateinamen der Quelle und ist nicht bestätigt: deine lokale Kopie kann die Spur bereits enthalten, nur ohne Sprachkennung."
   },
   "discover": {
+    "hub": "Überblick",
+    "hubSub": "Was Entdecken für dich gefunden hat, nach Art sortiert.",
     "navLabel": "Bereiche",
     "groupAsk": "Fragen",
     "sub": {

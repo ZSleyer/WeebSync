@@ -2298,6 +2298,8 @@
     "basisLangUnverified": "The language gain comes from the source's file name and is unconfirmed: your local copy may already carry the track, just without a language tag."
   },
   "discover": {
+    "hub": "Overview",
+    "hubSub": "What Discover has found for you, by kind.",
     "navLabel": "Sections",
     "groupAsk": "Ask",
     "sub": {

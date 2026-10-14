@@ -13,7 +13,7 @@ import { DISCOVER_BASE, type DiscoverSection } from '../discoverRoutes'
 // head, the group, the suggestion row, the empty line and the loading rows.
 
 export interface DiscoverNavItem {
-  id: DiscoverSection
+  id: DiscoverSection | 'hub'
   to: string
   label: string
   count?: number
@@ -51,11 +51,14 @@ export function DiscoverNav({
   return (
     <nav ref={ref} className="dc-nav" aria-label={label}>
       {groups.map((g) => [
-        <p key={`g-${g.label}`} className="dc-g" aria-hidden>
-          {g.label}
-        </p>,
+        g.label && (
+          <p key={`g-${g.label}`} className="dc-g" aria-hidden>
+            {g.label}
+          </p>
+        ),
+        // the overview is /discover itself: current only there, not under it
         ...g.items.map((i) => (
-          <NavLink key={i.id} to={`${DISCOVER_BASE}/${i.to}`} replace>
+          <NavLink key={i.id} to={i.to ? `${DISCOVER_BASE}/${i.to}` : DISCOVER_BASE} end={!i.to} replace>
             <span>{i.label}</span>
             {i.count != null && <span className="dc-count">{i.count.toLocaleString(i18n.language)}</span>}
           </NavLink>
