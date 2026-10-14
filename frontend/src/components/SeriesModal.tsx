@@ -382,11 +382,16 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     // the entry of a form that was open - after that form took its own back
     // (useBackEntry), which is queued the same way.
     if (e.direct) return nav('/', { replace: true })
-    setTimeout(() => {
-      const idx = history.state?.idx
-      const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
-      nav(delta < 0 ? delta : -(e.n + 1))
-    })
+    // The step back waits for the next frame: the page is gone already, and
+    // the router's render of the step would otherwise land in the frame a
+    // closing morph snapshots (one long frame instead of two short ones).
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        const idx = history.state?.idx
+        const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
+        nav(delta < 0 ? delta : -(e.n + 1))
+      }),
+    )
   }, [nav])
   const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
 
