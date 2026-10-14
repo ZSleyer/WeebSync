@@ -67,6 +67,75 @@
                 ],
                 "type": "object"
             },
+            "anilist.ListDate": {
+                "properties": {
+                    "day": {
+                        "type": "integer"
+                    },
+                    "month": {
+                        "type": "integer"
+                    },
+                    "year": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "year",
+                    "month",
+                    "day"
+                ],
+                "type": "object"
+            },
+            "anilist.ListEntryDetail": {
+                "description": "Entry is null when the title is not on the list",
+                "properties": {
+                    "completedAt": {
+                        "$ref": "#/components/schemas/anilist.ListDate"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "progress": {
+                        "type": "integer"
+                    },
+                    "repeat": {
+                        "type": "integer"
+                    },
+                    "scoreRaw": {
+                        "description": "ScoreRaw is the score on the 100-point scale, whatever format the\nuser rates in; 0 is unrated",
+                        "type": "integer"
+                    },
+                    "startedAt": {
+                        "$ref": "#/components/schemas/anilist.ListDate"
+                    },
+                    "status": {
+                        "enum": [
+                            "CURRENT",
+                            "PLANNING",
+                            "COMPLETED",
+                            "DROPPED",
+                            "PAUSED",
+                            "REPEATING"
+                        ],
+                        "type": "string"
+                    },
+                    "updatedAt": {
+                        "description": "UpdatedAt is unix seconds",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "status",
+                    "progress",
+                    "scoreRaw",
+                    "repeat",
+                    "startedAt",
+                    "completedAt",
+                    "updatedAt"
+                ],
+                "type": "object"
+            },
             "anilist.Media": {
                 "description": "Media is the resolved provider record behind the unit, for a detail view",
                 "properties": {
@@ -4269,6 +4338,66 @@
                     "wantSub",
                     "plexAudioLang",
                     "plexSubLang"
+                ],
+                "type": "object"
+            },
+            "api.anilistEntryRequest": {
+                "properties": {
+                    "progress": {
+                        "type": "integer"
+                    },
+                    "scoreRaw": {
+                        "description": "ScoreRaw is the score on the 100-point scale, 0 to clear it",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "enum": [
+                            "CURRENT",
+                            "PLANNING",
+                            "COMPLETED",
+                            "DROPPED",
+                            "PAUSED",
+                            "REPEATING"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.anilistEntryResponse": {
+                "properties": {
+                    "canEdit": {
+                        "description": "CanEdit: the user allowed WeebSync to change the list",
+                        "type": "boolean"
+                    },
+                    "entry": {
+                        "anyOf": [
+                            {
+                                "$ref": "#/components/schemas/anilist.ListEntryDetail"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ],
+                        "description": "Entry is null when the title is not on the list"
+                    },
+                    "episodes": {
+                        "description": "Episodes the media has, 0 when unknown (still airing, say)",
+                        "type": "integer"
+                    },
+                    "linked": {
+                        "description": "Linked: an AniList account is connected; everything else is empty\nwithout one",
+                        "type": "boolean"
+                    },
+                    "scoreFormat": {
+                        "description": "ScoreFormat is the scale the user rates in: POINT_100,\nPOINT_10_DECIMAL, POINT_10, POINT_5 or POINT_3",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "linked",
+                    "canEdit",
+                    "entry"
                 ],
                 "type": "object"
             },
@@ -9224,6 +9353,213 @@
                     }
                 ],
                 "summary": "Connect AniList",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/anilist/entry/{mediaId}": {
+            "delete": {
+                "description": "Remove a media from the linked user's list. Needs the list switch (403 otherwise). Removing a title that is not on the list is not an error.",
+                "parameters": [
+                    {
+                        "description": "AniList media id",
+                        "in": "path",
+                        "name": "mediaId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.anilistEntryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "list changes turned off in the settings"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Remove AniList list entry",
+                "tags": [
+                    "Suggestions"
+                ]
+            },
+            "get": {
+                "description": "The linked user's AniList list entry for a media (status, progress, score on the 100-point scale plus the user's own score format), read with the user's token. linked=false without a connected account.",
+                "parameters": [
+                    {
+                        "description": "AniList media id",
+                        "in": "path",
+                        "name": "mediaId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.anilistEntryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "AniList list entry",
+                "tags": [
+                    "Suggestions"
+                ]
+            },
+            "put": {
+                "description": "Create or change the linked user's list entry for a media: status, progress (0 to the episode count when known) and score (0-100). Only the given fields change. Needs the list switch (403 otherwise).",
+                "parameters": [
+                    {
+                        "description": "AniList media id",
+                        "in": "path",
+                        "name": "mediaId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.anilistEntryRequest",
+                                        "description": "Fields to change",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Fields to change",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.anilistEntryResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "list changes turned off in the settings"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Save AniList list entry",
                 "tags": [
                     "Suggestions"
                 ]

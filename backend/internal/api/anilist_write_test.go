@@ -75,6 +75,7 @@ func linkedServer(t *testing.T) (*Server, *http.ServeMux, *http.Cookie, *fakeAni
 	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
 	fake := &fakeAnilist{}
 	s.Anilist.HTTP = &http.Client{Transport: fake}
+	s.Anilist.WithoutRateLimit()
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('demo@example.com', 0)`)

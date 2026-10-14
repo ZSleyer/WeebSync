@@ -248,6 +248,10 @@ func New(d *sql.DB) *Client {
 	}
 }
 
+// WithoutRateLimit lifts the request pacing, for tests against a local
+// stand-in where the 2-second spacing only slows the suite down.
+func (c *Client) WithoutRateLimit() { c.limiter = rate.NewLimiter(rate.Inf, 1) }
+
 // cacheTTL is the response-cache lifetime: the ttl_anilist_h setting in
 // hours, default 24 (read per call so changes take effect immediately).
 func (c *Client) cacheTTL() time.Duration {
@@ -341,14 +345,24 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		var envelope struct {
 			Errors []struct {
 				Message string `json:"message"`
+				Status  int    `json:"status"`
 			} `json:"errors"`
 		}
 		if json.Unmarshal(raw, &envelope) == nil && len(envelope.Errors) > 0 {
-			return fmt.Errorf("anilist: graphql: %s", envelope.Errors[0].Message)
+			return &GraphQLError{Message: envelope.Errors[0].Message, Status: envelope.Errors[0].Status}
 		}
 		return json.Unmarshal(raw, out)
 	}
 }
+
+// GraphQLError is an error AniList reported inside a 200 answer. Status
+// carries the HTTP-like code it names (404 for a missing list entry).
+type GraphQLError struct {
+	Message string
+	Status  int
+}
+
+func (e *GraphQLError) Error() string { return "anilist: graphql: " + e.Message }
 
 // SearchReq is one lookup in a batched search. Season (WINTER/SPRING/SUMMER/
 // FALL) and Year narrow the query when the folder structure provides them.

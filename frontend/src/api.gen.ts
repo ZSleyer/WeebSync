@@ -26,6 +26,31 @@ export interface Schemas {
     type?: string
     url: string
   }
+  'anilist.ListDate': {
+    day: number
+    month: number
+    year: number
+  }
+  /**
+   * Entry is null when the title is not on the list
+   */
+  'anilist.ListEntryDetail': {
+    completedAt: Schemas['anilist.ListDate']
+    id: number
+    progress: number
+    repeat: number
+    /**
+     * ScoreRaw is the score on the 100-point scale, whatever format the
+     * user rates in; 0 is unrated
+     */
+    scoreRaw: number
+    startedAt: Schemas['anilist.ListDate']
+    status: "CURRENT" | "PLANNING" | "COMPLETED" | "DROPPED" | "PAUSED" | "REPEATING"
+    /**
+     * UpdatedAt is unix seconds
+     */
+    updatedAt: number
+  }
   /**
    * Media is the resolved provider record behind the unit, for a detail view
    */
@@ -1853,6 +1878,38 @@ export interface Schemas {
     titleOverride: string
     wantDub: string
     wantSub: string
+  }
+  'api.anilistEntryRequest': {
+    progress?: number
+    /**
+     * ScoreRaw is the score on the 100-point scale, 0 to clear it
+     */
+    scoreRaw?: number
+    status?: "CURRENT" | "PLANNING" | "COMPLETED" | "DROPPED" | "PAUSED" | "REPEATING"
+  }
+  'api.anilistEntryResponse': {
+    /**
+     * CanEdit: the user allowed WeebSync to change the list
+     */
+    canEdit: boolean
+    /**
+     * Entry is null when the title is not on the list
+     */
+    entry: Schemas['anilist.ListEntryDetail'] | null
+    /**
+     * Episodes the media has, 0 when unknown (still airing, say)
+     */
+    episodes?: number
+    /**
+     * Linked: an AniList account is connected; everything else is empty
+     * without one
+     */
+    linked: boolean
+    /**
+     * ScoreFormat is the scale the user rates in: POINT_100,
+     * POINT_10_DECIMAL, POINT_10, POINT_5 or POINT_3
+     */
+    scoreFormat?: string
   }
   'api.anilistMeResponse': {
     /**
