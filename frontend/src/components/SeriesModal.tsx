@@ -399,8 +399,10 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     // closing morph snapshots (one long frame instead of two short ones).
     afterFrame(() => {
       const idx = history.state?.idx
-      const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : 0
-      nav(delta < 0 ? delta : -(e.n + 1))
+      const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : null
+      // already back at the page (a step taken meanwhile): nothing to do
+      if (delta !== null && delta >= 0) return
+      nav(delta ?? -(e.n + 1))
     })
   }, [nav])
   const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
