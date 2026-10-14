@@ -120,6 +120,9 @@ export default function TrashPage() {
                     {e.files > 1 && ` · ${t('trash.files', { count: e.files })}`}
                     {' · '}
                     {t('trash.expires', { count: daysLeft(e) })}
+                    {e.reason === 'upgrade' &&
+                      ` · ${e.replacedBy ? t('trash.reasonUpgradeBy', { name: e.replacedBy }) : t('trash.reasonUpgrade')}`}
+                    {e.reason === 'duplicate' && ` · ${t('trash.reasonDuplicate')}`}
                   </span>
                 </>
               }

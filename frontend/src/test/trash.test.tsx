@@ -27,6 +27,8 @@ const entries: TrashEntry[] = [
     size: 1024,
     files: 2,
     trashedAt: 0,
+    reason: 'upgrade',
+    replacedBy: 'ep1 [1080p].mkv',
     expiresAt: Date.now() / 1000 + 3 * 86_400,
   },
   {
@@ -37,6 +39,8 @@ const entries: TrashEntry[] = [
     size: 2048,
     files: 1,
     trashedAt: 0,
+    reason: '',
+    replacedBy: '',
     expiresAt: Date.now() / 1000 + 86_400,
   },
 ]
@@ -81,6 +85,7 @@ describe('TrashButton', () => {
     expect(await screen.findByText('ep1.mkv')).toBeInTheDocument()
     expect(screen.getByText('/m/Show/S1')).toBeInTheDocument()
     expect(screen.getByText('old')).toBeInTheDocument()
+    expect(screen.getByText(/trash\.reasonUpgradeBy/)).toBeInTheDocument()
   })
 
   it('restores and deletes through the API, as an admin', async () => {
