@@ -261,7 +261,9 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 	}
 	return db.Tx(d, func(tx *sql.Tx) error {
 		res, err := tx.Exec(`UPDATE users SET password_hash = ?, reset_token_hash = '', email_verified = 1,
-			auth_upgrade = CASE auth_upgrade WHEN 'password' THEN '' ELSE auth_upgrade END WHERE id = ?`, hash, userID)
+			auth_upgrade = CASE WHEN auth_upgrade != 'password' THEN auth_upgrade
+				WHEN EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = users.id AND c.replace_due = 1) THEN 'passkey'
+				ELSE '' END WHERE id = ?`, hash, userID)
 		if err != nil {
 			return err
 		}

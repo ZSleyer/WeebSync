@@ -45,6 +45,11 @@ function CloseLabel({ children }: { children: ReactNode }) {
 // stayed up with "unauthorized" in its sections until a reload.
 const signedOut = (e: unknown) => {
   if (e instanceof ApiError && e.status === 401) queryClient.setQueryData(['me'], null)
+  // the account was put on hold from another device (a sign-in with a
+  // password or passkey that has to be replaced): the user query decides
+  // that too, so it has to learn of it
+  if (e instanceof ApiError && e.status === 403 && (e.data as { upgrade?: string } | undefined)?.upgrade)
+    void queryClient.invalidateQueries({ queryKey: ['me'] })
 }
 const queryClient: QueryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 10_000 } },

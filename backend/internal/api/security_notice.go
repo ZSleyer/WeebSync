@@ -24,8 +24,11 @@ const (
 	noticeCredRemoved     = "credentialRemoved"
 )
 
-// sendSecurityMail is the send, a seam for the tests.
-var sendSecurityMail = func(s *Server, to, subject, text, htmlBody string) error {
+// sendSecurityMail is the send; tests set Server.securityMail instead.
+func (s *Server) sendSecurityMail(to, subject, text, htmlBody string) error {
+	if s.securityMail != nil {
+		return s.securityMail(to, subject, text, htmlBody)
+	}
 	return s.Mail.Send(to, subject, text, htmlBody)
 }
 
@@ -55,7 +58,7 @@ func (s *Server) securityNotice(r *http.Request, userID int64, event string) {
 		extra := `<p style="margin:12px 0;color:#8b949e;font-size:12px">` + html.EscapeString(where) + `</p>` +
 			`<p style="margin:12px 0;color:#e6edf3;font-size:13px">` + html.EscapeString(notMe) + `</p>`
 		htmlBody := emailHTML(locale, subject, emailLines([]string{what}), extra, "")
-		if err := sendSecurityMail(s, to, "WeebSync – "+subject, text, htmlBody); err != nil {
+		if err := s.sendSecurityMail(to, "WeebSync – "+subject, text, htmlBody); err != nil {
 			slog.Warn("security notice", "event", event, "err", err)
 		}
 	}()

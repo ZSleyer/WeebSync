@@ -21,12 +21,10 @@ func TestSecurityNotices(t *testing.T) {
 
 	type sent struct{ to, subject, text string }
 	got := make(chan sent, 4)
-	old := sendSecurityMail
-	sendSecurityMail = func(_ *Server, to, subject, text, _ string) error {
+	s.securityMail = func(to, subject, text, _ string) error {
 		got <- sent{to, subject, text}
 		return nil
 	}
-	t.Cleanup(func() { sendSecurityMail = old })
 	next := func() sent {
 		t.Helper()
 		select {

@@ -439,6 +439,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
+	s.accountSignedIn(w, r, matched.email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
 }
 
@@ -521,22 +522,31 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		dbErr(w)
 		return
 	}
+	if wait := s.accountWait(r, user.email); wait > 0 {
+		tooMany(w, wait)
+		return
+	}
 	cred, err := wa.FinishLogin(user, *session, r)
 	if err != nil {
 		s.failLoginPending(token)
+		s.accountFailed(r, user.email)
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
-	remember := s.pendingRemember(token)
+	remember, weak := s.pendingFlags(token)
 	if !s.consumeLoginPending(token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
+	}
+	if weak {
+		s.holdForPassword(userID)
 	}
 	s.updateCredential(cred)
 	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
+	s.accountSignedIn(w, r, user.email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: user.email})
 }
 

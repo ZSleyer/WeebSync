@@ -271,10 +271,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	// a password from before the current rules still opens the account, but
-	// only onto the page that asks for a new one (auth.Middleware holds it)
-	if auth.ValidatePassword(c.Password, c.Email) != nil {
-		s.DB.Exec(`UPDATE users SET auth_upgrade = 'password' WHERE id = ?`, id)
-	}
+	// only onto the page that asks for a new one (auth.Middleware holds it).
+	// The hold waits for the whole sign-in: a stranger who knows the old
+	// password and fails the second factor must not hold the owner's sessions.
+	weak := auth.ValidatePassword(c.Password, c.Email) != nil
 	// Without a mail server there is no inbox to check and no link could come:
 	// the account was registered while one was set up, which is gone since.
 	// Verification is only asked for when mail can deliver it, the same rule
@@ -296,8 +296,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "login error")
 			return
 		}
+		if weak {
+			s.DB.Exec(`UPDATE login_pending SET weak = 1 WHERE token_hash = ?`, hashToken(token))
+		}
 		writeJSON(w, http.StatusOK, LoginResponse{TwoFactorRequired: true, Token: token, Totp: totpOn, Webauthn: keyOn})
 		return
+	}
+	if weak {
+		s.holdForPassword(id)
 	}
 	if err := auth.CreateSession(s.DB, w, r, id, c.Remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")

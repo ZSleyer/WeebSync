@@ -39,11 +39,18 @@ func (s *Server) newLoginPending(userID int64, remember bool) (string, error) {
 	return token, err
 }
 
-// pendingRemember is the "stay signed in" choice the password step made.
-func (s *Server) pendingRemember(token string) bool {
-	var remember bool
-	s.DB.QueryRow(`SELECT remember FROM login_pending WHERE token_hash = ?`, hashToken(token)).Scan(&remember)
-	return remember
+// pendingFlags is what the password step left for the second: the "stay
+// signed in" choice, and whether the password was one the policy refuses.
+func (s *Server) pendingFlags(token string) (remember, weak bool) {
+	s.DB.QueryRow(`SELECT remember, weak FROM login_pending WHERE token_hash = ?`, hashToken(token)).Scan(&remember, &weak)
+	return remember, weak
+}
+
+// holdForPassword holds the account until it sets a password the policy
+// accepts. It takes precedence over a passkey hold, which SetPassword puts
+// back while a passkey to replace is left.
+func (s *Server) holdForPassword(userID int64) {
+	s.DB.Exec(`UPDATE users SET auth_upgrade = 'password' WHERE id = ?`, userID)
 }
 
 func hashToken(t string) string {
@@ -83,12 +90,15 @@ type TotpSetupResponse struct {
 // @Summary  Begin TOTP enrollment
 // @Description Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL, base32 secret and a data-URI QR image for the authenticator app.
 // @Tags     TwoFactor
+// @Accept   json
 // @Produce  json
 // @Success  200 {object} TotpSetupResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
+// @Param    body body reauthRequest true "the account's password"
+// @Failure  403 {object} ErrorResponse
 // @Router   /api/auth/totp/setup [post]
 func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
@@ -267,10 +277,13 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
-	remember := s.pendingRemember(in.Token)
+	remember, weak := s.pendingFlags(in.Token)
 	if !s.consumeLoginPending(in.Token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
+	}
+	if weak {
+		s.holdForPassword(userID)
 	}
 	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")

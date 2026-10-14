@@ -99,6 +99,8 @@ type Server struct {
 	accountLimiter *ipLimiter
 	// the cross-site request guard (see CrossOrigin)
 	crossOrigin *http.CrossOriginProtection
+	// replaces the security notice's mail send in tests
+	securityMail func(to, subject, text, html string) error
 	// the passkey challenge: the login page asks for one on every visit, so it
 	// gets a budget of its own instead of eating the password attempts
 	challengeLimiter *ipLimiter
