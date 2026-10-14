@@ -2464,7 +2464,8 @@
     "rulesLink": { "match": "All matching rules", "sync": "All Auto-Sync rules" },
     "whySource": "Why?",
     "why": "Why?",
-    "whyMatch": "Why this series?",
+    "whyMatch": "Trace the match",
+    "whyMatchManual": "Compare with the automatic search",
     "whyNone": "Why no match?",
     "slow": "WeebSync is asking AniList. With a lot of matching running in the background this takes a moment.",
     "loading": "Explaining",
@@ -2530,7 +2531,8 @@
       "extension": "File extension"
     },
     "match": {
-      "title": "Why this series?",
+      "title": "How this match came about",
+      "titleManual": "What the automatic search finds",
       "titleNone": "Why no match?",
       "name": "What the name says",
       "searches": "Searched",

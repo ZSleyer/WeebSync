@@ -259,7 +259,11 @@ export function Community({
   )
 }
 
-/** Which folder the title came from and how it was matched, with the way to "why". */
+/**
+ * Which folder the title came from and how it was matched. The link under it
+ * traces an automatic match, or, when the user picked the title by hand,
+ * compares that pick with what the automatic search finds.
+ */
 export function MatchSection({ watch: w }: { watch: Watch }) {
   const { t } = useTranslation()
   const [why, setWhy] = useState(false)
@@ -287,7 +291,7 @@ export function MatchSection({ watch: w }: { watch: Watch }) {
         {w.serverName}:{w.remotePath} → {w.localPath}
       </p>
       <button type="button" className="ws-link-row" aria-haspopup="dialog" onClick={() => setWhy(true)}>
-        {t('explain.whyMatch')}
+        {t(q.data?.chosen?.manual ? 'explain.whyMatchManual' : 'explain.whyMatch')}
       </button>
       {why && <CatalogWhy serverId={w.serverId} folder={w.remotePath} onClose={() => setWhy(false)} />}
     </section>

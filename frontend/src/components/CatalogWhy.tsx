@@ -47,7 +47,13 @@ export function CatalogWhy({
     >
       <header className="border-b border-border-subtle px-5 py-4">
         <h3 id={titleId} className="font-display font-semibold tracking-wider">
-          {t(none ? 'explain.match.titleNone' : 'explain.match.title')}
+          {t(
+            q.data?.chosen?.manual
+              ? 'explain.match.titleManual'
+              : none
+                ? 'explain.match.titleNone'
+                : 'explain.match.title',
+          )}
         </h3>
         <p className="mt-1 font-mono text-ctl-sm break-all text-t-secondary">{name}</p>
       </header>

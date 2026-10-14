@@ -2464,7 +2464,8 @@
     "rulesLink": { "match": "Alle Regeln zur Zuordnung", "sync": "Alle Regeln zu Auto-Sync" },
     "whySource": "Warum?",
     "why": "Warum?",
-    "whyMatch": "Warum diese Serie?",
+    "whyMatch": "Zuordnung nachvollziehen",
+    "whyMatchManual": "Mit der automatischen Suche vergleichen",
     "whyNone": "Warum kein Treffer?",
     "slow": "WeebSync fragt AniList. Läuft im Hintergrund gerade viel Zuordnung, dauert das einen Moment.",
     "loading": "Wird erklärt",
@@ -2530,7 +2531,8 @@
       "extension": "Dateiendung"
     },
     "match": {
-      "title": "Warum diese Serie?",
+      "title": "So kam die Zuordnung zustande",
+      "titleManual": "Was die automatische Suche findet",
       "titleNone": "Warum kein Treffer?",
       "name": "Was im Namen steht",
       "searches": "Gesucht",
