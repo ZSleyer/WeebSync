@@ -140,6 +140,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// settings before the first request arrives; env still wins over them
 	s.applyProxyConfig()
 	s.hashLegacyVerifyTokens()
+	if s.OIDC != nil {
+		s.OIDC.OnPending = s.notifyPendingUser
+	}
 
 	// auth - login/register are rate-limited per IP against brute-force;
 	// admin-configured trusted networks bypass the limit
@@ -267,6 +270,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserUpdate))))
 	mux.Handle("DELETE /api/users/{id}", authed(adminOnly(http.HandlerFunc(s.handleUserDelete))))
 	mux.Handle("PUT /api/users/{id}/password", authed(adminOnly(http.HandlerFunc(s.handleUserPassword))))
+	mux.Handle("POST /api/users/{id}/approve", authed(adminOnly(http.HandlerFunc(s.handleUserApprove))))
 
 	// one-shot migration from the original Node weebsync's config.json
 	mux.Handle("POST /api/import/legacy", authed(http.HandlerFunc(s.handleLegacyImport)))

@@ -418,6 +418,10 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusForbidden, "this account signs in through OIDC")
 		return
 	}
+	if !s.approved(matched.id) {
+		writeErr(w, http.StatusForbidden, "account awaits approval")
+		return
+	}
 	// what this ceremony did, not the credential's latched flag
 	if parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
 		s.DB.Exec(`UPDATE webauthn_credentials SET uv_required = 1 WHERE credential_id = ?`, cred.ID)

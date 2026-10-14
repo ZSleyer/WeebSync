@@ -2,6 +2,7 @@
   "errors": {
     "net": {"refused": "Der Server ist nicht erreichbar, er lehnt die Verbindung ab.", "timeout": "Der Server antwortet nicht rechtzeitig.", "noHost": "Der Servername lässt sich nicht auflösen.", "reset": "Die Verbindung zum Server ist abgebrochen.", "unreachable": "Der Server ist aus diesem Netz nicht erreichbar.", "auth": "Der Server hat die Anmeldung abgelehnt.", "tls": "Das Zertifikat des Servers wird nicht anerkannt."},
     "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "awaitingApproval": "Dein Konto wartet noch auf die Freigabe durch einen Admin.",
     "upgradeRequired": "Dein Konto muss erst abgesichert werden.",
     "emailUnverified": "Bestätige zuerst deine E-Mail-Adresse: der Link ist in deinem Postfach.",
     "invalidCode": "Der Code ist falsch.",
@@ -254,6 +255,7 @@
   },
   "upgrade": {"title": "Konto absichern", "passwordTitle": "Neues Passwort nötig", "passwordHint": "Dein Passwort erfüllt die aktuellen Regeln nicht mehr: es ist zu kurz, sehr verbreitet oder aus deiner Adresse gebildet. Lege ein neues fest, dann geht es weiter.", "logout": "Abmelden", "passkeyTitle": "Passkey ersetzen", "passkeyHint": "Dein Passkey „{{name}}“ hat bei der Anmeldung weder PIN noch Fingerabdruck oder Gesicht verlangt. Damit ist er nur ein halber Schutz. Lege mit deinem Passwort einen neuen an, der dich bestätigt; der alte wird dann entfernt. Kann dein Gerät das nicht, entferne den alten und melde dich künftig mit Passwort an.", "passkeyReplace": "Neuen Passkey anlegen", "passkeyRemove": "Alten Passkey entfernen"},
   "login": {
+    "approvalPending": "Ein Admin muss dein Konto noch freischalten, du bekommst dann eine Mail.",
     "remember": "Angemeldet bleiben",
     "showPassword": "Zeigen",
     "hidePassword": "Verbergen",
@@ -281,6 +283,7 @@
     "passwordAgain": "Passwort wiederholen",
     "loggedOut": "Du bist abgemeldet.",
     "oidcError": {
+      "not_approved": "Dein Konto wartet noch auf die Freigabe durch einen Admin. Du bekommst eine Mail, sobald es freigeschaltet ist.",
       "generic": "Die Anmeldung über den Anbieter hat nicht geklappt. Versuch es noch einmal.",
       "not_configured": "Die Anmeldung über einen Anbieter ist nicht eingerichtet.",
       "invalid_state": "Die Anmeldung hat zu lange gedauert oder wurde doppelt geöffnet. Versuch es noch einmal.",
@@ -1561,6 +1564,8 @@
     "usersPasswordSet": "Neues Passwort für {{email}} gesetzt.",
     "usersCreated": "Konto {{email}} angelegt.",
     "usersUnverified": "Unbestätigt",
+    "usersApprove": "Freischalten",
+    "usersPending": "Wartet auf Freigabe",
     "usersCreate": "Anlegen",
     "usersOidcOnly": "Manuelles Anlegen ist im OIDC-Modus deaktiviert - Nutzer melden sich über den Identity-Provider an.",
     "usersAdmin": "Admin",

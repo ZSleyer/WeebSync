@@ -544,7 +544,8 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 	var recipients []recipient
 	for rows.Next() {
 		var email, prefs, locale string
-		if rows.Scan(&email, &prefs, &locale) == nil && slices.Contains(splitPrefs(prefs), category) {
+		// category "": every admin, whatever they subscribed to
+		if rows.Scan(&email, &prefs, &locale) == nil && (category == "" || slices.Contains(splitPrefs(prefs), category)) {
 			recipients = append(recipients, recipient{email, locale})
 		}
 	}
@@ -686,4 +687,38 @@ func (s *Server) handleSmtpTest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// notifyPendingUser tells every admin that an account waits for approval.
+// Not a subscription: nobody else can let it in.
+func (s *Server) notifyPendingUser(email string) {
+	s.EmailNotifyAdmins("", "email.pendingUserSubject", "email.pendingUserBody", email)
+}
+
+// approved reports whether an admin let the account in.
+func (s *Server) approved(userID int64) bool {
+	var ok bool
+	s.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&ok)
+	return ok
+}
+
+// mailApproved tells the owner that the account may sign in now.
+func (s *Server) mailApproved(userID int64) {
+	if s.Mail == nil || !s.Mail.Configured() {
+		return
+	}
+	var to, locale string
+	if s.DB.QueryRow(`SELECT email, locale FROM users WHERE id = ?`, userID).Scan(&to, &locale) != nil {
+		return
+	}
+	go func() {
+		subject := tr(locale, "email.approvedSubject")
+		body := tr(locale, "email.approvedBody")
+		if base := s.baseURL(); base != "" {
+			body += " " + base
+		}
+		if err := s.Mail.Send(to, "WeebSync – "+subject, body, emailHTML(locale, subject, emailLines([]string{body}), "", "")); err != nil {
+			slog.Warn("approval mail", "err", err)
+		}
+	}()
 }

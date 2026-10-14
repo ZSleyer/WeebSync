@@ -924,6 +924,10 @@ export interface Schemas {
   'api.RegisterResponse': {
     email: string
     id?: number
+    /**
+     * an admin has to let the account in before it can sign in
+     */
+    needsApproval?: boolean
     needsVerification?: boolean
   }
   'api.RenameLocalRequest': {
@@ -3068,6 +3072,10 @@ export interface Schemas {
     id: number
   }
   'api.userInfo': {
+    /**
+     * false while the account waits for an admin to let it in
+     */
+    approved: boolean
     createdAt: string
     email: string
     /**

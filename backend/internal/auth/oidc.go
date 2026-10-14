@@ -44,6 +44,9 @@ type Manager struct {
 	DB  *sql.DB
 	mu  sync.RWMutex
 	cur *OIDC
+	// OnPending is told of an account the provider's first sign-in created
+	// that waits for an admin's approval (the api package mails the admins)
+	OnPending func(email string)
 }
 
 func NewManager(ctx context.Context, d *sql.DB) *Manager {
@@ -285,7 +288,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 			admin = &isAdmin
 		}
 	}
-	userID, err := findOrCreateOIDCUser(m.DB, email, admin, len(o.userValues) > 0)
+	userID, created, err := findOrCreateOIDCUserNew(m.DB, email, admin, len(o.userValues) > 0)
 	if errors.Is(err, errNotProvisioned) {
 		callbackFail(w, r, "not_provisioned")
 		return
@@ -293,6 +296,16 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("oidc user lookup failed", "err", err)
 		callbackFail(w, r, "session_error")
+		return
+	}
+	// the provider vouches for who it is, an admin for whether they may in
+	var approved bool
+	m.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&approved)
+	if !approved {
+		if created && m.OnPending != nil {
+			m.OnPending(email)
+		}
+		callbackFail(w, r, "not_approved")
 		return
 	}
 	// the provider's session id ties our session to the one at the IdP, so a
@@ -364,6 +377,13 @@ func claimMatches(claims map[string]any, name string, values []string) bool {
 var errNotProvisioned = errors.New("oidc provisioning requires an allowed-group allowlist")
 
 func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int64, error) {
+	id, _, err := findOrCreateOIDCUserNew(d, email, admin, gated)
+	return id, err
+}
+
+// findOrCreateOIDCUserNew is findOrCreateOIDCUser that also reports whether
+// the account was created just now.
+func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (int64, bool, error) {
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
 	if err == nil {
@@ -372,36 +392,39 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 				var others int
 				if err := d.QueryRow(`SELECT COUNT(*) FROM users WHERE is_admin = 1 AND id != ?`, id).Scan(&others); err != nil || others == 0 {
 					slog.Warn("oidc admin mapping: not demoting the last admin", "email", email)
-					return id, nil
+					return id, false, nil
 				}
 			}
 			d.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, *admin, id)
 		}
-		return id, nil
+		return id, false, nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
-		return 0, err
+		return 0, false, err
 	}
 	// new identity: provision only when access is actually gated by an allowlist,
 	// or when this is the very first account (an install must never be adminless).
 	if !gated {
 		var users int
 		if err := d.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-			return 0, err
+			return 0, false, err
 		}
 		if users > 0 {
-			return 0, errNotProvisioned
+			return 0, false, errNotProvisioned
 		}
 	}
 	// first user always becomes admin (an install must never be adminless)
 	// verified: the callback only gets here with the provider's email_verified;
 	// unverified, the account never got a notification mail
-	res, err := d.Exec(`INSERT INTO users (email, is_admin, email_verified, upgrade_dims) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?, 1, 'res,sub,dub,soft')`,
-		email, admin != nil && *admin)
+	// approved: the first account (the admin) and one the provider's groups
+	// make an admin; anyone else waits for an admin to let them in
+	res, err := d.Exec(`INSERT INTO users (email, is_admin, email_verified, upgrade_dims, approved) VALUES (?, (SELECT COUNT(*) = 0 FROM users) OR ?, 1, 'res,sub,dub,soft', (SELECT COUNT(*) = 0 FROM users) OR ?)`,
+		email, admin != nil && *admin, admin != nil && *admin)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	return res.LastInsertId()
+	newID, err := res.LastInsertId()
+	return newID, true, err
 }
 
 // RegistrationDisabled reports whether open self-registration is off. It is

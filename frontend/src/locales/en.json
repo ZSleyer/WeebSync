@@ -2,6 +2,7 @@
   "errors": {
     "net": {"refused": "The server cannot be reached, it refuses the connection.", "timeout": "The server does not answer in time.", "noHost": "The server name cannot be resolved.", "reset": "The connection to the server broke off.", "unreachable": "The server cannot be reached from this network.", "auth": "The server refused the sign-in.", "tls": "The server's certificate is not trusted."},
     "invalidCredentials": "Email or password is wrong.",
+    "awaitingApproval": "Your account is still waiting for an admin to approve it.",
     "upgradeRequired": "Your account has to be secured first.",
     "emailUnverified": "Confirm your email address first: the link is in your inbox.",
     "invalidCode": "That code is wrong.",
@@ -254,6 +255,7 @@
   },
   "upgrade": {"title": "Secure your account", "passwordTitle": "New password needed", "passwordHint": "Your password no longer meets the current rules: it is too short, very common or built from your address. Set a new one to continue.", "logout": "Sign out", "passkeyTitle": "Replace your passkey", "passkeyHint": "Your passkey \"{{name}}\" signed in without asking for a PIN, fingerprint or face, so it protects only half as much. Confirm with your password and create a new one that verifies you; the old one is removed then. If your device cannot do that, remove the old one and sign in with your password from now on.", "passkeyReplace": "Create a new passkey", "passkeyRemove": "Remove the old passkey"},
   "login": {
+    "approvalPending": "An admin still has to approve your account; you will get a mail then.",
     "remember": "Stay signed in",
     "showPassword": "Show",
     "hidePassword": "Hide",
@@ -281,6 +283,7 @@
     "passwordAgain": "Password again",
     "loggedOut": "You are signed out.",
     "oidcError": {
+      "not_approved": "Your account is still waiting for an admin to approve it. You will get a mail once it is.",
       "generic": "Signing in through the provider did not work. Try again.",
       "not_configured": "Sign-in through a provider is not set up.",
       "invalid_state": "The sign-in took too long or was opened twice. Try again.",
@@ -1561,6 +1564,8 @@
     "usersPasswordSet": "New password set for {{email}}.",
     "usersCreated": "Account {{email}} created.",
     "usersUnverified": "Unconfirmed",
+    "usersApprove": "Approve",
+    "usersPending": "Awaiting approval",
     "usersCreate": "Create",
     "usersOidcOnly": "Manual creation is disabled in OIDC mode - users onboard via the identity provider.",
     "usersAdmin": "Admin",

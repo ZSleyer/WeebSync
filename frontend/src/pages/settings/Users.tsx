@@ -67,6 +67,10 @@ export default function Users() {
     mutationFn: (id: number) => api.del(`/api/users/${id}`),
     ...opts,
   })
+  const approve = useMutation({
+    mutationFn: (id: number) => api.post(`/api/users/${id}/approve`),
+    ...opts,
+  })
 
   // how accounts sign in and where their role comes from: the instance's
   // mode, the API has no per-account method
@@ -91,11 +95,17 @@ export default function Users() {
                 {u.id === meId && <Badge>{t('settings.usersYou')}</Badge>}
                 {u.isAdmin && <Badge tone="ok">{t('settings.usersAdmin')}</Badge>}
                 {!u.emailVerified && <Badge tone="warn">{t('settings.usersUnverified')}</Badge>}
+                {!u.approved && <Badge tone="warn">{t('settings.usersPending')}</Badge>}
               </span>
             }
             sub={[via, role].filter(Boolean).join(' · ')}
             trailing={
               <span className="ws-user-acts">
+                {!u.approved && (
+                  <RowAction disabled={approve.isPending} onClick={() => approve.mutate(u.id)}>
+                    {t('settings.usersApprove')}
+                  </RowAction>
+                )}
                 {!rolesManagedByOidc && (
                   <RowAction
                     disabled={toggle.isPending}

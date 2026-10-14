@@ -16,6 +16,8 @@ type userInfo struct {
 	CreatedAt string `json:"createdAt"`
 	// false while a self-registered account has not confirmed its address
 	EmailVerified bool `json:"emailVerified"`
+	// false while the account waits for an admin to let it in
+	Approved bool `json:"approved"`
 }
 
 // userCreatedResponse is returned when a user is created.
@@ -43,7 +45,7 @@ type userUpdatedResponse struct {
 // @Security     CookieAuth
 // @Router       /api/users [get]
 func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
-	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at, email_verified FROM users ORDER BY id`)
+	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at, email_verified, approved FROM users ORDER BY id`)
 	if err != nil {
 		dbErr(w)
 		return
@@ -52,7 +54,7 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	users := []userInfo{}
 	for rows.Next() {
 		var u userInfo
-		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt, &u.EmailVerified); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt, &u.EmailVerified, &u.Approved); err != nil {
 			dbErr(w)
 			return
 		}
@@ -173,6 +175,38 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, userUpdatedResponse{ID: id, IsAdmin: body.IsAdmin})
+}
+
+// handleUserApprove lets an account that signed itself up in.
+//
+// @Summary      Approve user
+// @Description  Lets a self-registered or provider-created account sign in (admin only) and mails its owner. Rejecting one is deleting it.
+// @Tags         Users
+// @Produce      json
+// @Param        id  path  int  true  "user id"
+// @Success      200  {object}  OkResponse
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Failure      404  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/users/{id}/approve [post]
+func (s *Server) handleUserApprove(w http.ResponseWriter, r *http.Request) {
+	id := pathID(r)
+	res, err := s.DB.Exec(`UPDATE users SET approved = 1 WHERE id = ? AND approved = 0`, id)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		if s.userExists(id) {
+			writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+			return
+		}
+		writeErr(w, http.StatusNotFound, "user not found")
+		return
+	}
+	s.mailApproved(id)
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // handleUserDelete removes a user account.

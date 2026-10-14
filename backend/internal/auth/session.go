@@ -328,7 +328,7 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 				var remember bool
 				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
 					FROM sessions s JOIN users u ON u.id = s.user_id
-					WHERE s.token_hash = ?`, hashToken(c.Value)).
+					WHERE s.token_hash = ? AND u.approved = 1`, hashToken(c.Value)).
 					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
 				if err == nil {
 					now := time.Now()

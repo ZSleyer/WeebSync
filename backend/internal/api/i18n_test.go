@@ -51,8 +51,9 @@ func TestRegisterStoresLocale(t *testing.T) {
 	mux, s, _, _, _, _ := setupUsersTest(t)
 	db.SetSetting(s.DB, "registration_disabled", "false") // open self-registration for this test
 
+	// a second account waits for approval: 200 with needsApproval, no session
 	rec := doReq(mux, "POST", "/api/auth/register", `{"email":"neu@example.com","password":"longpassword12","locale":"de"}`, nil)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("register: got %d: %s", rec.Code, rec.Body.String())
 	}
 	var id int64
@@ -64,7 +65,7 @@ func TestRegisterStoresLocale(t *testing.T) {
 	}
 	// invalid locale is dropped, not rejected
 	rec = doReq(mux, "POST", "/api/auth/register", `{"email":"neu2@example.com","password":"longpassword12","locale":"xx"}`, nil)
-	if rec.Code != http.StatusCreated {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("register invalid locale: got %d: %s", rec.Code, rec.Body.String())
 	}
 	if !strings.Contains(rec.Body.String(), "neu2@example.com") {

@@ -2223,6 +2223,10 @@
                     "id": {
                         "type": "integer"
                     },
+                    "needsApproval": {
+                        "description": "an admin has to let the account in before it can sign in",
+                        "type": "boolean"
+                    },
                     "needsVerification": {
                         "type": "boolean"
                     }
@@ -7050,6 +7054,10 @@
             },
             "api.userInfo": {
                 "properties": {
+                    "approved": {
+                        "description": "false while the account waits for an admin to let it in",
+                        "type": "boolean"
+                    },
                     "createdAt": {
                         "type": "string"
                     },
@@ -7072,7 +7080,8 @@
                     "email",
                     "isAdmin",
                     "createdAt",
-                    "emailVerified"
+                    "emailVerified",
+                    "approved"
                 ],
                 "type": "object"
             },
@@ -19683,6 +19692,73 @@
                     }
                 ],
                 "summary": "Update user role",
+                "tags": [
+                    "Users"
+                ]
+            }
+        },
+        "/api/users/{id}/approve": {
+            "post": {
+                "description": "Lets a self-registered or provider-created account sign in (admin only) and mails its owner. Rejecting one is deleting it.",
+                "parameters": [
+                    {
+                        "description": "user id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Approve user",
                 "tags": [
                     "Users"
                 ]

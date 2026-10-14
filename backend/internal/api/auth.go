@@ -49,6 +49,8 @@ type RegisterResponse struct {
 	ID                int64  `json:"id,omitempty"`
 	Email             string `json:"email"`
 	NeedsVerification bool   `json:"needsVerification,omitempty"`
+	// an admin has to let the account in before it can sign in
+	NeedsApproval bool `json:"needsApproval,omitempty"`
 }
 
 // handleRegister creates a local account. The first-ever account becomes the
@@ -112,23 +114,28 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		verified, token = 0, randToken()
 		stored = hashToken(token)
 	}
-	// first user becomes admin
-	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, verify_sent_at, locale, upgrade_dims)
-		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft')`, c.Email, hash, verified, stored, stored, validLocale(c.Locale))
+	// first user becomes admin; everyone after waits for an admin to let them
+	// in, open registration or not
+	approved := existing == 0
+	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, verify_sent_at, locale, upgrade_dims, approved)
+		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft', ?)`, c.Email, hash, verified, stored, stored, validLocale(c.Locale), approved)
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return
 	}
 	id, _ := res.LastInsertId()
 
-	// notify admins who subscribed (skip the very first account - it IS the admin)
-	if existing > 0 {
-		s.EmailNotifyAdmins("admin_new_user", "email.newUserSubject", "email.newUserBody", c.Email)
+	// the admins hear of it whatever their mail settings say: nobody else
+	// can let the account in (the very first account IS the admin)
+	if !approved {
+		s.notifyPendingUser(c.Email)
 	}
 
 	if needVerify {
 		go s.sendVerifyEmail(c.Email, token, s.userLocale(id))
-		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: true, Email: c.Email})
+	}
+	if needVerify || !approved {
+		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: needVerify, NeedsApproval: !approved, Email: c.Email})
 		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id, c.Remember); err != nil {
@@ -248,7 +255,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var id int64
 	var hash string
 	var verified int
-	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified)
+	var approved bool
+	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified, approved FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified, &approved)
 	if err != nil && err != sql.ErrNoRows {
 		dbErr(w)
 		return
@@ -275,6 +283,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// The hold waits for the whole sign-in: a stranger who knows the old
 	// password and fails the second factor must not hold the owner's sessions.
 	weak := auth.ValidatePassword(c.Password, c.Email) != nil
+	if !approved {
+		writeErr(w, http.StatusForbidden, "account awaits approval")
+		return
+	}
 	// Without a mail server there is no inbox to check and no link could come:
 	// the account was registered while one was set up, which is gone since.
 	// Verification is only asked for when mail can deliver it, the same rule

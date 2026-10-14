@@ -234,6 +234,7 @@ export class ApiError extends Error {
 // the server's exact words, so an unknown one passes through unchanged.
 const ERROR_KEYS: Record<string, string> = {
   'invalid credentials': 'errors.invalidCredentials',
+  'account awaits approval': 'errors.awaitingApproval',
   'account upgrade required': 'errors.upgradeRequired',
   'email not verified - check your inbox': 'errors.emailUnverified',
   'invalid code': 'errors.invalidCode',

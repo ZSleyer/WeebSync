@@ -138,15 +138,20 @@ export default function Login() {
       const res = await api.post<
         User & {
           needsVerification?: boolean
+          needsApproval?: boolean
           twoFactorRequired?: boolean
           token?: string
           totp?: boolean
           webauthn?: boolean
         }
       >(`/api/auth/${mode}`, { email, password, locale: i18n.language, remember })
-      if (res.needsVerification) {
-        // account created but must confirm email before logging in
-        setNotice(t('login.verifySent'))
+      if (res.needsVerification || res.needsApproval) {
+        // account created but must confirm email and/or wait for an admin
+        setNotice(
+          [res.needsVerification && t('login.verifySent'), res.needsApproval && t('login.approvalPending')]
+            .filter(Boolean)
+            .join(' '),
+        )
         setMode('login')
         setPassword('')
         return

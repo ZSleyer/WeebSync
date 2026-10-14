@@ -131,6 +131,22 @@ var catalog = map[string]map[string]string{
 		"en": "A passkey or security key was removed from your account and can no longer sign in.",
 		"de": "Ein Passkey oder Sicherheitsschlüssel wurde von deinem Konto entfernt und kann sich nicht mehr anmelden.",
 	},
+	"email.pendingUserSubject": {
+		"en": "An account waits for approval",
+		"de": "Ein Konto wartet auf Freigabe",
+	},
+	"email.pendingUserBody": {
+		"en": "%s signed up and waits for an admin to let them in: Settings → Users.",
+		"de": "%s hat sich registriert und wartet darauf, dass ein Admin das Konto freischaltet: Einstellungen → Benutzer.",
+	},
+	"email.approvedSubject": {
+		"en": "Your account is approved",
+		"de": "Dein Konto ist freigeschaltet",
+	},
+	"email.approvedBody": {
+		"en": "An admin let your account in. You can sign in now:",
+		"de": "Ein Admin hat dein Konto freigeschaltet. Du kannst dich jetzt anmelden:",
+	},
 	"email.downloadDoneOne": {
 		"en": "Download finished",
 		"de": "Download fertig",
