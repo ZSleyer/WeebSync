@@ -335,6 +335,9 @@ function Composer({ w }: { w: Writes }) {
         onChange={(e) => w.setDraft(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Escape') {
+            // the composer closes, not the reader: a dialog takes Escape as its
+            // own close request unless the key event is cancelled
+            e.preventDefault()
             e.stopPropagation()
             w.cancel()
           }
