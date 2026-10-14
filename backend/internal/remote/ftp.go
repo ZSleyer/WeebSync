@@ -9,6 +9,7 @@ import (
 	"net"
 	"path"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -20,6 +21,15 @@ type ftpClient struct {
 }
 
 func dialFTP(cfg Config) (Client, error) {
+	// FTPS: certificate and host name checked against the system roots (a
+	// private CA comes in through SSL_CERT_FILE / SSL_CERT_DIR), nothing
+	// older than TLS 1.2, and one session cache for the control and every
+	// data connection, which servers that insist on TLS session reuse need
+	var tlsCfg *tls.Config
+	if cfg.Protocol == "ftps" {
+		tlsCfg = &tls.Config{ServerName: cfg.Host, MinVersion: tls.VersionTLS12, ClientSessionCache: tls.NewLRUClientSessionCache(16)}
+	}
+	var dials atomic.Int32
 	opts := []ftp.DialOption{
 		ftp.DialWithTimeout(15 * time.Second),
 		ftp.DialWithDialFunc(func(network, address string) (net.Conn, error) {
@@ -31,11 +41,22 @@ func dialFTP(cfg Config) (Client, error) {
 			if err != nil {
 				return nil, err
 			}
-			return netguard.SafeDial(context.Background(), network, host, port, 15*time.Second)
+			conn, err := netguard.SafeDial(context.Background(), network, host, port, 15*time.Second)
+			// The first dial is the control connection, which the library
+			// upgrades itself (AUTH TLS). Every later one is a data
+			// connection: with a dial func the library hands it back as it
+			// came, so after announcing PROT P it is wrapped here, or files
+			// and listings would cross the network in clear text. The
+			// handshake runs on the first read, as in the library, which
+			// some servers need.
+			if err != nil || tlsCfg == nil || dials.Add(1) == 1 {
+				return conn, err
+			}
+			return tls.Client(conn, tlsCfg), nil
 		}),
 	}
-	if cfg.Protocol == "ftps" {
-		opts = append(opts, ftp.DialWithExplicitTLS(&tls.Config{ServerName: cfg.Host}))
+	if tlsCfg != nil {
+		opts = append(opts, ftp.DialWithExplicitTLS(tlsCfg))
 	}
 	conn, err := ftp.Dial(fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), opts...)
 	if err != nil {
