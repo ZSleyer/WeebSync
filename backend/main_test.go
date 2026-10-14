@@ -119,3 +119,23 @@ func TestSPACachesOnlyTheHashedBundles(t *testing.T) {
 		}
 	}
 }
+
+// A bundle an older build named is gone after a deploy: it must 404, not
+// answer as the page, or the browser keeps the page under the bundle's name.
+func TestSPAMissingBundleIsNotThePage(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("page"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := spaHandler(dir)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/assets/Gone-abc123.js", nil))
+	if rec.Code != 404 {
+		t.Errorf("missing bundle: status %d, want 404", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/settings/account", nil))
+	if rec.Code != 200 || rec.Body.String() != "page" {
+		t.Errorf("client route: status %d body %q, want the page", rec.Code, rec.Body.String())
+	}
+}

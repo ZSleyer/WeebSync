@@ -304,6 +304,13 @@ func spaHandler(dir string) http.Handler {
 		// cache header it gets cached on its Last-Modified alone, and a tab
 		// boots an old build while the update check fetches the new one
 		if info, err := os.Stat(path); err != nil || info.IsDir() {
+			// a bundle of an older build is gone after a deploy: the page as
+			// 200 HTML under its name would be cached and revalidated as it,
+			// so even a reload kept failing on it
+			if strings.HasPrefix(r.URL.Path, "/assets/") {
+				http.NotFound(w, r)
+				return
+			}
 			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
 			return
