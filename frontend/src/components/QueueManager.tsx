@@ -288,8 +288,6 @@ export function QueueManager() {
       : wide
         ? finished.slice(0, 20)
         : [...finished.filter((d) => d.status === 'error'), ...finished.filter((d) => d.status !== 'error')].slice(0, 6)
-  const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
-  const anyPaused = downloads.some((d) => d.status === 'paused')
   // 1s tick so the retry countdowns stay live, gated on there being one: an
   // ungated interval re-renders the whole queue every second for nothing
   const [, setTick] = useState(0)
@@ -578,7 +576,6 @@ export function QueueManager() {
             {t('dash.cancelAll')}
           </Button>
         )}
-        {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
       </Toolbar>
     </Toolbar>
   )
@@ -953,22 +950,6 @@ export function QueueManager() {
   return (
     <div className="flex flex-col gap-6">
       {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
-      {(anyActive || anyPaused) && (
-        <div className="flex flex-wrap gap-2">
-          {anyActive && (
-            <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
-              <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('dash.pauseAll')}
-            </Button>
-          )}
-          {anyPaused && (
-            <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
-              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('dash.resumeAll')}
-            </Button>
-          )}
-        </div>
-      )}
       {transfer}
       {history}
       {selectionFooter}
@@ -1656,7 +1637,7 @@ function LimitInput({
 
 // Quick global rate limit (admin): reads the current value from the admin
 // settings query, writes via the dedicated dashboard endpoint.
-function GlobalLimitInput({ caption }: { caption?: boolean }) {
+export function GlobalLimitInput({ caption }: { caption?: boolean }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data: settings } = useQuery<{ globalRateLimit: number }>({
