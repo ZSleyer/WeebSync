@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal, flushSync } from 'react-dom'
 import {
+  ArrowDown,
+  ArrowUp,
   BookOpen,
   CalendarDays,
   CalendarRange,
@@ -55,6 +57,7 @@ import { CoverImg } from '../components/SmartImg'
 import { coverSet } from '../images'
 import { useNow } from '../hooks'
 import { usePersistedView } from '../hooks/usePersistedView'
+import { WATCH_SORTS, groupWatches } from '../watchGroups'
 import {
   calDayHeading,
   checkCell,
@@ -143,7 +146,10 @@ export default function Watches() {
   )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
   const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
-  const [sort, setSort] = useState<'next' | 'last' | 'name' | 'season'>('next')
+  // the order, and with it the sections the tiles fall under; remembered,
+  // with its direction (a second pick of the same sort turns it around)
+  const [sort, setSort] = usePersistedView('weebsync.watches.sort', WATCH_SORTS, 'next', 'sort')
+  const [dir, setDir] = usePersistedView('weebsync.watches.dir', ['asc', 'desc'] as const, 'asc', 'dir')
 
   // search: a field in the title row on a desktop, a pill growing out of the
   // magnifier over the phone's top bar. The tiles reflow once typing pauses.
@@ -181,7 +187,7 @@ export default function Watches() {
   // every box is measured before any name is written, so the layout is read
   // once. The grid holds data-morph meanwhile: the page-entry rise, which the
   // address change would replay, stays out of the morph.
-  const grid = useRef<HTMLUListElement>(null)
+  const grid = useRef<HTMLDivElement>(null)
   const morphTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const reorder = (update: () => void) => {
     const g = grid.current
@@ -281,27 +287,13 @@ export default function Watches() {
   const now = useNow(view === 'calendar' && hasToday ? 1000 : 60_000)
 
   // ── the tiles ──
-  const nextTs = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
-  const nameKey = (w: Watch) => watchName(w).toLowerCase()
-  const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
-  const sorted = [...ofKind].sort((a, b) => {
-    switch (sort) {
-      case 'last':
-        return (
-          (Date.parse(b.lastCheck.replace(' ', 'T') + 'Z') || 0) -
-          (Date.parse(a.lastCheck.replace(' ', 'T') + 'Z') || 0)
-        )
-      case 'name':
-        return nameKey(a).localeCompare(nameKey(b))
-      case 'season':
-        return seasonOf(a) - seasonOf(b) || nameKey(a).localeCompare(nameKey(b))
-      default:
-        return nextTs(a) - nextTs(b)
-    }
-  })
   // the search: title or folder, case and accents folded
   const matches = (w: Watch) => !needle || fold(`${watchName(w)} ${w.remotePath}`).includes(needle)
-  const shown = sorted.filter((w) => (manga || matchesFilter(w, filter)) && matches(w))
+  const searched = ofKind.filter(matches)
+  const shown = searched.filter((w) => manga || matchesFilter(w, filter))
+  const groups = groupWatches(shown, sort, dir, now)
+  // the filter's counts, over what the search leaves
+  const filterCount = (f: (typeof WATCH_FILTERS)[number]) => searched.filter((w) => matchesFilter(w, f)).length
   const layout = mode === 'list' ? 'list' : 'grid'
 
   // Tiles below the first screen rise as they scroll in (useReveal); those on
@@ -309,7 +301,7 @@ export default function Watches() {
   useLayoutEffect(() => {
     const g = grid.current
     if (!g) return
-    const items = [...g.children] as HTMLElement[]
+    const items = [...g.querySelectorAll<HTMLElement>('.w-grid > li')]
     const below = items.map((el) => el.getBoundingClientRect().top >= innerHeight)
     items.forEach((el, i) => el.classList.toggle('t-reveal', below[i] || el.dataset.in !== undefined))
   }, [shown.length, layout, view])
@@ -456,10 +448,13 @@ export default function Watches() {
   const { open: sortOpen, setOpen: setSortOpen, ref: sortRef, anchor: sortAnchor, anchorStyle: sortStyle } = useMenu()
   const SORT_OPTS = [
     { v: 'next', k: 'watch.sortNext' },
-    { v: 'last', k: 'watch.sortLast' },
+    { v: 'status', k: 'watch.sortStatus' },
     { v: 'name', k: 'watch.sortName' },
+    { v: 'last', k: 'watch.sortLast' },
     { v: 'season', k: 'watch.sortSeason' },
   ] as const
+  const sortLabel = t(SORT_OPTS.find((o) => o.v === sort)?.k ?? 'watch.sortNext')
+  const Arrow = dir === 'asc' ? ArrowUp : ArrowDown
   const icon = (Icon: typeof List) => <Icon aria-hidden />
 
   const searchField = (bar: boolean) => (
@@ -525,7 +520,15 @@ export default function Watches() {
               className="w-filter"
               value={filter}
               onChange={(f) => reorder(() => setRawFilter(f))}
-              options={WATCH_FILTERS.map((f) => ({ value: f, label: t(`watch.filter.${f}`) }))}
+              options={WATCH_FILTERS.map((f) => ({
+                value: f,
+                label: (
+                  <>
+                    {t(`watch.filter.${f}`)}
+                    <span className="w-count">{filterCount(f)}</span>
+                  </>
+                ),
+              }))}
             />
           )}
           <div className="w-end">
@@ -546,16 +549,22 @@ export default function Watches() {
             )}
             {view === 'tiles' && (
               <div className="relative" ref={sortRef} style={sortStyle}>
-                <IconButton
-                  size="sm"
+                <button
+                  type="button"
+                  className="w-sort"
                   aria-haspopup="listbox"
                   aria-expanded={sortOpen}
-                  aria-label={t('watch.sortBy')}
-                  title={t('watch.sortBy')}
                   onClick={() => setSortOpen((o) => !o)}
                 >
-                  <SlidersHorizontal aria-hidden size="1.125rem" />
-                </IconButton>
+                  <SlidersHorizontal aria-hidden size="1rem" />
+                  <span className="sr-only">{t('watch.sortBy')}: </span>
+                  {sortLabel}
+                  <Arrow
+                    aria-label={t(dir === 'asc' ? 'watch.sortAsc' : 'watch.sortDesc')}
+                    size="0.9375rem"
+                    className="w-sort-dir"
+                  />
+                </button>
                 {sortOpen && (
                   <Menu anchor={sortAnchor} placement="bottom-end" aria-label={t('watch.sortBy')}>
                     <li role="presentation" className="w-sort-cap">
@@ -565,13 +574,21 @@ export default function Watches() {
                       <MenuItem
                         key={o.v}
                         selected={sort === o.v}
-                        trailing={<Check aria-hidden size="1.2em" className="shrink-0" />}
+                        trailing={
+                          sort === o.v ? (
+                            <Arrow aria-hidden size="1.1em" className="shrink-0 text-accent-2" />
+                          ) : undefined
+                        }
                         onClick={() => {
-                          reorder(() => setSort(o.v))
+                          // the same sort again turns its direction around
+                          reorder(() => (sort === o.v ? setDir(dir === 'asc' ? 'desc' : 'asc') : setSort(o.v)))
                           setSortOpen(false)
                         }}
                       >
-                        {t(o.k)}
+                        <span className="w-sort-opt">
+                          {t(o.k)}
+                          <small>{t(`watch.sortHint.${o.v}`)}</small>
+                        </span>
                       </MenuItem>
                     ))}
                   </Menu>
@@ -729,19 +746,32 @@ export default function Watches() {
         )
       ) : (
         <>
-          <ul ref={grid} className={`w-grid ${layout === 'list' ? 'as-list' : ''}`} data-rise="">
-            {shown.map((w, i) => (
-              <WatchTile
-                key={w.id}
-                watch={w}
-                list={layout === 'list'}
-                eager={i < 12}
-                now={now}
-                onOpen={() => openTile(w)}
-                onMore={narrow ? () => setMore(w) : undefined}
-              />
+          <div ref={grid} className="w-groups">
+            {groups.map((g, gi) => (
+              <section key={g.key} className="w-group" aria-label={t(g.label, g.values)}>
+                <SectionHeading
+                  level={3}
+                  tone={g.tone}
+                  className="w-group-h"
+                  title={t(g.label, g.values)}
+                  action={<span className="w-group-n">{g.watches.length}</span>}
+                />
+                <ul className={`w-grid ${layout === 'list' ? 'as-list' : ''}`} data-rise="">
+                  {g.watches.map((w, i) => (
+                    <WatchTile
+                      key={w.id}
+                      watch={w}
+                      list={layout === 'list'}
+                      eager={gi === 0 && i < 12}
+                      now={now}
+                      onOpen={() => openTile(w)}
+                      onMore={narrow ? () => setMore(w) : undefined}
+                    />
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
           {shown.length === 0 && <p className="t-empty">{t('watch.searchEmpty')}</p>}
         </>
       )}
