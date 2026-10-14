@@ -67,19 +67,21 @@ const TOKEN = new RegExp(
 
 /** Markers AniList draws as formatting, dropped to plain text. */
 function plain(s: string): string {
-  return (
-    s
-      // HTML AniList passes through: line breaks stay, every other tag goes
-      .replace(/<br\s*\/?>/gi, '\n')
-      .replace(/<\/?[a-z][^>]*>/gi, '')
-      .replace(/~~~/g, '')
-      .replace(/~~(.+?)~~/g, '$1')
-      .replace(/(\*\*|__)(.+?)\1/g, '$2')
-      .replace(/(^|[\s(])[*_]([^*_\s][^*_\n]*?)[*_](?=[\s).,!?:]|$)/gm, '$1$2')
-      .replace(/^\s{0,3}#{1,6}\s+/gm, '')
-      .replace(/^\s{0,3}>\s?/gm, '')
-      .replace(/^\s{0,3}([-*_])\1{2,}\s*$/gm, '')
-  )
+  // HTML AniList passes through: line breaks stay, every other tag goes,
+  // until none is left, so "<scr<b>ipt>" can't close up into a new tag
+  let t = s.replace(/<br\s*\/?>/gi, '\n')
+  for (let prev = ''; prev !== t;) {
+    prev = t
+    t = t.replace(/<\/?[a-z][^>]*>/gi, '')
+  }
+  return t
+    .replace(/~~~/g, '')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/(\*\*|__)(.+?)\1/g, '$2')
+    .replace(/(^|[\s(])[*_]([^*_\s][^*_\n]*?)[*_](?=[\s).,!?:]|$)/gm, '$1$2')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/^\s{0,3}([-*_])\1{2,}\s*$/gm, '')
 }
 
 function textTokens(s: string, out: Inline[]) {

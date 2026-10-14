@@ -119,6 +119,8 @@ describe('parseThreadText', () => {
     const flat = JSON.stringify(out)
     expect(flat).not.toContain('<script')
     expect(flat).not.toContain('onerror')
+    // a tag split by another tag doesn't close up once the inner one goes
+    expect(JSON.stringify(parseThreadText('<scr<b>ipt>alert(1)</scr</b>ipt>'))).not.toContain('<script')
     expect(out.flat().some((t) => t.kind === 'link' || t.kind === 'media')).toBe(false)
     // and a real link next to a script one keeps only the real one
     const mixed = parseInline('[a](javascript:alert(1)) https://ok.test/x')
