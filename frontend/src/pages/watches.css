@@ -180,6 +180,11 @@
   font-size: 0.75rem;
   color: var(--fg-3);
   font-variant-numeric: tabular-nums;
+  /* an attention text can run long: two lines, the rest is on the page */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 .w-tile .w-sub[data-tone='gap'],
 .w-tile .w-sub[data-tone='warn'] {
