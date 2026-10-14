@@ -16,6 +16,14 @@ export const PHONE_HERO_MQ = '(max-width: 719px)'
 const LAST_KEY = 'weebsync.today.pattern'
 const NO_BANNERS: Banners = { banners: [], watches: 1 }
 
+// how a refresh's new page takes over from the old one: drawn anew each
+// time, a plain fade where motion is turned down
+const BLENDS = ['zoom', 'blur', 'dots', 'wipe', 'duo', 'push'] as const
+function pickBlend(): string {
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 'fade'
+  return BLENDS[Math.floor(Math.random() * BLENDS.length)]
+}
+
 // the deal last shown: a step back in history to the page shows it again
 // (same banners from the cache, same cut) instead of fetching and decoding
 // a new set while the page comes back
@@ -207,9 +215,48 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
     })
   }, [cut, box, data, usable])
 
+  // a refresh deals new banners: the old page stays on top and leaves over
+  // the new one (already decoded by the refresh) instead of swapping in one
+  // frame. A resize or a dropped picture redraws without it.
+  const [seen, setSeen] = useState({ data, panels })
+  const [gone, setGone] = useState<{ panels: typeof panels; blend: string } | null>(null)
+  if (seen.panels !== panels) {
+    setSeen({ data, panels })
+    if (enter && seen.data && data && seen.data !== data && seen.panels.length)
+      setGone({ panels: seen.panels, blend: pickBlend() })
+  }
+  useEffect(() => {
+    if (!gone) return
+    const id = setTimeout(() => setGone(null), 1000)
+    return () => clearTimeout(id)
+  }, [gone])
+
+  const art = (b: Banner, p: (typeof panels)[number], onError?: () => void) => (
+    <span
+      className="t-art"
+      data-duo={p.tone === 'plain' ? undefined : p.tone === 'red' ? 'accent' : 'accent-2'}
+      style={{ '--tone-dir': p.dots } as CSSProperties}
+    >
+      <img
+        src={b.url}
+        alt=""
+        decoding="async"
+        loading="eager"
+        fetchPriority={p.k === 0 ? 'high' : undefined}
+        onError={onError}
+      />
+      {!p.phone && <i aria-hidden className="t-art-dots" />}
+    </span>
+  )
+
   const noWatches = data?.watches === 0
   return (
-    <div className="td-hero" data-enter={enter || undefined} data-loading={isPending || undefined}>
+    <div
+      className="td-hero"
+      data-enter={enter || undefined}
+      data-loading={isPending || undefined}
+      data-blend={gone?.blend}
+    >
       <div ref={pageRef} className="td-page" role="group" aria-label={t('today.bannerLabel')}>
         {panels.map((p) => {
           const style = { ...p.style, '--k': p.k } as CSSProperties
@@ -227,24 +274,23 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
               onClick={() => openPanel(b)}
               style={style}
             >
-              <span
-                className="t-art"
-                data-duo={p.tone === 'plain' ? undefined : p.tone === 'red' ? 'accent' : 'accent-2'}
-                style={{ '--tone-dir': p.dots } as CSSProperties}
-              >
-                <img
-                  src={b.url}
-                  alt=""
-                  decoding="async"
-                  loading="eager"
-                  fetchPriority={p.k === 0 ? 'high' : undefined}
-                  onError={() => setFailed((f) => new Set(f).add(`${b.source}|${b.id}`))}
-                />
-                {!p.phone && <i aria-hidden className="t-art-dots" />}
-              </span>
+              {art(b, p, () => setFailed((f) => new Set(f).add(`${b.source}|${b.id}`)))}
             </button>
           )
         })}
+        {gone?.panels.map((p) => (
+          <span
+            key={`gone-${p.key}`}
+            aria-hidden
+            className={p.b ? 'td-pn td-gone' : 'td-pn td-tone td-gone'}
+            data-fill={p.b ? undefined : p.fill}
+            data-tone={p.b ? p.tone : undefined}
+            data-phone={p.phone || undefined}
+            style={p.style}
+          >
+            {p.b && art(p.b, p)}
+          </span>
+        ))}
       </div>
       <div ref={caption} className="td-cap">
         <p className="td-date t-wipe" style={{ '--i': 0 } as CSSProperties}>

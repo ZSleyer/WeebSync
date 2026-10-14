@@ -82,6 +82,69 @@ span.td-pn { cursor: default; }
   .td-hero[data-enter] .td-pn { animation: td-panel 700ms var(--ease-enter) calc(var(--k, 0) * 70ms) backwards; }
 }
 @keyframes td-panel { from { opacity: 0; translate: 18px 0; } }
+/* a refresh: the old page lies on top (.td-gone) and leaves the way
+   data-blend says, the new one's art moves in under it */
+@property --td-r { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --td-x { syntax: "<percentage>"; inherits: true; initial-value: 0%; }
+.td-hero .td-pn.td-gone,
+.td-hero[data-enter] .td-pn.td-gone {
+  pointer-events: none;
+  background: transparent;
+  animation: td-fade 520ms var(--ease-out) forwards;
+}
+.td-gone.td-tone { background: var(--card); }
+@keyframes td-fade { to { opacity: 0; } }
+
+/* zoom: the new art settles from a step closer */
+.td-hero[data-blend="zoom"] .td-pn.td-gone { animation: td-fade 420ms linear forwards; }
+.td-hero[data-blend="zoom"] .td-pn:not(.td-gone) .t-art { animation: td-zoom-in 840ms var(--ease-enter) backwards; }
+@keyframes td-zoom-in { from { scale: 1.08; } }
+
+/* blur: the old one dissolves, the new comes into focus */
+.td-hero[data-blend="blur"] .td-pn.td-gone { animation: td-blur-out 600ms var(--ease-out) forwards; }
+.td-hero[data-blend="blur"] .td-pn:not(.td-gone) .t-art { animation: td-blur-in 600ms var(--ease-out) backwards; }
+@keyframes td-blur-out { to { opacity: 0; filter: blur(14px); } }
+@keyframes td-blur-in { from { filter: blur(14px); } }
+
+/* dots: the old page breaks up into a halftone screen */
+.td-hero[data-blend="dots"] .td-pn.td-gone {
+  mask: radial-gradient(circle, transparent var(--td-r), #000 calc(var(--td-r) + 1px)) 0 0 / 14px 14px;
+  animation: td-dots 720ms cubic-bezier(0.3, 0, 0.2, 1) forwards;
+}
+@keyframes td-dots { to { --td-r: 11px; } }
+
+/* wipe: a slanted cut with a red edge sweeps the old page away */
+.td-hero[data-blend="wipe"] .td-pn.td-gone {
+  mask: linear-gradient(110deg, transparent var(--td-x), #000 var(--td-x));
+  animation: td-wipe 640ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+.td-hero[data-blend="wipe"] .td-pn.td-gone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  background: linear-gradient(110deg, transparent var(--td-x), var(--accent) var(--td-x) calc(var(--td-x) + 1.6%), transparent calc(var(--td-x) + 1.6%));
+}
+@keyframes td-wipe { from { --td-x: -20%; } to { --td-x: 125%; } }
+
+/* duo: the old page flips into the teal duotone and goes, the new comes
+   out of red into colour */
+.td-hero[data-blend="duo"] .td-pn.td-gone { animation: td-duo-out 600ms linear forwards; }
+.td-hero[data-blend="duo"] .td-pn:not(.td-gone) .t-art { animation: td-duo-in 900ms var(--ease-out) backwards; }
+@keyframes td-duo-out {
+  45% { opacity: 1; filter: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.4) brightness(0.7); }
+  to { opacity: 0; filter: grayscale(1) sepia(1) hue-rotate(130deg) saturate(2.4) brightness(0.7); }
+}
+@keyframes td-duo-in {
+  from, 45% { filter: grayscale(1) sepia(1) hue-rotate(-30deg) saturate(3) brightness(0.8); }
+}
+
+/* push: the new art pushes the old out to the left, each inside its panel */
+.td-hero[data-blend="push"] .td-pn.td-gone { animation: none; }
+.td-hero[data-blend="push"] .td-pn.td-gone .t-art { animation: td-push-out 600ms var(--ease-out) forwards; }
+.td-hero[data-blend="push"] .td-pn:not(.td-gone) .t-art { animation: td-push-in 600ms var(--ease-out) backwards; }
+@keyframes td-push-out { to { translate: -100% 0; } }
+@keyframes td-push-in { from { translate: 100% 0; } }
 
 /* tone panels: the page's own fill when no picture is reachable */
 .td-tone { background: var(--card); }
