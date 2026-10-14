@@ -98,7 +98,7 @@ export default function TrashPage() {
     <div className="ws-trash">
       <p className="ws-trash-hint">{t('trash.hint')}</p>
       {isPending ? (
-        <Loading />
+        <Loading page />
       ) : error ? (
         <p className="py-4 text-sm text-err">{error.message}</p>
       ) : entries!.length === 0 ? (

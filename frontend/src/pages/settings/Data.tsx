@@ -244,7 +244,7 @@ export function StorePage() {
   const navigate = useNavigate()
   const { data: inventory } = useAdminData()
   const store = inventory?.stores.find((s) => s.name === name)
-  if (!inventory) return <Loading />
+  if (!inventory) return <Loading page />
   if (!store) return <Navigate to="/settings/data" replace />
   return <StoreView store={store} onGone={() => navigate('/settings/data')} />
 }

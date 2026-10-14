@@ -378,7 +378,7 @@ export default function EpisodeList({
                 </span>
               }
             />
-            {q.isLoading && <Loading />}
+            {q.isLoading && <Loading size="sm" />}
             {q.isError && <p className="ws-d-err">{t('watch.gaps.error')}</p>}
             {/* the reason sits above the list: a list without titles
                 otherwise reads as a broken feature, not a missing provider */}

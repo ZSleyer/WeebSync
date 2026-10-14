@@ -1,38 +1,58 @@
-import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Panel } from 'fluid-lycoris'
+import { LoadingIndicator, Skeleton } from 'fluid-lycoris'
 
-// Loading indicator: three staggered pulsing bars + label.
-// Motion is globally gated via [data-motion="off"] / prefers-reduced-motion.
-export default function Loading({ label, className = '' }: { label?: ReactNode; className?: string }) {
+// The app's loading indicator: the design system's shape morph, named
+// "loading" unless the caller says what. A given label is also shown.
+export default function Loading({
+  label,
+  size = 'md',
+  page,
+  className,
+}: {
+  label?: string
+  size?: 'sm' | 'md' | 'lg'
+  /** the whole page waits on it: it stands in the middle of the free space */
+  page?: boolean
+  className?: string
+}) {
   const { t } = useTranslation()
-  return (
-    <div className={`flex items-center gap-2.5 ${className}`} role="status">
-      <span aria-hidden className="flex h-4 items-end gap-1">
-        <span className="t-load-bar" />
-        <span className="t-load-bar" />
-        <span className="t-load-bar" />
-      </span>
-      <Badge>{label ?? t('app.loading')}</Badge>
-    </div>
+  const indicator = (
+    <LoadingIndicator label={label ?? t('app.loading')} showLabel={!!label} size={size} className={className} />
   )
+  // sm sits in a line; a section's stands centred where its content will
+  // go, a page's in the middle of the screen below the header
+  if (page) return <div className="grid min-h-[60dvh] place-items-center">{indicator}</div>
+  return size === 'sm' ? indicator : <div className="flex justify-center py-6">{indicator}</div>
 }
 
-// Skeleton placeholders shaped like the media card lists they stand in for.
-export function SkeletonCards({ count = 3, className = '' }: { count?: number; className?: string }) {
+// name lengths vary like real ones, or the list reads as a pattern
+const WIDTHS = [62, 45, 78, 54, 70, 38, 66, 50]
+
+// Rows of a folder listing still on its way, in the listing's own grid, so
+// the real rows take their place without a jump. Like the indicator they
+// show only once the wait has lasted a moment.
+export function SkeletonRows({ full }: { full?: boolean }) {
   const { t } = useTranslation()
   return (
-    <div role="status" aria-label={t('app.loading')} className={`grid grid-cols-1 gap-3 ${className}`}>
-      {Array.from({ length: count }, (_, i) => (
-        <Panel key={i} className="flex animate-pulse gap-4 p-4" aria-hidden>
-          <div className="t-hatch h-24 w-16 shrink-0 rounded-xs" />
-          <div className="min-w-0 flex-1 space-y-2.5 py-1">
-            <div className="h-3.5 w-2/3 bg-bg-hover" />
-            <div className="h-3 w-1/3 bg-bg-hover" />
-            <div className="h-3 w-1/2 bg-bg-hover" />
+    <ul
+      role="status"
+      aria-label={t('app.loading')}
+      className={`ws-cl-rows t-late animate-pulse ${full ? 'ws-cl-rows--full' : ''}`}
+    >
+      {WIDTHS.map((w, i) => (
+        <li key={i} className="ws-cl-row" aria-hidden>
+          <div className="ws-cl-in">
+            <span className="ws-cl-glyph">
+              <Skeleton shape="block" className="size-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div style={{ width: `${w}%` }}>
+                <Skeleton />
+              </div>
+            </div>
           </div>
-        </Panel>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }

@@ -8,6 +8,7 @@ import { ActionBar, Badge, Button, Panel, useMediaQuery } from 'fluid-lycoris'
 import { api, type RenamePair } from '../api'
 import { LocalPicker } from '../components/FileBrowser'
 import { PageFooter, WIDE_MQ } from '../components/PageActions'
+import Loading from '../components/Loading'
 import PathInput from '../components/PathInput'
 import RenameOptions, { type RenameRule } from '../components/RenameOptions'
 import { useLocalTargetLabel } from '../components/useTargetFolder'
@@ -262,7 +263,7 @@ export default function Rename() {
                   {t('rename.apply')}
                 </Button>
                 {previewBusy ? (
-                  <Badge>{t('app.loading')}</Badge>
+                  <Loading size="sm" />
                 ) : (
                   <span className="text-xs text-t-muted">{t('dash.selectedCount', { count: picked.size })}</span>
                 )}

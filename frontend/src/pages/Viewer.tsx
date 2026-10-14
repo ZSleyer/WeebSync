@@ -304,7 +304,7 @@ function ReaderState({ loading, error, label }: { loading?: boolean; error?: unk
   return (
     <div className="ws-rd-state">
       {loading ? (
-        <Loading label={label} />
+        <Loading size="lg" label={label} />
       ) : (
         <p role="alert">
           {t('viewer.loadError')} {error instanceof Error ? error.message : ''}

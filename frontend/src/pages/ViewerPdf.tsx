@@ -36,7 +36,7 @@ export default function ViewerPdf({ server, path }: { server: number; path: stri
   if (doc.isPending)
     return (
       <div className="ws-rd-state">
-        <Loading />
+        <Loading size="lg" />
       </div>
     )
   if (doc.error)

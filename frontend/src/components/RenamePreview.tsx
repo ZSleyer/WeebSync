@@ -33,7 +33,7 @@ export default function RenamePreview({
     <section className="space-y-2 border-t border-border-subtle pt-4" aria-label={t('rename.preview')}>
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone="accent">{t('rename.preview')}</Badge>
-        {busy && <Loading />}
+        {busy && <Loading size="sm" />}
         {/* the count carries the warning: a single row scrolled out of view is
             easy to miss, the total is not */}
         {replaced > 0 && <Badge tone="warn">{t('rename.targetReplacesCount', { count: replaced })}</Badge>}

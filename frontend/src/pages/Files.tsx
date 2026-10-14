@@ -106,7 +106,7 @@ import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDia
 import { applyDefaults, useFolderKind, useWatchDefaults } from '../components/watchDefaults'
 import { useConfirm } from '../components/confirm'
 import { useAuth, useProviders } from '../hooks'
-import Loading from '../components/Loading'
+import { SkeletonRows } from '../components/Loading'
 import { CatalogWhy } from '../components/CatalogWhy'
 import { InlineRename, type Renaming } from '../components/InlineRename'
 import './files.css'
@@ -959,7 +959,7 @@ function SearchResults({
   return (
     // the horizontal axis stays with the page's swipe zone, see the browser
     <div className="min-h-0 flex-1 overflow-y-auto" style={{ touchAction: 'pan-y pinch-zoom' }}>
-      {isLoading && <Loading className="py-4" />}
+      {isLoading && <SkeletonRows />}
       {data && data.results.length === 0 && (
         <div className="ws-empty">
           <b>{t('files.noHits', { q: q.trim() })}</b>

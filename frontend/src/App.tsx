@@ -88,7 +88,7 @@ const Login = lazy(() => import('./pages/Login'))
 const Setup = lazy(() => import('./pages/Setup'))
 const loadingScreen = (
   <div className="grid min-h-dvh place-items-center">
-    <Loading />
+    <Loading size="lg" />
   </div>
 )
 

@@ -317,7 +317,7 @@ export function MatchesPage() {
   const { server = '', source = '' } = useParams()
   const { data } = useAdminJobs()
   const stat = data?.matches.find((m) => String(m.serverId) === server && m.source === source)
-  if (!data) return <Loading />
+  if (!data) return <Loading page />
   if (!stat) return <Navigate to="/settings/matching" replace />
   return <MatchesView stat={stat} />
 }

@@ -8,7 +8,7 @@ import FileIcon from './FileIcon'
 import { useStored } from '../hooks/useStored'
 import Press from './Press'
 import HostKeyPrompt from './HostKeyPrompt'
-import Loading from './Loading'
+import { SkeletonRows } from './Loading'
 import PathInput from './PathInput'
 import { InlineRename, type Renaming } from './InlineRename'
 import { isVideo, viewKind } from './playLinks'
@@ -267,7 +267,7 @@ export function FileBrowser({
     <div className="flex min-h-0 flex-1 flex-col">
       <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {isLoading && <Loading className="py-4" />}
+        {isLoading && <SkeletonRows full={sortable} />}
         {conflict ? (
           <HostKeyPrompt
             className="my-4"

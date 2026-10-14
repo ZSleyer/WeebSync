@@ -215,7 +215,7 @@ export default function Login() {
   if (!cfg) {
     return (
       <main className="grid min-h-dvh place-items-center">
-        <Loading />
+        <Loading size="lg" />
       </main>
     )
   }
