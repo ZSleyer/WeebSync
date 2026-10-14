@@ -17,6 +17,9 @@ type mediaExtrasResponse struct {
 	Characters      []anilist.Character    `json:"characters"`
 	Links           []anilist.ExternalLink `json:"links"`
 	Threads         []anilist.Thread       `json:"threads"`
+	// Synonyms: alternative titles of the media (AniList only), for
+	// shortening thread titles that repeat them.
+	Synonyms []string `json:"synonyms"`
 }
 
 // recommendedMedia is a recommended title with the strength of the
@@ -55,6 +58,7 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 		Characters:      []anilist.Character{},
 		Links:           []anilist.ExternalLink{},
 		Threads:         []anilist.Thread{},
+		Synonyms:        []string{},
 	}
 	source := r.URL.Query().Get("source")
 	switch {
@@ -83,6 +87,9 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 			out.Recommendations = append(out.Recommendations, recommendedMedia{Media: rc.Media, Rating: rc.Rating})
 		}
 		out.Characters, out.Links, out.Threads = x.Characters, x.Links, x.Threads
+		if x.Synonyms != nil {
+			out.Synonyms = x.Synonyms
+		}
 	case strings.HasPrefix(source, "tmdb:"):
 		recs, cast, err := s.Tmdb.Extras(r.Context(), source[5:], id)
 		if err != nil {

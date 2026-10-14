@@ -306,6 +306,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// anilist + catalog
 	mux.Handle("GET /api/anilist/search", authed(http.HandlerFunc(s.handleAnilistSearch)))
 	mux.Handle("GET /api/anilist/media/{id}", authed(http.HandlerFunc(s.handleAnilistMedia)))
+	mux.Handle("GET /api/anilist/threads/{id}", authed(http.HandlerFunc(s.handleAnilistThread)))
 	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
 	mux.Handle("GET /api/media/extras", authed(http.HandlerFunc(s.handleMediaExtras)))
 	mux.Handle("GET /api/media/backdrop", authed(http.HandlerFunc(s.handleMediaBackdrop)))

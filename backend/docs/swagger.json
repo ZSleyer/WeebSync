@@ -374,6 +374,120 @@
                 ],
                 "type": "object"
             },
+            "anilist.ThreadComment": {
+                "properties": {
+                    "body": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "likes": {
+                        "type": "integer"
+                    },
+                    "replies": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.ThreadComment"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "replyTo": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/anilist.ThreadUser"
+                    }
+                },
+                "required": [
+                    "id",
+                    "body",
+                    "likes",
+                    "createdAt",
+                    "user",
+                    "replies"
+                ],
+                "type": "object"
+            },
+            "anilist.ThreadPage": {
+                "properties": {
+                    "comments": {
+                        "items": {
+                            "$ref": "#/components/schemas/anilist.ThreadComment"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "hasNextPage": {
+                        "type": "boolean"
+                    },
+                    "thread": {
+                        "$ref": "#/components/schemas/anilist.ThreadPost"
+                    }
+                },
+                "required": [
+                    "thread",
+                    "comments",
+                    "hasNextPage"
+                ],
+                "type": "object"
+            },
+            "anilist.ThreadPost": {
+                "properties": {
+                    "body": {
+                        "type": "string"
+                    },
+                    "createdAt": {
+                        "type": "integer"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "replies": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "$ref": "#/components/schemas/anilist.ThreadUser"
+                    },
+                    "views": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "id",
+                    "title",
+                    "body",
+                    "replies",
+                    "views",
+                    "createdAt",
+                    "url",
+                    "user"
+                ],
+                "type": "object"
+            },
+            "anilist.ThreadUser": {
+                "properties": {
+                    "avatar": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "type": "object"
+            },
             "api.Airing": {
                 "properties": {
                     "at": {
@@ -4902,6 +5016,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "synonyms": {
+                        "description": "Synonyms: alternative titles of the media (AniList only), for\nshortening thread titles that repeat them.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "threads": {
                         "items": {
                             "$ref": "#/components/schemas/anilist.Thread"
@@ -4915,7 +5037,8 @@
                     "recommendations",
                     "characters",
                     "links",
-                    "threads"
+                    "threads",
+                    "synonyms"
                 ],
                 "type": "object"
             },
@@ -9320,6 +9443,71 @@
                     }
                 ],
                 "summary": "AniList suggestions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/anilist/threads/{id}": {
+            "get": {
+                "description": "Opening post and one page (25 top-level comments) of an AniList forum thread. Bodies are AniList markdown, capped in size; replies are flattened under their top-level comment, at most three levels deep.",
+                "parameters": [
+                    {
+                        "description": "AniList thread id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Comment page, 1-based (default 1)",
+                        "in": "query",
+                        "name": "page",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/anilist.ThreadPage"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "AniList thread",
                 "tags": [
                     "Suggestions"
                 ]

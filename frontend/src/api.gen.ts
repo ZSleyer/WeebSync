@@ -184,6 +184,34 @@ export interface Schemas {
     user?: string
     views: number
   }
+  'anilist.ThreadComment': {
+    body: string
+    createdAt: number
+    id: number
+    likes: number
+    replies: Schemas['anilist.ThreadComment'][]
+    replyTo?: string
+    user: Schemas['anilist.ThreadUser']
+  }
+  'anilist.ThreadPage': {
+    comments: Schemas['anilist.ThreadComment'][]
+    hasNextPage: boolean
+    thread: Schemas['anilist.ThreadPost']
+  }
+  'anilist.ThreadPost': {
+    body: string
+    createdAt: number
+    id: number
+    replies: number
+    title: string
+    url: string
+    user: Schemas['anilist.ThreadUser']
+    views: number
+  }
+  'anilist.ThreadUser': {
+    avatar?: string
+    name: string
+  }
   'api.Airing': {
     /**
      * unix seconds
@@ -2129,6 +2157,11 @@ export interface Schemas {
     links: Schemas['anilist.ExternalLink'][]
     recommendations: Schemas['api.recommendedMedia'][]
     relations: Schemas['anilist.Relation'][]
+    /**
+     * Synonyms: alternative titles of the media (AniList only), for
+     * shortening thread titles that repeat them.
+     */
+    synonyms: string[]
     threads: Schemas['anilist.Thread'][]
   }
   'api.moveResult': {

@@ -710,16 +710,19 @@ type Extras struct {
 	Characters []Character    `json:"characters"`
 	Links      []ExternalLink `json:"links"`
 	Threads    []Thread       `json:"threads"`
+	// Synonyms are the media's alternative titles, which thread titles
+	// repeat and the reader strips (empty on cache entries before extras3).
+	Synonyms []string `json:"synonyms"`
 }
 
 // Extras fetches a media's cast, external links and forum threads in one
-// request, cached under extras2:<id> (bumped when the cast portraits gained
-// their large size). Relations and recommendations are not
+// request, cached under extras3:<id> (bumped when the cast portraits gained
+// their large size, then for the synonyms). Relations and recommendations are not
 // here: RelationsBatch and RecommendationsBatch already cache those. Every
 // field of the response is optional in the decoder, so a renamed field on
 // AniList's side degrades to an empty list rather than an error.
 func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
-	key := fmt.Sprintf("extras2:%d", id)
+	key := fmt.Sprintf("extras3:%d", id)
 	if payload, ok := c.cached(key); ok {
 		var x Extras
 		if json.Unmarshal([]byte(payload), &x) == nil {
@@ -742,6 +745,7 @@ func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 					} `json:"edges"`
 				} `json:"characters"`
 				ExternalLinks []ExternalLink `json:"externalLinks"`
+				Synonyms      []string       `json:"synonyms"`
 			} `json:"Media"`
 			Page struct {
 				Threads []struct {
@@ -761,13 +765,19 @@ func (c *Client) Extras(ctx context.Context, id int) (*Extras, error) {
 		Media(id: $id, type: ANIME) {
 			characters(sort: [ROLE, RELEVANCE], perPage: 12) { edges { role node { name { full } image { medium large } } voiceActors(language: JAPANESE, sort: RELEVANCE) { name { full } } } }
 			externalLinks { site url type icon color language }
+			synonyms
 		}
 		Page(perPage: 10) { threads(mediaCategoryId: $id, sort: REPLIED_AT_DESC) { id title replyCount viewCount repliedAt siteUrl user { name } categories { name } } }
 	}`
 	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
 		return nil, err
 	}
-	x := Extras{Characters: []Character{}, Links: []ExternalLink{}, Threads: []Thread{}}
+	x := Extras{Characters: []Character{}, Links: []ExternalLink{}, Threads: []Thread{}, Synonyms: []string{}}
+	for _, s := range resp.Data.Media.Synonyms {
+		if s != "" {
+			x.Synonyms = append(x.Synonyms, s)
+		}
+	}
 	for _, e := range resp.Data.Media.Characters.Edges {
 		ch := Character{Name: e.Node.Name.Full, Image: e.Node.Image.Medium, ImageLarge: e.Node.Image.Large, Role: e.Role}
 		if len(e.VoiceActors) > 0 {

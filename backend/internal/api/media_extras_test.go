@@ -29,7 +29,7 @@ func TestMediaExtras(t *testing.T) {
 	// fully cached title: the three caches the handler composes
 	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('rel2:7', '[{"relationType":"SEQUEL","node":{"id":8,"title":{"romaji":"Two"}}}]')`)
 	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('rec1:7', '[{"rating":9,"mediaRecommendation":{"id":9,"title":{"romaji":"Three"}}}]')`)
-	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('extras2:7', '{"characters":[{"name":"Frieren","voiceActor":"Atsumi Tanezaki"}],"links":[{"site":"Crunchyroll","url":"https://example.com","type":"STREAMING"}],"threads":[{"id":1,"title":"Ep 1 discussion","replies":3,"url":"https://example.com/t"}]}')`)
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('extras3:7', '{"characters":[{"name":"Frieren","voiceActor":"Atsumi Tanezaki"}],"links":[{"site":"Crunchyroll","url":"https://example.com","type":"STREAMING"}],"threads":[{"id":1,"title":"Ep 1 discussion","replies":3,"url":"https://example.com/t"}]}')`)
 	rec := doReq(mux, "GET", "/api/media/extras?id=7", "", c)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("cached: got %d: %s", rec.Code, rec.Body)
