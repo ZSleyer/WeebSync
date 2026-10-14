@@ -156,7 +156,8 @@ const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
 
 /** "vor 3 Tagen": unix seconds against now (ms), in the reader's language. */
 export function relTime(ts: number, now: number, lang: string): string {
-  let v = ts - now / 1000
+  // a moment ahead (a reply just sent, a clock a little off) reads as now
+  let v = Math.min(0, ts - now / 1000)
   for (const [unit, size] of STEPS) {
     if (Math.abs(v) < size) return new Intl.RelativeTimeFormat(lang, { numeric: 'auto' }).format(Math.trunc(v), unit)
     v /= size

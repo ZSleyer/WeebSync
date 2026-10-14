@@ -6,6 +6,8 @@ describe('relTime', () => {
     const now = 1_000_000_000_000
     expect(relTime(now / 1000 - 3 * 86400, now, 'en')).toBe('3 days ago')
     expect(relTime(now / 1000 - 30, now, 'de')).toBe('vor 30 Sekunden')
+    // a reply sent after the sheet opened is not in the future
+    expect(relTime(now / 1000 + 25, now, 'en')).toBe('now')
   })
 })
 

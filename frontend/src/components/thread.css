@@ -71,6 +71,14 @@
   object-fit: cover;
   background: var(--bg-2);
 }
+.ws-th-noav {
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--fg-2);
+  border: 1px solid var(--line-strong);
+}
 .ws-th-by strong {
   color: var(--fg);
   font-weight: 600;
@@ -155,6 +163,64 @@
 }
 .ws-th-more {
   margin-top: 1rem;
+}
+
+/* ── writing back: likes, replies, the composer ── */
+.ws-th-acts {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: -0.25rem;
+}
+.ws-th-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: 0 0.25rem;
+  background: none;
+  border: 0;
+  color: var(--fg-2);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.ws-th-like[aria-pressed='true'] {
+  color: var(--accent);
+}
+@media (hover: hover) {
+  .ws-th-like:hover {
+    color: var(--fg);
+  }
+  .ws-th-like[aria-pressed='true']:hover {
+    color: var(--accent);
+  }
+}
+.ws-th-gate {
+  margin: -0.5rem 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--fg-2);
+}
+.ws-th-compose {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0.75rem 0 0;
+  max-width: 68ch;
+}
+.ws-th-compose > label {
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-th-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-th-compose-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
 }
 
 /* thread rows in the community section: a button, the badge before the title */

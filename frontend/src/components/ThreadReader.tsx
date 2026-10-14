@@ -1,7 +1,8 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useState, type ReactNode } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { TFunction } from 'i18next'
+import { Link } from 'react-router'
 import { ExternalLink, Heart, X } from 'lucide-react'
 import {
   Badge,
@@ -11,12 +12,15 @@ import {
   SectionHeading,
   SHEET_MQ,
   Skeleton,
+  Textarea,
   TextLink,
   useMediaQuery,
 } from 'fluid-lycoris'
 import { api } from '../api'
 import type { Schemas } from '../api.gen'
+import { ANILIST_SETTINGS } from '../anilistMe'
 import { parseThreadText, relTime, type Inline, type ShortTitle } from './threadText'
+import { useThreadWrites, type LikeTarget, type ReplyTarget } from './threadWrites'
 import './thread.css'
 
 type ThreadPage = Schemas['anilist.ThreadPage']
@@ -64,6 +68,11 @@ export function ThreadReader({
   const label = threadLabel(short, title, t)
   // the sheet brings its own close (the grabber), the centred dialog needs one
   const sheet = useMediaQuery(SHEET_MQ)
+  const w = useThreadWrites(id)
+  const acts = (target: LikeTarget, liked: boolean, likes: number, reply: ReplyTarget | null) => (
+    <Acts w={w} target={target} liked={liked} likes={likes} reply={reply} />
+  )
+  const composer = (top: number) => (w.replyTo && w.replyTo.top === top ? <Composer w={w} /> : null)
   return (
     <Dialog
       onClose={onClose}
@@ -124,7 +133,20 @@ export function ThreadReader({
               <article className="ws-th-post" aria-label={t('thread.by', { name: first.user.name })}>
                 <Byline user={first.user} at={first.createdAt} now={now} />
                 <Body text={first.body} />
+                {acts({ id: first.id, type: 'THREAD' }, first.isLiked, first.likes, {
+                  parent: 0,
+                  top: 0,
+                  name: first.user.name,
+                })}
               </article>
+              {!w.canWrite && (
+                <p className="ws-th-gate">
+                  {t(w.linked ? 'thread.writeOff' : 'thread.notLinked')}{' '}
+                  <Link className="t-link t-link--2" to={ANILIST_SETTINGS}>
+                    {t(w.linked ? 'myAnilist.allow' : 'myAnilist.connect')}
+                  </Link>
+                </p>
+              )}
               <SectionHeading
                 level={3}
                 tone="accent-2"
@@ -137,20 +159,38 @@ export function ThreadReader({
                 <ul className="ws-th-list">
                   {comments.map((c) => (
                     <li key={c.id}>
-                      <CommentView c={c} now={now} />
+                      <CommentView
+                        c={c}
+                        now={now}
+                        acts={acts({ id: c.id, type: 'THREAD_COMMENT' }, c.isLiked, c.likes, {
+                          parent: c.id,
+                          top: c.id,
+                          name: c.user.name,
+                        })}
+                      />
                       {c.replies.length > 0 && (
                         <ul className="ws-th-replies" aria-label={t('thread.replies', { name: c.user.name })}>
                           {c.replies.map((r) => (
                             <li key={r.id}>
-                              <CommentView c={r} now={now} />
+                              <CommentView
+                                c={r}
+                                now={now}
+                                acts={acts({ id: r.id, type: 'THREAD_COMMENT' }, r.isLiked, r.likes, {
+                                  parent: r.id,
+                                  top: c.id,
+                                  name: r.user.name,
+                                })}
+                              />
                             </li>
                           ))}
                         </ul>
                       )}
+                      {composer(c.id)}
                     </li>
                   ))}
                 </ul>
               )}
+              {composer(0)}
               {q.isFetchNextPageError && (
                 <p className="ws-d-err" role="alert">
                   {t('thread.failed')}
@@ -183,7 +223,9 @@ function Byline({ user, at, now }: { user: Comment['user']; at: number; now: num
       {user.avatar ? (
         <img src={user.avatar} alt="" width={28} height={28} loading="lazy" decoding="async" />
       ) : (
-        <span aria-hidden className="ws-th-noav" />
+        <span aria-hidden className="ws-th-noav">
+          {user.name.slice(0, 1).toUpperCase()}
+        </span>
       )}
       <strong>{user.name}</strong>
       {when && (
@@ -195,8 +237,7 @@ function Byline({ user, at, now }: { user: Comment['user']; at: number; now: num
   )
 }
 
-function CommentView({ c, now }: { c: Comment; now: number }) {
-  const { t } = useTranslation()
+function CommentView({ c, now, acts }: { c: Comment; now: number; acts: ReactNode }) {
   return (
     <article className="ws-th-c">
       <Byline user={c.user} at={c.createdAt} now={now} />
@@ -204,14 +245,113 @@ function CommentView({ c, now }: { c: Comment; now: number }) {
         {c.replyTo && <span className="ws-th-to">@{c.replyTo} </span>}
         <Body text={c.body} />
       </div>
-      {c.likes > 0 && (
-        <span className="ws-th-likes">
-          <Heart aria-hidden size="0.8125rem" />
-          <span aria-hidden>{c.likes}</span>
-          <span className="sr-only">{t('thread.likes', { count: c.likes })}</span>
-        </span>
-      )}
+      {acts}
     </article>
+  )
+}
+
+type Writes = ReturnType<typeof useThreadWrites>
+
+/**
+ * Under a post: its likes, and with replies and likes allowed a like toggle
+ * and "Antworten". A reply still on its way has no id yet: nothing to like
+ * or answer until it has.
+ */
+function Acts({
+  w,
+  target,
+  liked,
+  likes,
+  reply,
+}: {
+  w: Writes
+  target: LikeTarget
+  liked: boolean
+  likes: number
+  reply: ReplyTarget | null
+}) {
+  const { t } = useTranslation()
+  const pending = target.id < 0
+  if (!w.canWrite || pending)
+    return likes > 0 ? (
+      <span className="ws-th-likes">
+        <Heart aria-hidden size="0.8125rem" />
+        <span aria-hidden>{likes}</span>
+        <span className="sr-only">{t('thread.likes', { count: likes })}</span>
+      </span>
+    ) : null
+  return (
+    <div className="ws-th-acts">
+      <button
+        type="button"
+        className="ws-th-like"
+        aria-pressed={liked}
+        aria-label={t('thread.like')}
+        onClick={() => w.like(target)}
+      >
+        <Heart aria-hidden size="1rem" fill={liked ? 'currentColor' : 'none'} />
+        <span aria-hidden>{likes}</span>
+        <span className="sr-only">{t('thread.likes', { count: likes })}</span>
+      </button>
+      {reply && (
+        <TextLink
+          tone="accent-2"
+          aria-expanded={w.replyTo?.parent === reply.parent}
+          onClick={() => (w.replyTo?.parent === reply.parent ? w.cancel() : w.open(reply))}
+        >
+          {t('thread.reply')}
+        </TextLink>
+      )}
+    </div>
+  )
+}
+
+/** The reply being written: a plain field, the spoiler hint, send or cancel. */
+function Composer({ w }: { w: Writes }) {
+  const { t } = useTranslation()
+  const id = useId()
+  const to = w.replyTo
+  // the field takes the focus when it opens, for whoever asked for it (the
+  // design system's Textarea passes no ref, so by its id)
+  useEffect(() => {
+    document.getElementById(id)?.focus()
+  }, [id, to?.parent])
+  if (!to) return null
+  return (
+    <form
+      className="ws-th-compose"
+      onSubmit={(e) => {
+        e.preventDefault()
+        w.send()
+      }}
+    >
+      <label htmlFor={id}>{to.parent ? t('thread.replyTo', { name: to.name }) : t('thread.replyThread')}</label>
+      <Textarea
+        id={id}
+        rows={4}
+        maxLength={10000}
+        value={w.draft}
+        aria-describedby={id + '-h'}
+        onChange={(e) => w.setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            w.cancel()
+          }
+        }}
+      />
+      <p id={id + '-h'} className="ws-th-hint">
+        {t('thread.spoilerHint')}
+      </p>
+      <div className="ws-th-compose-acts">
+        <Button type="button" size="sm" onClick={w.cancel}>
+          {t('common.cancel')}
+        </Button>
+        <Button type="submit" size="sm" variant="primary" disabled={!w.draft.trim() || w.sending || !w.canWrite}>
+          {t('thread.send')}
+        </Button>
+      </div>
+    </form>
   )
 }
 
