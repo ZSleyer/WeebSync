@@ -1,5 +1,6 @@
 {
   "errors": {
+    "net": {"refused": "Der Server ist nicht erreichbar, er lehnt die Verbindung ab.", "timeout": "Der Server antwortet nicht rechtzeitig.", "noHost": "Der Servername lässt sich nicht auflösen.", "reset": "Die Verbindung zum Server ist abgebrochen.", "unreachable": "Der Server ist aus diesem Netz nicht erreichbar.", "auth": "Der Server hat die Anmeldung abgelehnt.", "tls": "Das Zertifikat des Servers wird nicht anerkannt."},
     "invalidCredentials": "E-Mail oder Passwort ist falsch.",
     "emailUnverified": "Bestätige zuerst deine E-Mail-Adresse: der Link ist in deinem Postfach.",
     "invalidCode": "Der Code ist falsch.",

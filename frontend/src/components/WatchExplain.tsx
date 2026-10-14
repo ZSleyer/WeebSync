@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from 'fluid-lycoris'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { api, fmtEps, type Watch, type WatchExplain as Explain } from '../api'
+import { api, fmtEps, netErrorText, type Watch, type WatchExplain as Explain } from '../api'
 import { behindLabel, dubOverdueLabel, dubProgressLabel, dubWaitingLabel, langWaitingLabel } from '../attention'
 import { dayWord } from './MediaDetail'
 import { NameTrace } from './NameTrace'
@@ -32,7 +32,7 @@ export function stateLine(t: T, w: Watch, now: number): string {
 /** The rest of the old status chips, as quiet lines: what is late, held back or odd. */
 export function stateNotes(t: T, w: Watch): { key: string; text: string; tone?: 'warn' | 'err' | 'acc' }[] {
   const out: { key: string; text: string; tone?: 'warn' | 'err' | 'acc' }[] = []
-  if (w.lastResult) out.push({ key: 'result', text: w.lastResult, tone: 'err' })
+  if (w.lastResult) out.push({ key: 'result', text: netErrorText(w.lastResult), tone: 'err' })
   if ((w.behind ?? 0) > 0) out.push({ key: 'behind', text: behindLabel(t, w), tone: w.behindLate ? 'warn' : undefined })
   if ((w.unsorted ?? 0) > 0)
     out.push({ key: 'unsorted', text: t('watch.unsorted', { count: w.unsorted }), tone: 'warn' })

@@ -257,13 +257,32 @@ const ERROR_KEYS: Record<string, string> = {
   'manual user creation is disabled in OIDC mode; users onboard via the identity provider': 'errors.noManualUsers',
 }
 
+// transport failures from the backend arrive as Go's raw error strings
+// ("dial tcp 10.0.0.2:22: connect: connection refused"); say what happened
+// in words, the raw line stays in ApiError.raw for whoever needs it
+const NET_ERRORS: [RegExp, string][] = [
+  [/connection refused/i, 'errors.net.refused'],
+  [/i\/o timeout|deadline exceeded|timed out/i, 'errors.net.timeout'],
+  [/no such host|server misbehaving/i, 'errors.net.noHost'],
+  [/connection reset|broken pipe|unexpected EOF/i, 'errors.net.reset'],
+  [/network is unreachable|no route to host/i, 'errors.net.unreachable'],
+  [/unable to authenticate|permission denied \(publickey|login incorrect/i, 'errors.net.auth'],
+  [/x509|tls: /i, 'errors.net.tls'],
+]
+
+/** a backend error string in words, or the string itself when it is not a known transport failure */
+export function netErrorText(msg: string): string {
+  for (const [re, key] of NET_ERRORS) if (re.test(msg)) return i18n.t(key)
+  return msg
+}
+
 function errorText(res: Response, msg: string): string {
   if (res.status === 429) {
     const s = Number(res.headers.get('Retry-After'))
     return s > 0 ? i18n.t('errors.tooManyWait', { count: s }) : i18n.t('errors.tooMany')
   }
   const key = ERROR_KEYS[msg]
-  return key ? i18n.t(key) : msg
+  return key ? i18n.t(key) : netErrorText(msg)
 }
 
 async function request<T>(method: string, url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {

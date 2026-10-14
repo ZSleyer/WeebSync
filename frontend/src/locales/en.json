@@ -1,5 +1,6 @@
 {
   "errors": {
+    "net": {"refused": "The server cannot be reached, it refuses the connection.", "timeout": "The server does not answer in time.", "noHost": "The server name cannot be resolved.", "reset": "The connection to the server broke off.", "unreachable": "The server cannot be reached from this network.", "auth": "The server refused the sign-in.", "tls": "The server's certificate is not trusted."},
     "invalidCredentials": "Email or password is wrong.",
     "emailUnverified": "Confirm your email address first: the link is in your inbox.",
     "invalidCode": "That code is wrong.",

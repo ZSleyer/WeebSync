@@ -72,6 +72,7 @@ import {
   fmtBytes,
   fmtSpeed,
   mediaTitle,
+  netErrorText,
   type Download,
   type DownloadMeta,
   type Watch,
@@ -1360,7 +1361,7 @@ function DownloadRow({
               a reason is an unexplained pause */}
           {isRetrying(d) && d.error && (
             <span className="max-w-64 truncate text-xs text-err" title={d.error}>
-              {d.error}
+              {netErrorText(d.error)}
             </span>
           )}
         </>
