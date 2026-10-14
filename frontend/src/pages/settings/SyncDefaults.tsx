@@ -1,16 +1,17 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useProviders } from '../../hooks'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen } from 'lucide-react'
-import { ActionBar, Badge, Button, Field, Input, Panel, Segmented, Select } from 'fluid-lycoris'
+import { IconButton, Segmented, Select, SettingsField } from 'fluid-lycoris'
 import { api, type KindDefaults, type WatchDefaults } from '../../api'
 import SubfolderChoice from '../../components/SubfolderChoice'
 import { LocalPicker } from '../../components/FileBrowser'
 import PathInput, { trimSlashes } from '../../components/PathInput'
-import { PageFooter } from '../../components/PageActions'
-import { PRESETS, ROW_GRID, TITLE_LANGS } from '../../components/RenameOptions'
+import { PRESETS, TITLE_LANGS } from '../../components/RenameOptions'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
+import { SaveBarView } from './useSettingsForm'
+import { SettingsPanel, SwitchSetting, TextSetting } from './ui'
 
 const KINDS = ['anime-series', 'anime-movie', 'series', 'movie'] as const
 type Kind = (typeof KINDS)[number]
@@ -55,6 +56,7 @@ export default function SyncDefaults() {
     : null
   const [edited, setForm] = useState<WatchDefaults | null>(null)
   const form = edited ?? stored ?? EMPTY
+  const ids = useId()
   const [kind, setKind] = useState<Kind>('anime-series')
   const [browse, setBrowse] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -75,7 +77,7 @@ export default function SyncDefaults() {
       qc.setQueryData(['watch-defaults'], tidy(d))
       setForm(null)
       qc.invalidateQueries({ queryKey: ['watch-defaults'] })
-      setTimeout(() => setSaved(false), 3000)
+      setTimeout(() => setSaved(false), 1200)
     },
   })
 
@@ -92,87 +94,84 @@ export default function SyncDefaults() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.sync.targets')}>
-        <Badge tone="accent">{t('settings.sync.targets')}</Badge>
-        <p className="mt-2 mb-3 text-xs text-t-muted">{t('settings.sync.targetsHint')}</p>
-        <Segmented
-          aria-label={t('settings.sync.targets')}
-          className="mb-4"
-          value={kind}
-          onChange={setKind}
-          options={KINDS.map((c) => ({ value: c, label: t(`watch.cat.${c}`) }))}
-        />
-        <div className="space-y-3">
-          <Field label={t('watch.localPath')}>
-            <div className="flex items-start gap-2">
-              {/* the typed path is the form value itself: a value that only
-                  landed on Enter was lost when Save was clicked instead */}
-              <PathInput
-                value={k.localPath}
-                onChange={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
-                onCommit={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
-                fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
-                queryKey={['local']}
-                ariaLabel={t('watch.localPath')}
-              />
-              <Button
-                size="sm"
-                aria-expanded={browse}
-                aria-label={t('rename.browse')}
-                title={t('rename.browse')}
-                onClick={() => setBrowse((b) => !b)}
-              >
-                <FolderOpen aria-hidden size="1.2em" />
-              </Button>
-            </div>
-            {browse && (
-              <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-border-subtle">
-                <LocalPicker path={k.localPath} onNavigate={(p) => setKindField({ localPath: p.replace(/^\//, '') })} />
-              </div>
-            )}
-          </Field>
-          {/* subfolder mirrors the mode so a client reading only the bool
-              still gets the remote-folder behaviour it knows */}
-          <SubfolderChoice
-            value={k.subfolderSource ?? (k.subfolder ? 'remote' : 'none')}
-            onChange={(m) => setKindField({ subfolderSource: m, subfolder: m === 'remote' })}
-            separator={k.subfolderSeparator ?? ''}
-            onSeparator={(sep) => setKindField({ subfolderSeparator: sep })}
+      <SettingsPanel title={t('settings.sync.targets')} desc={t('settings.sync.targetsHint')}>
+        <SettingsField label={t('settings.sync.kind')}>
+          <Segmented
+            aria-label={t('settings.sync.kind')}
+            value={kind}
+            onChange={setKind}
+            options={KINDS.map((c) => ({ value: c, label: t(`watch.cat.${c}`) }))}
           />
-          <div className={ROW_GRID}>
-            <Field label={t('rename.template')}>
-              <Input
-                className="font-mono"
-                value={k.template}
-                placeholder="{title} - S{season:02}E{episode:02}"
-                onChange={(e) => setKindField({ template: e.target.value })}
-              />
-            </Field>
-            <Field label={t('rename.separator')}>
-              <Select value={k.separator} onChange={(e) => setKindField({ separator: e.target.value })}>
-                <option value="">{t('rename.sepSpace')}</option>
-                <option value="_">{t('rename.sepUnderscore')}</option>
-                <option value=".">{t('rename.sepDot')}</option>
-                <option value="-">{t('rename.sepDash')}</option>
-              </Select>
-            </Field>
+        </SettingsField>
+        <SettingsField label={t('watch.localPath')}>
+          <div className="flex items-start gap-2">
+            {/* the typed path is the form value itself: a value that only
+                landed on Enter was lost when Save was clicked instead */}
+            <PathInput
+              value={k.localPath}
+              onChange={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
+              onCommit={(p) => setKindField({ localPath: p.replace(/^\//, '') })}
+              fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
+              queryKey={['local']}
+              ariaLabel={t('watch.localPath')}
+            />
+            <IconButton aria-expanded={browse} aria-label={t('rename.browse')} onClick={() => setBrowse((b) => !b)}>
+              <FolderOpen aria-hidden size="1.2em" />
+            </IconButton>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {PRESETS.map((p) => (
-              <Button key={p.key} size="sm" onClick={() => setKindField({ separator: '', ...p.patch })}>
-                {t(p.key)}
-              </Button>
-            ))}
-          </div>
+          {browse && (
+            <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-border-subtle">
+              <LocalPicker path={k.localPath} onNavigate={(p) => setKindField({ localPath: p.replace(/^\//, '') })} />
+            </div>
+          )}
+        </SettingsField>
+        {/* subfolder mirrors the mode so a client reading only the bool
+            still gets the remote-folder behaviour it knows */}
+        <SubfolderChoice
+          className="t-sf"
+          value={k.subfolderSource ?? (k.subfolder ? 'remote' : 'none')}
+          onChange={(m) => setKindField({ subfolderSource: m, subfolder: m === 'remote' })}
+          separator={k.subfolderSeparator ?? ''}
+          onSeparator={(sep) => setKindField({ subfolderSeparator: sep })}
+        />
+        <div className="sf-2">
+          <TextSetting
+            label={t('rename.template')}
+            hint={
+              <span className="flex flex-wrap gap-x-4">
+                {PRESETS.map((p) => (
+                  <button
+                    key={p.key}
+                    type="button"
+                    className="t-link"
+                    onClick={() => setKindField({ separator: '', ...p.patch })}
+                  >
+                    {t(p.key)}
+                  </button>
+                ))}
+              </span>
+            }
+            mono
+            value={k.template}
+            placeholder="{title} - S{season:02}E{episode:02}"
+            onChange={(v) => setKindField({ template: v })}
+          />
+          <SettingsField label={t('rename.separator')} htmlFor={ids + 'sep'}>
+            <Select id={ids + 'sep'} value={k.separator} onChange={(e) => setKindField({ separator: e.target.value })}>
+              <option value="">{t('rename.sepSpace')}</option>
+              <option value="_">{t('rename.sepUnderscore')}</option>
+              <option value=".">{t('rename.sepDot')}</option>
+              <option value="-">{t('rename.sepDash')}</option>
+            </Select>
+          </SettingsField>
         </div>
-      </Panel>
+      </SettingsPanel>
 
-      <Panel as="section" className="mb-4 p-5" aria-label={t('settings.sync.common')}>
-        <Badge tone="accent">{t('settings.sync.common')}</Badge>
-        <p className="mt-2 mb-3 text-xs text-t-muted">{t('settings.sync.commonHint')}</p>
-        <div className={ROW_GRID}>
-          <Field label={t('watch.renameOrdering')}>
+      <SettingsPanel title={t('settings.sync.common')} desc={t('settings.sync.commonHint')}>
+        <div className="sf-2">
+          <SettingsField label={t('watch.renameOrdering')} htmlFor={ids + 'ord'}>
             <Select
+              id={ids + 'ord'}
               value={ordering}
               onChange={(e) => {
                 const [p = '', o = ''] = e.target.value.split(':')
@@ -185,9 +184,10 @@ export default function SyncDefaults() {
               {caps?.tvdbApiKeySet && <option value="tvdb:absolute">{t('watch.renameTvdbAbsolute')}</option>}
               {caps?.tmdbApiKeySet && <option value="tmdb:aired">TMDB Aired</option>}
             </Select>
-          </Field>
-          <Field label={t('watch.renameTitleLang')}>
+          </SettingsField>
+          <SettingsField label={t('watch.renameTitleLang')} htmlFor={ids + 'tl'}>
             <Select
+              id={ids + 'tl'}
               value={form.common.renameTitleLang}
               onChange={(e) => setCommon({ renameTitleLang: e.target.value })}
             >
@@ -199,79 +199,70 @@ export default function SyncDefaults() {
                 </option>
               ))}
             </Select>
-          </Field>
-          <label className="flex items-center gap-2 text-sm text-t-secondary sm:col-span-2">
-            <input
-              type="checkbox"
-              checked={form.common.airedMapping}
-              onChange={(e) => setCommon({ airedMapping: e.target.checked })}
-            />
-            {t('watch.airedMapping')}
-          </label>
-          <Field label={t('watch.wantDub')}>
-            <Input
-              className="font-mono"
-              value={form.common.wantDub}
-              placeholder="Ger"
-              onChange={(e) => setCommon({ wantDub: e.target.value.trim() })}
-            />
-          </Field>
-          <Field label={t('watch.wantSub')}>
-            <Input
-              className="font-mono"
-              value={form.common.wantSub}
-              placeholder="Ger"
-              onChange={(e) => setCommon({ wantSub: e.target.value.trim() })}
-            />
-          </Field>
-          <Field label={t('watch.dubLag')}>
-            <Input
-              type="number"
-              min={0}
-              max={365}
-              inputMode="numeric"
-              value={form.common.dubLagDays || ''}
-              placeholder="0"
-              onChange={(e) => setCommon({ dubLagDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
-            />
-          </Field>
-          <Field label={t('watch.plexAudio')}>
-            <Input
-              className="font-mono"
-              value={form.common.plexAudioLang}
-              placeholder="Ger"
-              onChange={(e) => setCommon({ plexAudioLang: e.target.value.trim() })}
-            />
-          </Field>
-          <Field label={t('watch.plexSub')}>
-            <Input
-              className="font-mono"
-              value={form.common.plexSubLang}
-              placeholder="off, Ger, Ger:forced"
-              onChange={(e) => setCommon({ plexSubLang: e.target.value.trim() })}
-            />
-          </Field>
+          </SettingsField>
         </div>
-        <p className="mt-3 text-xs text-t-muted">{t('settings.sync.langHint')}</p>
-      </Panel>
+        <SwitchSetting
+          label={t('settings.sync.aired')}
+          hint={t('settings.sync.airedHint')}
+          checked={form.common.airedMapping}
+          onChange={(on) => setCommon({ airedMapping: on })}
+        />
+        <div className="sf-2">
+          <TextSetting
+            label={t('watch.wantDub')}
+            mono
+            value={form.common.wantDub}
+            placeholder="Ger"
+            onChange={(v) => setCommon({ wantDub: v.trim() })}
+          />
+          <TextSetting
+            label={t('watch.wantSub')}
+            mono
+            value={form.common.wantSub}
+            placeholder="Ger"
+            onChange={(v) => setCommon({ wantSub: v.trim() })}
+          />
+          <TextSetting
+            label={t('watch.dubLag')}
+            type="number"
+            min={0}
+            max={365}
+            inputMode="numeric"
+            narrow
+            value={form.common.dubLagDays || ''}
+            placeholder="0"
+            onChange={(v) => setCommon({ dubLagDays: Math.max(0, parseInt(v, 10) || 0) })}
+          />
+          <span aria-hidden className="hidden sm:block" />
+          <TextSetting
+            label={t('watch.plexAudio')}
+            mono
+            value={form.common.plexAudioLang}
+            placeholder="Ger"
+            onChange={(v) => setCommon({ plexAudioLang: v.trim() })}
+          />
+          <TextSetting
+            label={t('watch.plexSub')}
+            mono
+            value={form.common.plexSubLang}
+            placeholder="off, Ger, Ger:forced"
+            onChange={(v) => setCommon({ plexSubLang: v.trim() })}
+          />
+        </div>
+        <p className="sf-note">{t('settings.sync.langHint')}</p>
+      </SettingsPanel>
 
-      <PageFooter>
-        <ActionBar aria-label={t('settings.save')} sticky={false} className="lg:mb-6">
-          <Button variant="primary" onClick={() => save.mutate(form)} disabled={save.isPending}>
-            {t('settings.save')}
-          </Button>
-          {saved && (
-            <Badge tone="ok" role="status">
-              {t('settings.saved')}
-            </Badge>
-          )}
-          {save.error && (
-            <span className="text-sm text-err" role="alert">
-              {save.error.message}
-            </span>
-          )}
-        </ActionBar>
-      </PageFooter>
+      <SaveBarView
+        dirty={dirty}
+        saved={saved}
+        pending={save.isPending}
+        error={save.error?.message}
+        onSave={() => save.mutate(form)}
+        onDiscard={() => {
+          save.reset()
+          setForm(null)
+        }}
+      />
     </>
   )
 }

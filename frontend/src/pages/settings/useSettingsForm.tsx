@@ -201,29 +201,54 @@ export function SaveBar({
   dirty: boolean
   reset: () => void
 }) {
+  return (
+    <SaveBarView
+      dirty={dirty}
+      saved={saved}
+      pending={save.isPending}
+      error={save.error?.message}
+      onSave={() => save.mutate(form)}
+      onDiscard={() => {
+        save.reset()
+        reset()
+      }}
+    />
+  )
+}
+
+/** The save bar of any form: what SaveBar draws, without the settings form. */
+export function SaveBarView({
+  dirty,
+  saved,
+  pending,
+  error,
+  onSave,
+  onDiscard,
+}: {
+  dirty: boolean
+  saved: boolean
+  pending: boolean
+  error?: string
+  onSave: () => void
+  onDiscard: () => void
+}) {
   const { t } = useTranslation()
-  if (!dirty && !saved && !save.error) return null
+  if (!dirty && !saved && !error) return null
   return (
     <PageFooter>
       <div className="set-save" role="region" aria-label={t('settings.save')}>
         <span role="status">{dirty ? t('settings.unsaved') : saved ? t('settings.saved') : ''}</span>
         {dirty && (
           <>
-            <Button
-              onClick={() => {
-                save.reset()
-                reset()
-              }}
-              disabled={save.isPending}
-            >
+            <Button onClick={onDiscard} disabled={pending}>
               {t('common.discard')}
             </Button>
-            <Button variant="primary" onClick={() => save.mutate(form)} disabled={save.isPending}>
+            <Button variant="primary" onClick={onSave} disabled={pending}>
               {t('settings.save')}
             </Button>
           </>
         )}
-        {save.error && <span role="alert">{save.error.message}</span>}
+        {error && <span role="alert">{error}</span>}
       </div>
     </PageFooter>
   )

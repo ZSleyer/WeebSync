@@ -1634,9 +1634,12 @@
       "users": "Benutzer"
     },
     "sync": {
-      "targets": "Zielordner je Medienart",
+      "airedHint": "Für Endlos-Serien mit absoluter Nummerierung: Staffeln nach der Ausstrahlung bei TVDB.",
+      "aired": "Nach Ausstrahlung einsortieren",
+      "kind": "Art",
+      "targets": "Zielordner je Art",
       "targetsHint": "Wohin ein neuer Auto-Sync oder Einmal-Sync dieser Art schreibt und wie die Dateien heißen. Liegt die Serie schon in der Bibliothek, gewinnt ihr Ordner.",
-      "common": "Rename und Sprachen",
+      "common": "Benennen und Sprachen",
       "commonHint": "Gilt für alle Arten und für jeden Vorschlag des Assistenten. Leer bedeutet: wie bisher im Dialog wählen.",
       "langHint": "Sprachcodes wie in den Dateinamen (Ger, Eng, Jap). Plex-Untertitel: off, Ger oder Ger:forced."
     },
