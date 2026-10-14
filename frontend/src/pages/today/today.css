@@ -140,10 +140,10 @@ span.td-pn { cursor: default; }
   pointer-events: none;
 }
 .td-hero[data-blend="duo"] .td-pn.td-gone::after { background: var(--accent-2); animation: td-duo-tint 120ms linear backwards; }
-.td-hero[data-blend="duo"] .td-pn[data-fresh]::after { background: var(--accent); animation: td-duo-clear 900ms var(--ease-out) forwards; }
+.td-hero[data-blend="duo"] .td-pn[data-fresh]::after { background: var(--accent); animation: td-duo-clear 900ms linear forwards; }
 @keyframes td-duo-out { 40% { opacity: 1; } to { opacity: 0; } }
 @keyframes td-duo-tint { from { opacity: 0; } }
-@keyframes td-duo-clear { 0%, 50% { opacity: 1; } to { opacity: 0; } }
+@keyframes td-duo-clear { 0%, 60% { opacity: 1; animation-timing-function: var(--ease-out); } to { opacity: 0; } }
 
 /* push: the new art pushes the old out to the left, each inside its panel */
 .td-hero[data-blend="push"] .td-pn.td-gone { animation: none; }
