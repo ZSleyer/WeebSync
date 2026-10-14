@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -87,5 +89,33 @@ func TestHardenCapsBodies(t *testing.T) {
 	}
 	if n, err := read("/api/settings", 2<<20); err == nil {
 		t.Errorf("every other route stays at a megabyte, read %d bytes", n)
+	}
+}
+
+// The hashed bundles never change under their name, the files that name them
+// always may: the first are cached for good, the second revalidated.
+func TestSPACachesOnlyTheHashedBundles(t *testing.T) {
+	dir := t.TempDir()
+	for _, f := range []string{"index.html", "sw.js", "assets/index-abc123.js"} {
+		p := filepath.Join(dir, f)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := spaHandler(dir)
+	for path, want := range map[string]string{
+		"/assets/index-abc123.js": "public, max-age=31536000, immutable",
+		"/sw.js":                  "no-cache",
+		"/index.html":             "no-cache",
+		"/watches":                "no-cache",
+	} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", path, nil))
+		if got := rec.Header().Get("Cache-Control"); got != want {
+			t.Errorf("%s: Cache-Control %q, want %q", path, got, want)
+		}
 	}
 }
