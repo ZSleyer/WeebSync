@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { SidePanel, Toast, ToastRegion } from 'fluid-lycoris'
+import { act } from '@testing-library/react'
+import { SidePanel, Toast, toastDuration, ToastRegion } from 'fluid-lycoris'
 
 describe('ToastRegion', () => {
   it('is a manual popover live region and is raised again per toast', () => {
@@ -39,6 +40,43 @@ describe('Toast', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rückgängig' }))
     expect(undo).toHaveBeenCalled()
     expect((container.querySelector('.t-toast__time') as HTMLElement).style.animationDuration).toBe('5000ms')
+  })
+})
+
+describe('toastDuration', () => {
+  it('reads by words, at least 6s, 8s with an action, at most 10s', () => {
+    expect(toastDuration('Gelöscht')).toBe(6000)
+    expect(toastDuration('Gelöscht', true)).toBe(8000)
+    // 1s + 300ms per word
+    expect(toastDuration(Array(20).fill('Wort').join(' '))).toBe(7000)
+    expect(toastDuration(Array(50).fill('Wort').join(' '))).toBe(10000)
+  })
+})
+
+describe('Timed toast', () => {
+  it('closes when its time is up, held while focused or hidden', () => {
+    vi.useFakeTimers()
+    try {
+      const close = vi.fn()
+      const { container } = render(<Toast message="Kopiert" duration={6000} onClose={close} closeLabel="Schließen" />)
+      const ring = container.querySelector('.t-toast__ring') as HTMLElement
+      expect(ring.style.animationDuration).toBe('6000ms')
+      const button = screen.getByRole('button', { name: 'Schließen' })
+      act(() => vi.advanceTimersByTime(3000))
+      fireEvent.focus(button)
+      expect(container.querySelector('.t-toast')).toHaveAttribute('data-paused')
+      act(() => vi.advanceTimersByTime(30_000))
+      expect(close).not.toHaveBeenCalled()
+      fireEvent.blur(button)
+      act(() => vi.advanceTimersByTime(2900))
+      expect(close).not.toHaveBeenCalled()
+      act(() => vi.advanceTimersByTime(200))
+      expect(close).toHaveBeenCalledOnce()
+      fireEvent.click(button)
+      expect(close).toHaveBeenCalledTimes(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

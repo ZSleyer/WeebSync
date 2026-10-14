@@ -125,7 +125,7 @@ export { enterPage, RISE_SPAN_MS, riseDelay, useEnterPage, useWipe, Wipe, wipeOu
 export type { WipePhase, WipeProps } from './wipe'
 export { listPosition, Select, selectOptions, stepOption, typeAhead } from './select'
 export type { SelectOption, SelectProps } from './select'
-export { Toast, ToastRegion } from './toast'
+export { Toast, toastDuration, ToastRegion } from './toast'
 export type { ToastProps, ToastRegionProps } from './toast'
 export { Rail, railEdges } from './rail'
 export type { RailEdges, RailProps } from './rail'

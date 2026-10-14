@@ -2372,3 +2372,39 @@ input[type='search']::-webkit-search-results-decoration { -webkit-appearance: no
 }
 @keyframes t-toast-in { from { opacity: 0; translate: 0 1rem; } }
 @keyframes t-toast-time { to { transform: scaleX(0); } }
+/* the close button of a timed toast: its ring runs down the time left and
+   stops with it while the toast is hovered, focused or the tab is hidden */
+@property --t-toast-p { syntax: "<number>"; inherits: false; initial-value: 1; }
+.t-toast__close {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .t-toast__close:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
+}
+.kbd .t-toast__close:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
+.t-toast__ring {
+  position: absolute;
+  inset: 0.5rem;
+  border-radius: 50%;
+  background: conic-gradient(currentColor calc(var(--t-toast-p) * 1turn), color-mix(in srgb, currentColor 22%, transparent) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px));
+  animation: t-toast-ring linear both;
+}
+.t-toast[data-paused] .t-toast__ring { animation-play-state: paused; }
+@keyframes t-toast-ring { from { --t-toast-p: 1; } to { --t-toast-p: 0; } }
+/* without motion the ring would show as already run out: a plain outline */
+@media (prefers-reduced-motion: reduce) {
+  .t-toast__ring { animation: none; --t-toast-p: 1; opacity: 0.4; }
+}
+:root[data-motion="off"] .t-toast__ring { animation: none; --t-toast-p: 1; opacity: 0.4; }

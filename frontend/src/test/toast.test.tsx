@@ -62,8 +62,31 @@ describe('undoable removal', () => {
     expect(screen.queryByText(/item 1/)).toBeNull()
     expect(screen.getByText('gone 1')).toBeInTheDocument()
     expect(remove).not.toHaveBeenCalled()
-    await act(() => vi.advanceTimersByTimeAsync(5000))
+    // a line with an undo stays at least 8s
+    await act(() => vi.advanceTimersByTimeAsync(7900))
+    expect(remove).not.toHaveBeenCalled()
+    await act(() => vi.advanceTimersByTimeAsync(100))
     expect(remove).toHaveBeenCalledOnce()
+  })
+
+  it('holds the time while the line is hovered, and sends on close or Escape', async () => {
+    const remove = vi.fn(async () => {})
+    app(remove)
+    await act(() => vi.runOnlyPendingTimersAsync())
+    fireEvent.click(screen.getByText('del 1'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    const line = screen.getByText('gone 1').closest('.t-toast')!
+    fireEvent.pointerEnter(line, { pointerType: 'mouse' })
+    await act(() => vi.advanceTimersByTimeAsync(20_000))
+    expect(remove).not.toHaveBeenCalled()
+    fireEvent.pointerLeave(line)
+    await act(() => vi.advanceTimersByTimeAsync(7000))
+    expect(remove).not.toHaveBeenCalled()
+    // Escape with the focus inside closes it, and the removal goes through
+    fireEvent.keyDown(screen.getByText('common.undo'), { key: 'Escape' })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(remove).toHaveBeenCalledOnce()
+    expect(screen.queryByText('gone 1')).toBeNull()
   })
 
   it('puts the row back on undo and never sends the removal', async () => {

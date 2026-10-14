@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient, type QueryKey } from '@tanstack/react-query'
-import { Toast, ToastRegion } from 'fluid-lycoris'
+import { Toast, toastDuration, ToastRegion } from 'fluid-lycoris'
 
 declare module '@tanstack/react-query' {
   interface Register {
@@ -17,8 +17,9 @@ declare module '@tanstack/react-query' {
 // A plain message takes a line of its own above that one, so a failure that
 // is reported while a removal still waits neither sends the removal early
 // nor takes its Undo away.
-
-const UNDO_MS = 5000
+// Each line stays as long as it takes to read (toastDuration: by its words,
+// longer with an undo), held while hovered, focused or the tab is hidden; the
+// toast keeps that time itself and says when it ran out.
 
 interface ToastOptions {
   message: string
@@ -40,15 +41,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation()
   const [live, setLive] = useState<Live | null>(null)
   const [notice, setNotice] = useState<Live | null>(null)
-  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const pending = useRef<{ id: number; commit?: ToastOptions['commit'] } | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const seq = useRef(0)
 
-  // the held-back action goes through exactly once: on timeout, when the
-  // next line replaces this one, or when the page is left
+  // the held-back action goes through exactly once: when the line runs out or
+  // is closed, when the next line replaces this one, or when the page is left
   const flush = useCallback(() => {
-    clearTimeout(timer.current)
     const p = pending.current
     pending.current = null
     void p?.commit?.()
@@ -58,18 +56,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (opts) => {
       const id = ++seq.current
       if (!opts.undo && !opts.commit) {
-        clearTimeout(noticeTimer.current)
         setNotice({ ...opts, id })
-        noticeTimer.current = setTimeout(() => setNotice((l) => (l?.id === id ? null : l)), UNDO_MS)
         return
       }
       flush()
       pending.current = { id, commit: opts.commit }
       setLive({ ...opts, id })
-      timer.current = setTimeout(() => {
-        flush()
-        setLive((l) => (l?.id === id ? null : l))
-      }, UNDO_MS)
     },
     [flush],
   )
@@ -96,11 +88,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [flush])
 
   const undo = () => {
-    clearTimeout(timer.current)
     pending.current = null
     live?.undo?.()
     setLive(null)
   }
+
+  // run out or closed: a held-back removal goes through now
+  const closeLive = useCallback(() => {
+    flush()
+    setLive(null)
+  }, [flush])
+  const closeNotice = useCallback(() => setNotice(null), [])
 
   return (
     <ToastCtx.Provider value={toast}>
@@ -108,13 +106,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {/* the region sits in the top layer and is raised again per line, so a
           line raised from inside an open sheet lands on top of it */}
       <ToastRegion raise={`${live?.id}-${notice?.id}`}>
-        {notice && <Toast key={notice.id} message={notice.message} duration={UNDO_MS} />}
+        {notice && (
+          <Toast
+            key={notice.id}
+            message={notice.message}
+            duration={toastDuration(notice.message)}
+            onClose={closeNotice}
+            closeLabel={t('common.close')}
+          />
+        )}
         {live && (
           <Toast
             key={live.id}
             message={live.message}
             action={live.undo ? { label: t('common.undo'), onClick: undo } : undefined}
-            duration={UNDO_MS}
+            duration={toastDuration(live.message, !!live.undo)}
+            onClose={closeLive}
+            closeLabel={t('common.close')}
           />
         )}
       </ToastRegion>
