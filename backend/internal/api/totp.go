@@ -103,7 +103,7 @@ type TotpSetupResponse struct {
 func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var in reauthRequest
-	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
+	if !readJSON(w, r, &in) || !s.reauth(w, r, u.ID, in.Password) {
 		return
 	}
 	if s.totpEnabled(u.ID) {
@@ -207,13 +207,9 @@ func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	var hash string
-	s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, u.ID).Scan(&hash)
 	// An OIDC account has no password to confirm with, and its TOTP guards
 	// nothing: only a password login asks for it. It used to be stuck on.
-	// 403, not 401: the session is fine, and a 401 would sign the client out.
-	if hash != "" && !auth.VerifyPassword(in.Password, hash) {
-		writeErr(w, http.StatusForbidden, "invalid password")
+	if !s.reauth(w, r, u.ID, in.Password) {
 		return
 	}
 	// both or neither: a failed first delete answered "ok" with 2FA still on

@@ -274,6 +274,16 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginRefused(w, r, c.Email)
 		return
 	}
+	// an account waiting for approval answers the same whatever the
+	// password: otherwise the different answer to the right one would
+	// confirm a guess before an admin ever let the account in
+	if !approved {
+		if !auth.VerifyPassword(c.Password, hash) {
+			s.accountFailed(r, c.Email)
+		}
+		writeErr(w, http.StatusForbidden, "account awaits approval")
+		return
+	}
 	ok, legacy := auth.VerifyPasswordLegacy(c.Password, hash)
 	if !ok {
 		s.loginRefused(w, r, c.Email)
@@ -291,10 +301,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// The hold waits for the whole sign-in: a stranger who knows the old
 	// password and fails the second factor must not hold the owner's sessions.
 	weak := auth.ValidatePassword(c.Password, c.Email) != nil
-	if !approved {
-		writeErr(w, http.StatusForbidden, "account awaits approval")
-		return
-	}
 	// Without a mail server there is no inbox to check and no link could come:
 	// the account was registered while one was set up, which is gone since.
 	// Verification is only asked for when mail can deliver it, the same rule

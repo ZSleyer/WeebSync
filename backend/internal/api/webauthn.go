@@ -161,7 +161,7 @@ func (s *Server) storeCredential(userID int64, c *webauthn.Credential, name stri
 		if !passwordless {
 			return nil
 		}
-		if _, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE user_id = ? AND replace_due = 1`, userID); err != nil {
+		if _, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE user_id = ? AND replace_due = 1 AND passwordless = 1`, userID); err != nil {
 			return err
 		}
 		return liftPasskeyHold(tx, userID)
@@ -183,13 +183,26 @@ func liftPasskeyHold(tx interface {
 // outlives it, or switch on TOTP and lock the owner out. 403, not 401: the
 // session is fine, and a 401 would sign the client out. An account without a
 // password signs in through its provider and has nothing to confirm with.
-func (s *Server) reauth(w http.ResponseWriter, userID int64, password string) bool {
-	var hash string
-	if err := s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash); err != nil {
+//
+// Every check counts like a sign-in: a wrong password spends from the
+// account's bucket and the route sits behind the per-address limit, or a
+// session (one held for a passkey that verified nobody, say) could guess the
+// password at will through a removal that removes nothing.
+func (s *Server) reauth(w http.ResponseWriter, r *http.Request, userID int64, password string) bool {
+	var hash, email string
+	if err := s.DB.QueryRow(`SELECT password_hash, email FROM users WHERE id = ?`, userID).Scan(&hash, &email); err != nil {
 		dbErr(w)
 		return false
 	}
-	if hash != "" && !auth.VerifyPassword(password, hash) {
+	if hash == "" {
+		return true
+	}
+	if wait := s.accountWait(r, email); wait > 0 {
+		tooMany(w, wait)
+		return false
+	}
+	if !auth.VerifyPassword(password, hash) {
+		s.accountFailed(r, email)
 		writeErr(w, http.StatusForbidden, "invalid password")
 		return false
 	}
@@ -242,7 +255,7 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	var in reauthRequest
-	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
+	if !readJSON(w, r, &in) || !s.reauth(w, r, u.ID, in.Password) {
 		return
 	}
 	user, err := s.loadWAUser(u.ID)
@@ -420,6 +433,13 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}
 	if !s.approved(matched.id) {
 		writeErr(w, http.StatusForbidden, "account awaits approval")
+		return
+	}
+	// a security key confirms a password sign-in; on its own it is no way in
+	var passwordless int
+	s.DB.QueryRow(`SELECT passwordless FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&passwordless)
+	if passwordless != 1 {
+		writeErr(w, http.StatusUnauthorized, "passkey login failed")
 		return
 	}
 	// what this ceremony did, not the credential's latched flag
@@ -624,7 +644,7 @@ func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	// session of a passkey that signed in without verifying must not lift
 	// its own hold that way
 	var in reauthRequest
-	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
+	if !readJSON(w, r, &in) || !s.reauth(w, r, u.ID, in.Password) {
 		return
 	}
 	// removing the passkey that signed in without verifying is the other way
