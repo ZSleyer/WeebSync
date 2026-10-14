@@ -2,16 +2,20 @@
    Teal is this page's colour (sync): section markers and the airing times. ═══ */
 
 /* ── tools row: kind, filter, view switch (+ sort, calendar mode) ── */
+/* the filter keeps the width its labels and counts need and the row wraps
+   when they do not fit beside the rest: squeezed, the segments stacked into
+   a column (a 480px phone sat exactly on a fixed breakpoint) */
 .w-tools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.625rem;
   margin-bottom: 1rem;
   min-width: 0;
 }
 .w-tools .w-filter {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 1 0 auto;
+  max-width: 100%;
 }
 .w-tools .w-kind {
   flex: 0 0 auto;
@@ -34,14 +38,11 @@
 }
 @media (width >= 64rem) {
   .w-tools .w-filter {
-    flex: 0 1 26.25rem;
+    flex: 0 0 26.25rem;
   }
 }
 @media (width < 30rem) {
   /* a phone: the kind sits on a row of its own over the filter */
-  .w-tools {
-    flex-wrap: wrap;
-  }
   .w-tools .w-kind {
     width: 100%;
   }
