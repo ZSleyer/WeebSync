@@ -126,9 +126,20 @@ dialog.pal-dlg > .pal-body {
     height: auto;
     max-height: var(--dialog-max-h);
     margin: 12vh auto auto;
-    border: 1px solid var(--line-strong);
+    /* the theme's pair as a hairline: red fading in from the top left,
+       turquoise from the bottom right, the quiet line between them */
+    border: 1px solid transparent;
     border-radius: 14px;
-    box-shadow: 0 24px 48px -12px rgb(0 0 0 / 0.6);
+    background:
+      linear-gradient(var(--bg-2), var(--bg-2)) padding-box,
+      linear-gradient(
+          135deg,
+          color-mix(in srgb, var(--accent) 75%, var(--line)),
+          var(--line) 30% 70%,
+          color-mix(in srgb, var(--accent-2) 75%, var(--line))
+        )
+        border-box;
+    box-shadow: 0 24px 56px -16px rgb(0 0 0 / 0.65);
   }
   dialog.pal-dlg > .pal-body { height: auto; max-height: var(--dialog-max-h); }
   .pal-in { padding: 0.5rem 0.5rem 0.5rem 1rem; }
