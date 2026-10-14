@@ -48,12 +48,17 @@ func (s *Service) load() (config, error) {
 	if c.host == "" {
 		return c, fmt.Errorf("smtp not configured")
 	}
-	c.port, _ = strconv.Atoi(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"))
-	if c.port == 0 {
-		c.port = 587
-	}
 	if c.security == "" {
 		c.security = "starttls"
+	}
+	// the port each mode is registered for when none is set: implicit TLS on
+	// 465, STARTTLS submission on 587, plain relay on 25
+	c.port, _ = strconv.Atoi(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"))
+	if c.port == 0 {
+		c.port = map[string]int{"tls": 465, "none": 25}[c.security]
+		if c.port == 0 {
+			c.port = 587
+		}
 	}
 	if c.from == "" {
 		c.from = c.username

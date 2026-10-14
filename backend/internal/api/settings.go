@@ -541,6 +541,14 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// a login over an unencrypted connection would send the password in
+	// clear text; Go refuses it at send time with a cryptic error, so say it
+	// here (a relay on this machine is the one exception)
+	if (in.SmtpSecurity != cur.SmtpSecurity || in.SmtpUsername != cur.SmtpUsername || in.SmtpHost != cur.SmtpHost) &&
+		in.SmtpSecurity == "none" && strings.TrimSpace(in.SmtpUsername) != "" && !isLoopbackHost(strings.TrimSpace(in.SmtpHost)) {
+		bad("smtpSecurity", "a login needs STARTTLS or TLS: without encryption the password would cross the network in clear text")
+		return
+	}
 	if in.SmtpPort != cur.SmtpPort && (in.SmtpPort < 0 || in.SmtpPort > 65535) {
 		bad("smtpPort", "must be 0-65535")
 		return

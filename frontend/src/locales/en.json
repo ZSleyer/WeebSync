@@ -1690,6 +1690,7 @@
     "smtpPort": "Port",
     "smtpSecurity": "Encryption",
     "smtpSecurityNone": "None (plaintext)",
+    "smtpNoneWarn": "Without encryption every mail crosses the network in clear text, password reset links included. Signing in to the mail server works this way only with a server on this machine.",
     "smtpUsername": "Username",
     "smtpPassword": "Password",
     "smtpFrom": "From address",

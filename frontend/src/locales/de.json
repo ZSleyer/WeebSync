@@ -1690,6 +1690,7 @@
     "smtpPort": "Port",
     "smtpSecurity": "Verschlüsselung",
     "smtpSecurityNone": "Keine (unverschlüsselt)",
+    "smtpNoneWarn": "Ohne Verschlüsselung gehen alle Mails im Klartext übers Netz, auch Links zum Zurücksetzen des Passworts. Eine Anmeldung am Mailserver ist so nur bei einem Server auf diesem Rechner möglich.",
     "smtpUsername": "Benutzername",
     "smtpPassword": "Passwort",
     "smtpFrom": "Absender (From)",

@@ -54,7 +54,7 @@ export default function Smtp({
           inputMode="numeric"
           min={1}
           max={65535}
-          placeholder="587"
+          placeholder={form.smtpSecurity === 'tls' ? '465' : form.smtpSecurity === 'none' ? '25' : '587'}
           value={form.smtpPort || ''}
           onChange={(v) => set('smtpPort', Number(v))}
         />
@@ -74,6 +74,11 @@ export default function Smtp({
             <option value="none">{t('settings.smtpSecurityNone')}</option>
           </Select>
         </SettingsField>
+        {form.smtpSecurity === 'none' && (
+          <p className="sf-issue" role="note">
+            {t('settings.smtpNoneWarn')}
+          </p>
+        )}
         <TextSetting
           label={t('settings.smtpUsername')}
           env={locked('smtpUsername')}
