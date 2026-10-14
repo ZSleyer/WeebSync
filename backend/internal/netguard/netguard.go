@@ -6,6 +6,7 @@ package netguard
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -126,12 +127,19 @@ func PublicFetchClient(timeout time.Duration) *http.Client {
 	return client(timeout, publicBlocked, false)
 }
 
+// secretHeaders are dropped when a redirect leaves the origin a request
+// started at.
+var secretHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Plex-Token", "X-Api-Key"}
+
 func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout}
 	tr := &http.Transport{
 		// A proxy would make DialContext validate the proxy rather than the
 		// requested destination and bypass this guard.
 		Proxy: nil,
+		// system roots (plus SSL_CERT_FILE / SSL_CERT_DIR for a private CA),
+		// hostname checked, nothing older than TLS 1.2
+		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 			host, port, err := net.SplitHostPort(addr)
 			if err != nil {
@@ -172,6 +180,20 @@ func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http
 			}
 			if httpsOnly && req.URL.Scheme != "https" {
 				return fmt.Errorf("redirect to non-HTTPS URL blocked")
+			}
+			// a request that began encrypted stays encrypted: a 3xx to http://
+			// would carry its token in clear text
+			if len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https" {
+				return fmt.Errorf("redirect from HTTPS to %s blocked", req.URL.Scheme)
+			}
+			// credentials are for the origin they were meant for. Go drops
+			// Authorization and Cookie only for another domain and never a
+			// custom header like X-Plex-Token, so a redirect to another host
+			// (or port, or a subdomain) would hand them over
+			if len(via) > 0 && (req.URL.Scheme != via[0].URL.Scheme || req.URL.Host != via[0].URL.Host) {
+				for _, h := range secretHeaders {
+					req.Header.Del(h)
+				}
 			}
 			return allowed(req.URL.Hostname(), deny)
 		},
