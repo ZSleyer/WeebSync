@@ -150,6 +150,15 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_oidc_nonce", Value: nonce, Path: "/api/auth/oidc",
 		MaxAge: 600,
 	})
+	// the login page's "stay signed in" box, carried over the round trip
+	remember := "0"
+	if r.URL.Query().Get("remember") == "1" {
+		remember = "1"
+	}
+	SetCookie(w, r, &http.Cookie{
+		Name: "weebsync_oidc_remember", Value: remember, Path: "/api/auth/oidc",
+		MaxAge: 600,
+	})
 	http.Redirect(w, r, o.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
 }
 
@@ -259,7 +268,9 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	// the provider's session id ties our session to the one at the IdP, so a
 	// logout there can end this one too (see BackchannelLogoutHandler)
 	sid, _ := claims["sid"].(string)
-	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject); err != nil {
+	rc, _ := r.Cookie("weebsync_oidc_remember")
+	SetCookie(w, r, &http.Cookie{Name: "weebsync_oidc_remember", Value: "", Path: "/api/auth/oidc", MaxAge: -1})
+	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject, rc != nil && rc.Value == "1"); err != nil {
 		callbackFail(w, r, "session_error")
 		return
 	}

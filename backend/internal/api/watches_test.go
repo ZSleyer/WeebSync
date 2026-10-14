@@ -22,7 +22,7 @@ import (
 func cookieForUser(t *testing.T, d *sql.DB, id int64) *http.Cookie {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	if err := auth.CreateSession(d, rec, httptest.NewRequest("GET", "/", nil), id); err != nil {
+	if err := auth.CreateSession(d, rec, httptest.NewRequest("GET", "/", nil), id, true); err != nil {
 		t.Fatal(err)
 	}
 	return rec.Result().Cookies()[0]

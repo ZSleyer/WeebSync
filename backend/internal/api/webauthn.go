@@ -432,7 +432,8 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ? AND auth_upgrade = ''`, matched.id)
 	}
 	s.updateCredential(cred)
-	if err := auth.CreateSession(s.DB, w, r, matched.id); err != nil {
+	// the body is the assertion, so the "stay signed in" box rides in a header
+	if err := auth.CreateSession(s.DB, w, r, matched.id, r.Header.Get("X-Remember") == "1"); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
@@ -524,12 +525,13 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
+	remember := s.pendingRemember(token)
 	if !s.consumeLoginPending(token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
 	s.updateCredential(cred)
-	if err := auth.CreateSession(s.DB, w, r, userID); err != nil {
+	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}

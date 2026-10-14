@@ -113,7 +113,7 @@ func TestOIDCDiscover(t *testing.T) {
 		t.Errorf("anon with users: got %d, want 403", rec.Code)
 	}
 	sess := httptest.NewRecorder()
-	if err := auth.CreateSession(d, sess, httptest.NewRequest("GET", "/", nil), adminID); err != nil {
+	if err := auth.CreateSession(d, sess, httptest.NewRequest("GET", "/", nil), adminID, true); err != nil {
 		t.Fatal(err)
 	}
 	if rec := doReq(mux, "POST", "/api/auth/oidc/discover", `{"url":"`+prov.URL+`"}`, sess.Result().Cookies()[0]); rec.Code != http.StatusOK {

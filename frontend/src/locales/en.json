@@ -252,6 +252,7 @@
   },
   "upgrade": {"title": "Secure your account", "passwordTitle": "New password needed", "passwordHint": "Your password no longer meets the current rules: it is too short, very common or built from your address. Set a new one to continue.", "logout": "Sign out", "passkeyTitle": "Replace your passkey", "passkeyHint": "Your passkey \"{{name}}\" signed in without asking for a PIN, fingerprint or face, so it protects only half as much. Confirm with your password and create a new one that verifies you; the old one is removed then. If your device cannot do that, remove the old one and sign in with your password from now on.", "passkeyReplace": "Create a new passkey", "passkeyRemove": "Remove the old passkey"},
   "login": {
+    "remember": "Stay signed in",
     "showPassword": "Show",
     "hidePassword": "Hide",
     "tagline": "かしら",

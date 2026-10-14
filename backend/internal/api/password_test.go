@@ -37,7 +37,7 @@ func TestPasswordChange(t *testing.T) {
 
 	setPassword(t, s, userID, "oldpassword1")
 	// a second session elsewhere, which the change has to end
-	if err := auth.CreateSession(s.DB, httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil), userID); err != nil {
+	if err := auth.CreateSession(s.DB, httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil), userID, true); err != nil {
 		t.Fatal(err)
 	}
 	if rec := doReq(mux, "PUT", "/api/auth/password", `{"current":"wrong","new":"longenough123"}`, userC); rec.Code != http.StatusForbidden {

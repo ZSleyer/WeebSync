@@ -2113,6 +2113,11 @@ export interface Schemas {
      */
     locale?: string
     password: string
+    /**
+     * "stay signed in": a session that slides with use for up to 90 days
+     * instead of one that ends with the browser and after a day at most
+     */
+    remember?: boolean
   }
   'api.dataResetRequest': {
     /**

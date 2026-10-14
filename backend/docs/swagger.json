@@ -4857,6 +4857,10 @@
                     },
                     "password": {
                         "type": "string"
+                    },
+                    "remember": {
+                        "description": "\"stay signed in\": a session that slides with use for up to 90 days\ninstead of one that ends with the browser and after a day at most",
+                        "type": "boolean"
                     }
                 },
                 "required": [

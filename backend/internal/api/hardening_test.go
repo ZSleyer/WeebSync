@@ -21,7 +21,7 @@ func TestLoginTotpRefusesReplayedCode(t *testing.T) {
 	if rec := postTotp(mux, token, code); rec.Code != http.StatusOK {
 		t.Fatalf("first use: %d %s", rec.Code, rec.Body.String())
 	}
-	token2, _ := s.newLoginPending(1)
+	token2, _ := s.newLoginPending(1, false)
 	if rec := postTotp(mux, token2, code); rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "invalid code") {
 		t.Fatalf("replay: %d %s", rec.Code, rec.Body.String())
 	}

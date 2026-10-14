@@ -25,7 +25,7 @@ func TestSessions(t *testing.T) {
 		rec := httptest.NewRecorder()
 		req := httptest.NewRequest("POST", "/", nil)
 		req.Header.Set("User-Agent", ua)
-		if err := auth.CreateSession(d, rec, req, id); err != nil {
+		if err := auth.CreateSession(d, rec, req, id, true); err != nil {
 			t.Fatal(err)
 		}
 		return rec.Result().Cookies()[0]

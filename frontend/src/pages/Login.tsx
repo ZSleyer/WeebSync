@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Fingerprint, KeyRound, LogIn } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, ButtonLink, Input, Segmented, Slot } from 'fluid-lycoris'
+import { Button, ButtonLink, Checkbox, Input, Segmented, Slot } from 'fluid-lycoris'
 import { api, ApiError, type User } from '../api'
 import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPasskeyLogin } from '../webauthn'
 import Loading from '../components/Loading'
@@ -29,6 +29,25 @@ const loggedOut = landing.has('loggedout')
 // a refused sign-in or a logout must not bounce back to the provider
 const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
+
+// "stay signed in" is remembered per browser: a convenience, so a failing
+// storage just falls back to unticked
+const REMEMBER_KEY = 'ws-remember'
+function readRemember(): boolean {
+  try {
+    return localStorage.getItem(REMEMBER_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+function writeRemember(v: boolean) {
+  try {
+    localStorage.setItem(REMEMBER_KEY, v ? '1' : '0')
+  } catch {
+    // private window or blocked storage: the box still applies to this sign-in
+  }
+}
+const oidcHref = (remember: boolean) => '/api/auth/oidc/login' + (remember ? '?remember=1' : '')
 
 // The 401 of a wrong email or password counts what the rate limit leaves.
 interface LoginRefused {
@@ -61,6 +80,14 @@ export default function Login() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
+  const [remember, setRememberState] = useState(readRemember)
+  // the passkey autofill is armed on load and reads the box when it fires
+  const rememberRef = useRef(remember)
+  const setRemember = (v: boolean) => {
+    rememberRef.current = v
+    setRememberState(v)
+    writeRemember(v)
+  }
   const [twoFA, setTwoFA] = useState<{ token: string; totp: boolean; webauthn: boolean } | null>(null)
   const [code, setCode] = useState('')
   // the forgotten-password detours: asking for a link, and using one
@@ -89,7 +116,7 @@ export default function Login() {
   const noRedirect = landing.has('noredirect')
   useEffect(() => {
     if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect) {
-      window.location.href = '/api/auth/oidc/login'
+      window.location.href = oidcHref(readRemember())
     }
   }, [cfg])
 
@@ -112,7 +139,7 @@ export default function Login() {
           totp?: boolean
           webauthn?: boolean
         }
-      >(`/api/auth/${mode}`, { email, password, locale: i18n.language })
+      >(`/api/auth/${mode}`, { email, password, locale: i18n.language, remember })
       if (res.needsVerification) {
         // account created but must confirm email before logging in
         setNotice(t('login.verifySent'))
@@ -173,7 +200,7 @@ export default function Login() {
     supportsPasskeyAutofill().then((ok) => {
       if (!active) return
       if (ok)
-        conditionalPasskeyLogin()
+        conditionalPasskeyLogin(() => rememberRef.current)
           .then(() => {
             if (active) afterAuth()
           })
@@ -189,7 +216,7 @@ export default function Login() {
     setWaiting('passkey')
     setError('')
     try {
-      await loginPasskey()
+      await loginPasskey(remember)
       await afterAuth()
     } catch (err) {
       fail(err instanceof Error ? err.message : t('login.passkeyFailed'))
@@ -232,6 +259,15 @@ export default function Login() {
       {error}
     </p>
   )
+  // applies to every way in on this page: password, passkey and the provider
+  const rememberBox = (
+    <Checkbox
+      className="ws-login-remember"
+      checked={remember}
+      onChange={(e) => setRemember(e.target.checked)}
+      label={t('login.remember')}
+    />
+  )
   const noticeLine = notice && (
     <p className="ws-login-note" role="status">
       {notice}
@@ -259,10 +295,11 @@ export default function Login() {
               ) : null}
               {noticeLine}
               {errorLine}
+              {rememberBox}
               <ButtonLink
                 variant="primary"
                 className="ws-login-go"
-                href="/api/auth/oidc/login"
+                href={oidcHref(remember)}
                 onClick={() => setWaiting('sso')}
               >
                 <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -414,6 +451,7 @@ export default function Login() {
               )}
               {noticeLine}
               {errorLine}
+              {mode === 'login' && rememberBox}
               <Button type="submit" variant="primary" className="ws-login-go" disabled={busy}>
                 {busy && !waiting
                   ? t('login.checking')
@@ -433,7 +471,7 @@ export default function Login() {
                     </Button>
                   )}
                   {cfg.oidc && (
-                    <ButtonLink className="ws-login-alt" href="/api/auth/oidc/login" onClick={() => setWaiting('sso')}>
+                    <ButtonLink className="ws-login-alt" href={oidcHref(remember)} onClick={() => setWaiting('sso')}>
                       <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       <Slot step={waiting === 'sso' ? 1 : 0}>{waiting === 'sso' ? ssoWaiting : oidcLabel}</Slot>
                     </ButtonLink>

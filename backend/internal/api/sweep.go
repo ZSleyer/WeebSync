@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
@@ -466,5 +467,7 @@ func (s *Server) BackfillUnits() {
 func (s *Server) expireAuthRows() {
 	now := time.Now().UTC().Format(time.RFC3339)
 	s.DB.Exec(`DELETE FROM sessions WHERE expires_at <= ?`, now)
+	long, short := auth.IdleCutoffs(time.Now())
+	s.DB.Exec(`DELETE FROM sessions WHERE last_seen != '' AND ((remember = 1 AND last_seen <= ?) OR (remember = 0 AND last_seen <= ?))`, long, short)
 	s.DB.Exec(`DELETE FROM login_pending WHERE expires_at <= ?`, now)
 }

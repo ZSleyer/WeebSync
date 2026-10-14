@@ -30,13 +30,20 @@ func (s *Server) totpEnabled(userID int64) bool {
 
 // newLoginPending mints a short-lived single-use token that bridges a correct
 // password and the second-factor step (so the password is never re-sent).
-func (s *Server) newLoginPending(userID int64) (string, error) {
+func (s *Server) newLoginPending(userID int64, remember bool) (string, error) {
 	token := randToken()
 	exp := time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
 	s.DB.Exec(`DELETE FROM login_pending WHERE user_id = ? OR expires_at <= ?`, userID, time.Now().UTC().Format(time.RFC3339))
-	_, err := s.DB.Exec(`INSERT INTO login_pending (token_hash, user_id, expires_at) VALUES (?, ?, ?)`,
-		hashToken(token), userID, exp)
+	_, err := s.DB.Exec(`INSERT INTO login_pending (token_hash, user_id, expires_at, remember) VALUES (?, ?, ?, ?)`,
+		hashToken(token), userID, exp, remember)
 	return token, err
+}
+
+// pendingRemember is the "stay signed in" choice the password step made.
+func (s *Server) pendingRemember(token string) bool {
+	var remember bool
+	s.DB.QueryRow(`SELECT remember FROM login_pending WHERE token_hash = ?`, hashToken(token)).Scan(&remember)
+	return remember
 }
 
 func hashToken(t string) string {
@@ -260,11 +267,12 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
+	remember := s.pendingRemember(in.Token)
 	if !s.consumeLoginPending(in.Token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
-	if err := auth.CreateSession(s.DB, w, r, userID); err != nil {
+	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}

@@ -16,7 +16,35 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
-const sessionTTL = 30 * 24 * time.Hour
+// Session lifetimes. A session ends at whichever comes first: its hard expiry,
+// set at sign-in, or a stretch without a single request. "Stay signed in"
+// trades the short pair, which follows NIST 800-63B-4 AAL2 (24 h overall),
+// for a long one that slides with use: an account in daily use stays signed
+// in, a forgotten browser falls out after a month, and nothing outlives a
+// quarter without a fresh sign-in. The deviation from AAL1's 30 days overall
+// is deliberate and written down in SECURITY.md.
+const (
+	sessionMax   = 24 * time.Hour
+	sessionIdle  = 12 * time.Hour
+	rememberMax  = 90 * 24 * time.Hour
+	rememberIdle = 30 * 24 * time.Hour
+	// last_seen is written at most this often: the middleware runs on every
+	// poll and every event stream, and a write per request is real IO
+	seenEvery = 10 * time.Minute
+)
+
+func idleLimit(remember bool) time.Duration {
+	if remember {
+		return rememberIdle
+	}
+	return sessionIdle
+}
+
+// IdleCutoffs are the last_seen stamps before which a session has gone idle,
+// for the sweep: one for remembered sessions, one for the rest.
+func IdleCutoffs(now time.Time) (remembered, short string) {
+	return now.Add(-rememberIdle).UTC().Format(time.RFC3339), now.Add(-sessionIdle).UTC().Format(time.RFC3339)
+}
 
 // Deployment posture. Both values can come from the environment or from the
 // settings table, and the two have to coexist: a container deployment sets
@@ -163,37 +191,44 @@ func hashToken(token string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func CreateSession(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64) error {
-	return CreateSessionOIDC(d, w, r, userID, "", "")
+// CreateSession signs userID in. remember is the "stay signed in" box: without
+// it the cookie lives as long as the browser session and the server ends it
+// after a day at the latest.
+func CreateSession(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64, remember bool) error {
+	return CreateSessionOIDC(d, w, r, userID, "", "", remember)
 }
 
 // CreateSessionOIDC is CreateSession for a login that came from the identity
 // provider: it remembers which provider session the login belongs to, so a
 // back-channel logout can end exactly these sessions and no others. A password
 // login passes empty strings and is unaffected.
-func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64, sid, sub string) error {
+func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID int64, sid, sub string, remember bool) error {
 	raw := make([]byte, 32)
 	if _, err := rand.Read(raw); err != nil {
 		return err
 	}
 	token := hex.EncodeToString(raw)
-	expires := time.Now().Add(sessionTTL)
+	now := time.Now()
+	expires := now.Add(sessionMax)
+	if remember {
+		expires = now.Add(rememberMax)
+	}
 	// the browser it began in, so the account page can tell sessions apart;
 	// capped, it is shown and nothing else
 	ua := r.UserAgent()
 	if len(ua) > 300 {
 		ua = ua[:300]
 	}
-	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, time.Now().UTC().Format(time.RFC3339), ua); err != nil {
+	stamp := now.UTC().Format(time.RFC3339)
+	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember); err != nil {
 		return err
 	}
-	SetCookie(w, r, &http.Cookie{
-		Name:    "weebsync_session",
-		Value:   token,
-		Path:    "/",
-		Expires: expires,
-	})
+	c := &http.Cookie{Name: "weebsync_session", Value: token, Path: "/"}
+	if remember {
+		c.Expires = expires
+	}
+	SetCookie(w, r, c)
 	return nil
 }
 
@@ -247,6 +282,22 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// touchSession reports whether a session is still in use, and stamps it as
+// seen when the last stamp is older than seenEvery. An empty stamp (a session
+// from before the column) counts as seen now.
+func touchSession(d *sql.DB, token, lastSeen string, remember bool, now time.Time) bool {
+	if seen, err := time.Parse(time.RFC3339, lastSeen); err == nil {
+		if now.Sub(seen) > idleLimit(remember) {
+			return false
+		}
+		if now.Sub(seen) < seenEvery {
+			return true
+		}
+	}
+	d.Exec(`UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), hashToken(token))
+	return true
+}
+
 func isHTTPS(r *http.Request) bool {
 	cfg := proxyCfg.Load()
 	if cfg == nil {
@@ -270,14 +321,16 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 			c, err := r.Cookie("weebsync_session")
 			if err == nil {
 				var u User
-				var expires string
+				var expires, lastSeen string
 				var isAdmin int
-				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at
+				var remember bool
+				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ?`, hashToken(c.Value)).
-					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires)
+					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
 				if err == nil {
-					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(time.Now()) {
+					now := time.Now()
+					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, remember, now) {
 						if u.Upgrade != "" && !upgradeAllows(u.Upgrade, r) {
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusForbidden)

@@ -23,6 +23,9 @@ type credentials struct {
 	// ui language at registration time, so the verify email is localized
 	// before the first locale sync can happen
 	Locale string `json:"locale,omitempty"`
+	// "stay signed in": a session that slides with use for up to 90 days
+	// instead of one that ends with the browser and after a day at most
+	Remember bool `json:"remember,omitempty"`
 }
 
 func validLocale(l string) string {
@@ -127,7 +130,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: true, Email: c.Email})
 		return
 	}
-	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
+	if err := auth.CreateSession(s.DB, w, r, id, c.Remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
@@ -287,7 +290,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// /api/auth/login/totp or /api/auth/webauthn/2fa/*.
 	totpOn, keyOn := s.totpEnabled(id), s.hasSecurityKey(id)
 	if totpOn || keyOn {
-		token, err := s.newLoginPending(id)
+		token, err := s.newLoginPending(id, c.Remember)
 		if err != nil {
 			writeErr(w, http.StatusInternalServerError, "login error")
 			return
@@ -295,7 +298,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, LoginResponse{TwoFactorRequired: true, Token: token, Totp: totpOn, Webauthn: keyOn})
 		return
 	}
-	if err := auth.CreateSession(s.DB, w, r, id); err != nil {
+	if err := auth.CreateSession(s.DB, w, r, id, c.Remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}

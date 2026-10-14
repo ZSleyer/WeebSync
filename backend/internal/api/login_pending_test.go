@@ -19,7 +19,7 @@ func TestLoginPendingIsConsumedOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Server{DB: d}
-	token, err := s.newLoginPending(1)
+	token, err := s.newLoginPending(1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,7 +37,7 @@ func TestLoginPendingDropsAfterMaxFailures(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &Server{DB: d}
-	token, err := s.newLoginPending(1)
+	token, err := s.newLoginPending(1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func totpFixture(t *testing.T) (*http.ServeMux, *Server, string, string) {
 	s := &Server{DB: d}
 	mux := http.NewServeMux()
 	s.Register(mux)
-	token, err := s.newLoginPending(1)
+	token, err := s.newLoginPending(1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestLoginTotpAcceptsRecoveryCodeOnce(t *testing.T) {
 	if _, ok := s.peekLoginPending(token); ok {
 		t.Fatal("pending token survived a successful login")
 	}
-	token, _ = s.newLoginPending(1)
+	token, _ = s.newLoginPending(1, false)
 	if rec := postTotp(mux, token, codes[0]); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("used recovery code accepted again: %d", rec.Code)
 	}
@@ -184,7 +184,7 @@ func TestLoginTotpAcceptsFormattedCodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, _ = s.newLoginPending(1)
+	token, _ = s.newLoginPending(1, false)
 	typed := strings.ToUpper(strings.ReplaceAll(codes[0], "-", ""))
 	if rec := postTotp(mux, token, typed); rec.Code != http.StatusOK {
 		t.Fatalf("upper-case recovery code without dash: %d %s", rec.Code, rec.Body.String())

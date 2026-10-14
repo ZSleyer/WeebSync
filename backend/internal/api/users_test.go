@@ -23,7 +23,7 @@ func setupUsersTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.
 
 	cookieFor := func(id int64) *http.Cookie {
 		rec := httptest.NewRecorder()
-		if err := auth.CreateSession(d, rec, httptest.NewRequest("GET", "/", nil), id); err != nil {
+		if err := auth.CreateSession(d, rec, httptest.NewRequest("GET", "/", nil), id, true); err != nil {
 			t.Fatal(err)
 		}
 		return rec.Result().Cookies()[0]
