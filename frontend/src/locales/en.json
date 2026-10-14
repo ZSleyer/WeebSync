@@ -1401,6 +1401,14 @@
     "presetGroup": "With group: [Group] Series - 01"
   },
   "settings": {
+    "svc_plexTo": "Connected to <b>{{server}}</b>.",
+    "svc_plexAs": "Connected as <b>{{user}}</b> on <b>{{server}}</b>.",
+    "svc_watchlistAs": "Watchlist linked as <b>{{user}}</b>.",
+    "svc_connectedAs": "Connected as <b>{{name}}</b>.",
+    "svc_isAnime": "{{name}} holds anime",
+    "svc_source": "Source",
+    "svc_library": "Library",
+    "svc_status": "Status",
     "catByEmail": "{{cat}} by email",
     "catByPush": "{{cat}} by push",
     "channelEmail": "Email",
@@ -1943,7 +1951,7 @@
     "tmdbConnectedAs": "linked as {{name}}",
     "tmdbDisconnect": "Disconnect",
     "tmdbConnectHint": "Requires the TMDB API key above.",
-    "anilistOwnApp": "Use your own AniList app (optional)",
+    "anilistOwnApp": "Use your own AniList app",
     "plexConnectedAs": "connected as {{user}} on {{server}}",
     "plexConnectedTo": "connected to {{server}}",
     "plexNotConfigured": "Save the Plex URL and token first.",

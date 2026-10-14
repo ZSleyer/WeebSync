@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Panel, Select } from 'fluid-lycoris'
+import { Button, Select, SettingsField } from 'fluid-lycoris'
 import { api } from '../../api'
-import { EnvBadge, type SettingsState } from './useSettingsForm'
+import { type SettingsState } from './useSettingsForm'
+import { EnvChip, SecretSetting, SettingsPanel, TextSetting } from './ui'
 
 // The SMTP section of the Integrations screen. It takes the screen's form
 // rather than mounting useSettingsForm itself: two instances on one screen
@@ -33,40 +34,35 @@ export default function Smtp({
     }
   }
   return (
-    <Panel as="section" id="email" className="mb-4 p-5" aria-label={t('settings.email')}>
-      <Badge tone="accent">{t('settings.email')}</Badge>
-      <p className="mt-2 text-xs text-t-muted">{t('settings.emailHint')}</p>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs text-t-muted sm:col-span-2">
-          {t('settings.smtpHost')}
-          <EnvBadge show={locked('smtpHost')} />
-          <Input
-            className="mt-1 font-mono"
-            placeholder="smtp.example.com"
-            value={form.smtpHost}
-            disabled={locked('smtpHost')}
-            onChange={(e) => set('smtpHost', e.target.value)}
-          />
-        </label>
-        <label className="text-xs text-t-muted">
-          {t('settings.smtpPort')}
-          <EnvBadge show={locked('smtpPort')} />
-          <Input
-            className="mt-1 font-mono"
-            type="number"
-            min={1}
-            max={65535}
-            placeholder="587"
-            value={form.smtpPort || ''}
-            disabled={locked('smtpPort')}
-            onChange={(e) => set('smtpPort', Number(e.target.value))}
-          />
-        </label>
-        <label className="text-xs text-t-muted">
-          {t('settings.smtpSecurity')}
-          <EnvBadge show={locked('smtpSecurity')} />
+    <SettingsPanel id="email" title={t('settings.email')} desc={t('settings.emailHint')}>
+      <TextSetting
+        label={t('settings.smtpHost')}
+        env={locked('smtpHost')}
+        mono
+        placeholder="smtp.example.com"
+        value={form.smtpHost}
+        onChange={(v) => set('smtpHost', v)}
+      />
+      <div className="sf-2">
+        <TextSetting
+          label={t('settings.smtpPort')}
+          env={locked('smtpPort')}
+          mono
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={65535}
+          placeholder="587"
+          value={form.smtpPort || ''}
+          onChange={(v) => set('smtpPort', Number(v))}
+        />
+        <SettingsField
+          label={t('settings.smtpSecurity')}
+          htmlFor="smtp-security"
+          badge={<EnvChip show={locked('smtpSecurity')} />}
+        >
           <Select
-            wrapperClassName="mt-1"
+            id="smtp-security"
             value={form.smtpSecurity}
             disabled={locked('smtpSecurity')}
             onChange={(e) => set('smtpSecurity', e.target.value as SettingsState['smtpSecurity'])}
@@ -75,58 +71,46 @@ export default function Smtp({
             <option value="tls">TLS (465)</option>
             <option value="none">{t('settings.smtpSecurityNone')}</option>
           </Select>
-        </label>
-        <label className="text-xs text-t-muted">
-          {t('settings.smtpUsername')}
-          <EnvBadge show={locked('smtpUsername')} />
-          <Input
-            className="mt-1 font-mono"
-            autoComplete="off"
-            value={form.smtpUsername}
-            disabled={locked('smtpUsername')}
-            onChange={(e) => set('smtpUsername', e.target.value)}
-          />
-        </label>
-        <label className="text-xs text-t-muted">
-          {t('settings.smtpPassword')}
-          <EnvBadge show={locked('smtpPassword')} />
-          <Input
-            className="mt-1 font-mono"
-            type="password"
-            autoComplete="off"
-            placeholder={form.smtpPasswordSet ? t('settings.secretSet') : t('settings.secretUnset')}
-            value={form.smtpPassword ?? ''}
-            disabled={locked('smtpPassword')}
-            onChange={(e) => set('smtpPassword', e.target.value)}
-          />
-        </label>
-        <label className="text-xs text-t-muted sm:col-span-2">
-          {t('settings.smtpFrom')}
-          <EnvBadge show={locked('smtpFrom')} />
-          <Input
-            className="mt-1 font-mono"
-            placeholder="weebsync@example.com"
-            value={form.smtpFrom}
-            disabled={locked('smtpFrom')}
-            onChange={(e) => set('smtpFrom', e.target.value)}
-          />
-          <span className="mt-1 block">{t('settings.smtpFromHint')}</span>
-        </label>
+        </SettingsField>
+        <TextSetting
+          label={t('settings.smtpUsername')}
+          env={locked('smtpUsername')}
+          mono
+          autoComplete="off"
+          value={form.smtpUsername}
+          onChange={(v) => set('smtpUsername', v)}
+        />
+        <SecretSetting
+          label={t('settings.smtpPassword')}
+          env={locked('smtpPassword')}
+          stored={form.smtpPasswordSet}
+          value={form.smtpPassword ?? ''}
+          onChange={(v) => set('smtpPassword', v)}
+        />
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <TextSetting
+        label={t('settings.smtpFrom')}
+        hint={t('settings.smtpFromHint')}
+        env={locked('smtpFrom')}
+        mono
+        placeholder="weebsync@example.com"
+        value={form.smtpFrom}
+        onChange={(v) => set('smtpFrom', v)}
+      />
+      <div className="sf-acts">
         <Button size="sm" disabled={test.busy || dirty || !form.smtpHost} onClick={sendTest}>
           {t('settings.smtpTest')}
         </Button>
-        <span role="status" className="text-xs text-ok empty:hidden">
+        <span role="status" className="text-ctl-sm text-ok empty:hidden">
           {test.ok ? t('settings.smtpTestSent') : ''}
         </span>
-        {dirty && <span className="text-xs text-t-muted">{t('settings.smtpTestSaveFirst')}</span>}
+        {dirty && <span className="text-ctl-sm text-t-muted">{t('settings.smtpTestSaveFirst')}</span>}
       </div>
       {test.err && (
-        <p className="mt-2 text-xs text-err" role="alert">
+        <p className="sf-issue" role="alert">
           {t('settings.smtpTestFailed', { msg: test.err })}
         </p>
       )}
-    </Panel>
+    </SettingsPanel>
   )
 }

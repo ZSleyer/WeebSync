@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useTranslation } from 'react-i18next'
-import { Badge, Button, Checkbox, Input, Panel, ROW_GRID, Select } from 'fluid-lycoris'
+import { Trans, useTranslation } from 'react-i18next'
+import { Badge, Button, Input, Select, SettingsField, Switch } from 'fluid-lycoris'
+import './integrations.css'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
-import { EnvBadge, FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
+import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
+import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
 import { useFailToast } from '../../components/toast'
@@ -62,8 +63,11 @@ const AI_STATUS = { queryKey: ['ai-status'], queryFn: () => api.get<AiStatus>('/
 
 type Tone = 'ok' | 'err' | 'neutral'
 
-// One chip per provider, coloured by its state, linking to its panel: the
-// overview of a long page, and the way to reach the one that needs work.
+// a working connection, as a line with a check
+const Ok = ({ children }: { children: ReactNode }) => <span className="int-ok">{children}</span>
+
+// One dot and a name per provider, coloured by its state, linking to its
+// panel: the overview of a long page, and the way to the one that needs work.
 function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boolean }) {
   const { t } = useTranslation()
   const anilist = useQuery(ANILIST_ME).data
@@ -82,7 +86,7 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
         : configured
           ? ['ok', t('settings.statusConfigured')]
           : ['neutral', t('settings.statusUnset')]
-  const chips: [string, string, [Tone, string]][] = [
+  const items: [string, string, [Tone, string]][] = [
     ['anilist', 'AniList', state(anilist?.connected)],
     ['tmdb', 'TMDB', state(tmdb?.connected || tmdb?.keyValid, tmdb?.configured && !tmdb.keyValid)],
     ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
@@ -94,13 +98,21 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
     ['email', t('settings.email'), state(false, false, smtp)],
   ]
   return (
-    <nav aria-label={t('settings.integrationsJump')} className="mb-4 flex flex-wrap gap-2">
-      {chips.map(([id, name, [tone, word]]) => (
-        <Badge key={id} as="a" href={`#${id}`} tone={tone}>
-          {name} · {word}
-        </Badge>
-      ))}
-    </nav>
+    <SettingsPanel title={t('settings.svc_status')}>
+      <nav aria-label={t('settings.integrationsJump')}>
+        <ul className="st-strip">
+          {items.map(([id, name, [tone, word]]) => (
+            <li key={id}>
+              <a href={`#${id}`} title={word}>
+                <span aria-hidden className={`dot ${tone === 'neutral' ? '' : tone}`} />
+                {name}
+                <span className="sr-only">{`: ${word}`}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </SettingsPanel>
   )
 }
 
@@ -109,232 +121,149 @@ export default function Integrations() {
   const { form, set, save, saved, locked, dirty, issue, reset } = useSettingsForm()
   if (!form) return null
 
-  // one panel per provider, the connection status as its first row and the
+  // one panel per provider, the connection status as its first line and the
   // fields below it, so the page scans as "what is set up" before "how"
   return (
     <>
       <UnsavedGuard dirty={dirty} />
       <StatusStrip smtp={!!form.smtpHost} ha={!!form.haWebhookUrl} arr={form.arrKeySet} />
-      <Panel as="section" id="anilist" className="mb-4 p-5" aria-label="AniList">
-        <Badge tone="accent">AniList</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <AnilistAccount />
-          <AnilistOwnApp form={form} set={set} locked={locked} />
-        </div>
-      </Panel>
+      <SettingsPanel id="anilist" title="AniList">
+        <AnilistAccount />
+        <AnilistOwnApp form={form} set={set} locked={locked} />
+      </SettingsPanel>
 
-      <Panel as="section" id="tmdb" className="mb-4 p-5" aria-label="TMDB">
-        <Badge tone="accent">TMDB</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <TmdbAccount />
-          <label className="text-xs text-t-muted">
-            {t('settings.tmdbApiKey')}
-            <EnvBadge show={locked('tmdbApiKey')} />
-            <Input
-              className="mt-1 font-mono"
-              type="password"
-              autoComplete="off"
-              placeholder={form.tmdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-              value={form.tmdbApiKey ?? ''}
-              disabled={locked('tmdbApiKey')}
-              onChange={(e) => set('tmdbApiKey', e.target.value)}
+      <SettingsPanel id="tmdb" title="TMDB">
+        <TmdbAccount />
+        <SecretSetting
+          label={t('settings.tmdbApiKey')}
+          hint={t('settings.tmdbApiKeyHint')}
+          env={locked('tmdbApiKey')}
+          stored={form.tmdbApiKeySet}
+          value={form.tmdbApiKey ?? ''}
+          onChange={(v) => set('tmdbApiKey', v)}
+        />
+      </SettingsPanel>
+
+      <SettingsPanel id="tvdb" title="TVDB">
+        <TvdbAccount />
+        <SecretSetting
+          label={t('settings.tvdbApiKey')}
+          hint={t('settings.tvdbApiKeyHint')}
+          env={locked('tvdbApiKey')}
+          stored={form.tvdbApiKeySet}
+          value={form.tvdbApiKey ?? ''}
+          onChange={(v) => set('tvdbApiKey', v)}
+        />
+      </SettingsPanel>
+
+      <SettingsPanel id="animeschedule" title="AnimeSchedule">
+        <AnimescheduleAccount />
+        <SecretSetting
+          label={t('settings.animescheduleToken')}
+          hint={t('settings.animescheduleTokenHint')}
+          env={locked('animescheduleToken')}
+          stored={form.animescheduleTokenSet}
+          value={form.animescheduleToken ?? ''}
+          onChange={(v) => set('animescheduleToken', v)}
+        />
+      </SettingsPanel>
+
+      <SettingsPanel id="plex" title={t('settings.plex')}>
+        <PlexAccount />
+        <PlexWatchlistAccount />
+        <TextSetting
+          label={t('settings.plexUrl')}
+          hint={t('settings.plexUrlHint')}
+          env={locked('plexUrl')}
+          mono
+          placeholder="https://plex.example.com"
+          value={form.plexUrl}
+          onChange={(v) => set('plexUrl', v)}
+        />
+        <SecretSetting
+          label={t('settings.plexToken')}
+          hint={t('settings.plexTokenHint')}
+          env={locked('plexToken')}
+          stored={form.plexTokenSet}
+          value={form.plexToken ?? ''}
+          onChange={(v) => set('plexToken', v)}
+        />
+        {form.plexTokenSet && form.plexUrl && (
+          <>
+            <PlexSections
+              value={form.plexSections}
+              onChange={(v) => set('plexSections', v)}
+              sources={form.plexSectionSources}
+              onSources={(v) => set('plexSectionSources', v)}
+              anime={form.plexSectionAnime}
+              onAnime={(v) => set('plexSectionAnime', v)}
+              tvdb={form.tvdbApiKeySet}
+              libraries={form.plexLibraries}
             />
-            <span className="mt-1 block">{t('settings.tmdbApiKeyHint')}</span>
-          </label>
-        </div>
-      </Panel>
-
-      <Panel as="section" id="tvdb" className="mb-4 p-5" aria-label="TVDB">
-        <Badge tone="accent">TVDB</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <TvdbAccount />
-          <label className="text-xs text-t-muted">
-            {t('settings.tvdbApiKey')}
-            <EnvBadge show={locked('tvdbApiKey')} />
-            <Input
-              className="mt-1 font-mono"
-              type="password"
-              autoComplete="off"
-              placeholder={form.tvdbApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-              value={form.tvdbApiKey ?? ''}
-              disabled={locked('tvdbApiKey')}
-              onChange={(e) => set('tvdbApiKey', e.target.value)}
+            <ListSetting
+              label={t('settings.plexRoots')}
+              hint={t('settings.plexRootsHint')}
+              rows={3}
+              placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+              value={form.plexRoots}
+              onChange={(v) => set('plexRoots', v)}
             />
-            <span className="mt-1 block">{t('settings.tvdbApiKeyHint')}</span>
-          </label>
-        </div>
-      </Panel>
-
-      <Panel as="section" id="animeschedule" className="mb-4 p-5" aria-label="AnimeSchedule">
-        <Badge tone="accent">AnimeSchedule</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <AnimescheduleAccount />
-          <label className="text-xs text-t-muted">
-            {t('settings.animescheduleToken')}
-            <EnvBadge show={locked('animescheduleToken')} />
-            <Input
-              className="mt-1 font-mono"
-              type="password"
-              autoComplete="off"
-              placeholder={form.animescheduleTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
-              value={form.animescheduleToken ?? ''}
-              disabled={locked('animescheduleToken')}
-              onChange={(e) => set('animescheduleToken', e.target.value)}
+            <SwitchSetting
+              label={t('settings.plexSkipOwned')}
+              hint={t('settings.plexSkipOwnedHint')}
+              checked={form.plexSkipOwned}
+              onChange={(v) => set('plexSkipOwned', v)}
             />
-            <span className="mt-1 block">{t('settings.animescheduleTokenHint')}</span>
-          </label>
-        </div>
-      </Panel>
-
-      <Panel as="section" id="plex" className="mb-4 p-5" aria-label={t('settings.plex')}>
-        <Badge tone="accent">{t('settings.plex')}</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <PlexAccount />
-          <PlexWatchlistAccount />
-          <div className={ROW_GRID}>
-            <label className="text-xs text-t-muted">
-              {t('settings.plexUrl')}
-              <EnvBadge show={locked('plexUrl')} />
-              <Input
-                className="mt-1 font-mono"
-                placeholder="https://plex.example.com"
-                value={form.plexUrl}
-                disabled={locked('plexUrl')}
-                onChange={(e) => set('plexUrl', e.target.value)}
-              />
-              <span className="mt-1 block">{t('settings.plexUrlHint')}</span>
-            </label>
-            <label className="text-xs text-t-muted">
-              {t('settings.plexToken')}
-              <EnvBadge show={locked('plexToken')} />
-              <Input
-                className="mt-1 font-mono"
-                type="password"
-                autoComplete="off"
-                placeholder={form.plexTokenSet ? t('settings.secretSet') : t('settings.secretUnset')}
-                value={form.plexToken ?? ''}
-                disabled={locked('plexToken')}
-                onChange={(e) => set('plexToken', e.target.value)}
-              />
-              <span className="mt-1 block">{t('settings.plexTokenHint')}</span>
-            </label>
-          </div>
-          {form.plexTokenSet && form.plexUrl && (
-            // the library block is the longest thing on the page: framed like
-            // the OIDC block on Security, so it reads as one unit
-            <fieldset className="rounded-lg border border-border-subtle p-3">
-              <Badge as="legend">{t('settings.plexSections')}</Badge>
-              <div className="grid grid-cols-1 gap-4">
-                <PlexSections
-                  value={form.plexSections}
-                  onChange={(v) => set('plexSections', v)}
-                  sources={form.plexSectionSources}
-                  onSources={(v) => set('plexSectionSources', v)}
-                  anime={form.plexSectionAnime}
-                  onAnime={(v) => set('plexSectionAnime', v)}
-                  tvdb={form.tvdbApiKeySet}
-                  libraries={form.plexLibraries}
-                />
-                <label className="text-xs text-t-muted">
-                  {t('settings.plexRoots')}
-                  <textarea
-                    className="t-input mt-1 font-mono"
-                    rows={3}
-                    placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
-                    value={form.plexRoots}
-                    onChange={(e) => set('plexRoots', e.target.value)}
-                  />
-                  <span className="mt-1 block">{t('settings.plexRootsHint')}</span>
-                </label>
-                <div className="text-xs text-t-muted">
-                  <Checkbox
-                    label={t('settings.plexSkipOwned')}
-                    labelClassName="text-t-secondary"
-                    checked={form.plexSkipOwned}
-                    onChange={(e) => set('plexSkipOwned', e.target.checked)}
-                  />
-                  <span className="mt-1 block">{t('settings.plexSkipOwnedHint')}</span>
-                </div>
-              </div>
-            </fieldset>
-          )}
-        </div>
-      </Panel>
+          </>
+        )}
+      </SettingsPanel>
 
       <ArrPanel form={form} set={set} />
 
-      <Panel as="section" id="ai" className="mb-4 p-5" aria-label={t('settings.ai')}>
-        <Badge tone="accent">{t('settings.ai')}</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <AiAccount />
-          <div className={ROW_GRID}>
-            <label className="text-xs text-t-muted sm:col-span-2">
-              {t('settings.aiBaseUrl')}
-              <EnvBadge show={locked('aiBaseUrl')} />
-              <Input
-                className="mt-1 font-mono"
-                placeholder="http://litellm.example.com:4000/v1"
-                value={form.aiBaseUrl}
-                disabled={locked('aiBaseUrl')}
-                onChange={(e) => set('aiBaseUrl', e.target.value)}
-                aria-invalid={!!issue('aiBaseUrl') || undefined}
-                aria-describedby={issue('aiBaseUrl') ? 'aiBaseUrl-issue' : undefined}
-              />
-              <span className="mt-1 block">{t('settings.aiBaseUrlHint')}</span>
-              <FieldIssue id="aiBaseUrl-issue" msg={issue('aiBaseUrl')} />
-            </label>
-            <label className="text-xs text-t-muted">
-              {t('settings.aiApiKey')}
-              <EnvBadge show={locked('aiApiKey')} />
-              <Input
-                className="mt-1 font-mono"
-                type="password"
-                autoComplete="off"
-                placeholder={form.aiApiKeySet ? t('settings.secretSet') : t('settings.secretUnset')}
-                value={form.aiApiKey ?? ''}
-                disabled={locked('aiApiKey')}
-                onChange={(e) => set('aiApiKey', e.target.value)}
-              />
-              <span className="mt-1 block">{t('settings.aiApiKeyHint')}</span>
-            </label>
-            <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
-            <label className="text-xs text-t-muted sm:col-span-2">
-              {t('settings.aiSearchUrl')}
-              <EnvBadge show={locked('aiSearchUrl')} />
-              <Input
-                className="mt-1 font-mono"
-                placeholder="http://searxng.example.com:8080"
-                value={form.aiSearchUrl}
-                disabled={locked('aiSearchUrl')}
-                onChange={(e) => set('aiSearchUrl', e.target.value)}
-                aria-invalid={!!issue('aiSearchUrl') || undefined}
-                aria-describedby={issue('aiSearchUrl') ? 'aiSearchUrl-issue' : undefined}
-              />
-              <span className="mt-1 block">{t('settings.aiSearchUrlHint')}</span>
-              <FieldIssue id="aiSearchUrl-issue" msg={issue('aiSearchUrl')} />
-            </label>
-          </div>
-        </div>
-      </Panel>
+      <SettingsPanel id="ai" title={t('settings.ai')}>
+        <AiAccount />
+        <TextSetting
+          label={t('settings.aiBaseUrl')}
+          hint={t('settings.aiBaseUrlHint')}
+          env={locked('aiBaseUrl')}
+          issue={issue('aiBaseUrl')}
+          mono
+          placeholder="http://litellm.example.com:4000/v1"
+          value={form.aiBaseUrl}
+          onChange={(v) => set('aiBaseUrl', v)}
+        />
+        <SecretSetting
+          label={t('settings.aiApiKey')}
+          hint={t('settings.aiApiKeyHint')}
+          env={locked('aiApiKey')}
+          stored={form.aiApiKeySet}
+          value={form.aiApiKey ?? ''}
+          onChange={(v) => set('aiApiKey', v)}
+        />
+        <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
+        <TextSetting
+          label={t('settings.aiSearchUrl')}
+          hint={t('settings.aiSearchUrlHint')}
+          env={locked('aiSearchUrl')}
+          issue={issue('aiSearchUrl')}
+          mono
+          placeholder="http://searxng.example.com:8080"
+          value={form.aiSearchUrl}
+          onChange={(v) => set('aiSearchUrl', v)}
+        />
+      </SettingsPanel>
 
-      <Panel as="section" id="homeassistant" className="mb-4 p-5" aria-label={t('settings.homeAssistant')}>
-        <Badge tone="accent">{t('settings.homeAssistant')}</Badge>
-        <div className="mt-3 grid grid-cols-1 gap-4">
-          <label className="text-xs text-t-muted">
-            {t('settings.haWebhookUrl')}
-            <Input
-              className="mt-1 font-mono"
-              placeholder="http://homeassistant.local:8123/api/webhook/weebsync"
-              value={form.haWebhookUrl}
-              onChange={(e) => set('haWebhookUrl', e.target.value)}
-              aria-invalid={!!issue('haWebhookUrl') || undefined}
-              aria-describedby={issue('haWebhookUrl') ? 'haWebhookUrl-issue' : undefined}
-            />
-            <span className="mt-1 block">{t('settings.haWebhookUrlHint')}</span>
-            <FieldIssue id="haWebhookUrl-issue" msg={issue('haWebhookUrl')} />
-          </label>
-        </div>
-      </Panel>
+      <SettingsPanel id="homeassistant" title={t('settings.homeAssistant')}>
+        <TextSetting
+          label={t('settings.haWebhookUrl')}
+          hint={t('settings.haWebhookUrlHint')}
+          issue={issue('haWebhookUrl')}
+          mono
+          placeholder="http://homeassistant.local:8123/api/webhook/weebsync"
+          value={form.haWebhookUrl}
+          onChange={(v) => set('haWebhookUrl', v)}
+        />
+      </SettingsPanel>
 
       <Smtp form={form} set={set} locked={locked} dirty={dirty} />
       <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
@@ -446,93 +375,107 @@ function PlexSections({
     writeSources(nextSrc)
     writeAnime(nextAnime)
   }
-  if (error)
-    return (
-      <p className="text-xs text-err" role="alert">
-        {(error as Error).message}
-      </p>
-    )
+  const rootsOf = (s: PlexSection) => libraries?.find((l) => l.title === s.title)?.roots ?? []
   return (
-    <div className="text-xs text-t-muted">
-      <ul className="grid grid-cols-1 gap-1.5">
-        {sections.map((s) => (
-          <li key={s.key} className="flex flex-wrap items-center gap-2">
-            <label className="flex min-w-0 items-center gap-1.5 text-t-secondary">
-              <input type="checkbox" checked={selected.has(s.key)} onChange={() => toggle(s)} />
-              <span className="truncate">{s.title}</span>
-            </label>
-            <Badge>{s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}</Badge>
-            {/* what Plex itself uses, so the preselection is traceable */}
-            {s.provider && (
-              <Badge title={s.ordering}>{t('settings.plexUses', { name: s.provider.toUpperCase() })}</Badge>
-            )}
-            {selected.has(s.key) && (
-              <>
-                <Select
-                  className="py-1 text-xs"
-                  aria-label={t('settings.plexSource', { name: s.title })}
-                  value={sourceOf(s) === ANILIST_TVDB ? 'anilist' : sourceOf(s)}
-                  onChange={(e) => {
-                    const nextSrc = new Map(srcMap)
-                    // keep the aired-mapping choice when switching to AniList
-                    const keep = e.target.value === 'anilist' && sourceOf(s) === ANILIST_TVDB
-                    nextSrc.set(s.key, keep ? ANILIST_TVDB : e.target.value)
-                    writeSources(nextSrc)
-                  }}
-                >
-                  <option value="anilist">AniList</option>
-                  <option value="tmdb">TMDB</option>
-                  {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
-                </Select>
-                {/* AniList for metadata, TVDB for the aired season mapping -
-                    the pairing endless series need */}
-                {tvdb && s.type === 'show' && sourceOf(s).startsWith('anilist') && (
-                  <label className="flex items-center gap-1.5 text-t-secondary">
-                    <input
-                      type="checkbox"
-                      checked={sourceOf(s) === ANILIST_TVDB}
-                      onChange={(e) => {
-                        const nextSrc = new Map(srcMap)
-                        nextSrc.set(s.key, e.target.checked ? ANILIST_TVDB : 'anilist')
-                        writeSources(nextSrc)
-                      }}
-                    />
-                    {t('settings.plexAiredMapping')}
-                  </label>
-                )}
-                <label className="flex items-center gap-1.5 text-t-secondary">
-                  <input
-                    type="checkbox"
-                    checked={isAnime(s)}
-                    onChange={(e) => {
-                      const nextAnime = new Map(animeMap)
-                      nextAnime.set(s.key, e.target.checked ? '1' : '0')
-                      writeAnime(nextAnime)
-                    }}
-                  />
-                  {t('settings.plexSectionAnime')}
-                </label>
-              </>
-            )}
-            {/* auto-detected local mounts for this library, straight under it */}
-            {(() => {
-              const roots = libraries?.find((l) => l.title === s.title)?.roots ?? []
-              if (!roots.length) return null
+    <SettingsField label={t('settings.plexSections')} hint={t('settings.plexSectionsHint')}>
+      {error ? (
+        <p className="sf-issue" role="alert">
+          {(error as Error).message}
+        </p>
+      ) : (
+        <table className="cat-t">
+          <thead>
+            <tr>
+              <th scope="col">{t('settings.svc_library')}</th>
+              <th scope="col">{t('settings.svc_source')}</th>
+              <th scope="col" className="c">
+                {t('settings.plexSectionAnime')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map((s) => {
+              const on = selected.has(s.key)
               return (
-                <ul className="w-full space-y-0.5 pl-6 font-mono text-ctl-sm text-t-muted">
-                  {roots.map((p) => (
-                    <li key={p} className="break-all">
-                      {p}
-                    </li>
-                  ))}
-                </ul>
+                <tr key={s.key}>
+                  <td>
+                    <label>
+                      <Switch checked={on} onChange={() => toggle(s)} />
+                      <span className="min-w-0">
+                        <span className="block">{s.title}</span>
+                        {/* the kind, and what Plex itself uses, so the
+                            preselection is traceable */}
+                        <span className="block text-ctl-sm text-t-muted" title={s.ordering}>
+                          {s.type === 'movie' ? t('settings.plexMovies') : t('settings.plexShows')}
+                          {s.provider && ` · ${t('settings.plexUses', { name: s.provider.toUpperCase() })}`}
+                        </span>
+                      </span>
+                    </label>
+                    {/* auto-detected local mounts for this library */}
+                    {rootsOf(s).length > 0 && (
+                      <ul className="mt-1 space-y-0.5 pl-[3.25rem] font-mono text-ctl-sm break-all text-t-muted">
+                        {rootsOf(s).map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </td>
+                  <td>
+                    {on && (
+                      <div className="grid gap-1">
+                        <Select
+                          size="sm"
+                          aria-label={t('settings.plexSource', { name: s.title })}
+                          value={sourceOf(s) === ANILIST_TVDB ? 'anilist' : sourceOf(s)}
+                          onChange={(e) => {
+                            const nextSrc = new Map(srcMap)
+                            // keep the aired-mapping choice when switching to AniList
+                            const keep = e.target.value === 'anilist' && sourceOf(s) === ANILIST_TVDB
+                            nextSrc.set(s.key, keep ? ANILIST_TVDB : e.target.value)
+                            writeSources(nextSrc)
+                          }}
+                        >
+                          <option value="anilist">AniList</option>
+                          <option value="tmdb">TMDB</option>
+                          {tvdb && s.type === 'show' && <option value="tvdb">TVDB</option>}
+                        </Select>
+                        {/* AniList for metadata, TVDB for the aired season
+                            mapping: the pairing endless series need */}
+                        {tvdb && s.type === 'show' && sourceOf(s).startsWith('anilist') && (
+                          <Switch
+                            label={t('settings.plexAiredMapping')}
+                            labelClassName="text-ctl-sm text-t-secondary"
+                            checked={sourceOf(s) === ANILIST_TVDB}
+                            onChange={(e) => {
+                              const nextSrc = new Map(srcMap)
+                              nextSrc.set(s.key, e.target.checked ? ANILIST_TVDB : 'anilist')
+                              writeSources(nextSrc)
+                            }}
+                          />
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="c">
+                    {on && (
+                      <Switch
+                        aria-label={t('settings.svc_isAnime', { name: s.title })}
+                        checked={isAnime(s)}
+                        onChange={(e) => {
+                          const nextAnime = new Map(animeMap)
+                          nextAnime.set(s.key, e.target.checked ? '1' : '0')
+                          writeAnime(nextAnime)
+                        }}
+                      />
+                    )}
+                  </td>
+                </tr>
               )
-            })()}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-1.5">{t('settings.plexSectionsHint')}</p>
-    </div>
+            })}
+          </tbody>
+        </table>
+      )}
+    </SettingsField>
   )
 }
 
@@ -550,73 +493,42 @@ function AnilistOwnApp({
 }) {
   const { t } = useTranslation()
   const { data } = useQuery(ANILIST_ME)
-  const [open, setOpen] = useState(!!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl)
+  const open = !!form.anilistClientId || form.anilistSecretSet || !!form.anilistRedirectUrl
   return (
-    <div className="text-xs text-t-muted">
-      <button
-        type="button"
-        className="flex min-h-6 items-center gap-1.5 text-left"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        {open ? (
-          <ChevronDown aria-hidden size="1em" className="shrink-0 text-accent" />
-        ) : (
-          <ChevronRight aria-hidden size="1em" className="shrink-0 text-accent" />
-        )}
-        <span>{t('settings.anilistOwnApp')}</span>
-      </button>
-      {open && (
-        <div className="t-inset mt-2 grid grid-cols-1 gap-3">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-xs text-t-muted">
-              {t('settings.anilistClientId')}
-              <EnvBadge show={locked('anilistClientId')} />
-              <Input
-                className="mt-1 font-mono"
-                value={form.anilistClientId}
-                disabled={locked('anilistClientId')}
-                onChange={(e) => set('anilistClientId', e.target.value)}
-              />
-            </label>
-            <label className="text-xs text-t-muted">
-              {t('settings.anilistClientSecret')}
-              <EnvBadge show={locked('anilistClientSecret')} />
-              <Input
-                className="mt-1 font-mono"
-                type="password"
-                autoComplete="off"
-                placeholder={form.anilistSecretSet ? t('settings.secretSet') : t('settings.secretUnset')}
-                value={form.anilistClientSecret ?? ''}
-                disabled={locked('anilistClientSecret')}
-                onChange={(e) => set('anilistClientSecret', e.target.value)}
-              />
-            </label>
-          </div>
-          <label className="text-xs text-t-muted">
-            {t('settings.anilistRedirectUrl')}
-            <Input
-              className="mt-1 font-mono"
-              placeholder={`${window.location.origin}/api/anilist/callback`}
-              value={form.anilistRedirectUrl}
-              onChange={(e) => set('anilistRedirectUrl', e.target.value)}
-            />
-            <span className="mt-1 block">{t('settings.anilistClientHint')}</span>
-          </label>
-          {/* OAuth redirect: belongs to the own-app path, needs a saved secret */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              disabled={!data?.configured}
-              onClick={() => (window.location.href = '/api/anilist/connect')}
-            >
-              {t('settings.anilistConnect')}
-            </Button>
-            {!data?.configured && <span>{t('settings.anilistNotConfigured')}</span>}
-          </div>
-        </div>
-      )}
-    </div>
+    <details className="sf-disc" open={open || undefined}>
+      <summary>{t('settings.anilistOwnApp')}</summary>
+      <div className="sf-2">
+        <TextSetting
+          label={t('settings.anilistClientId')}
+          env={locked('anilistClientId')}
+          mono
+          value={form.anilistClientId}
+          onChange={(v) => set('anilistClientId', v)}
+        />
+        <SecretSetting
+          label={t('settings.anilistClientSecret')}
+          env={locked('anilistClientSecret')}
+          stored={form.anilistSecretSet}
+          value={form.anilistClientSecret ?? ''}
+          onChange={(v) => set('anilistClientSecret', v)}
+        />
+      </div>
+      <TextSetting
+        label={t('settings.anilistRedirectUrl')}
+        hint={t('settings.anilistClientHint')}
+        mono
+        placeholder={`${window.location.origin}/api/anilist/callback`}
+        value={form.anilistRedirectUrl}
+        onChange={(v) => set('anilistRedirectUrl', v)}
+      />
+      {/* OAuth redirect: belongs to the own-app path, needs a saved secret */}
+      <div className="sf-acts">
+        <Button size="sm" disabled={!data?.configured} onClick={() => (window.location.href = '/api/anilist/connect')}>
+          {t('settings.anilistConnect')}
+        </Button>
+        {!data?.configured && <span className="text-ctl-sm text-t-muted">{t('settings.anilistNotConfigured')}</span>}
+      </div>
+    </details>
   )
 }
 
@@ -678,10 +590,12 @@ function PlexWatchlistAccount() {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data?.linked ? (
         <>
-          <Badge tone="ok">{t('settings.plexWatchlistLinked', { user: data.user })}</Badge>
+          <Ok>
+            <Trans i18nKey="settings.svc_watchlistAs" values={{ user: data.user }} components={{ b: <b /> }} />
+          </Ok>
           <Button size="sm" onClick={unlink}>
             {t('settings.plexWatchlistUnlink')}
           </Button>
@@ -705,17 +619,19 @@ function PlexAccount() {
   const { data } = useQuery(PLEX_ME)
   if (!data) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
         // carries a user name and a server name, so its length is the user's,
         // not the designer's - it may run over two lines on a phone
-        <Badge tone="ok" multiline>
-          {data.username
-            ? t('settings.plexConnectedAs', { user: data.username, server: data.server })
-            : t('settings.plexConnectedTo', { server: data.server })}
-        </Badge>
+        <Ok>
+          <Trans
+            i18nKey={data.username ? 'settings.svc_plexAs' : 'settings.svc_plexTo'}
+            values={{ user: data.username, server: data.server }}
+            components={{ b: <b /> }}
+          />
+        </Ok>
       ) : data.configured ? (
-        <span className="text-err" role="alert">
+        <span className="text-ctl-sm text-err" role="alert">
           {data.error}
         </span>
       ) : (
@@ -789,108 +705,98 @@ function ArrPanel({
     ['clientBase', t('settings.arrClientBase'), '/api/arr/sab'],
   ]
   return (
-    <Panel as="section" id="arr" className="mb-4 p-5" aria-label="Sonarr / Radarr">
-      <Badge tone="accent">Sonarr / Radarr</Badge>
-      <div className="mt-3 grid grid-cols-1 gap-4">
-        <p className="text-xs text-t-muted">{t('settings.arrIntro')}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone={on ? 'ok' : 'neutral'}>{on ? t('settings.arrOn') : t('settings.arrOff')}</Badge>
+    <SettingsPanel
+      id="arr"
+      title="Sonarr / Radarr"
+      badge={<Badge tone={on ? 'ok' : 'neutral'}>{on ? t('settings.arrOn') : t('settings.arrOff')}</Badge>}
+    >
+      <p className="sf-note">{t('settings.arrIntro')}</p>
+      <div className="sf-acts">
+        <Button
+          size="sm"
+          disabled={generate.isPending}
+          onClick={async () => {
+            if (!on || (await confirm({ message: t('settings.arrConfirmRegenerate'), destructive: true })))
+              generate.mutate()
+          }}
+        >
+          {on ? t('settings.arrKeyRegenerate') : t('settings.arrKeyGenerate')}
+        </Button>
+        {on && (
           <Button
             size="sm"
-            disabled={generate.isPending}
+            variant="danger"
+            disabled={revoke.isPending}
             onClick={async () => {
-              if (!on || (await confirm({ message: t('settings.arrConfirmRegenerate'), destructive: true })))
-                generate.mutate()
+              if (await confirm({ message: t('settings.arrConfirmOff'), destructive: true })) revoke.mutate()
             }}
           >
-            {on ? t('settings.arrKeyRegenerate') : t('settings.arrKeyGenerate')}
+            {t('settings.arrTurnOff')}
           </Button>
-          {on && (
-            <Button
-              size="sm"
-              variant="danger"
-              disabled={revoke.isPending}
-              onClick={async () => {
-                if (await confirm({ message: t('settings.arrConfirmOff'), destructive: true })) revoke.mutate()
-              }}
-            >
-              {t('settings.arrTurnOff')}
-            </Button>
-          )}
-        </div>
-        {key && (
-          <label className="text-xs text-t-muted">
-            {t('settings.arrKeyShowOnce')}
-            <span className="mt-1 flex gap-2">
-              <Input className="font-mono" readOnly value={key} onFocus={(e) => e.target.select()} />
-              <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
-                {t('settings.apiTokenCopy')}
-              </Button>
-            </span>
-          </label>
-        )}
-        {legacy && <p className="text-xs text-warn">{t('settings.arrKeyLegacy')}</p>}
-        {on && !form.arrCompleteDir.trim() && (
-          <p className="text-xs text-warn" role="alert">
-            {t('settings.arrCompleteDirMissing')}
-          </p>
-        )}
-        {on && (
-          <>
-            <div className={ROW_GRID}>
-              <label className="text-xs text-t-muted">
-                {t('settings.arrCompleteDir')}
-                <Input
-                  className="mt-1 font-mono"
-                  placeholder="/media/downloads"
-                  value={form.arrCompleteDir}
-                  onChange={(e) => set('arrCompleteDir', e.target.value)}
-                />
-                <span className="mt-1 block">{t('settings.arrCompleteDirHint')}</span>
-              </label>
-              <label className="text-xs text-t-muted">
-                {t('settings.arrRoots')}
-                <textarea
-                  className="t-input mt-1 font-mono"
-                  rows={2}
-                  placeholder={'/data => /mnt/media'}
-                  value={form.arrRoots}
-                  onChange={(e) => set('arrRoots', e.target.value)}
-                />
-                <span className="mt-1 block">{t('settings.arrRootsHint')}</span>
-              </label>
-            </div>
-            <fieldset className="rounded-lg border border-border-subtle p-3">
-              <Badge as="legend">{t('settings.arrSetup')}</Badge>
-              <p className="text-xs text-t-muted">{t('settings.arrSetupHint')}</p>
-              <dl className="mt-2 grid grid-cols-1 gap-2 text-xs">
-                {rows.map(([id, label, value]) => (
-                  <div key={id} className="flex flex-wrap items-center gap-2">
-                    <dt className="basis-40 shrink-0 text-t-muted">{label}</dt>
-                    <dd className="flex min-w-0 flex-1 items-center gap-2">
-                      <code className="min-w-0 break-all font-mono text-t-secondary">{value}</code>
-                      <Button size="sm" className="shrink-0" onClick={() => copy(id, value)}>
-                        {t('settings.apiTokenCopy')}
-                      </Button>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </fieldset>
-          </>
-        )}
-        {copied && (
-          <p className="text-xs text-ok" role="status">
-            {t('settings.apiTokenCopied')}
-          </p>
-        )}
-        {error && (
-          <p className="text-xs text-err" role="alert">
-            {error}
-          </p>
         )}
       </div>
-    </Panel>
+      {key && (
+        <SettingsField label={t('settings.arrKeyShowOnce')} htmlFor="arr-key">
+          <div className="sec-row">
+            <Input id="arr-key" className="font-mono" readOnly value={key} onFocus={(e) => e.target.select()} />
+            <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
+              {t('settings.apiTokenCopy')}
+            </Button>
+          </div>
+        </SettingsField>
+      )}
+      {legacy && <p className="sf-note text-warn">{t('settings.arrKeyLegacy')}</p>}
+      {on && !form.arrCompleteDir.trim() && (
+        <p className="sf-note text-warn" role="alert">
+          {t('settings.arrCompleteDirMissing')}
+        </p>
+      )}
+      {on && (
+        <>
+          <TextSetting
+            label={t('settings.arrCompleteDir')}
+            hint={t('settings.arrCompleteDirHint')}
+            mono
+            placeholder="/media/downloads"
+            value={form.arrCompleteDir}
+            onChange={(v) => set('arrCompleteDir', v)}
+          />
+          <ListSetting
+            label={t('settings.arrRoots')}
+            hint={t('settings.arrRootsHint')}
+            rows={2}
+            placeholder="/data => /mnt/media"
+            value={form.arrRoots}
+            onChange={(v) => set('arrRoots', v)}
+          />
+          <SettingsField label={t('settings.arrSetup')} hint={t('settings.arrSetupHint')}>
+            <dl className="int-copy">
+              {rows.map(([id, label, value]) => (
+                <div key={id}>
+                  <dt>{label}</dt>
+                  <dd>
+                    <code>{value}</code>
+                    <Button size="sm" className="shrink-0" onClick={() => copy(id, value)}>
+                      {t('settings.apiTokenCopy')}
+                    </Button>
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </SettingsField>
+        </>
+      )}
+      {copied && (
+        <p className="sf-note text-ok" role="status">
+          {t('settings.apiTokenCopied')}
+        </p>
+      )}
+      {error && (
+        <p className="sf-issue" role="alert">
+          {error}
+        </p>
+      )}
+    </SettingsPanel>
   )
 }
 
@@ -918,11 +824,11 @@ function TvdbAccount() {
   }
   if (!data) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
-        <Badge tone="ok">{t('settings.tvdbConnected')}</Badge>
+        <Ok>{t('settings.tvdbConnected')}</Ok>
       ) : data.configured ? (
-        <span className="text-err" role="alert">
+        <span className="text-ctl-sm text-err" role="alert">
           {data.error}
         </span>
       ) : (
@@ -961,11 +867,11 @@ function AnimescheduleAccount() {
   }
   if (!data) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
-        <Badge tone="ok">{t('settings.animescheduleConnected')}</Badge>
+        <Ok>{t('settings.animescheduleConnected')}</Ok>
       ) : data.configured ? (
-        <span className="text-err" role="alert">
+        <span className="text-ctl-sm text-err" role="alert">
           {data.error}
         </span>
       ) : (
@@ -989,12 +895,16 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
   const models = data?.models ?? []
   const options = value && !models.includes(value) ? [value, ...models] : models
   return (
-    <label className="text-xs text-t-muted">
-      {t('settings.aiModel')}
-      <EnvBadge show={locked} />
-      <span className="mt-1 flex gap-2">
+    <SettingsField
+      label={t('settings.aiModel')}
+      htmlFor="ai-model"
+      hint={t('settings.aiModelHint')}
+      badge={<EnvChip show={locked} />}
+    >
+      <div className="sec-row">
         {options.length > 0 ? (
           <Select
+            id="ai-model"
             className="font-mono"
             wrapperClassName="min-w-0 flex-1"
             value={value}
@@ -1009,10 +919,11 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
           </Select>
         ) : (
           <Input
+            id="ai-model"
             className="font-mono"
             placeholder="gpt-4o-mini"
             value={value}
-            disabled={locked}
+            readOnly={locked}
             onChange={(e) => onChange(e.target.value)}
           />
         )}
@@ -1021,14 +932,13 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
             {t('settings.aiModelsReload')}
           </Button>
         )}
-      </span>
-      <span className="mt-1 block">{t('settings.aiModelHint')}</span>
+      </div>
       {data?.error && (
-        <span className="mt-1 block text-err" role="alert">
+        <p className="sf-issue" role="alert">
           {data.error}
-        </span>
+        </p>
       )}
-    </label>
+    </SettingsField>
   )
 }
 
@@ -1056,11 +966,11 @@ function AiAccount() {
   }
   if (!data) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
-        <Badge tone="ok">{t('settings.aiConnected')}</Badge>
+        <Ok>{t('settings.aiConnected')}</Ok>
       ) : data.error ? (
-        <span className="text-err" role="alert">
+        <span className="text-ctl-sm text-err" role="alert">
           {data.error}
         </span>
       ) : !data.configured ? (
@@ -1084,10 +994,12 @@ function TmdbAccount() {
   const { data } = useQuery(TMDB_ME)
   if (!data) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
         <>
-          <Badge tone="ok">{t('settings.tmdbConnectedAs', { name: data.username })}</Badge>
+          <Ok>
+            <Trans i18nKey="settings.svc_connectedAs" values={{ name: data.username }} components={{ b: <b /> }} />
+          </Ok>
           <Button
             size="sm"
             onClick={async () => {
@@ -1108,9 +1020,9 @@ function TmdbAccount() {
         <>
           {/* the key alone already drives matching and trending, so its state
               is shown even without a linked account */}
-          {data.keyValid && <Badge tone="ok">{t('settings.tmdbConnected')}</Badge>}
+          {data.keyValid && <Ok>{t('settings.tmdbConnected')}</Ok>}
           {data.configured && !data.keyValid && (
-            <span className="text-err" role="alert">
+            <span className="text-ctl-sm text-err" role="alert">
               {data.error}
             </span>
           )}
@@ -1121,7 +1033,7 @@ function TmdbAccount() {
         </>
       )}
       {error && (
-        <span className="text-err" role="alert">
+        <span className="text-ctl-sm text-err" role="alert">
           {error}
         </span>
       )}
@@ -1152,10 +1064,12 @@ function AnilistAccount() {
   const expires = data.expiresAt ? Date.parse(data.expiresAt.replace(' ', 'T') + 'Z') : 0
   const expiringSoon = expires > 0 && expires - now < 30 * 86_400_000
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-t-muted">
+    <div className="sf-acts">
       {data.connected ? (
         <>
-          <Badge tone="ok">{t('settings.anilistConnectedAs', { name: data.name })}</Badge>
+          <Ok>
+            <Trans i18nKey="settings.svc_connectedAs" values={{ name: data.name }} components={{ b: <b /> }} />
+          </Ok>
           {expires > 0 && (
             <span className={expiringSoon ? 'text-warn' : ''}>
               {t('settings.anilistExpires', { date: new Date(expires).toLocaleDateString() })}
@@ -1178,7 +1092,7 @@ function AnilistAccount() {
             {t('settings.anilistDisconnect')}
           </Button>
           {error && (
-            <span className="text-err" role="alert">
+            <span className="text-ctl-sm text-err" role="alert">
               {error}
             </span>
           )}
@@ -1188,10 +1102,28 @@ function AnilistAccount() {
           {/* pin flow: token pasted by the user - no secret, no redirect URL.
               This is the default path; it works with the built-in client id,
               so nothing has to be configured first. */}
-          <label className="text-xs text-t-muted">
-            {t('settings.anilistPinLabel')}
-            <span className="mt-1 flex gap-2">
+          <SettingsField
+            label={t('settings.anilistPinLabel')}
+            htmlFor="anilist-pin"
+            className="!mt-0"
+            hint={
+              data.clientId ? (
+                <a
+                  className="t-link"
+                  href={`https://anilist.co/api/v2/oauth/authorize?client_id=${encodeURIComponent(data.clientId)}&response_type=token`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {t('settings.anilistPinGet')}
+                </a>
+              ) : (
+                t('settings.anilistPinHint')
+              )
+            }
+          >
+            <div className="sec-row">
               <Input
+                id="anilist-pin"
                 className="font-mono"
                 type="password"
                 autoComplete="off"
@@ -1207,24 +1139,10 @@ function AnilistAccount() {
               >
                 {t('settings.anilistPinConnect')}
               </Button>
-            </span>
-            <span className="mt-1 block">
-              {data.clientId ? (
-                <a
-                  className="text-accent underline"
-                  href={`https://anilist.co/api/v2/oauth/authorize?client_id=${encodeURIComponent(data.clientId)}&response_type=token`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {t('settings.anilistPinGet')}
-                </a>
-              ) : (
-                t('settings.anilistPinHint')
-              )}
-            </span>
-          </label>
+            </div>
+          </SettingsField>
           {error && (
-            <span className="text-err" role="alert">
+            <span className="text-ctl-sm text-err" role="alert">
               {error}
             </span>
           )}
