@@ -15,6 +15,7 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 // ── WebAuthn user adapter ────────────────────────────────────────────────────
@@ -149,9 +150,50 @@ func (s *Server) storeCredential(userID int64, c *webauthn.Credential, name stri
 	if passwordless {
 		pw = 1
 	}
-	_, err = s.DB.Exec(`INSERT INTO webauthn_credentials (user_id, credential_id, cred_json, name, passwordless)
-		VALUES (?, ?, ?, ?, ?)`, userID, c.ID, raw, name, pw)
+	// a passkey was registered with user verification required, so it is
+	// known to verify; a new one also replaces the passkey that signed in
+	// without, and with that lifts the hold
+	return db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`INSERT INTO webauthn_credentials (user_id, credential_id, cred_json, name, passwordless, uv_required)
+			VALUES (?, ?, ?, ?, ?, ?)`, userID, c.ID, raw, name, pw, pw); err != nil {
+			return err
+		}
+		if !passwordless {
+			return nil
+		}
+		if _, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE user_id = ? AND replace_due = 1`, userID); err != nil {
+			return err
+		}
+		return liftPasskeyHold(tx, userID)
+	})
+}
+
+// liftPasskeyHold ends the passkey hold once no credential is left that
+// signed in without verifying the user.
+func liftPasskeyHold(tx interface {
+	Exec(string, ...any) (sql.Result, error)
+}, userID int64) error {
+	_, err := tx.Exec(`UPDATE users SET auth_upgrade = '' WHERE id = ? AND auth_upgrade = 'passkey'
+		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials WHERE user_id = ? AND replace_due = 1)`, userID, userID)
 	return err
+}
+
+// reauth checks the password a change to the account's sign-in factors comes
+// with (ASVS 7.5.1): a stolen session alone must not add a passkey that
+// outlives it, or switch on TOTP and lock the owner out. 403, not 401: the
+// session is fine, and a 401 would sign the client out. An account without a
+// password signs in through its provider and has nothing to confirm with.
+func (s *Server) reauth(w http.ResponseWriter, userID int64, password string) bool {
+	var hash string
+	if err := s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash); err != nil {
+		dbErr(w)
+		return false
+	}
+	if hash != "" && !auth.VerifyPassword(password, hash) {
+		writeErr(w, http.StatusForbidden, "invalid password")
+		return false
+	}
+	return true
 }
 
 // updateCredential re-saves a credential after a login (sign-count bump).
@@ -185,6 +227,7 @@ type WebAuthnBeginResponse struct {
 // @Tags     TwoFactor
 // @Produce  json
 // @Param    X-WA-Type header string false "\"key\" for a second-factor security key; otherwise a passwordless passkey"
+// @Param    body body reauthRequest true "the account's password"
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
@@ -196,6 +239,10 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	wa, err := s.webauthnFor(r)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		return
+	}
+	var in reauthRequest
+	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
 		return
 	}
 	user, err := s.loadWAUser(u.ID)
@@ -210,7 +257,10 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		writeErr(w, http.StatusForbidden, "passkeys need an account with a password")
 		return
 	}
-	sel := protocol.AuthenticatorSelection{UserVerification: protocol.VerificationPreferred}
+	// a passkey is the whole sign-in, so it must verify the user (PIN,
+	// fingerprint, face): without, it is one factor standing in for two
+	// (NIST 800-63B-4 3.1.7.2)
+	sel := protocol.AuthenticatorSelection{UserVerification: protocol.VerificationRequired}
 	if passwordless {
 		sel.ResidentKey = protocol.ResidentKeyRequirementRequired
 	} else {
@@ -343,7 +393,12 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		matched = user
 		return user, nil
 	}
-	_, cred, err := wa.FinishPasskeyLogin(handler, *session, r)
+	parsed, err := protocol.ParseCredentialRequestResponse(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, "passkey login failed")
+		return
+	}
+	_, cred, err := wa.ValidatePasskeyLogin(handler, *session, parsed)
 	if err != nil || matched == nil {
 		writeErr(w, http.StatusUnauthorized, "passkey login failed")
 		return
@@ -354,6 +409,21 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	if !s.hasPassword(matched.id) {
 		writeErr(w, http.StatusForbidden, "this account signs in through OIDC")
 		return
+	}
+	// what this ceremony did, not the credential's latched flag
+	if parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
+		s.DB.Exec(`UPDATE webauthn_credentials SET uv_required = 1 WHERE credential_id = ?`, cred.ID)
+	} else {
+		var uvRequired int
+		s.DB.QueryRow(`SELECT uv_required FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&uvRequired)
+		if uvRequired == 1 {
+			writeErr(w, http.StatusUnauthorized, "this passkey must verify you with a PIN or biometrics")
+			return
+		}
+		// registered before the rule: in, but only onto the page that asks
+		// for a passkey that verifies (auth.Middleware holds the account)
+		s.DB.Exec(`UPDATE webauthn_credentials SET replace_due = 1 WHERE credential_id = ?`, cred.ID)
+		s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ? AND auth_upgrade = ''`, matched.id)
 	}
 	s.updateCredential(cred)
 	if err := auth.CreateSession(s.DB, w, r, matched.id); err != nil {
@@ -469,6 +539,14 @@ type WebAuthnCredential struct {
 	Passwordless bool   `json:"passwordless"`
 	CreatedAt    string `json:"createdAt"`
 	LastUsed     string `json:"lastUsed"`
+	// signed in without verifying the user; to be replaced
+	ReplaceDue bool `json:"replaceDue"`
+}
+
+// reauthRequest carries the password a change to the sign-in factors is
+// confirmed with.
+type reauthRequest struct {
+	Password string `json:"password"`
 }
 
 // handleWebAuthnList lists the current user's registered credentials.
@@ -483,7 +561,7 @@ type WebAuthnCredential struct {
 // @Router   /api/auth/webauthn/credentials [get]
 func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT id, name, passwordless, created_at, COALESCE(last_used,'')
+	rows, err := s.DB.Query(`SELECT id, name, passwordless, created_at, COALESCE(last_used,''), replace_due
 		FROM webauthn_credentials WHERE user_id = ? ORDER BY id`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -493,9 +571,10 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	list := []WebAuthnCredential{}
 	for rows.Next() {
 		var c WebAuthnCredential
-		var pw int
-		rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed)
+		var pw, due int
+		rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed, &due)
 		c.Passwordless = pw == 1
+		c.ReplaceDue = due == 1
 		list = append(list, c)
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -514,7 +593,14 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 // @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	if _, err := s.DB.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID); err != nil {
+	// removing the passkey that signed in without verifying is the other way
+	// out of the hold: the account goes on with its password
+	if err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID); err != nil {
+			return err
+		}
+		return liftPasskeyHold(tx, u.ID)
+	}); err != nil {
 		dbErr(w)
 		return
 	}

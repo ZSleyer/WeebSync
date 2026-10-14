@@ -149,6 +149,9 @@ function PasskeySection() {
   // the device's name is typed beside the buttons, not asked in a dialog
   // after the click; empty, it falls back to the kind
   const [name, setName] = useState('')
+  // a new way in is confirmed with the password, so a stolen session alone
+  // cannot add one
+  const [password, setPassword] = useState('')
   const nameId = useId()
 
   const add = (kind: 'passkey' | 'key') => async () => {
@@ -156,8 +159,9 @@ function PasskeySection() {
     setBusy(true)
     setError('')
     try {
-      await registerCredential(kind, name.trim() || fallback)
+      await registerCredential(kind, name.trim() || fallback, password)
       setName('')
+      setPassword('')
       qc.invalidateQueries({ queryKey: ['webauthn'] })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('app.error'))
@@ -216,10 +220,19 @@ function PasskeySection() {
               placeholder={t('account.passkeyNameHint')}
             />
           </SettingsField>
-          <Button variant="primary" disabled={busy} onClick={add('passkey')}>
+          <SettingsField label={t('login.password')} htmlFor={nameId + 'p'}>
+            <Input
+              id={nameId + 'p'}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </SettingsField>
+          <Button variant="primary" disabled={busy || !password} onClick={add('passkey')}>
             {t('account.passkeyAdd')}
           </Button>
-          <Button disabled={busy} onClick={add('key')}>
+          <Button disabled={busy || !password} onClick={add('key')}>
             {t('account.keyAdd')}
           </Button>
         </div>
@@ -279,7 +292,11 @@ function TotpSection() {
     }
   }
 
-  const start = () => run(async () => setSetup(await api.post<SetupData>('/api/auth/totp/setup')))
+  const start = () =>
+    run(async () => {
+      setSetup(await api.post<SetupData>('/api/auth/totp/setup', { password }))
+      setPassword('')
+    })
   const confirm = () =>
     run(async () => {
       const out = await api.post<{ recoveryCodes: string[] }>('/api/auth/totp/confirm', { code: code.trim() })
@@ -353,8 +370,17 @@ function TotpSection() {
         <p className="sf-note">{t('account.passkeyNeedsPassword')}</p>
       )}
       {!recovery && !data?.enabled && !setup && !oidcOnly && (
-        <div className="sf-acts">
-          <Button size="sm" variant="primary" disabled={busy} onClick={start}>
+        <div className="ws-inline">
+          <SettingsField label={t('login.password')} htmlFor={id + 'sp'}>
+            <Input
+              id={id + 'sp'}
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </SettingsField>
+          <Button variant="primary" disabled={busy || !password} onClick={start}>
             {t('account.totpEnable')}
           </Button>
         </div>

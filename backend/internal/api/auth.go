@@ -331,7 +331,7 @@ type MeResponse struct {
 	// what must be replaced before the app opens: "password" (the policy
 	// refuses the current one) or "passkey" (one signed in without user
 	// verification); empty when nothing is due
-	UpgradeRequired string `json:"upgradeRequired,omitempty" enums:"password"`
+	UpgradeRequired string `json:"upgradeRequired,omitempty" enums:"password,passkey"`
 }
 
 // handleMe returns the current user.

@@ -239,6 +239,7 @@ const ERROR_KEYS: Record<string, string> = {
   'invalid or expired login': 'errors.loginExpired',
   'expired login session': 'errors.loginExpired',
   'passkey login failed': 'errors.passkeyFailed',
+  'this passkey must verify you with a PIN or biometrics': 'errors.passkeyNoUv',
   'security key verification failed': 'errors.passkeyFailed',
   'email already registered': 'errors.emailTaken',
   'invalid email': 'errors.invalidEmail',

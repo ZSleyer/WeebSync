@@ -18,8 +18,9 @@ type Begin = { sessionId: string; publicKey: unknown }
 
 // registerCredential runs the WebAuthn registration ceremony for the current
 // user. kind "passkey" = discoverable/passwordless, "key" = roaming 2nd factor.
-export async function registerCredential(kind: 'passkey' | 'key', name: string): Promise<void> {
-  const begin = await api.post<Begin>('/api/auth/webauthn/register/begin', undefined, { 'X-WA-Type': kind })
+// The account's password confirms the change ("" for an OIDC account).
+export async function registerCredential(kind: 'passkey' | 'key', name: string, password: string): Promise<void> {
+  const begin = await api.post<Begin>('/api/auth/webauthn/register/begin', { password }, { 'X-WA-Type': kind })
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const att = await startRegistration({ optionsJSON: begin.publicKey as any })
   await api.post('/api/auth/webauthn/register/finish', att, {

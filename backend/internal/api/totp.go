@@ -85,6 +85,10 @@ type TotpSetupResponse struct {
 // @Router   /api/auth/totp/setup [post]
 func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	var in reauthRequest
+	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
+		return
+	}
 	if s.totpEnabled(u.ID) {
 		writeErr(w, http.StatusConflict, "TOTP already enabled")
 		return

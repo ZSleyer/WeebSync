@@ -158,11 +158,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/reset", s.authLimiter.limit(s.handlePasswordReset))
 	// per-user TOTP enrollment (any authenticated user, not admin-only)
 	mux.Handle("GET /api/auth/totp", authed(http.HandlerFunc(s.handleTotpStatus)))
-	mux.Handle("POST /api/auth/totp/setup", authed(http.HandlerFunc(s.handleTotpSetup)))
+	mux.Handle("POST /api/auth/totp/setup", authed(s.authLimiter.limit(s.handleTotpSetup)))
 	mux.Handle("POST /api/auth/totp/confirm", authed(http.HandlerFunc(s.handleTotpConfirm)))
 	mux.Handle("DELETE /api/auth/totp", authed(http.HandlerFunc(s.handleTotpDisable)))
 	// WebAuthn: passwordless passkey login + security-key second factor
-	mux.Handle("POST /api/auth/webauthn/register/begin", authed(http.HandlerFunc(s.handleWebAuthnRegisterBegin)))
+	mux.Handle("POST /api/auth/webauthn/register/begin", authed(s.authLimiter.limit(s.handleWebAuthnRegisterBegin)))
 	mux.Handle("POST /api/auth/webauthn/register/finish", authed(http.HandlerFunc(s.handleWebAuthnRegisterFinish)))
 	mux.Handle("GET /api/auth/webauthn/credentials", authed(http.HandlerFunc(s.handleWebAuthnList)))
 	mux.Handle("DELETE /api/auth/webauthn/credentials/{id}", authed(http.HandlerFunc(s.handleWebAuthnDelete)))

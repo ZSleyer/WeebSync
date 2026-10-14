@@ -1797,7 +1797,8 @@
                     "upgradeRequired": {
                         "description": "what must be replaced before the app opens: \"password\" (the policy\nrefuses the current one) or \"passkey\" (one signed in without user\nverification); empty when nothing is due",
                         "enum": [
-                            "password"
+                            "password",
+                            "passkey"
                         ],
                         "type": "string"
                     }
@@ -3583,6 +3584,10 @@
                     },
                     "passwordless": {
                         "type": "boolean"
+                    },
+                    "replaceDue": {
+                        "description": "signed in without verifying the user; to be replaced",
+                        "type": "boolean"
                     }
                 },
                 "required": [
@@ -3590,7 +3595,8 @@
                     "name",
                     "passwordless",
                     "createdAt",
-                    "lastUsed"
+                    "lastUsed",
+                    "replaceDue"
                 ],
                 "type": "object"
             },
@@ -5663,6 +5669,17 @@
                 "required": [
                     "endpoint",
                     "keys"
+                ],
+                "type": "object"
+            },
+            "api.reauthRequest": {
+                "properties": {
+                    "password": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "password"
                 ],
                 "type": "object"
             },
@@ -12591,6 +12608,19 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/api.reauthRequest",
+                                "description": "the account's password",
+                                "summary": "body"
+                            }
+                        }
+                    },
+                    "description": "the account's password",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {

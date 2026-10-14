@@ -789,7 +789,7 @@ export interface Schemas {
      * refuses the current one) or "passkey" (one signed in without user
      * verification); empty when nothing is due
      */
-    upgradeRequired?: "password"
+    upgradeRequired?: "password" | "passkey"
   }
   'api.MkdirLocalRequest': {
     path: string
@@ -1634,6 +1634,10 @@ export interface Schemas {
     lastUsed: string
     name: string
     passwordless: boolean
+    /**
+     * signed in without verifying the user; to be replaced
+     */
+    replaceDue: boolean
   }
   'api.WebFont': {
     bold: string
@@ -2412,6 +2416,9 @@ export interface Schemas {
       auth: string
       p256dh: string
     }
+  }
+  'api.reauthRequest': {
+    password: string
   }
   'api.recommendedMedia': {
     /**

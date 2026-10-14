@@ -130,7 +130,7 @@ type User struct {
 // answers 403 until it is done.
 var upgradeRoutes = map[string][]string{
 	"password": {"PUT /api/auth/password"},
-	"passkey": {"GET /api/auth/webauthn/credentials",
+	"passkey": {"GET /api/auth/webauthn/credentials", "DELETE /api/auth/webauthn/credentials/*",
 		"POST /api/auth/webauthn/register/begin", "POST /api/auth/webauthn/register/finish"},
 }
 
@@ -140,7 +140,7 @@ func upgradeAllows(kind string, r *http.Request) bool {
 		return true
 	}
 	for _, p := range upgradeRoutes[kind] {
-		if p == route {
+		if p == route || strings.HasSuffix(p, "/*") && strings.HasPrefix(route, strings.TrimSuffix(p, "*")) {
 			return true
 		}
 	}

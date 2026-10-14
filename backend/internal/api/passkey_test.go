@@ -3,6 +3,8 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -21,7 +23,7 @@ func TestPasskeyNeedsPassword(t *testing.T) {
 	if me.HasPassword {
 		t.Fatalf("me: hasPassword true for an account without one")
 	}
-	if rec := doReq(mux, "POST", "/api/auth/webauthn/register/begin", "", userC); rec.Code != http.StatusForbidden {
+	if rec := doReq(mux, "POST", "/api/auth/webauthn/register/begin", `{"password":""}`, userC); rec.Code != http.StatusForbidden {
 		t.Errorf("passkey for an OIDC account: got %d, want 403: %s", rec.Code, rec.Body)
 	}
 
@@ -31,8 +33,61 @@ func TestPasskeyNeedsPassword(t *testing.T) {
 	if !me.HasPassword {
 		t.Errorf("me: hasPassword false after setting one")
 	}
-	if rec := doReq(mux, "POST", "/api/auth/webauthn/register/begin", "", userC); rec.Code != http.StatusOK {
-		t.Errorf("passkey for a password account: got %d, want 200: %s", rec.Code, rec.Body)
+	// a session alone does not add a way in: the password confirms it
+	if rec := doReq(mux, "POST", "/api/auth/webauthn/register/begin", `{"password":"wrong-password"}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("passkey with a wrong password: got %d, want 403: %s", rec.Code, rec.Body)
+	}
+	rec := doReq(mux, "POST", "/api/auth/webauthn/register/begin", `{"password":"longenough123"}`, userC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("passkey for a password account: got %d, want 200: %s", rec.Code, rec.Body)
+	}
+	// a passkey must verify the user
+	if !strings.Contains(rec.Body.String(), `"userVerification":"required"`) {
+		t.Errorf("registration does not require user verification: %s", rec.Body)
+	}
+}
+
+// TOTP is switched on only with the password: a stolen session could
+// otherwise lock the owner out behind a code only the thief has.
+func TestTotpSetupNeedsPassword(t *testing.T) {
+	mux, s, _, userC, _, userID := setupUsersTest(t)
+	setPassword(t, s, userID, "longenough123")
+	if rec := doReq(mux, "POST", "/api/auth/totp/setup", `{"password":"wrong-password"}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("wrong password: got %d, want 403", rec.Code)
+	}
+	if rec := doReq(mux, "POST", "/api/auth/totp/setup", `{"password":"longenough123"}`, userC); rec.Code != http.StatusOK {
+		t.Errorf("right password: got %d: %s", rec.Code, rec.Body)
+	}
+}
+
+// A passkey that signed in without verifying the user holds the account until
+// it is replaced or removed; removing it lets the account go on.
+func TestPasskeyHoldLiftsOnRemoval(t *testing.T) {
+	mux, s, _, userC, _, userID := setupUsersTest(t)
+	setPassword(t, s, userID, "longenough123")
+	res, err := s.DB.Exec(`INSERT INTO webauthn_credentials (user_id, credential_id, cred_json, name, passwordless, replace_due)
+		VALUES (?, x'01', '{}', 'old', 1, 1)`, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credID, _ := res.LastInsertId()
+	s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ?`, userID)
+
+	if rec := doReq(mux, "GET", "/api/servers", "", userC); rec.Code != http.StatusForbidden {
+		t.Errorf("held account reached the app: %d", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", "/api/auth/password", `{"current":"longenough123","new":"another long phrase"}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("held for a passkey, the password route is not the way out: %d", rec.Code)
+	}
+	rec := doReq(mux, "GET", "/api/auth/webauthn/credentials", "", userC)
+	if !strings.Contains(rec.Body.String(), `"replaceDue":true`) {
+		t.Errorf("list does not name the passkey to replace: %s", rec.Body)
+	}
+	if rec := doReq(mux, "DELETE", "/api/auth/webauthn/credentials/"+strconv.FormatInt(credID, 10), "", userC); rec.Code != http.StatusOK {
+		t.Fatalf("remove: got %d: %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/servers", "", userC); rec.Code != http.StatusOK {
+		t.Errorf("hold not lifted after removal: %d %s", rec.Code, rec.Body)
 	}
 }
 
