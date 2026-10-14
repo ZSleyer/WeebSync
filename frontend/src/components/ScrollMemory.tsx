@@ -12,8 +12,7 @@ const KEY = 'weebsync.scroll.'
 // where the window stands, noted as it scrolls: reading scrollY on demand
 // would force a layout of a page that is being mounted
 let winY = 0
-if (typeof window !== 'undefined')
-  window.addEventListener('scroll', () => (winY = window.scrollY), { passive: true })
+if (typeof window !== 'undefined') window.addEventListener('scroll', () => (winY = window.scrollY), { passive: true })
 
 export default function ScrollMemory() {
   const { key, hash, pathname } = useLocation()
