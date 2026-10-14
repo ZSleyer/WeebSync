@@ -1755,6 +1755,8 @@
       "rematchAllServersHint": "Searches again for every automatic match on every server and spends many API requests doing so. Manual matches stay.",
       "confirmRematchAllServers": "Really re-queue every automatic match on ALL servers? This can take a while and use many API requests.",
       "data": {
+        "storesTitle": "Data stores",
+        "validFor": "valid for {{ttl}}",
         "kindTitle": {
           "cache": "Caches",
           "derived": "Derived data",

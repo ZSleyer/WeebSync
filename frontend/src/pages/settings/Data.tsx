@@ -1,41 +1,25 @@
-import { ChevronRight, RefreshCw, Trash2 } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, Navigate, useNavigate, useParams } from 'react-router'
-import {
-  Badge,
-  Button,
-  Checkbox,
-  Count,
-  Dialog,
-  Disclosure,
-  Divider,
-  Input,
-  Modal,
-  PageHeader,
-  Panel,
-} from 'fluid-lycoris'
+import { Badge, Button, Dialog, Modal, Row, RowAction, Rows, Switch } from 'fluid-lycoris'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { useToast } from '../../components/toast'
 import LegacyImport from '../../components/LegacyImport'
 import Loading from '../../components/Loading'
 import {
-  CELL_LEFT,
-  CELL_RIGHT,
   fmtNum,
   fmtTs,
   fmtTtl,
   groupStores,
   KIND_TONE,
-  NUM,
   NUMEDIT_GRID,
   NumEdit,
   PAGE,
   Pager,
   rebuildLabel,
-  ROW_GRID,
   storeDesc,
   storeLabel,
   truncMiddle,
@@ -47,15 +31,16 @@ import {
   type DataStore,
   type Provider,
   type ResetResult,
-  type StoreSum,
   type TtlConfig,
 } from './maintenance'
+import { SettingsPanel } from './ui'
+import './maintenance.css'
 
-// Caches and data: everything the app computes and can compute again. Three
-// groups by kind, the caches once more by provider with that provider's
-// retention. A row is one line and opens the store's dialog, which holds
-// the description, the numbers, the entries and the one destructive action.
-// The rebuild of everything sits apart at the bottom, then the import.
+// Caches and data: everything the app computes and can compute again. One
+// panel per kind, the caches once more by provider with that provider's
+// retention and rebuild. A row is one store and links to its own page,
+// which holds the description, the numbers, the entries and the flush. The
+// rebuild of everything is the danger below, then the import.
 export default function Data() {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -97,7 +82,7 @@ export default function Data() {
       case 'anilist':
         return (
           <>
-            <span className="text-xs text-t-muted">
+            <span className="text-[length:var(--fs-meta)] text-t-muted">
               {t('settings.jobs.accounts', { count: data.anilist.accounts })}
             </span>
             <Button
@@ -115,10 +100,10 @@ export default function Data() {
       case 'plex':
         return (
           <>
-            <Badge tone={data.plex.configured ? 'ok' : 'neutral'} className="shrink-0">
+            <Badge tone={data.plex.configured ? 'ok' : 'neutral'}>
               {data.plex.configured ? t('settings.jobs.configured') : t('settings.jobs.notConfigured')}
             </Badge>
-            <span className="font-mono text-xs tabular-nums text-t-muted">
+            <span className="text-[length:var(--fs-meta)] tabular-nums text-t-muted">
               {t('settings.jobs.suggestionsBuilt')}: {fmtTs(data.plex.suggestionsAt)}
             </span>
             <Button
@@ -139,132 +124,115 @@ export default function Data() {
   const stores = inventory?.stores ?? []
   const groups = groupStores(stores)
 
-  const sums = (g: StoreSum, cache: boolean) => (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs tabular-nums text-t-muted">
-      <span>{t('settings.jobs.data.rowCount', { n: fmtNum(g.rows) })}</span>
-      {cache && g.bytes > 0 && <span>{fmtBytes(g.bytes)}</span>}
-    </span>
-  )
   // two numbers: stale rows are still served while their refetch runs,
   // prunable ones are dead weight the sweep will drop
-  const staleBadge = (n: number, prunable = 0) =>
-    n > 0 || prunable > 0 ? (
-      <>
-        {n > 0 && (
-          <Badge tone="warn" className="shrink-0 tabular-nums">
-            {t('settings.jobs.stale', { count: n })}
-          </Badge>
-        )}
-        {prunable > 0 && (
-          <Badge tone="neutral" className="shrink-0 tabular-nums">
-            {t('settings.jobs.prunable', { count: prunable })}
-          </Badge>
-        )}
-      </>
-    ) : null
-
-  // one line per store, a link to the store's own page (so it opens in a new
-  // tab and reads as navigation): the numbers that matter at a glance, the
-  // rest behind it. Tall enough for a thumb.
-  const storeRow = (s: DataStore) => (
-    <li key={s.name}>
-      <Link
-        to={encodeURIComponent(s.name)}
-        className="flex min-h-12 w-full cursor-pointer items-center gap-3 border-b border-border-subtle px-1 text-left text-sm transition-colors hover:bg-bg-hover"
-      >
-        <span className="min-w-0 flex-1 break-words font-semibold text-t-primary">{storeLabel(t, s.name)}</span>
-        {staleBadge(s.stale, s.prunable)}
-        <Count className="shrink-0">{fmtNum(s.rows)}</Count>
-        <ChevronRight aria-hidden size="1em" className="shrink-0 text-t-faint" />
-      </Link>
-    </li>
+  const staleBadge = (n: number, prunable = 0) => (
+    <>
+      {n > 0 && (
+        <Badge tone="warn" className="tabular-nums">
+          {t('settings.jobs.stale', { count: n })}
+        </Badge>
+      )}
+      {prunable > 0 && <Badge className="tabular-nums">{t('settings.jobs.prunable', { count: prunable })}</Badge>}
+    </>
   )
+
+  // one row per store: what it is, how big, how long it holds, and a link to
+  // its own page (so it opens in a new tab and reads as navigation)
+  const storeRow = (s: DataStore) => {
+    const label = storeLabel(t, s.name)
+    const facts = [
+      t(`settings.jobs.data.kind.${s.kind}`),
+      t('settings.jobs.data.rowCount', { n: fmtNum(s.rows) }),
+      ...(s.kind === 'cache' && s.bytes > 0 ? [fmtBytes(s.bytes)] : []),
+      ...(s.kind === 'cache' && s.ttlSec > 0 ? [t('settings.jobs.data.validFor', { ttl: fmtTtl(s.ttlSec) })] : []),
+    ]
+    return (
+      <Row
+        key={s.name}
+        title={label}
+        sub={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="tabular-nums">{facts.join(' · ')}</span>
+            {staleBadge(s.stale, s.prunable)}
+          </span>
+        }
+        trailing={
+          <Link
+            to={encodeURIComponent(s.name)}
+            className="t-row-act"
+            aria-label={`${t('settings.jobs.view')}: ${label}`}
+          >
+            {t('settings.jobs.view')}
+          </Link>
+        }
+      />
+    )
+  }
 
   return (
     <>
       {error && (
-        <p className="mb-3 text-xs text-err" role="alert">
+        <p className="sf-issue mb-3" role="alert">
           {error}
         </p>
       )}
-      <p className="mb-4 text-xs text-t-muted">{t('settings.jobs.data.hint')}</p>
 
       {stores.length === 0 ? (
-        <Panel className="mb-4 p-5 text-sm text-t-secondary">{t('settings.jobs.empty')}</Panel>
+        <SettingsPanel title={t('settings.jobs.data.storesTitle')} desc={t('settings.jobs.data.hint')}>
+          <p className="sf-note">{t('settings.jobs.empty')}</p>
+        </SettingsPanel>
       ) : (
-        groups.map((g) => (
-          <Panel
-            as="section"
+        groups.map((g, i) => (
+          <SettingsPanel
             key={g.kind}
-            className="mb-4 p-5"
-            aria-label={t(`settings.jobs.data.kindTitle.${g.kind}`)}
+            title={t(`settings.jobs.data.kindTitle.${g.kind}`)}
+            desc={
+              <>
+                {i === 0 && <>{t('settings.jobs.data.hint')} </>}
+                {t(`settings.jobs.data.kindHint.${g.kind}`)}
+              </>
+            }
           >
-            <Disclosure
-              title={
-                <span className="flex min-w-0 items-center gap-2">
-                  <span className="truncate">{t(`settings.jobs.data.kindTitle.${g.kind}`)}</span>
-                  {staleBadge(g.stale, g.prunable)}
-                </span>
-              }
-              count={g.stores.length}
-              defaultOpen={g.kind === 'cache'}
-            >
-              <p className="text-xs text-t-muted">{t(`settings.jobs.data.kindHint.${g.kind}`)}</p>
-              {g.providers ? (
-                g.providers.map((p) => (
-                  <div key={p.provider} className="mt-4">
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border-subtle pb-2">
-                      <span className="font-semibold text-t-primary">
-                        {t(`settings.jobs.data.providers.${p.provider}`)}
-                      </span>
-                      {sums(p, true)}
-                      <span className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end">
-                        {providerTools(p.provider)}
-                      </span>
-                    </div>
-                    <ul>{p.stores.map(storeRow)}</ul>
+            {g.providers ? (
+              g.providers.map((p) => (
+                <div key={p.provider}>
+                  <div className="set-prov">
+                    <h4 className="m-0 font-semibold">{t(`settings.jobs.data.providers.${p.provider}`)}</h4>
+                    <span className="text-[length:var(--fs-meta)] tabular-nums text-t-muted">
+                      {t('settings.jobs.data.rowCount', { n: fmtNum(p.rows) })}
+                      {p.bytes > 0 && <> · {fmtBytes(p.bytes)}</>}
+                    </span>
+                    <span className="tools">{providerTools(p.provider)}</span>
                   </div>
-                ))
-              ) : (
-                <>
-                  <div className="mt-2">{sums(g, false)}</div>
-                  <ul className="mt-2 border-t border-border-subtle">{g.stores.map(storeRow)}</ul>
-                </>
-              )}
-            </Disclosure>
-          </Panel>
+                  <Rows>{p.stores.map(storeRow)}</Rows>
+                </div>
+              ))
+            ) : (
+              <Rows>{g.stores.map(storeRow)}</Rows>
+            )}
+          </SettingsPanel>
         ))
       )}
 
-      <Panel danger as="section" className="mb-4 p-5" aria-label={t('settings.jobs.data.reset.title')}>
-        <Badge tone="err">{t('settings.jobs.data.reset.title')}</Badge>
-        <p className="mt-2 text-xs text-t-muted">{t('settings.jobs.data.dangerHint')}</p>
-        <Button
-          size="sm"
-          variant="danger"
-          className="mt-3"
-          disabled={stores.length === 0}
-          onClick={() => setResetOpen(true)}
-        >
-          <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('settings.jobs.data.reset.button')}
-        </Button>
-      </Panel>
+      <SettingsPanel id="import" title={t('legacy.title')} desc={t('legacy.sub')}>
+        <LegacyImport headingLevel={4} />
+      </SettingsPanel>
+
+      <SettingsPanel danger title={t('settings.jobs.data.reset.title')}>
+        <p className="sf-note">{t('settings.jobs.data.dangerHint')}</p>
+        <div className="sf-acts">
+          <Button variant="danger" disabled={stores.length === 0} onClick={() => setResetOpen(true)}>
+            {t('settings.jobs.data.reset.button')}
+          </Button>
+        </div>
+      </SettingsPanel>
 
       {resetOpen && <ResetModal stores={stores} onClose={() => setResetOpen(false)} />}
-      <section id="import" className="space-y-4" aria-label={t('legacy.title')}>
-        <Divider label={t('legacy.title')} />
-        <p className="text-xs text-t-muted">{t('legacy.sub')}</p>
-        <LegacyImport />
-      </section>
     </>
   )
 }
 
-// One store in full: what it holds, its numbers, what rebuilds it, and for a
-// cache the key-level view (addressed by the short scope name the entry
-// endpoints use, the slug without its "cache:" prefix). Flushing the store
-// is the dialog's one destructive action and closes it.
 /**
  * One store on a page of its own, stacked on Data: what it holds, its
  * entries to page through and delete, and the flush. A list to work through
@@ -292,6 +260,7 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
   const cache = store.kind === 'cache'
   const scope = store.name.replace(/^cache:/, '')
   const label = storeLabel(t, store.name)
+  const desc = storeDesc(t, store.name)
 
   const { data } = useQuery<CacheEntriesResp>({
     queryKey: ['adminCacheEntries', scope, dq, offset],
@@ -353,21 +322,11 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
 
   return (
     <div>
-      <PageHeader title={label} sub={storeDesc(t, store.name)}>
-        <Button
-          size="sm"
-          variant="danger"
-          disabled={flush.isPending}
-          onClick={async () => {
-            if (await confirm({ message: t('settings.jobs.data.confirmDelete', { store: label }), destructive: true }))
-              flush.mutate()
-          }}
-        >
-          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('settings.jobs.flush')}
-        </Button>
-      </PageHeader>
-      <Panel className="mt-4 p-4">
+      <header className="set-sub">
+        <h2>{label}</h2>
+        {desc && <p>{desc}</p>}
+      </header>
+      <section className="set-p" aria-label={label}>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone={KIND_TONE[store.kind]}>{t(`settings.jobs.data.kind.${store.kind}`)}</Badge>
           {store.stale > 0 && (
@@ -376,93 +335,114 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
             </Badge>
           )}
           {store.prunable > 0 && (
-            <Badge tone="neutral" className="tabular-nums">
-              {t('settings.jobs.prunable', { count: store.prunable })}
-            </Badge>
+            <Badge className="tabular-nums">{t('settings.jobs.prunable', { count: store.prunable })}</Badge>
           )}
         </div>
-        <dl className="mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-xs">
+        <dl className="set-facts">
           {facts.map(([k, v]) => (
             <div key={k} className="contents">
-              <dt className="text-t-muted">{k}</dt>
-              <dd className="font-mono tabular-nums text-t-secondary">{v}</dd>
+              <dt>{k}</dt>
+              <dd>{v}</dd>
             </div>
           ))}
         </dl>
+        <div className="sf-acts">
+          <Button
+            variant="danger"
+            disabled={flush.isPending}
+            onClick={async () => {
+              if (
+                await confirm({ message: t('settings.jobs.data.confirmDelete', { store: label }), destructive: true })
+              )
+                flush.mutate()
+            }}
+          >
+            {t('settings.jobs.flush')}
+          </Button>
+        </div>
+      </section>
 
-        {cache && (
-          <>
-            <Divider label={t('settings.jobs.data.entriesTitle')} count={data?.total} className="mt-4" />
-            <label className="sr-only" htmlFor="cache-entries-q">
-              {t('remote.search')}
+      {cache && (
+        <SettingsPanel
+          title={
+            <>
+              {t('settings.jobs.data.entriesTitle')}
+              {data && <span className="font-normal text-t-muted tabular-nums">{fmtNum(data.total)}</span>}
+            </>
+          }
+        >
+          <div className="set-tools">
+            <label className="set-search">
+              <Search aria-hidden size="1.125rem" />
+              <span className="sr-only">{t('remote.search')}</span>
+              <input
+                type="search"
+                className="t-input"
+                placeholder={t('remote.search')}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
             </label>
-            <Input
-              id="cache-entries-q"
-              className="mt-2"
-              placeholder={t('remote.search')}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-            {data && data.entries.length === 0 ? (
-              <p className="mt-3 text-sm text-t-secondary">{t('settings.jobs.empty')}</p>
-            ) : (
-              <ul className="mt-2">
-                {(data?.entries ?? [])
-                  .filter((e) => !hidden.has(e.key))
-                  .map((e) => (
-                    <li key={e.key} className={`${ROW_GRID} py-1.5`}>
-                      <span className={CELL_LEFT}>
-                        <span className="min-w-0 truncate font-mono text-xs text-t-secondary" title={e.key}>
-                          {truncMiddle(e.key)}
-                        </span>
-                        {e.stale && (
-                          <Badge tone="warn" className="shrink-0">
-                            {t('settings.jobs.staleBadge')}
-                          </Badge>
-                        )}
+          </div>
+          {data && data.entries.length === 0 ? (
+            <p className="t-empty t-empty--inline">{t('settings.jobs.empty')}</p>
+          ) : (
+            <Rows dense>
+              {(data?.entries ?? [])
+                .filter((e) => !hidden.has(e.key))
+                .map((e) => (
+                  <Row
+                    key={e.key}
+                    title={
+                      <span className="font-mono" title={e.key}>
+                        {truncMiddle(e.key)}
                       </span>
-                      <span className={CELL_RIGHT}>
-                        <span className={`whitespace-nowrap ${NUM}`}>{fmtTs(e.fetchedAt)}</span>
-                        <span className={`w-16 ${NUM}`}>{fmtBytes(e.bytes)}</span>
-                        <Button
-                          size="sm"
-                          variant="danger"
-                          disabled={del.isPending}
-                          onClick={() => {
-                            const k = e.key
-                            setHidden((h) => new Set(h).add(k))
-                            toast({
-                              message: t('settings.jobs.entryDeleted', { key: truncMiddle(e.key, 60) }),
-                              undo: () => unhide(k),
-                              commit: () => del.mutateAsync(k).catch(() => unhide(k)),
-                            })
-                          }}
-                        >
-                          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-                          {t('servers.delete')}
-                        </Button>
+                    }
+                    sub={
+                      <span className="flex flex-wrap items-center gap-x-2 tabular-nums">
+                        {fmtTs(e.fetchedAt)} · {fmtBytes(e.bytes)}
+                        {e.stale && <Badge tone="warn">{t('settings.jobs.staleBadge')}</Badge>}
                       </span>
-                    </li>
-                  ))}
-              </ul>
-            )}
-            <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
-          </>
-        )}
-        {error && (
-          <p className="mt-2 text-xs text-err" role="alert">
-            {error}
-          </p>
-        )}
-      </Panel>
+                    }
+                    trailing={
+                      <RowAction
+                        className="set-act-err"
+                        aria-label={`${t('servers.delete')}: ${truncMiddle(e.key, 60)}`}
+                        disabled={del.isPending}
+                        onClick={() => {
+                          const k = e.key
+                          setHidden((h) => new Set(h).add(k))
+                          toast({
+                            message: t('settings.jobs.entryDeleted', { key: truncMiddle(e.key, 60) }),
+                            undo: () => unhide(k),
+                            commit: () => del.mutateAsync(k).catch(() => unhide(k)),
+                          })
+                        }}
+                      >
+                        {t('servers.delete')}
+                      </RowAction>
+                    }
+                  />
+                ))}
+            </Rows>
+          )}
+          <Pager offset={offset} total={data?.total ?? 0} onOffset={setOffset} />
+        </SettingsPanel>
+      )}
+      {error && (
+        <p className="sf-issue mt-2" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
-// The "rebuild everything" dialog. It never asks a bare "are you sure": it
+
+// The "rebuild everything" sheet. It never asks a bare "are you sure": it
 // names what goes, what stays and what runs afterwards, because the operator's
 // complaint was that the existing buttons never said which of those they meant.
-// The shared Modal anatomy inside a Dialog (a native <dialog>: focus trap,
-// Escape, backdrop).
+// The shared Modal anatomy (header, scrolling body, footer under a hairline
+// with Abbrechen and the answer) inside a Dialog.
 function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => void }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -489,7 +469,7 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
   })
 
   const list = (items: DataStore[]) => (
-    <ul className="mt-1 flex flex-wrap gap-1">
+    <ul>
       {items.map((s) => (
         <li key={s.name}>
           <Badge tone={KIND_TONE[s.kind]} className="tabular-nums">
@@ -513,8 +493,7 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
           ) : (
             <>
               <Button onClick={onClose}>{t('common.cancel')}</Button>
-              <Button variant="danger" disabled={reset.isPending} onClick={() => reset.mutate()}>
-                <RefreshCw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              <Button variant="danger-fill" disabled={reset.isPending} onClick={() => reset.mutate()}>
                 {t('settings.jobs.data.reset.confirm')}
               </Button>
             </>
@@ -536,33 +515,32 @@ function ResetModal({ stores, onClose }: { stores: DataStore[]; onClose: () => v
             </p>
           </div>
         ) : (
-          <div className="text-sm text-t-secondary">
-            <p>{t('settings.jobs.data.reset.intro')}</p>
+          <div className="reset-sheet text-sm text-t-secondary">
+            <p className="m-0">{t('settings.jobs.data.reset.intro')}</p>
 
-            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-              {t('settings.jobs.data.reset.willDelete', { count: doomedRows })}
-            </h4>
+            <h4>{t('settings.jobs.data.reset.willDelete', { count: doomedRows })}</h4>
             {list(doomed)}
 
-            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-              {t('settings.jobs.data.reset.willKeep')}
-            </h4>
+            <h4>{t('settings.jobs.data.reset.willKeep')}</h4>
             {list(kept)}
             <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.keepIndexWhy')}</p>
 
-            <h4 className="mt-4 font-display text-xs font-semibold uppercase tracking-wider text-t-primary">
-              {t('settings.jobs.data.reset.willRun')}
-            </h4>
+            <h4>{t('settings.jobs.data.reset.willRun')}</h4>
             <p className="mt-1 text-xs text-t-muted">{t('settings.jobs.data.reset.willRunWhat')}</p>
 
-            <div className="t-inset mt-4">
-              <Checkbox
+            <div className="t-sf t-sf--row mt-4">
+              <div className="t-sf-l">
+                <label htmlFor="reset-decisions">{t('settings.jobs.data.reset.includeDecisions')}</label>
+              </div>
+              <Switch
+                id="reset-decisions"
+                aria-describedby="reset-decisions-h"
                 checked={includeDecisions}
                 onChange={(e) => setIncludeDecisions(e.target.checked)}
-                label={t('settings.jobs.data.reset.includeDecisions')}
-                labelClassName="text-t-primary"
               />
-              <p className="mt-1 text-xs text-warn">{t('settings.jobs.data.reset.includeDecisionsCost')}</p>
+              <p id="reset-decisions-h" className="t-sf-h warn">
+                {t('settings.jobs.data.reset.includeDecisionsCost')}
+              </p>
             </div>
 
             <p className="mt-4 text-xs text-t-muted">{t('settings.jobs.data.reset.noBackup')}</p>

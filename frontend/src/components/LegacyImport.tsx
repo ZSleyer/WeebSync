@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { AlertTriangle, Check, FileJson, Upload } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLabel, Field, Input, Panel, Select } from 'fluid-lycoris'
+import { Button, ButtonLabel, Field, Input, Select } from 'fluid-lycoris'
 import { api, type ServerInfo } from '../api'
 import PathInput from './PathInput'
 
@@ -13,6 +13,9 @@ import PathInput from './PathInput'
 // That project spoke plain FTP only, so the server suggestion starts at SFTP
 // and says why.
 export const UPSTREAM_URL = 'https://github.com/BastianGanze/weebsync'
+
+// a part of the plan: a sentence-case heading, no chip
+const HEAD = 'm-0 font-display text-[length:var(--fs-body)] font-semibold text-t-primary'
 
 export interface LegacyWatchPlan {
   id: string
@@ -45,8 +48,16 @@ export interface LegacyPlan {
   dropped?: string[]
 }
 
-export default function LegacyImport({ onDone }: { onDone?: (serverId: number) => void }) {
+export default function LegacyImport({
+  onDone,
+  headingLevel = 3,
+}: {
+  onDone?: (serverId: number) => void
+  /** the level of the plan's part headings: 3 under a page's h2, 4 inside a settings panel */
+  headingLevel?: 3 | 4
+}) {
   const { t } = useTranslation()
+  const H = headingLevel === 4 ? 'h4' : 'h3'
   const qc = useQueryClient()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -134,14 +145,14 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
   }
 
   const errorBox = error && (
-    <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
+    <p className="mt-2 text-sm text-err" role="alert">
       {error}
     </p>
   )
 
   if (result) {
     return (
-      <Panel className="p-5">
+      <div className="mt-2">
         <p className="mb-2 flex items-center gap-2 text-sm text-ok" role="status">
           <Check aria-hidden size="1em" />
           {t('legacy.doneCount', { imported: result.imported, skipped: result.skipped })}
@@ -153,13 +164,13 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             ))}
           </ul>
         )}
-      </Panel>
+      </div>
     )
   }
 
   if (!plan) {
     return (
-      <Panel className="p-5">
+      <div className="mt-2">
         <p className="mb-1 text-sm text-t-secondary">{t('legacy.intro')}</p>
         <p className="mb-4 text-xs text-t-muted">
           {t('legacy.upstreamNote')}{' '}
@@ -180,7 +191,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
           />
         </ButtonLabel>
         <p className="mt-2 text-xs text-t-muted">{t('legacy.pickFileHint')}</p>
-      </Panel>
+      </div>
     )
   }
 
@@ -195,8 +206,8 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         </p>
       </div>
 
-      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.serverSection')}>
-        <Badge tone="accent">{t('legacy.serverSection')}</Badge>
+      <section className="ws-legacy-part space-y-3">
+        <H className={HEAD}>{t('legacy.serverSection')}</H>
         {servers.length > 0 && (
           <Field label={t('legacy.targetServer')} className="block">
             <Select value={serverId} onChange={(e) => setServerId(Number(e.target.value))}>
@@ -255,10 +266,10 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             </p>
           </div>
         )}
-      </Panel>
+      </section>
 
-      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.targetSection')}>
-        <Badge tone="accent">{t('legacy.targetSection')}</Badge>
+      <section className="ws-legacy-part space-y-3">
+        <H className={HEAD}>{t('legacy.targetSection')}</H>
         <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor="legacy-root">
           {t('legacy.localRoot')}
         </label>
@@ -284,14 +295,14 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
         {(plan.dropped?.length ?? 0) > 0 && (
           <p className="text-xs text-t-muted">{t('legacy.dropped', { keys: plan.dropped?.join(', ') })}</p>
         )}
-      </Panel>
+      </section>
 
-      <Panel as="section" className="space-y-3 p-5" aria-label={t('legacy.watchSection')}>
-        <Badge tone="accent">{t('legacy.watchSection')}</Badge>
+      <section className="ws-legacy-part space-y-3">
+        <H className={HEAD}>{t('legacy.watchSection')}</H>
         <p className="text-xs text-t-muted">{t('legacy.filterInfo')}</p>
-        <ul className="divide-y divide-border-subtle overflow-clip rounded-lg border border-border-subtle">
+        <ul className="divide-y divide-border-subtle border-y border-border-subtle">
           {plan.watches.map((w) => (
-            <li key={w.id} className="p-3">
+            <li key={w.id} className="py-3">
               <label className="flex items-start gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -337,7 +348,7 @@ export default function LegacyImport({ onDone }: { onDone?: (serverId: number) =
             </li>
           ))}
         </ul>
-      </Panel>
+      </section>
 
       {errorBox}
       <div className="flex justify-end gap-2">

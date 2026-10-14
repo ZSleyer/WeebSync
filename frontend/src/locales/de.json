@@ -1755,6 +1755,8 @@
       "rematchAllServersHint": "Sucht für alle automatischen Zuordnungen auf allen Servern neu und braucht dafür viele API-Anfragen. Von Hand gesetzte bleiben.",
       "confirmRematchAllServers": "Wirklich alle automatischen Matches auf ALLEN Servern neu ziehen? Das kann dauern und viele API-Anfragen verursachen.",
       "data": {
+        "storesTitle": "Datenbestände",
+        "validFor": "{{ttl}} gültig",
         "kindTitle": {
           "cache": "Caches",
           "derived": "Abgeleitete Daten",
