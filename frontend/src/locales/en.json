@@ -37,6 +37,7 @@
     "unsavedMsg": "You have unsaved changes. Discard them and continue?"
   },
   "about": {
+    "licenseLine": "Free software under",
     "dev": "Dev version",
     "stable": "Stable",
     "channel": {
@@ -1400,6 +1401,9 @@
     "presetGroup": "With group: [Group] Series - 01"
   },
   "settings": {
+    "schemePair": "The colours stay a pair: one leads, the other explains. Only their roles swap.",
+    "lookDesc": "Applies to this browser only and takes effect at once.",
+    "motionHint": "Off shows every state at once. Otherwise follows the system setting “Reduce motion”.",
     "globalLimitHint": "0 means unlimited.",
     "onePerLine": "One entry per line.",
     "secretMissing": "missing",
@@ -1487,7 +1491,7 @@
     "theme_system": "System",
     "theme_dark": "Dark (OLED)",
     "theme_light": "Light",
-    "motion": "Animations enabled",
+    "motion": "Animations",
     "language": "Language",
     "notifications": "Push notifications",
     "pushEnable": "Enable push notifications",

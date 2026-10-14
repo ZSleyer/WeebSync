@@ -37,6 +37,7 @@
     "unsavedMsg": "Es gibt ungespeicherte Änderungen. Verwerfen und fortfahren?"
   },
   "about": {
+    "licenseLine": "Freie Software unter",
     "dev": "Dev-Version",
     "stable": "Stable",
     "channel": {
@@ -1400,6 +1401,9 @@
     "presetGroup": "Mit Gruppe: [Group] Series - 01"
   },
   "settings": {
+    "schemePair": "Die Farben bleiben ein Paar: Die eine führt, die andere erklärt. Getauscht wird nur, welche welche Rolle hat.",
+    "lookDesc": "Gilt nur für diesen Browser und wirkt sofort.",
+    "motionHint": "Aus zeigt jeden Zustand sofort. Folgt sonst der Systemeinstellung „Bewegung reduzieren“.",
     "globalLimitHint": "0 heißt unbegrenzt.",
     "onePerLine": "Ein Eintrag pro Zeile.",
     "secretMissing": "fehlt",
@@ -1474,7 +1478,7 @@
     "usersConfirmSelfDemote": "Dir selbst die Admin-Rolle entziehen? Du verlierst sofort den Zugriff auf die Einstellungen und die Benutzerliste, und nur ein anderer Admin kann sie dir zurückgeben.",
     "usersConfirmDelete": "Benutzer \"{{email}}\" löschen? Alle Server und Downloads dieses Benutzers werden entfernt.",
     "look": "Darstellung",
-    "theme": "Theme",
+    "theme": "Design",
     "scheme": "Farbschema",
     "schemes": {
       "lycoris": "Lycoris",
@@ -1487,7 +1491,7 @@
     "theme_system": "System",
     "theme_dark": "Dunkel (OLED)",
     "theme_light": "Hell",
-    "motion": "Animationen aktiviert",
+    "motion": "Animationen",
     "language": "Sprache",
     "notifications": "Push-Benachrichtigungen",
     "pushEnable": "Push-Benachrichtigungen aktivieren",

@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ExternalLink } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { Badge, Checkbox, Panel } from 'fluid-lycoris'
+import { Badge } from 'fluid-lycoris'
 import { api } from '../../api'
 import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'
+import { SettingsPanel, SwitchSetting } from './ui'
 
 // read once per page load; the year does not change during a session
 const year = new Date().getFullYear()
@@ -22,75 +23,64 @@ export default function About() {
   })
 
   const repoUrl = data?.repo ? `https://github.com/${data.repo}` : undefined
+  const licenseUrl = repoUrl ? `${repoUrl}/blob/main/LICENSE` : 'https://www.gnu.org/licenses/agpl-3.0'
 
   return (
-    <section className="max-w-xl" aria-label={t('settings.nav.about')}>
-      <Panel className="space-y-5 p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-lg font-bold tracking-[0.2em] text-t-primary">
-            <Brand variant="about" slogan={t('app.tagline')} />
-          </h2>
-          {data && (
-            <Badge tone={data.channel === 'stable' ? 'ok' : data.channel === 'nightly' ? 'accent' : 'warn'}>
-              {t(`about.channel.${data.channel}`, data.channel)}
-            </Badge>
-          )}
-          <span className="font-mono text-xs text-t-muted">
-            {data?.version}
-            {data?.commit ? ` · ${data.commit.slice(0, 7)}` : ''}
-          </span>
-        </div>
-
-        {data?.updateAvailable && (
-          <div className="rounded-md border border-warn/40 bg-warn/5 px-4 py-3 text-sm">
-            <span className="text-warn">{updateText(t, data)}</span>
-            {data.url && (
-              <>
-                {' '}
-                <a href={data.url} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                  {t('about.updateLink')} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
-                </a>
-              </>
-            )}
-          </div>
+    <SettingsPanel className="set-about">
+      <div className="set-about-brand">
+        <Brand variant="about" slogan={t('app.tagline')} />
+      </div>
+      <p className="set-about-v">
+        {data && (
+          <Badge tone={data.channel === 'stable' ? 'ok' : data.channel === 'nightly' ? 'accent' : 'warn'}>
+            {t(`about.channel.${data.channel}`, data.channel)}
+          </Badge>
         )}
+        <span className="font-mono">
+          {data?.version}
+          {data?.commit ? ` · ${data.commit.slice(0, 7)}` : ''}
+        </span>
+      </p>
 
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <dt className="text-t-muted">{t('about.license')}</dt>
-          <dd>
-            <a
-              href={repoUrl ? `${repoUrl}/blob/main/LICENSE` : 'https://www.gnu.org/licenses/agpl-3.0'}
-              target="_blank"
-              rel="noreferrer"
-              className="text-accent hover:underline"
-            >
-              AGPL-3.0
-            </a>
-          </dd>
-          <dt className="text-t-muted">{t('about.source')}</dt>
-          <dd>
-            {repoUrl ? (
-              <a href={repoUrl} target="_blank" rel="noreferrer" className="text-accent hover:underline">
-                {data?.repo} <ExternalLink aria-hidden size="1em" className="inline align-[-0.125em]" />
+      {data?.updateAvailable && (
+        <p className="sf-note">
+          <span className="text-warn">{updateText(t, data)}</span>
+          {data.url && (
+            <>
+              {' '}
+              <a href={data.url} target="_blank" rel="noreferrer" className="t-link">
+                {t('about.updateLink')} <ExternalLink aria-hidden size="1em" />
               </a>
-            ) : (
-              <span className="text-t-muted">-</span>
-            )}
-          </dd>
-          <dt className="text-t-muted">{t('about.copyright')}</dt>
-          <dd className="text-t-secondary">{copyright}</dd>
-        </dl>
+            </>
+          )}
+        </p>
+      )}
 
-        {user?.isAdmin && data && (
-          <Checkbox
-            label={t('about.updateCheckToggle')}
-            labelClassName="border-t border-border-subtle pt-4 text-t-secondary"
-            checked={data.updateCheck}
-            disabled={toggle.isPending}
-            onChange={(e) => toggle.mutate(e.target.checked)}
-          />
+      <p className="sf-note">
+        {t('about.licenseLine')}{' '}
+        <a href={licenseUrl} target="_blank" rel="noreferrer" className="t-link">
+          AGPL-3.0
+        </a>
+        {repoUrl && (
+          <>
+            {' · '}
+            <a href={repoUrl} target="_blank" rel="noreferrer" className="t-link">
+              {t('about.source')} <ExternalLink aria-hidden size="1em" />
+            </a>
+          </>
         )}
-      </Panel>
-    </section>
+        {' · '}
+        {copyright}
+      </p>
+
+      {user?.isAdmin && data && (
+        <SwitchSetting
+          label={t('about.updateCheckToggle')}
+          checked={data.updateCheck}
+          disabled={toggle.isPending}
+          onChange={(on) => toggle.mutate(on)}
+        />
+      )}
+    </SettingsPanel>
   )
 }
