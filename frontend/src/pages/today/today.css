@@ -241,9 +241,12 @@ span.td-pn { cursor: default; }
 /* ── Heute im Programm: the agenda with its now line ── */
 .td-agenda .t-row-in { width: 100%; text-align: left; cursor: pointer; border: 0; color: inherit; font: inherit; }
 .td-agenda button.t-row-in:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.td-agenda time { width: 2.875rem; flex: none; color: var(--accent-2); font: 0.8125rem/1.2 var(--f-mono); font-variant-numeric: tabular-nums; }
+/* the time column is as wide as its words with a floor that keeps the rows
+   in line: English runs longer ("Sat 11:00 AM" against "Sa. 11:00"), and a
+   fixed width let it run into the title. A phone may break it after the day */
+.td-agenda time { min-width: 2.875rem; max-width: 4.375rem; flex: none; color: var(--accent-2); font: 0.8125rem/1.2 var(--f-mono); font-variant-numeric: tabular-nums; }
 @media (width >= 64rem) {
-  .td-agenda time { width: 4.75rem; white-space: nowrap; }
+  .td-agenda time { min-width: 4.75rem; max-width: none; white-space: nowrap; }
 }
 .td-state { font-size: 0.8125rem; color: var(--fg-3); white-space: nowrap; }
 .td-state[data-ok] { color: var(--ok); }

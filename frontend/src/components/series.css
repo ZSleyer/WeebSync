@@ -156,10 +156,16 @@ html[data-overlay] .app-shell > main > * {
   gap: 0.5rem;
   margin-top: 0.125rem;
 }
+/* each button as wide as its word, never broken over two lines; they share
+   what is left of the row and wrap to a second one when the words do not
+   fit (German runs longer than English). The main action leads. */
 .ws-d-acts .t-btn {
-  flex: 1;
+  flex: 1 1 auto;
+  white-space: nowrap;
   background: color-mix(in oklab, var(--bg) 70%, transparent);
 }
+.ws-d-acts .t-btn svg { flex: none; }
+.ws-d-acts .t-btn--primary { order: -1; }
 .ws-d-acts .t-btn--primary {
   background: var(--accent);
 }

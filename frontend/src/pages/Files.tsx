@@ -1318,6 +1318,13 @@ export function CatalogGrid({
     ...(caps?.tvdbApiKeySet ? [{ value: 'tvdb', label: t('remote.scopeTvdb') }] : []),
   ]
   const scopeLabel = (kind: string) => scopeOptions.find((o) => o.value === kind)?.label ?? kind
+  // the chip's word: the label without its provider ("Anime" for "Anime (AniList)")
+  // while that still names one choice; the sheet and popover keep the full one
+  const scopeShort = (kind: string) => {
+    const bare = (l: string) => l.replace(/\s*\([^)]*\)$/, '')
+    const short = bare(scopeLabel(kind))
+    return scopeOptions.filter((o) => bare(o.label) === short).length === 1 ? short : scopeLabel(kind)
+  }
 
   // mark the current folder's metadata source; '' clears the own mark so the
   // parent's (or the anime default) applies again
@@ -1539,7 +1546,7 @@ export function CatalogGrid({
           <ScopeChip
             wide={wide}
             value={data?.scope ?? ''}
-            label={data?.scope === '' ? t('remote.scopeNone') : scopeLabel(data?.scope ?? '')}
+            label={data?.scope === '' ? t('remote.scopeNone') : scopeShort(data?.scope ?? '')}
             ruleOn={ruleOn}
             options={scopeOptions}
             onPick={(v) => void setScope(v)}
