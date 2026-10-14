@@ -420,18 +420,6 @@ main:has(.page-fill) {
 [aria-current='page'] .t-nav-icon[data-nav='turn'] { animation-name: nav-turn; transform-origin: 50% 50%; animation-duration: 500ms; }
 [aria-current='page'] .t-nav-icon[data-nav='needle'] { animation-name: nav-needle; transform-origin: 50% 50%; animation-duration: 500ms; }
 [aria-current='page'] .t-nav-icon[data-nav='open'] { animation-name: nav-open; transform-origin: 25% 85%; }
-/* Two icons open instead and stay open while their page is current, then
-   close behind it: the house's door folds onto its hinge over a dark
-   doorway, the folder's front tips forward off its back. */
-.t-nav-door, .t-nav-flap { transform-box: view-box; transition: scale var(--m3-spatial-dur) var(--m3-spatial), transform var(--m3-spatial-dur) var(--m3-spatial); }
-.t-nav-door { transform-origin: 9px 21px; }
-.t-nav-doorway { opacity: 0; transition: opacity var(--dur-2) var(--ease-out); }
-.t-nav-flap { transform-origin: 2px 20px; }
-[aria-current='page'] .t-nav-door { scale: 0.3 1; }
-[aria-current='page'] .t-nav-doorway { opacity: 0.35; }
-[aria-current='page'] .t-nav-flap { transform: skewX(-24deg) scale(0.84, 0.92); }
-@media (prefers-reduced-motion: reduce) { .t-nav-door, .t-nav-flap, .t-nav-doorway { transition: none; } }
-:root[data-motion='off'] :is(.t-nav-door, .t-nav-flap, .t-nav-doorway) { transition: none; }
 @keyframes nav-turn { from { rotate: -150deg; } }
 @keyframes nav-needle { from { rotate: -60deg; } }
 @keyframes nav-open { from { rotate: -10deg; scale: 0.8; } }
