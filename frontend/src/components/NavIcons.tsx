@@ -55,16 +55,21 @@ function play(a: SVGAnimationElement | null) {
 }
 
 // Heute's sign: lucide's dashboard grid. As the page becomes current the
-// two columns trade their tall and short tiles and trade back, once; at rest
-// it is the plain grid. y and height move by SVG <animate> (WebKit doesn't
-// animate them as CSS).
+// two columns trade their tall and short tiles, wobbling, and trade back,
+// once; at rest it is the plain grid. y and height move by SVG <animate>
+// (WebKit doesn't animate them as CSS).
 const TILES = [
   { x: 3, y: [3, 3], h: [9, 5] },
   { x: 14, y: [3, 3], h: [5, 9] },
   { x: 14, y: [12, 16], h: [9, 5] },
   { x: 3, y: [16, 12], h: [5, 9] },
 ]
-const there = (a: number[]) => `${a[0]};${a[1]};${a[1]};${a[0]}`
+// over and back, then a short hold, then home the same way: the jelly wobble
+// this one sign is meant to have, unlike the smooth glide elsewhere
+const there = ([a, b]: number[]) => {
+  const d = b - a
+  return [a, b + d * 0.22, b - d * 0.07, b, b, a - d * 0.22, a + d * 0.07, a].map((v) => v.toFixed(2)).join(';')
+}
 
 export function DashboardIcon(props: LucideProps) {
   const ref = useRef<SVGSVGElement>(null)
@@ -73,11 +78,11 @@ export function DashboardIcon(props: LucideProps) {
     ref.current?.querySelectorAll('animate').forEach((a) => a.beginElement())
   })
   const swap = {
-    dur: '0.9s',
+    dur: '0.7s',
     begin: 'indefinite',
-    keyTimes: '0;0.4;0.6;1',
+    keyTimes: '0;0.2;0.31;0.4;0.5;0.7;0.83;1',
     calcMode: 'spline',
-    keySplines: '0.3 0 0.2 1;0 0 1 1;0.4 0 0.2 1',
+    keySplines: '0.2 0 0.2 1;0.4 0 0.6 1;0.4 0 0.6 1;0 0 1 1;0.2 0 0.2 1;0.4 0 0.6 1;0.4 0 0.6 1',
   } as const
   return (
     <svg ref={ref} {...svg(props)}>
