@@ -243,6 +243,20 @@ export interface Schemas {
     remoteAt?: number
     remoteEst?: boolean
   }
+  /**
+   * Allow: the write switches, off until the user turns them on
+   */
+  'api.AnilistPermissions': {
+    /**
+     * List: status, progress, score and removal of list entries, and the
+     * watched-episode step from the suggestions page and the player
+     */
+    list: boolean
+    /**
+     * Social: replies and likes in forum threads
+     */
+    social: boolean
+  }
   'api.AuthConfigResponse': {
     authMode: string
     oidc: boolean
@@ -1841,6 +1855,10 @@ export interface Schemas {
     wantSub: string
   }
   'api.anilistMeResponse': {
+    /**
+     * Allow: the write switches, off until the user turns them on
+     */
+    allow: Schemas['api.AnilistPermissions']
     avatar?: string
     /**
      * pin-flow client id
@@ -1853,6 +1871,10 @@ export interface Schemas {
     connected: boolean
     expiresAt?: string
     name?: string
+  }
+  'api.anilistPermissionsRequest': {
+    list?: boolean
+    social?: boolean
   }
   'api.anilistProgressRequest': {
     mediaId: number

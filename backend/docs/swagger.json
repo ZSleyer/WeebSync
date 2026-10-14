@@ -527,6 +527,24 @@
                 ],
                 "type": "object"
             },
+            "api.AnilistPermissions": {
+                "description": "Allow: the write switches, off until the user turns them on",
+                "properties": {
+                    "list": {
+                        "description": "List: status, progress, score and removal of list entries, and the\nwatched-episode step from the suggestions page and the player",
+                        "type": "boolean"
+                    },
+                    "social": {
+                        "description": "Social: replies and likes in forum threads",
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "list",
+                    "social"
+                ],
+                "type": "object"
+            },
             "api.AuthConfigResponse": {
                 "properties": {
                     "authMode": {
@@ -4256,6 +4274,10 @@
             },
             "api.anilistMeResponse": {
                 "properties": {
+                    "allow": {
+                        "$ref": "#/components/schemas/api.AnilistPermissions",
+                        "description": "Allow: the write switches, off until the user turns them on"
+                    },
                     "avatar": {
                         "type": "string"
                     },
@@ -4280,8 +4302,20 @@
                 "required": [
                     "configured",
                     "clientId",
-                    "connected"
+                    "connected",
+                    "allow"
                 ],
+                "type": "object"
+            },
+            "api.anilistPermissionsRequest": {
+                "properties": {
+                    "list": {
+                        "type": "boolean"
+                    },
+                    "social": {
+                        "type": "boolean"
+                    }
+                },
                 "type": "object"
             },
             "api.anilistProgressRequest": {
@@ -9268,6 +9302,62 @@
                 ]
             }
         },
+        "/api/anilist/permissions": {
+            "put": {
+                "description": "Turn the user's AniList write switches on or off: list (status, progress, score, removal) and social (replies, likes). Both are off by default.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.anilistPermissionsRequest",
+                                        "description": "Switches to change",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Switches to change",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.AnilistPermissions"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "AniList write permissions",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
         "/api/anilist/progress": {
             "post": {
                 "description": "Set the watched-episode count of a title on the linked AniList list.",
@@ -9311,6 +9401,16 @@
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "list changes turned off in the settings"
                     },
                     "415": {
                         "content": {

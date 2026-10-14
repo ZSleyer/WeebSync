@@ -281,6 +281,8 @@ type anilistMeResponse struct {
 	Name       string `json:"name,omitempty"`
 	Avatar     string `json:"avatar,omitempty"`
 	ExpiresAt  string `json:"expiresAt,omitempty"`
+	// Allow: the write switches, off until the user turns them on
+	Allow AnilistPermissions `json:"allow"`
 }
 
 // handleAnilistMe reports the linked account for the settings UI.
@@ -306,6 +308,7 @@ func (s *Server) handleAnilistMe(w http.ResponseWriter, r *http.Request) {
 		"configured": clientID != "" && clientSecret != "", // redirect flow needs both
 		"clientId":   pinID,
 		"connected":  false,
+		"allow":      s.anilistPerms(u.ID),
 	}
 	var name, avatar, expires string
 	if err := s.DB.QueryRow(`SELECT anilist_name, avatar, expires_at FROM anilist_accounts WHERE user_id = ?`, u.ID).
@@ -334,6 +337,7 @@ type anilistProgressRequest struct {
 //	@Param			body	body		anilistProgressRequest	true	"Media id and watched-episode count"
 //	@Success		200		{object}	OkResponse
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse	"list changes turned off in the settings"
 //	@Failure		415		{object}	ErrorResponse
 //	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
@@ -348,9 +352,8 @@ func (s *Server) handleAnilistProgress(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "mediaId and progress required")
 		return
 	}
-	alID, token, err := s.anilistAccount(u.ID)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+	alID, token, ok := s.anilistWriter(w, u.ID, writeList)
+	if !ok {
 		return
 	}
 	if err := s.Anilist.SaveProgress(r.Context(), token, in.MediaID, in.Progress); err != nil {

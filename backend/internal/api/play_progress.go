@@ -35,11 +35,11 @@ func episodeOf(name string) int {
 }
 
 // playAnilist finds the AniList entry behind a file, nil when the account is
-// not linked, the folder is not matched to AniList, the name gives no
+// not linked or the user has not allowed list changes, the folder is not matched to AniList, the name gives no
 // episode, or the title is not on the user's list.
 func (s *Server) playAnilist(src playSource) *PlayAnilist {
 	alID, _, err := s.anilistAccount(src.userID)
-	if err != nil {
+	if err != nil || !s.anilistPerms(src.userID).List {
 		return nil
 	}
 	ep := episodeOf(path.Base(src.path))

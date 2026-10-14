@@ -21,6 +21,7 @@ interface AnilistMe {
   connected: boolean
   name?: string
   expiresAt?: string
+  allow?: { list: boolean; social: boolean }
 }
 interface TmdbMe {
   configured: boolean
@@ -129,6 +130,7 @@ export default function Integrations() {
       <StatusStrip smtp={!!form.smtpHost} ha={!!form.haWebhookUrl} arr={form.arrKeySet} />
       <SettingsPanel id="anilist" title="AniList">
         <AnilistAccount />
+        <AnilistWrites />
         <AnilistOwnApp form={form} set={set} locked={locked} />
       </SettingsPanel>
 
@@ -1043,6 +1045,53 @@ function TmdbAccount() {
 
 // Linked AniList account of the current user (OAuth). Connecting redirects
 // to AniList; tokens live about a year, so an expiry hint prompts re-connect.
+/**
+ * What WeebSync may change on the linked AniList account, one switch each,
+ * off until the user turns it on. Saved at once, not with the form below:
+ * a permission is a decision of its own, not a draft.
+ */
+function AnilistWrites() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const fail = useFailToast()
+  const { data } = useQuery(ANILIST_ME)
+  const save = useMutation({
+    mutationFn: (patch: { list?: boolean; social?: boolean }) =>
+      api.put<{ list: boolean; social: boolean }>('/api/anilist/permissions', patch),
+    onMutate: (patch) => {
+      const prev = qc.getQueryData<AnilistMe>(['anilist-me'])
+      if (prev)
+        qc.setQueryData<AnilistMe>(['anilist-me'], {
+          ...prev,
+          allow: { list: false, social: false, ...prev.allow, ...patch },
+        })
+      return prev
+    },
+    onError: (e, _patch, prev) => {
+      if (prev) qc.setQueryData(['anilist-me'], prev)
+      fail(e)
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['anilist-me'] }),
+  })
+  if (!data?.connected) return null
+  return (
+    <div id="anilist-writes" className="grid gap-1">
+      <SwitchSetting
+        label={t('settings.anilistWriteList')}
+        hint={t('settings.anilistWriteListHint')}
+        checked={!!data.allow?.list}
+        onChange={(v) => save.mutate({ list: v })}
+      />
+      <SwitchSetting
+        label={t('settings.anilistWriteSocial')}
+        hint={t('settings.anilistWriteSocialHint')}
+        checked={!!data.allow?.social}
+        onChange={(v) => save.mutate({ social: v })}
+      />
+    </div>
+  )
+}
+
 function AnilistAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()

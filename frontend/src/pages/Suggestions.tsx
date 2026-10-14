@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useLocation, useNavigate } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Button, Checkbox, IconButton, Rows, TextLink } from 'fluid-lycoris'
 import { useToast, useFailToast } from '../components/toast'
 import {
@@ -45,6 +45,7 @@ import { rememberSection, sectionOf, slugOf, type DiscoverSection } from '../dis
 import { SectionOutlet } from '../components/RouteTransition'
 import type { SectionGroup } from '../components/SectionNav'
 import { coverSet } from '../images'
+import { ANILIST_SETTINGS, useAnilistMe } from '../anilistMe'
 import {
   DiscoverGroup,
   DiscoverHead,
@@ -248,6 +249,10 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
   useLateRise(list, !waiting)
   const grid = useRef<HTMLDivElement>(null)
   useTileRise(grid, bucket === 'trending' && !waiting)
+  // +1 writes to AniList, which the user has to allow first: until then the
+  // progress stays read-only and one line says where to allow it
+  const { data: me } = useAnilistMe()
+  const stepOff = !!me?.connected && !me.allow?.list && items.some((it) => it.status)
 
   // the series card, with "Auto-Sync anlegen" when a server holds it
   const open = (it: SuggestionItem) =>
@@ -361,6 +366,14 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
 
   return (
     <div ref={list}>
+      {stepOff && !waiting && (
+        <p className="sg-stepoff">
+          {t('suggestions.plusOneOff')}{' '}
+          <Link className="t-link t-link--2" to={ANILIST_SETTINGS}>
+            {t('suggestions.plusOneAllow')}
+          </Link>
+        </p>
+      )}
       {body}
       {watch &&
         (watch.inCard ? (
@@ -477,6 +490,8 @@ function SugItemRow({
 
   // one step at a time: a second +1 before the first answer would send the same count
   const [stepping, setStepping] = useState(false)
+  // only offered once the user allowed WeebSync to change the list
+  const canStep = !!useAnilistMe().data?.allow?.list
   const plusOne = async () => {
     if (stepping) return
     setStepping(true)
@@ -505,7 +520,7 @@ function SugItemRow({
   }
 
   const menu = [
-    ...(it.status ? [{ key: 'plus', label: t('suggestions.plusOne'), onClick: () => void plusOne() }] : []),
+    ...(it.status && canStep ? [{ key: 'plus', label: t('suggestions.plusOne'), onClick: () => void plusOne() }] : []),
     ...(c0 ? [{ key: 'rematch', label: t('suggestions.rematch'), onClick: () => void rematch() }] : []),
     ...(c0
       ? [
