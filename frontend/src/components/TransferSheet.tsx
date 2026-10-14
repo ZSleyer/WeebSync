@@ -2,11 +2,10 @@ import { useMemo, useRef, useState, type ReactNode, type RefObject } from 'react
 import { createPortal, flushSync } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation } from 'react-router'
 import { Pause, Play, X } from 'lucide-react'
 import { Dialog, IconButton, Progress, SidePanel, morphTransition, useMediaQuery } from 'fluid-lycoris'
 import { api, downloadLabel, fmtSpeed, type Download, type DownloadMeta } from '../api'
-import { SpeedPanel } from '../pages/Dashboard'
+import { QueueManager, SpeedPanel } from './QueueManager'
 import { WIDE_MQ } from './PageActions'
 import { useFailToast } from './toast'
 import { TransfersCtx, type Transfers } from './transfers'
@@ -54,8 +53,7 @@ function TransferView({
   onClose: () => void
 }) {
   const { t } = useTranslation()
-  const { pathname } = useLocation()
-  const body = <TransferBody onLeave={pathname === '/' ? undefined : onClose} />
+  const body = <TransferBody />
   if (wide) {
     const side = (
       <SidePanel
@@ -96,8 +94,9 @@ function TransferView({
   )
 }
 
-function TransferBody({ onLeave }: { onLeave?: () => void }) {
+function TransferBody() {
   const { t } = useTranslation()
+  const [manage, setManage] = useState(false)
   const qc = useQueryClient()
   const fail = useFailToast()
   const { data: downloads = [] } = useQuery<Download[]>({
@@ -154,11 +153,17 @@ function TransferBody({ onLeave }: { onLeave?: () => void }) {
           })}
         </ul>
       )}
-      {onLeave && (
-        <Link to="/" onClick={onLeave} className="text-sm text-accent hover:underline">
-          {t('live.manage')}
-        </Link>
-      )}
+      {/* the whole queue to manage (reorder, limits, selection, the
+          finished ones), folded until asked for: it left the Today page */}
+      <button
+        type="button"
+        className="t-link justify-self-start"
+        aria-expanded={manage}
+        onClick={() => setManage((m) => !m)}
+      >
+        {t('live.manage')}
+      </button>
+      {manage && <QueueManager />}
     </div>
   )
 }

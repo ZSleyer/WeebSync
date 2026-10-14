@@ -1,0 +1,1691 @@
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  ArrowRight,
+  ArrowUpToLine,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Download as DownloadIcon,
+  Eye,
+  FolderOpen,
+  GripVertical,
+  Pause,
+  Play,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  TriangleAlert,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
+
+// icon per download status, shown inside the t-label chips (inline-flex, 4px gap)
+// the order a download moves through, for the status chip's roll direction
+const STATUS_STEP: Record<Download['status'], number> = {
+  paused: 0,
+  queued: 1,
+  running: 2,
+  done: 3,
+  error: 3,
+  canceled: 3,
+}
+const STATUS_ICON: Record<Download['status'], LucideIcon> = {
+  running: Play,
+  queued: Clock,
+  paused: Pause,
+  done: Check,
+  error: TriangleAlert,
+  canceled: X,
+}
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Trans, useTranslation } from 'react-i18next'
+import { flushSync } from 'react-dom'
+import { Link } from 'react-router'
+import {
+  ActionBar,
+  Badge,
+  Button,
+  Count,
+  Cover,
+  Digits,
+  EmptyState,
+  Input,
+  localTransition,
+  Panel,
+  Segmented,
+  Select,
+  Skeleton,
+  Slot,
+  StatTile,
+  SwipeRow,
+  Toolbar,
+  TransferCard,
+  TrendChart,
+  useMediaQuery,
+  type BadgeTone,
+  type SwipeAction,
+} from 'fluid-lycoris'
+import {
+  api,
+  downloadLabel,
+  fmtBytes,
+  fmtSpeed,
+  mediaTitle,
+  type Download,
+  type DownloadMeta,
+  type Watch,
+} from '../api'
+import { avgSpeed, SPEED_SPAN, useSpeedHistory } from '../speedHistory'
+import { countdown } from '../countdown'
+import { useConfirm } from './confirm'
+import { useFailToast, useToast } from './toast'
+import { PageFooter, WIDE_MQ } from './PageActions'
+import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
+import { useAuth, usePersistedQuery } from '../hooks'
+import { ProviderBadges } from './ProviderBadges'
+import { useSeriesModal } from './SeriesModal'
+import { useDragReorder } from '../hooks/useDragReorder'
+import ActionSheet, { type SheetAction } from './ActionSheet'
+import ActionMenu from './ActionMenu'
+import Press from './Press'
+
+// history-only status filter: the active queue is short and searchable, its
+// three states never need chips
+const HISTORY_STATUSES: Download['status'][] = ['done', 'error', 'canceled']
+
+// isRetrying: the download failed on something transient and is waiting out its
+// backoff. It stays 'queued' - the wait is what tells the two apart.
+const isRetrying = (d: Download) => (d.retryAt ?? 0) * 1000 > Date.now()
+// useFold is a section's open state, remembered per browser: a section
+// folded on a phone to reach the one below stays folded next time.
+function useFold(key: string) {
+  const k = `weebsync.dash.fold.${key}`
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(k) !== '1'
+    } catch {
+      return true
+    }
+  })
+  const toggle = () =>
+    setOpen((o) => {
+      try {
+        if (o) localStorage.setItem(k, '1')
+        else localStorage.removeItem(k)
+      } catch {
+        /* storage blocked - the fold still works for this visit */
+      }
+      return !o
+    })
+  return [open, toggle] as const
+}
+
+// FoldHeader is a section's divider with the chip as the fold toggle - the
+// same anatomy as <Divider>, which renders its label as a chip nobody can
+// press. The count stays visible while folded, so a closed section still
+// says how much it holds.
+function FoldHeader({
+  icon,
+  label,
+  count,
+  trailing,
+  open,
+  onToggle,
+  className = 'mb-3',
+}: {
+  icon: React.ReactNode
+  label: string
+  count?: number
+  trailing?: React.ReactNode
+  open: boolean
+  onToggle: () => void
+  className?: string
+}) {
+  return (
+    <div className={`t-divider whitespace-nowrap ${className}`}>
+      <button type="button" className="t-label t-label--accent cursor-pointer" aria-expanded={open} onClick={onToggle}>
+        {open ? <ChevronDown aria-hidden size="1em" /> : <ChevronRight aria-hidden size="1em" />}
+        {icon}
+        {label}
+      </button>
+      <span className="t-divider-rule" />
+      {count !== undefined && <Count>{count}</Count>}
+      {trailing}
+    </div>
+  )
+}
+
+// remaining puts a duration into the countdown's words. Under a minute it
+// counts seconds - "in 0 min" is what the last stretch of every download
+// read otherwise - and a duration already spent is no time at all.
+const remaining = (t: Parameters<typeof countdown>[0], secs: number) =>
+  secs > 0 ? countdown(t, Date.now() / 1000 + secs, secs < 60) : null
+
+/**
+ * The download queue to manage: the running and waiting transfers with their
+ * own controls (pause, reorder, cancel, a rate limit each), the finished ones
+ * to retry or clear, a selection across both, and the global limit. It used
+ * to be the Today page's centre; Today now shows only what runs, and this
+ * lives in the transfers sheet or panel.
+ */
+export function QueueManager() {
+  const { t } = useTranslation()
+  const confirm = useConfirm()
+  const qc = useQueryClient()
+  const { data: user } = useAuth()
+  const { data: downloads = [], isLoading } = useQuery<Download[]>({
+    queryKey: ['downloads'],
+    queryFn: () => api.get('/api/downloads'),
+    refetchInterval: 5000,
+  })
+  // the series behind a download, for the hero's line about it: the watch
+  // list is what knows the year, the studio and the score. Persisted, so a
+  // return to the page never waits on it.
+  const { open: openSeries } = useSeriesModal()
+  const { data: watches = [] } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), {
+    refetchInterval: () => 30_000,
+  })
+  // series metadata lives behind its own key: the list above is patched in
+  // place by the event stream (whole object per progress tick) and polled every
+  // 5s, while a folder's cover and links change about never. The ['downloads']
+  // prefix means every mutation below invalidates this too.
+  const { data: meta } = useQuery<DownloadMeta>({
+    queryKey: ['downloads', 'meta'],
+    queryFn: () => api.get('/api/downloads/meta'),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  })
+  // a download the metadata does not know is newer than the metadata. The
+  // endpoint answers with an item for EVERY download, matched or not, so this
+  // settles after one refetch instead of looping.
+  useEffect(() => {
+    if (meta && downloads.some((d) => !meta.items[String(d.id)])) {
+      qc.invalidateQueries({ queryKey: ['downloads', 'meta'] })
+    }
+  }, [downloads, meta, qc])
+  // active queue and history filter independently: searching the queue must
+  // not reshuffle the history and vice versa
+  const [query, setQuery] = useState('')
+  const [historyQuery, setHistoryQuery] = useState('')
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [showAllQueue, setShowAllQueue] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
+  const filtering = query.trim() !== ''
+  const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
+  const nameMatch = (d: Download, q: string) =>
+    q.trim() === '' || d.remotePath.toLowerCase().includes(q.trim().toLowerCase())
+
+  const activeAll = downloads.filter((d) => d.status === 'running' || d.status === 'queued' || d.status === 'paused')
+  // A download that just finished stays in the queue for a moment: the bar
+  // fills, turns green and the status rolls over to done, then the row folds
+  // away and the next one moves up. Without it a finished file simply vanished
+  // from the queue between two polls.
+  const [leaving, setLeaving] = useState<{ d: Download; hero: boolean; gone: boolean }[]>([])
+  const wasActive = useRef(new Map<number, boolean>())
+  const leavingIds = new Set(leaving.map((l) => l.d.id))
+  const matched = activeAll.filter((d) => nameMatch(d, query))
+  // the waiting rows in the order they will start
+  const byQueue = (a: Download, b: Download) => a.queuePos - b.queuePos || a.id - b.id
+  // the transfer in progress leads the queue as the hero card; while nothing
+  // runs, the next one to start takes its place
+  const hero =
+    matched.find((d) => d.status === 'running') ??
+    matched.filter((d) => d.status === 'queued').sort(byQueue)[0] ??
+    matched[0]
+  const rank = (d: Download) => (d === hero ? 0 : d.status === 'running' ? 1 : d.status === 'paused' ? 2 : 3)
+  const active = [...matched].sort((a, b) => rank(a) - rank(b) || (rank(a) === 3 ? byQueue(a, b) : 0))
+  useEffect(() => {
+    const done = downloads.filter((d) => d.status === 'done' && wasActive.current.has(d.id) && !leavingIds.has(d.id))
+    if (done.length > 0) {
+      setLeaving((l) => [
+        ...l,
+        ...done.map((d) => ({
+          d,
+          hero: wasActive.current.get(d.id)!,
+          gone: false,
+        })),
+      ])
+      const ids = new Set(done.map((d) => d.id))
+      setTimeout(() => setLeaving((l) => l.map((x) => (ids.has(x.d.id) ? { ...x, gone: true } : x))), LEAVE_MS)
+      setTimeout(() => setLeaving((l) => l.filter((x) => !ids.has(x.d.id))), LEAVE_MS + FOLD_MS)
+    }
+    wasActive.current = new Map(activeAll.map((d) => [d.id, d === hero]))
+    // the snapshot is of this render's list; it only has to follow `downloads`
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloads])
+  // the leaving row keeps the hero's place while it folds
+  const leavingHero = leaving.find((l) => l.hero)?.d
+  const shown = [...leaving.map((l) => l.d), ...active]
+
+  // what the reorder works on: every queued row, a search filter or not - the
+  // server takes the whole set or nothing
+  const queued = activeAll.filter((d) => d.status === 'queued').sort(byQueue)
+  const queuedIds = queued.map((d) => d.id)
+  const many = activeAll.length > 1
+  // section visibility keys off the unfiltered set: a filter with zero hits
+  // must not hide the section (and with it the very chips to undo the filter)
+  const finishedAll = downloads.filter(
+    (d) => d.status !== 'running' && d.status !== 'queued' && d.status !== 'paused' && !leavingIds.has(d.id),
+  )
+  const finished = finishedAll.filter(
+    (d) => (statusFilter.size === 0 || statusFilter.has(d.status)) && nameMatch(d, historyQuery),
+  )
+  // desktop and phone compose the page separately (see the end of the render)
+  const wide = useMediaQuery(WIDE_MQ)
+  // A phone previews the first three cards of the queue: a card is a screen's
+  // third there, and five of them put what needs a hand three screens down.
+  // Their actions are on the swipe and the long press as much as inline.
+  const queueShown = wide || filtering || showAllQueue ? shown : shown.slice(0, 3)
+  // A phone previews six rows, the failed ones first: twenty rows were two
+  // screens of finished episodes in front of everything below, and a failure
+  // is the one thing in the list anyone acts on. "Show all" is the plain
+  // newest-first list.
+  const finishedShown =
+    historyFiltering || showAllHistory
+      ? finished
+      : wide
+        ? finished.slice(0, 20)
+        : [...finished.filter((d) => d.status === 'error'), ...finished.filter((d) => d.status !== 'error')].slice(0, 6)
+  const anyActive = downloads.some((d) => d.status === 'running' || d.status === 'queued')
+  const anyPaused = downloads.some((d) => d.status === 'paused')
+  // 1s tick so the retry countdowns stay live, gated on there being one: an
+  // ungated interval re-renders the whole queue every second for nothing
+  const [, setTick] = useState(0)
+  const anyRetrying = downloads.some((d) => isRetrying(d))
+  useEffect(() => {
+    if (!anyRetrying) return
+    const id = setInterval(() => setTick((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [anyRetrying])
+
+  // multi-select: checkbox click toggles, shift-click selects the range in
+  // display order, Escape clears
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const lastClick = useRef<number | null>(null)
+  const visibleIds = [...active, ...finishedShown].map((d) => d.id)
+  // per-section select-all; history spans every matching download (not just
+  // the rendered slice) so bulk actions reach the full history
+  const activeIds = active.map((d) => d.id)
+  const historyIds = finished.map((d) => d.id)
+  const selectRow = (id: number, shift: boolean) => {
+    // read the anchor now: the updater runs later, after the line below has
+    // already moved it to this row, and the range would shrink to one
+    const anchor = lastClick.current
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (shift && anchor !== null) {
+        const a = visibleIds.indexOf(anchor)
+        const b = visibleIds.indexOf(id)
+        if (a !== -1 && b !== -1) {
+          for (let i = Math.min(a, b); i <= Math.max(a, b); i++) next.add(visibleIds[i])
+          return next
+        }
+      }
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+    lastClick.current = id
+  }
+  // per-section slices of the shared selection, so each section shows its own
+  // toolbar with only the actions that make sense there
+  const activeSelected = activeIds.filter((id) => selected.has(id))
+  const historySelected = historyIds.filter((id) => selected.has(id))
+  const allActiveSelected = activeIds.length > 0 && activeIds.every((id) => selected.has(id))
+  const allHistorySelected = historyIds.length > 0 && historyIds.every((id) => selected.has(id))
+  // native indeterminate state for the select-all boxes on partial selection
+  const activeAllRef = useRef<HTMLInputElement>(null)
+  const historyAllRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (activeAllRef.current)
+      activeAllRef.current.indeterminate = activeIds.some((id) => selected.has(id)) && !allActiveSelected
+    if (historyAllRef.current)
+      historyAllRef.current.indeterminate = historyIds.some((id) => selected.has(id)) && !allHistorySelected
+  })
+  // toggling a section's select-all only touches that section's ids
+  const toggleSection = (ids: number[], all: boolean) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      ids.forEach((id) => (all ? next.delete(id) : next.add(id)))
+      return next
+    })
+  // every section folds: on a phone a long queue is what stands between the
+  // top of the page and the week's releases, and a closed one is remembered
+  const [historyOpen, toggleHistory] = useFold('history')
+  const [queueOpen, toggleQueue] = useFold('queue')
+  // the history toolbar is one row on a phone: box, search, status select,
+  // clear. The search keeps what is left, which is too little for the full
+  // placeholder - a short one there, the aria-label stays the full sentence
+  const phone = useMediaQuery('(width < 40rem)')
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelected(new Set())
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const action = useMutation({
+    mutationFn: ({ id, verb }: { id: number; verb: string }) =>
+      verb === 'delete' ? api.del(`/api/downloads/${id}`) : api.post(`/api/downloads/${id}/${verb}`),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
+  })
+  const bulk = useMutation({
+    mutationFn: ({ a, ids }: { a: 'pause' | 'resume' | 'cancel' | 'delete'; ids?: number[] }) =>
+      api.post('/api/downloads/bulk', { action: a, ids: ids ?? [] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['downloads'] })
+      setSelected(new Set())
+    },
+  })
+  // Reorder: the new positions are the old slots in the new order, written to
+  // the cache at once (the list moves under the finger, not after a round
+  // trip); a refused order (409, the queue changed) reloads the real one.
+  const queueList = useRef<HTMLDivElement>(null)
+  const reorder = useMutation({
+    mutationFn: (ids: number[]) => api.post('/api/downloads/reorder', { ids }),
+    // a poll already in flight would land the old order over the new one
+    onMutate: () => qc.cancelQueries({ queryKey: ['downloads'], exact: true }),
+    onError: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
+  })
+  const moveQueued = (id: number, to: number, dragged: boolean) => {
+    const ids = queuedIds.filter((x) => x !== id)
+    ids.splice(to, 0, id)
+    const slots = queued.map((d) => d.queuePos).sort((a, b) => a - b)
+    const write = () =>
+      flushSync(() =>
+        qc.setQueryData<Download[]>(['downloads'], (old) =>
+          old?.map((d) => {
+            const k = ids.indexOf(d.id)
+            return k < 0 ? d : { ...d, queuePos: slots[k] }
+          }),
+        ),
+      )
+    // a drag already put every row in its new place; a key or button press
+    // lets the rows travel there
+    if (dragged) write()
+    else void localTransition(queueList.current, write)
+    reorder.mutate(ids)
+  }
+  const handle = useDragReorder({
+    list: queueList,
+    ids: queuedIds,
+    onMove: moveQueued,
+  })
+
+  // Swipe a row (touch) and it rests open on its buttons, a tap runs one:
+  // to the left the row's own actions - cancel at the edge, pause or resume
+  // beside it - to the right the jump to the front of the queue. Finished
+  // rows: remove at the edge, retry beside it for a failed or cancelled one.
+  const ico = { size: '1.2em', 'aria-hidden': true } as const
+  const swipeEnd = (d: Download): SwipeAction[] =>
+    d.status === 'done'
+      ? []
+      : [
+          {
+            key: 'cancel',
+            label: t('dash.cancel'),
+            icon: <X {...ico} />,
+            tone: 'err',
+            run: () => action.mutate({ id: d.id, verb: 'cancel' }),
+          },
+          d.status === 'paused'
+            ? {
+                key: 'resume',
+                label: t('dash.resume'),
+                icon: <Play {...ico} />,
+                tone: 'ok',
+                run: () => action.mutate({ id: d.id, verb: 'resume' }),
+              }
+            : {
+                key: 'pause',
+                label: t('dash.pause'),
+                icon: <Pause {...ico} />,
+                tone: 'warn',
+                run: () => action.mutate({ id: d.id, verb: 'pause' }),
+              },
+        ]
+  const swipeStart = (d: Download): SwipeAction[] =>
+    d.status === 'queued' && queuedIds[0] !== d.id && !filtering
+      ? [
+          {
+            key: 'front',
+            label: t('dash.toFront'),
+            icon: <ArrowUpToLine {...ico} />,
+            run: () => moveQueued(d.id, 0, false),
+          },
+        ]
+      : []
+  const swipeHistory = (d: Download): SwipeAction[] => [
+    {
+      key: 'remove',
+      label: t('dash.removeSelected'),
+      icon: <Trash2 {...ico} />,
+      tone: 'err',
+      run: () => action.mutate({ id: d.id, verb: 'delete' }),
+    },
+    ...(d.status === 'error' || d.status === 'canceled'
+      ? [
+          {
+            key: 'retry',
+            label: t('dash.retry'),
+            icon: <RotateCcw {...ico} />,
+            tone: 'ok' as const,
+            run: () => action.mutate({ id: d.id, verb: 'resume' }),
+          },
+        ]
+      : []),
+  ]
+
+  // A long press on a row (touch) opens all its actions as a sheet - the
+  // queue row's buttons and the history row's, plus the series it belongs to.
+  const [sheet, setSheet] = useState<{
+    title: string
+    actions: SheetAction[]
+  } | null>(null)
+  const rowActions = (d: Download): { title: string; actions: SheetAction[] } => {
+    const { name, group } = downloadLabel(d, meta)
+    const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
+    const verb = (v: string) => () => action.mutate({ id: d.id, verb: v })
+    const act = (key: string, label: string, icon: ReactNode, onClick: () => void, danger?: boolean): SheetAction => ({
+      key,
+      label,
+      icon,
+      onClick,
+      danger,
+    })
+    const actions: SheetAction[] =
+      d.status === 'running' || d.status === 'queued' || d.status === 'paused'
+        ? [
+            d.status === 'paused'
+              ? act('resume', t('dash.resume'), <Play {...ico} />, verb('resume'))
+              : act('pause', t('dash.pause'), <Pause {...ico} />, verb('pause')),
+            ...(d.status === 'queued' && queuedIds[0] !== d.id && !filtering
+              ? [act('front', t('dash.toFront'), <ArrowUpToLine {...ico} />, () => moveQueued(d.id, 0, false))]
+              : []),
+            act('cancel', t('dash.cancel'), <X {...ico} />, verb('cancel'), true),
+          ]
+        : [
+            ...(d.status === 'error' || d.status === 'canceled'
+              ? [act('retry', t('dash.retry'), <RotateCcw {...ico} />, verb('resume'))]
+              : []),
+            act('remove', t('dash.removeSelected'), <Trash2 {...ico} />, verb('delete'), true),
+          ]
+    if (watch?.media)
+      actions.unshift(act('series', t('dash.openSeries'), <Eye {...ico} />, () => openSeries(seriesTarget(watch))))
+    return { title: name, actions }
+  }
+  const openRowSheet = (d: Download) => setSheet(rowActions(d))
+
+  const toggleStatus = (st: Download['status']) => {
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(st)) next.delete(st)
+      else next.add(st)
+      return next
+    })
+  }
+
+  // the bulk controls earn their row from the second download on: select-all,
+  // search and cancel-everything over a single card are chrome in front of the
+  // one thing on screen. The global limit is the one control that is about the
+  // next transfer as much as the current one, so an admin has it here - except
+  // on an idle phone, where the queue is one quiet line and the limit lives in
+  // the settings
+  const queueTools = (many || (!!user?.isAdmin && (wide || activeAll.length > 0))) && (
+    <Toolbar className={wide ? 'mb-3' : 'mt-3'}>
+      {many && (
+        <>
+          <input
+            ref={activeAllRef}
+            type="checkbox"
+            title={t('dash.selectAll')}
+            aria-label={t('dash.selectAll')}
+            checked={allActiveSelected}
+            onChange={() => toggleSection(activeIds, allActiveSelected)}
+          />
+          {/* the checkbox and the search share the first row on a phone,
+          the bulk controls take the second */}
+          <Input
+            className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+            type="search"
+            placeholder={t('dash.search')}
+            aria-label={t('dash.search')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+        </>
+      )}
+      <Toolbar className="ml-auto basis-full sm:basis-auto">
+        {many && (
+          <Button
+            size="sm"
+            variant="danger"
+            disabled={bulk.isPending}
+            onClick={async () => {
+              if (
+                await confirm({
+                  message: t('dash.cancelAllConfirm'),
+                  destructive: true,
+                })
+              )
+                bulk.mutate({ a: 'cancel' })
+            }}
+          >
+            <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('dash.cancelAll')}
+          </Button>
+        )}
+        {!!user?.isAdmin && <GlobalLimitInput caption={!many} />}
+      </Toolbar>
+    </Toolbar>
+  )
+  const transfer = (
+    <section
+      aria-label={t('dash.transferSection')}
+      className={wide ? 'order-1 min-w-0 lg:col-start-1 lg:row-start-1' : 'min-w-0'}
+    >
+      <FoldHeader
+        icon={<DownloadIcon aria-hidden size="1em" />}
+        label={t('dash.transferSection')}
+        count={activeAll.length}
+        open={queueOpen}
+        onToggle={toggleQueue}
+      />
+      {queueOpen && (
+        <>
+          {wide && queueTools}
+
+          {/* the first answer is still out: a card in the hero's shape and
+                two rows, so the page does not jump when it lands. Only then -
+                a refetch never shows this */}
+          {isLoading && (
+            <div role="status" aria-label={t('app.loading')} className="flex animate-pulse flex-col gap-3">
+              <Panel className="flex gap-4 p-4">
+                <Skeleton shape="cover" />
+                <div className="min-w-0 flex-1 space-y-2.5 py-1">
+                  <Skeleton className="w-2/3" />
+                  <Skeleton className="w-1/3" />
+                  <Skeleton shape="block" className="mt-4 h-2 w-full" />
+                </div>
+              </Panel>
+              {[0, 1].map((i) => (
+                <Panel key={i} className="flex gap-3 p-3">
+                  <Skeleton shape="cover" size="sm" />
+                  <div className="min-w-0 flex-1 space-y-2 py-1">
+                    <Skeleton className="w-1/2" />
+                    <Skeleton shape="block" className="h-1 w-full" />
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          )}
+          {!isLoading &&
+            shown.length === 0 &&
+            (filtering ? (
+              <EmptyState>{t('dash.noMatches')}</EmptyState>
+            ) : (
+              // idle is the normal state, not a thing to look at: no card,
+              // one quiet centred line and the way to the next download
+              <p className="py-6 text-center text-sm text-t-muted">
+                <Trans
+                  i18nKey="dash.idle"
+                  components={{
+                    go: <Link to="/files" className="text-accent underline" />,
+                  }}
+                />
+              </p>
+            ))}
+          <div ref={queueList} className="flex flex-col gap-3">
+            {queueShown.map((d) => (
+              <Press
+                key={d.id}
+                data-reorder-id={d.id}
+                data-gone={leaving.some((l) => l.d.id === d.id && l.gone) || undefined}
+                className="t-collapse"
+                style={{ '--vt': `dl-${d.id}` } as CSSProperties}
+                onLongPress={d.status === 'done' ? undefined : () => openRowSheet(d)}
+              >
+                <SwipeRow start={swipeStart(d)} end={swipeEnd(d)}>
+                  <DownloadRow
+                    d={d}
+                    meta={meta}
+                    watches={watches}
+                    variant={d === (leavingHero ?? hero) ? 'hero' : 'row'}
+                    selected={selected.has(d.id)}
+                    onSelect={(shift) => selectRow(d.id, shift)}
+                    onAction={(verb) => action.mutate({ id: d.id, verb })}
+                    menu={d.status === 'done' ? undefined : rowActions(d)}
+                    // a search shows a slice of the queue; reordering a slice
+                    // would move rows the reader cannot see
+                    reorder={
+                      d.status === 'queued' && queued.length > 1 && !filtering
+                        ? {
+                            handle: handle(d.id),
+                            toFront: queuedIds[0] === d.id ? undefined : () => moveQueued(d.id, 0, false),
+                          }
+                        : undefined
+                    }
+                  />
+                </SwipeRow>
+              </Press>
+            ))}
+          </div>
+          {queueShown.length < shown.length && (
+            <Button size="sm" className="mt-3" onClick={() => setShowAllQueue(true)}>
+              {t('dash.attentionMore', { count: shown.length - queueShown.length })}
+            </Button>
+          )}
+          {!wide && queueTools}
+        </>
+      )}
+    </section>
+  )
+  const history = finishedAll.length > 0 && (
+    <section
+      aria-label={t('dash.finishedSection')}
+      className={wide ? 'order-3 min-w-0 lg:col-start-1 lg:row-start-2' : 'min-w-0'}
+    >
+      <FoldHeader
+        icon={null}
+        label={t('dash.history')}
+        count={finished.length}
+        open={historyOpen}
+        onToggle={toggleHistory}
+      />
+      {historyOpen && (
+        <>
+          <Toolbar className="mb-2">
+            <input
+              ref={historyAllRef}
+              type="checkbox"
+              title={t('dash.selectAll')}
+              aria-label={t('dash.selectAll')}
+              checked={allHistorySelected}
+              onChange={() => toggleSection(historyIds, allHistorySelected)}
+            />
+            <Input
+              className="min-w-0 flex-1 font-mono text-xs sm:max-w-72 sm:flex-none"
+              type="search"
+              placeholder={phone ? t('dash.searchShort') : t('dash.search')}
+              aria-label={t('dash.search')}
+              value={historyQuery}
+              onChange={(e) => setHistoryQuery(e.target.value)}
+            />
+            {/* one select on a phone, so the filter shares the row
+                        with the search instead of taking a second one as
+                        three chips. Single choice there: the chips' multi
+                        select is a desktop nicety, not something the phone
+                        row has room for */}
+            <Select
+              size="sm"
+              // important: .t-select-wrap sets display outside the
+              // utilities layer and would win over a plain sm:hidden
+              wrapperClassName="sm:hidden!"
+              aria-label={t('dash.filterStatus')}
+              value={statusFilter.size === 1 ? [...statusFilter][0] : ''}
+              onChange={(e) =>
+                setStatusFilter(e.target.value ? new Set([e.target.value as Download['status']]) : new Set())
+              }
+            >
+              <option value="">{t('dash.filterAll')}</option>
+              {HISTORY_STATUSES.map((st) => (
+                <option key={st} value={st}>
+                  {t(`status.${st}`)}
+                </option>
+              ))}
+            </Select>
+            {/* toggle chips: <Badge> renders a span, these have to stay
+                        buttons with aria-pressed - kept hand-written */}
+            <div
+              role="group"
+              aria-label={t('dash.filterStatus')}
+              className="hidden flex-wrap items-center gap-1 sm:flex"
+            >
+              {HISTORY_STATUSES.map((st) => {
+                const Icon = STATUS_ICON[st]
+                return (
+                  <button
+                    key={st}
+                    aria-pressed={statusFilter.has(st)}
+                    className={`t-label cursor-pointer ${statusFilter.has(st) ? 't-label--accent' : ''}`}
+                    onClick={() => toggleStatus(st)}
+                  >
+                    <Icon aria-hidden size="1em" />
+                    {t(`status.${st}`)}
+                  </button>
+                )
+              })}
+              {historyFiltering && (
+                <button
+                  className="t-label cursor-pointer hover:text-accent"
+                  onClick={() => {
+                    setHistoryQuery('')
+                    setStatusFilter(new Set())
+                  }}
+                >
+                  <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                  {t('dash.filterClear')}
+                </button>
+              )}
+            </div>
+            {/* clears what the search and status filter currently
+                        match, so one button covers "everything" and "only the
+                        failed ones". Disabled on an empty match: the bulk
+                        endpoint reads an empty id list as "all of it" */}
+            <Toolbar className="ml-auto">
+              <Button
+                size="sm"
+                variant="danger"
+                aria-label={t('dash.clearHistory')}
+                title={t('dash.clearHistory')}
+                disabled={bulk.isPending || historyIds.length === 0}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      message: t('dash.clearHistoryConfirm', {
+                        count: historyIds.length,
+                      }),
+                      destructive: true,
+                    })
+                  )
+                    bulk.mutate({ a: 'delete', ids: historyIds })
+                }}
+              >
+                <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.clearHistory')}</span>
+              </Button>
+            </Toolbar>
+          </Toolbar>
+          {/* not <EmptyState>: this one is the compact p-6/text-sm
+                      variant, and its padding must not be overridden */}
+          {finished.length === 0 && historyFiltering && (
+            <Panel className="p-6 text-center text-sm text-t-muted">{t('dash.noMatches')}</Panel>
+          )}
+          {/* one bracketed block with hairlines between the rows,
+                      the sync summary's recipe: twenty bordered cards under
+                      each other read as twenty boxes, not as a list */}
+          <Panel className="mt-2">
+            <ul className="divide-y divide-border-subtle">
+              {(() => {
+                // One unwritable directory fails every episode of a
+                // season, so the same explanation would repeat down the
+                // whole list - hundreds of pixels saying one thing. Spell
+                // a cause out on its first row and let the rest keep the
+                // short error text they had before.
+                const explained = new Set<string>()
+                return finishedShown.map((d) => {
+                  const key = `${d.errorCode}|${dirOf(d.localPath)}`
+                  const first = isFsErrorCode(d.errorCode) && !explained.has(key)
+                  if (first) explained.add(key)
+                  // the cover opens the title's card where the download
+                  // belongs to a watch that carries one
+                  const watchId = downloadLabel(d, meta).group?.watchId
+                  const watch = watchId ? watches.find((w) => w.id === watchId) : undefined
+                  return (
+                    <Press as="li" key={d.id} onLongPress={() => openRowSheet(d)}>
+                      <SwipeRow end={swipeHistory(d)}>
+                        <HistoryRow
+                          d={d}
+                          meta={meta}
+                          explain={first}
+                          selected={selected.has(d.id)}
+                          onSelect={(shift) => selectRow(d.id, shift)}
+                          onAction={(verb) => action.mutate({ id: d.id, verb })}
+                          menu={rowActions(d)}
+                          onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+                          coverLabel={
+                            watch
+                              ? t('remote.detailsFor', {
+                                  name: watchTitle(watch),
+                                })
+                              : undefined
+                          }
+                        />
+                      </SwipeRow>
+                    </Press>
+                  )
+                })
+              })()}
+            </ul>
+          </Panel>
+          {finished.length > finishedShown.length && (
+            <Button size="sm" className="mt-3" onClick={() => setShowAllHistory(true)}>
+              {t('dash.showAllHistory', { count: finished.length })}
+            </Button>
+          )}
+        </>
+      )}
+    </section>
+  )
+  /* the selection's actions while rows are selected: the shell's footer
+              row above the tab bar on a phone, a floating toolbar at the foot
+              of the viewport on desktop. Inside the queue column, not under the
+              whole grid: the summary column is usually the taller one, and the
+              bar sat at its foot with a screen's worth of nothing between it
+              and the rows */
+  const selectionFooter = selected.size > 0 && (
+    <div className={wide ? 'order-4 lg:col-start-1' : undefined}>
+      <PageFooter>
+        {/* one row on a phone, as a selection bar there: leave first,
+                  then the count, the actions at the right end with their
+                  icons alone (named for screen readers); words from sm on */}
+        <ActionBar aria-label={t('dash.selectionActions')} floating className="max-sm:flex-nowrap">
+          <Button
+            size="sm"
+            aria-label={t('dash.clearSelection')}
+            title={t('dash.clearSelection')}
+            onClick={() => setSelected(new Set())}
+          >
+            <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+            <span className="max-sm:sr-only">{t('dash.clearSelection')}</span>
+          </Button>
+          <Badge tone="accent" className="max-sm:mr-auto">
+            {t('dash.selectedCount', { count: selected.size })}
+          </Badge>
+          {activeSelected.length > 0 && (
+            <>
+              <Button
+                aria-label={t('dash.pause')}
+                title={t('dash.pause')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'pause', ids: activeSelected })}
+              >
+                <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.pause')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.resume')}
+                title={t('dash.resume')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'resume', ids: activeSelected })}
+              >
+                <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.resume')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.cancel')}
+                title={t('dash.cancel')}
+                size="sm"
+                variant="danger"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'cancel', ids: activeSelected })}
+              >
+                <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.cancel')}</span>
+              </Button>
+            </>
+          )}
+          {historySelected.length > 0 && (
+            <>
+              <Button
+                aria-label={t('dash.retry')}
+                title={t('dash.retry')}
+                size="sm"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'resume', ids: historySelected })}
+              >
+                <RotateCcw aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.retry')}</span>
+              </Button>
+              <Button
+                aria-label={t('dash.removeSelected')}
+                title={t('dash.removeSelected')}
+                size="sm"
+                variant="danger"
+                disabled={bulk.isPending}
+                onClick={() => bulk.mutate({ a: 'delete', ids: historySelected })}
+              >
+                <Trash2 aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="max-sm:sr-only">{t('dash.removeSelected')}</span>
+              </Button>
+            </>
+          )}
+        </ActionBar>
+      </PageFooter>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-6">
+      {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
+      {(anyActive || anyPaused) && (
+        <div className="flex flex-wrap gap-2">
+          {anyActive && (
+            <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'pause' })}>
+              <Pause aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.pauseAll')}
+            </Button>
+          )}
+          {anyPaused && (
+            <Button size="sm" disabled={bulk.isPending} onClick={() => bulk.mutate({ a: 'resume' })}>
+              <Play aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.resumeAll')}
+            </Button>
+          )}
+        </div>
+      )}
+      {transfer}
+      {history}
+      {selectionFooter}
+    </div>
+  )
+}
+
+// what to call a watch: the override, else the matched title, else the folder
+const watchTitle = (w: Watch) => w.titleOverride || mediaTitle(w.media, w.remotePath.split('/').pop() || '')
+
+// The rate now and over a window of the last ten minutes, and how long the
+// queue has left. Beside the queue on desktop, under the queue's toolbar on a
+// phone. Only while something runs: a chart of nothing says nothing.
+// The window: four presets as buttons, the single-pointer way, and a pinch
+// on the chart in between. Three minutes by default - at ten a second is half
+// a pixel and the line's glide can't be seen.
+const SPEED_WINDOWS = ['60', '180', '300', '600'] as const
+
+export function SpeedPanel({ downloads }: { downloads: Download[] }) {
+  const { t } = useTranslation()
+  const hist = useSpeedHistory()
+  const [span, setSpan] = useState(180)
+  const running = downloads.filter((d) => d.status === 'running')
+  const total = running.reduce((s, d) => s + (d.bytesPerSec ?? 0), 0)
+  const open = downloads.reduce((s, d) => s + Math.max(0, d.size - d.transferred), 0)
+  // the mean of the last ten seconds, not the instant: a burst would swing
+  // the arrival by hours. Nothing while it is still zero
+  const avg = avgSpeed(10)
+  const mmss = (s: number) => ({
+    m: Math.floor(s / 60),
+    s: String(s % 60).padStart(2, '0'),
+  })
+  const age = (s: number) => (s === 0 ? t('dash.chartEnd') : t('dash.chartAgo', mmss(s)))
+  return (
+    <div className="flex flex-col gap-3">
+      <Panel className="px-3 py-2 text-accent sm:px-4">
+        <Badge>{t('dash.speed')}</Badge>
+        <p className="mt-1 font-mono text-lg text-t-primary tabular-nums">
+          <Digits value={fmtSpeed(total)} />
+        </p>
+        <p className="text-[11px] text-t-muted">{t('dash.speedOver', { count: running.length })}</p>
+        <TrendChart
+          className="mt-3"
+          values={hist}
+          span={span}
+          glide={1000}
+          onSpanChange={setSpan}
+          minSpan={60}
+          maxSpan={SPEED_SPAN}
+          label={t('dash.speedChart', mmss(span))}
+          format={fmtSpeed}
+          formatAge={age}
+          startLabel={age(span)}
+          endLabel={t('dash.chartEnd')}
+        />
+        <Segmented
+          aria-label={t('dash.speedWindow')}
+          size="sm"
+          className="mt-2"
+          value={String(span) as (typeof SPEED_WINDOWS)[number]}
+          onChange={(v) => setSpan(Number(v))}
+          options={SPEED_WINDOWS.map((v) => ({
+            value: v,
+            label: t('dash.speedWindowMin', { count: Number(v) / 60 }),
+          }))}
+        />
+      </Panel>
+      {avg > 0 && (
+        <StatTile
+          label={t('dash.remaining')}
+          value={remaining(t, open / avg)}
+          detail={t('dash.remainingOpen', { size: fmtBytes(open) })}
+        />
+      )}
+    </div>
+  )
+}
+
+// what a watch hands the title card: its record, and itself as the watch to
+// list first
+const seriesTarget = (w: Watch) => ({
+  source: w.mediaSource,
+  id: w.media!.id,
+  media: w.media,
+  watchId: w.id,
+  title: w.titleOverride || undefined,
+})
+
+export function StatusChip({ status }: { status: Download['status'] }) {
+  const { t } = useTranslation()
+  const tone: BadgeTone =
+    status === 'done'
+      ? 'ok'
+      : status === 'error'
+        ? 'err'
+        : status === 'running'
+          ? 'accent'
+          : status === 'paused'
+            ? 'warn'
+            : 'neutral'
+  const Icon = STATUS_ICON[status]
+  return (
+    <Badge tone={tone}>
+      <Icon aria-hidden size="1em" />
+      {t(`status.${status}`)}
+    </Badge>
+  )
+}
+
+// Selection checkbox: click toggles, shift-click selects a range (handled by
+// the parent), Space works natively via the checkbox semantics. The label
+// pads the hit area out to 40px without moving anything: the negative margin
+// gives the padding back, so the visible box stays the 24px it is.
+function SelectBox({
+  checked,
+  name,
+  onSelect,
+}: {
+  checked: boolean
+  name: string
+  onSelect: (shift: boolean) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <label className="-m-2 flex shrink-0 p-2">
+      <input
+        type="checkbox"
+        aria-label={t('dash.select', { name })}
+        checked={checked}
+        onClick={(e) => onSelect(e.shiftKey)}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault()
+            onSelect(e.shiftKey)
+          }
+        }}
+        onChange={() => {}}
+      />
+    </label>
+  )
+}
+
+// dirOf is the folder a path lives in, for the browser deep links.
+const dirOf = (p: string) => p.slice(0, p.lastIndexOf('/')) || '/'
+
+// softBreak marks where a long name may wrap: after a bracket, an
+// underscore, a dot or a dash. Without the marks a phone broke a file name
+// wherever the column ended, "[10" on one line and "80p]" on the next.
+const softBreak = (text: string) =>
+  text.split(/(?<=[\]_.\-\s)])/).map((part, i) => (
+    <span key={i}>
+      {i > 0 && <wbr />}
+      {part}
+    </span>
+  ))
+
+// PathLink is a path as its segments: the folders on the way in the muted
+// ink, the folder itself in the accent, a break only at a slash. A path in
+// one underlined run broke mid-word and read as one long unknown string.
+function PathLink({ path, to }: { path: string; to: string }) {
+  const parts = path.split('/').filter(Boolean)
+  const last = parts.length - 1
+  return (
+    <Link to={to} className="break-words font-mono text-t-muted hover:underline" title={path}>
+      {path.startsWith('/') && '/'}
+      {parts.map((seg, i) => (
+        <span key={i}>
+          {i > 0 && (
+            <>
+              /<wbr />
+            </>
+          )}
+          <span className={i === last ? 'text-accent' : undefined}>{seg}</span>
+        </span>
+      ))}
+    </Link>
+  )
+}
+
+// DetailsToggle is the chevron that opens a download's metadata: a square
+// small button, the same box as the row's other actions.
+function DetailsToggle({ open, name, onToggle }: { open: boolean; name: string; onToggle: () => void }) {
+  const { t } = useTranslation()
+  return (
+    <Button
+      size="sm"
+      className="aspect-square px-0!"
+      aria-expanded={open}
+      aria-label={t('dash.details', { name })}
+      onClick={onToggle}
+    >
+      {open ? <ChevronDown aria-hidden size="1.2em" /> : <ChevronRight aria-hidden size="1.2em" />}
+    </Button>
+  )
+}
+
+// DownloadDetails is the expanded half of a queue or history row: what the file
+// becomes, where it comes from, where it lands, and the pages that describe it.
+// Shared by both row types so they cannot drift apart. Labels are small caps
+// text, not chips: a chip is a control or a status, and a caption over a path
+// is neither.
+function DownloadDetails({ d, meta }: { d: Download; meta?: DownloadMeta }) {
+  const { t } = useTranslation()
+  const { group } = downloadLabel(d, meta)
+  const remoteDir = dirOf(d.remotePath)
+  const localDir = dirOf(d.localPath)
+  const remoteBase = d.remotePath.split('/').pop() ?? ''
+  const localBase = d.localPath.split('/').pop() ?? ''
+  const showFolder = group?.folder ?? remoteDir
+  const remoteLink = (path: string) => `/files?server=${d.serverId}&path=${encodeURIComponent(path)}`
+  const caption = 'mb-0.5 font-display text-[11px] font-semibold uppercase tracking-wider text-t-muted'
+  return (
+    <div className="mt-3 border-t border-border-subtle pt-3 text-xs">
+      {/* source and target side by side from sm on, everything else full
+          width; a rename only when there is one - "no renaming" was a line
+          saying nothing */}
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {group?.overview && (
+          <div className="min-w-0 sm:col-span-2">
+            <dt className={caption}>{t('dash.overview')}</dt>
+            <dd className="line-clamp-3 text-t-secondary">{group.overview}</dd>
+          </div>
+        )}
+        <div className="min-w-0">
+          <dt className={caption}>{t('dash.source')}</dt>
+          <dd>
+            {group?.serverName && (
+              <Badge size="sm" className="mr-1.5 align-[-0.2em]">
+                {group.serverName}
+              </Badge>
+            )}
+            <PathLink path={remoteDir} to={remoteLink(remoteDir)} />
+          </dd>
+        </div>
+        <div className="min-w-0">
+          <dt className={caption}>{t('dash.target')}</dt>
+          <dd>
+            <PathLink path={localDir} to={`/files?source=local&path=${encodeURIComponent(localDir)}`} />
+          </dd>
+        </div>
+        {remoteBase !== localBase && (
+          <div className="min-w-0 sm:col-span-2">
+            <dt className={caption}>{t('dash.renamedTo')}</dt>
+            {/* the name it gets is the point, so it stands in the primary
+                ink with the arrow; the name it had sits above, small and
+                muted. Both wrap at their own joints, not mid-word */}
+            <dd className="break-words font-mono">
+              <span className="block text-[11px] text-t-muted">{softBreak(remoteBase)}</span>
+              <span className="block text-t-primary">
+                <ArrowRight aria-hidden size="1em" className="mr-1 inline align-[-0.125em] text-accent" />
+                {softBreak(localBase)}
+              </span>
+            </dd>
+          </div>
+        )}
+        <div className="min-w-0 sm:col-span-2">
+          <dt className={caption}>{t('dash.linksLabel')}</dt>
+          {/* the one row made of controls, so chips are right here. The
+              catalog link leads first and in the accent tone: it stays inside
+              the app, the provider pages behind it all leave it */}
+          <dd className="flex flex-wrap items-center gap-1.5">
+            <Link to={remoteLink(showFolder)} className="t-label t-label--accent">
+              <FolderOpen aria-hidden size="1em" />
+              {t('dash.openShow')}
+            </Link>
+            {group?.providers && group.providers.length > 0 && (
+              <ProviderBadges providers={group.providers} links={group.links} />
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
+  )
+}
+
+function DownloadRow({
+  d,
+  meta,
+  watches,
+  variant,
+  selected,
+  onSelect,
+  onAction,
+  reorder,
+  menu,
+}: {
+  d: Download
+  meta?: DownloadMeta
+  watches: Watch[]
+  variant: 'hero' | 'row'
+  selected: boolean
+  onSelect: (shift: boolean) => void
+  onAction: (verb: string) => void
+  /** a queued row among others: the drag handle, and the jump to the front */
+  reorder?: {
+    handle: ReturnType<ReturnType<typeof useDragReorder>>
+    toFront?: () => void
+  }
+  /** every action of the row, behind its ⋯ button */
+  menu?: { title: string; actions: SheetAction[] }
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const pct = d.size > 0 ? Math.min(100, (d.transferred / d.size) * 100) : 0
+  const { label, ep, name, group } = downloadLabel(d, meta)
+  const running = d.status === 'running'
+  // the hero says what it is loading: year, studio and score of the series,
+  // which only the watch behind the folder knows
+  const watch = group?.watchId ? watches.find((w) => w.id === group.watchId) : undefined
+  const media = variant === 'hero' ? watch?.media : undefined
+  const { open: openSeries } = useSeriesModal()
+  const about = media
+    ? [media.seasonYear || null, media.studios?.[0], media.averageScore ? `${media.averageScore} %` : null]
+        .filter(Boolean)
+        .join(' · ')
+    : undefined
+  // the arrival, from the backend's own smoothed rate; nothing while the
+  // rate is still zero, a division by that is not a time
+  const eta = running && d.bytesPerSec ? remaining(t, (d.size - d.transferred) / d.bytesPerSec) : null
+  // each figure keeps to one piece and the line breaks only at the dots: a
+  // phone breaks the line, and "26.7 / KiB/s" split across two is not a
+  // rate. The separators sit between the pieces, not inside them - inside,
+  // the whole line was one unbreakable run and ran off the card
+  const stats = [
+    `${fmtBytes(d.transferred)} / ${fmtBytes(d.size)}`,
+    running && d.bytesPerSec != null ? fmtSpeed(d.bytesPerSec) : null,
+    eta,
+  ]
+    .filter(Boolean)
+    .flatMap((part, i) => [
+      i > 0 ? (
+        <span key={`sep${i}`} aria-hidden>
+          {' · '}
+        </span>
+      ) : null,
+      <span key={i} className="whitespace-nowrap">
+        {part}
+      </span>,
+    ])
+  return (
+    <TransferCard
+      variant={variant}
+      selected={selected}
+      leading={
+        // the grip sits under the checkbox in the same narrow column, so a
+        // queued row keeps its poster and title where a running row has them
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <SelectBox checked={selected} name={name} onSelect={onSelect} />
+          {reorder && (
+            <button
+              type="button"
+              {...reorder.handle}
+              aria-label={t('dash.reorder', { name })}
+              aria-keyshortcuts="ArrowUp ArrowDown Home End"
+              className="-mx-2 flex min-h-11 items-center justify-center self-stretch rounded-md px-2 text-t-muted hover:text-t-primary"
+            >
+              <GripVertical aria-hidden size="1.1em" />
+            </button>
+          )}
+        </div>
+      }
+      cover={group?.cover}
+      onCover={watch?.media ? () => openSeries(seriesTarget(watch)) : undefined}
+      coverLabel={watch?.media ? t('remote.detailsFor', { name: watchTitle(watch) }) : undefined}
+      title={label}
+      subtitle={label !== name ? name : undefined}
+      badges={
+        <>
+          {/* a waiting retry is still 'queued', and "queued" alone would hide
+              that this download already failed once. The countdown replaces
+              the status chip rather than joining it: two chips saying when
+              this row will run is one too many for a phone line. */}
+          {isRetrying(d) ? (
+            <Badge tone="warn">
+              <RefreshCw aria-hidden size="1em" />
+              {t('dash.retryIn', {
+                n: d.attempts ?? 1,
+                when: countdown(t, d.retryAt!, true),
+              })}
+            </Badge>
+          ) : (
+            // the status rolls over rather than swapping: queued, then
+            // running, then done reads as one chip moving on
+            <Slot step={STATUS_STEP[d.status]}>
+              <StatusChip status={d.status} />
+            </Slot>
+          )}
+          {ep && <Badge tone="accent">{ep}</Badge>}
+          {/* why it is waiting, in the row's own words - a countdown without
+              a reason is an unexplained pause */}
+          {isRetrying(d) && d.error && (
+            <span className="max-w-64 truncate text-xs text-err" title={d.error}>
+              {d.error}
+            </span>
+          )}
+        </>
+      }
+      meta={about}
+      stats={stats}
+      trailing={
+        <div className="flex shrink-0 items-start gap-1">
+          {menu && <ActionMenu label={t('dash.moreActions', { name })} title={menu.title} actions={menu.actions} />}
+          <DetailsToggle open={open} name={name} onToggle={() => setOpen((o) => !o)} />
+        </div>
+      }
+      percent={d.status === 'done' ? 100 : pct}
+      progressLabel={t('dash.progressOf', { name })}
+      active={running}
+      tone={d.status === 'done' ? 'ok' : undefined}
+      actions={
+        d.status === 'done' ? undefined : (
+          <>
+            {/* on a phone the buttons drop their captions and keep the icon,
+              which is what leaves the limit control room to stay on the line */}
+            {running || d.status === 'queued' ? (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
+                <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.pause')}</span>
+              </Button>
+            ) : (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
+                <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.resume')}</span>
+              </Button>
+            )}
+            {reorder?.toFront && (
+              <Button size="sm" className="shrink-0" aria-label={t('dash.toFront')} onClick={reorder.toFront}>
+                <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+                <span className="hidden sm:inline">{t('dash.toFront')}</span>
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="danger"
+              className="shrink-0"
+              aria-label={t('dash.cancel')}
+              onClick={() => onAction('cancel')}
+            >
+              <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
+              <span className="hidden sm:inline">{t('dash.cancel')}</span>
+            </Button>
+            <RateLimitInput d={d} />
+          </>
+        )
+      }
+    >
+      {open && <DownloadDetails d={d} meta={meta} />}
+    </TransferCard>
+  )
+}
+
+// HistoryRow is a finished download: one list row, expandable to the same
+// details as a queue row. Worth expanding here too - the file exists now, so the
+// link into the local browser actually leads somewhere. The row itself carries
+// no buttons: retry and remove live in the expanded half, bulk selection covers
+// the many-at-once case, and the line is left to the title and one meta line.
+function HistoryRow({
+  d,
+  meta,
+  explain,
+  selected,
+  onSelect,
+  onAction,
+  onCover,
+  coverLabel,
+  menu,
+}: {
+  d: Download
+  meta?: DownloadMeta
+  // spell this row's failure out in full: set on the first row of each cause,
+  // so one unwritable directory is explained once and not once per episode
+  explain: boolean
+  selected: boolean
+  onSelect: (shift: boolean) => void
+  onAction: (verb: string) => void
+  /** with it the cover is a button opening the title's card */
+  onCover?: () => void
+  coverLabel?: string
+  /** every action of the row, behind its ⋯ button */
+  menu?: { title: string; actions: SheetAction[] }
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const { label, ep, name, group } = downloadLabel(d, meta)
+  const explained = explain && isFsErrorCode(d.errorCode)
+  const StatusIcon = STATUS_ICON[d.status]
+  const tone = d.status === 'done' ? 'text-ok' : d.status === 'error' ? 'text-err' : 'text-t-muted'
+  return (
+    // a div: the list item is the SwipeRow around it; opaque, so the swipe's
+    // ground stays hidden until the row moves
+    <div className={`px-3 py-2 text-sm ${selected ? 'bg-bg-hover' : 'bg-bg-card'}`}>
+      {/* box, cover, then the whole rest of the line is the details toggle -
+          a sibling of the checkbox, never its parent */}
+      <div className="flex items-center gap-3">
+        <SelectBox checked={selected} name={name} onSelect={onSelect} />
+        {/* a spacer keeps the text column flush down a divided list; the
+            hatched placeholder on every unmatched row would be noise */}
+        {group?.cover ? (
+          onCover ? (
+            <button
+              type="button"
+              aria-label={coverLabel}
+              onClick={onCover}
+              className="shrink-0 cursor-pointer rounded-xs"
+            >
+              <Cover src={group.cover} size="sm" loading="lazy" />
+            </button>
+          ) : (
+            <Cover src={group.cover} size="sm" loading="lazy" />
+          )
+        ) : (
+          <span aria-hidden className="w-10 shrink-0" />
+        )}
+        {/* no aria-label: the visible title and meta line are the button's
+            name, aria-expanded says what it does */}
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm text-t-primary" title={d.remotePath}>
+              {label}
+            </span>
+            {/* status, episode and size as one line of text: the chips this
+                used to be were two more boxes on a line that had five */}
+            <span className="mt-0.5 block truncate text-xs text-t-muted">
+              {/* text-xs on the span itself, not only inherited: the audit's
+                  nowrap check measures a detached clone, which would grow to
+                  the body size without it */}
+              <span className={`text-xs capitalize ${tone}`}>
+                <StatusIcon aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t(`status.${d.status}`)}
+              </span>
+              {ep && <span aria-hidden> · </span>}
+              {ep}
+              <span aria-hidden> · </span>
+              {fmtBytes(d.size)}
+            </span>
+          </span>
+          {open ? (
+            <ChevronDown aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
+          ) : (
+            <ChevronRight aria-hidden size="1.2em" className="shrink-0 text-t-muted" />
+          )}
+        </button>
+        {menu && <ActionMenu label={t('dash.moreActions', { name })} title={menu.title} actions={menu.actions} />}
+      </div>
+      {/* the failure gets its own line under the row, explained or not: inline
+          it fought the title for the little width left, and on a tablet the
+          title lost every time */}
+      {explained ? (
+        <FsErrorNote code={d.errorCode!} dir={dirOf(d.localPath)} className="mt-2" />
+      ) : (
+        d.error && (
+          <p className="mt-1 truncate text-xs text-err" title={d.error}>
+            {d.error}
+          </p>
+        )
+      )}
+      {open && (
+        <>
+          <DownloadDetails d={d} meta={meta} />
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(d.status === 'error' || d.status === 'canceled') && (
+              <Button size="sm" onClick={() => onAction('resume')}>
+                <RotateCcw aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('dash.retry')}
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="danger"
+              aria-label={t('dash.remove', { id: d.id })}
+              onClick={() => onAction('delete')}
+            >
+              <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+              {t('dash.removeSelected')}
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+const MIB = 1024 * 1024
+// how long a finished download stays in the queue before it folds away, and
+// the fold itself (--dur-2 and a frame)
+const LEAVE_MS = 1100
+const FOLD_MS = 220
+
+// Rate limit input with a KiB/s | MiB/s unit picker; stores bytes/s.
+// Single line by design (whitespace-nowrap).
+function LimitInput({
+  label,
+  bytes,
+  onSave,
+  caption,
+}: {
+  label: string
+  bytes: number
+  onSave: (b: number) => Promise<void>
+  /** keep the caption on a phone too: for a row that holds nothing else */
+  caption?: boolean
+}) {
+  const { t } = useTranslation()
+  const toast = useToast()
+  const fail = useFailToast()
+  const [unit, setUnit] = useState<'KiB' | 'MiB'>(bytes >= MIB && bytes % MIB === 0 ? 'MiB' : 'KiB')
+  const [val, setVal] = useState<string | null>(null)
+  const factor = unit === 'MiB' ? MIB : 1024
+  const shown = val ?? (bytes > 0 ? String(bytes / factor) : '')
+  // commits the number in the field in the given unit. What is saved is what
+  // the field and the pressed chip say together
+  const commit = async (text: string, f: number) => {
+    const n = text.trim() === '' ? 0 : Number(text)
+    const b = Math.round(n * f)
+    // the backend reads an int64; a number past the safe range does not even
+    // parse there, so it is refused here with the reason instead
+    if (!Number.isFinite(n) || n < 0 || !Number.isSafeInteger(b)) {
+      setVal(null) // back to the saved value, not a field that looks applied
+      toast({ message: t('dash.limitInvalid') })
+      return
+    }
+    try {
+      await onSave(b)
+    } catch (err) {
+      fail(err)
+    } finally {
+      setVal(null) // re-derive from server state either way
+    }
+  }
+  const save = () => {
+    if (val !== null) void commit(val, factor)
+  }
+  // a unit picked right after typing belongs to the typed number: "5" then
+  // MiB/s saves 5 MiB/s. Without a typed number the chip only changes how the
+  // saved limit is shown, it never writes
+  const switchUnit = (u: 'KiB' | 'MiB') => {
+    if (u === unit) return
+    setUnit(u)
+    if (val !== null) void commit(val, u === 'MiB' ? MIB : 1024)
+  }
+  return (
+    // one line at every width: three stacked rows for a control nobody sets
+    // twice is a lot of phone screen. The caption goes screen-reader-only on a
+    // phone rather than away, so the field keeps its accessible name
+    <label className="ml-auto flex min-w-0 flex-nowrap items-center gap-2 text-xs text-t-muted">
+      <span className={caption ? 'shrink-0' : 'sr-only shrink-0 sm:not-sr-only'}>{label}</span>
+      {/* the width needs the bang: .t-input sets width:100% unlayered, which
+          beats a plain w-14 utility and lets the field eat the whole row */}
+      <Input
+        size="sm"
+        className="w-14! shrink-0 font-mono sm:w-24!"
+        type="number"
+        min={0}
+        step="any"
+        placeholder="∞"
+        value={shown}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => e.key === 'Enter' && save()}
+      />
+      {/* the unit as two pressed chips, not a select: one tap, both choices
+          in view, and the same control the catalog's view switch is. The
+          mousedown is held so a click on a chip does not blur the field
+          first, which would save the typed number in the old unit */}
+      <span className="contents" onMouseDown={(e) => e.preventDefault()}>
+        <Segmented
+          aria-label={t('dash.limitUnit')}
+          value={unit}
+          onChange={switchUnit}
+          className="shrink-0 flex-nowrap"
+          options={[
+            { value: 'KiB', label: 'KiB/s' },
+            { value: 'MiB', label: 'MiB/s' },
+          ]}
+        />
+      </span>
+    </label>
+  )
+}
+
+// Quick global rate limit (admin): reads the current value from the admin
+// settings query, writes via the dedicated dashboard endpoint.
+function GlobalLimitInput({ caption }: { caption?: boolean }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data: settings } = useQuery<{ globalRateLimit: number }>({
+    queryKey: ['settings'],
+    queryFn: () => api.get('/api/settings'),
+  })
+  return (
+    <LimitInput
+      label={t('dash.globalLimit')}
+      caption={caption}
+      bytes={settings?.globalRateLimit ?? 0}
+      onSave={async (b) => {
+        await api.put('/api/downloads/ratelimit', { rateLimit: b })
+        qc.invalidateQueries({ queryKey: ['settings'] })
+      }}
+    />
+  )
+}
+
+function RateLimitInput({ d }: { d: Download }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  return (
+    <LimitInput
+      label={t('dash.limit')}
+      bytes={d.rateLimit}
+      onSave={async (b) => {
+        await api.put(`/api/downloads/${d.id}/ratelimit`, { rateLimit: b })
+        qc.invalidateQueries({ queryKey: ['downloads'] })
+      }}
+    />
+  )
+}
