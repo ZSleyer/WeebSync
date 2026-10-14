@@ -312,8 +312,7 @@ export interface LoadingIndicatorProps {
 /**
  * Indeterminate loading, the design's own: a red and a teal drop circle each
  * other, flow together into one two-tone drop, a turning yin and yang, and
- * pull apart again, while a small drop runs the other way round and melts
- * in as it passes. The liquid look is a goo filter (blur, then a hard alpha
+ * pull apart again. The liquid look is a goo filter (blur, then a hard alpha
  * edge), so every outline stays smooth however the drops meet. For a wait
  * with nothing to measure. It shows only once the wait has lasted a moment,
  * so a quick answer never flashes it; the status is in the tree from the
@@ -332,9 +331,6 @@ export function LoadingIndicator({ label, showLabel, size = 'md', className }: L
           <g className="t-duo-orbit">
             <circle className="t-duo-a" cx="50" cy="50" r="17" />
             <circle className="t-duo-b" cx="50" cy="50" r="13" />
-          </g>
-          <g className="t-duo-moon">
-            <circle className="t-duo-c" cx="50" cy="50" r="7" />
           </g>
         </g>
       </svg>
