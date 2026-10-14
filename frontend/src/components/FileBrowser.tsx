@@ -1,4 +1,4 @@
-import { useState, type MouseEvent, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { ArrowDown, ArrowUp, BookOpen, Check, FolderPlus, Music, Pencil, Play } from 'lucide-react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -34,6 +34,16 @@ export function PathCrumbs({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
   const crumbs = path.split('/').filter(Boolean)
+  // a deep path scrolls: the folder you are in is the part to see
+  const nav = useRef<HTMLElement>(null)
+  // and the folders before it fade out at the edge while they are cut off
+  const cut = (el: HTMLElement) => el.toggleAttribute('data-cut', el.scrollLeft > 1)
+  useLayoutEffect(() => {
+    const el = nav.current
+    if (!el) return
+    el.scrollLeft = el.scrollWidth
+    cut(el)
+  }, [path, editing])
 
   if (editing && fetchPath && queryKey) {
     const open = (p: string) => {
@@ -66,7 +76,7 @@ export function PathCrumbs({
   const canEdit = !!(fetchPath && queryKey)
   return (
     <div className="ws-crumbs-row">
-      <nav className="ws-crumbs" aria-label={t('remote.path')}>
+      <nav ref={nav} className="ws-crumbs" aria-label={t('remote.path')} onScroll={(e) => cut(e.currentTarget)}>
         <button type="button" aria-label={t('files.root')} onClick={() => onNavigate('')}>
           /
         </button>

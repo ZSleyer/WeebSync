@@ -17,7 +17,8 @@
   color: var(--fg-3);
 }
 .ws-crumbs::-webkit-scrollbar { display: none; }
-.ws-crumbs button { padding: 0.375rem 0.125rem; min-height: 2rem; min-width: 1.5rem; color: inherit; background: none; border: 0; cursor: pointer; font: inherit; }
+.ws-crumbs[data-cut] { mask-image: linear-gradient(to right, transparent, #000 2rem); }
+.ws-crumbs button { flex: none; padding: 0.375rem 0.125rem; min-height: 2rem; min-width: 1.5rem; color: inherit; background: none; border: 0; cursor: pointer; font: inherit; }
 .ws-crumbs button:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 3px; }
 .ws-crumbs b { color: var(--fg); font-weight: 600; }
 
@@ -175,6 +176,7 @@
 
 /* a chevron between the folders; the folder you are in opens the path field
    (a phone's only way in, a desktop keeps a small pencil beside it) */
+.ws-crumb-sep { flex: none; }
 .ws-crumb-sep::before { content: "›"; opacity: 0.7; }
 .ws-crumbs .ws-crumb-here { color: var(--fg); font-weight: 600; }
 @media (width < 64rem) { .ws-crumbs-edit { display: none !important; } }
