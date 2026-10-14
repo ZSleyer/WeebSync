@@ -309,6 +309,11 @@ export default function Brand({
         rest('mark')
         await wait(350)
       } else {
+        // a frame after the page change: the fold measures the letters and
+        // reads their animations, which inside the commit that mounts the
+        // new page forced its whole style and layout
+        await new Promise((r) => requestAnimationFrame(r))
+        if (!alive()) return
         await fold(move)
         await wait(450)
       }

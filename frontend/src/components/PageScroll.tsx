@@ -197,7 +197,10 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
     // a list that arrives after the first paint makes the page long
     const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(schedule) : undefined
     if (main.firstElementChild) ro?.observe(main.firstElementChild)
-    update()
+    // in the next frame, not now: reading the page's size here forced a
+    // layout of the whole new page in the commit that mounts it (the line
+    // and the button start hidden, which is right for a page at the top)
+    schedule()
     return () => {
       cancelAnimationFrame(frame)
       main.removeEventListener('scroll', schedule)

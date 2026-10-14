@@ -488,8 +488,14 @@ function Shell({ email }: { email: string }) {
       <div className="ws-brand">
         {/* the mark is the way home from anywhere, as on every site */}
         <Link to="/" className="rounded-xs">
-          {/* folds into the mark and back out on every page change */}
-          <Brand variant="rail" slogan={t('app.tagline')} replayKey={location.pathname} className="mt-3 mb-2" />
+          {/* folds into the mark and back out on every page change, where
+              the sidebar shows (it is display:none below the wide layout) */}
+          <Brand
+            variant="rail"
+            slogan={t('app.tagline')}
+            replayKey={wide ? location.pathname : undefined}
+            className="mt-3 mb-2"
+          />
         </Link>
       </div>
       {/* the way into the palette, and where its shortcut is learnt */}

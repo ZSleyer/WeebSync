@@ -75,10 +75,12 @@ export function Rail({ children, prevLabel, nextLabel, className, shelfClassName
   useEffect(() => {
     const el = row.current
     if (!el) return
-    sync()
     el.addEventListener('scroll', sync, { passive: true })
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(sync) : undefined
-    ro?.observe(el)
+    // a ResizeObserver reports once after the first layout: reading the
+    // sizes right here instead forced a layout of the page being mounted
+    if (ro) ro.observe(el)
+    else sync()
     const mo = typeof MutationObserver === 'function' ? new MutationObserver(sync) : undefined
     mo?.observe(el, { childList: true })
     return () => {

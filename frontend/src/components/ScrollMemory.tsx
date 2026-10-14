@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
+import { topPage } from './RouteTransition'
 
 // Below lg the shell's <main> is the scroller and it is remounted on every
 // top-level page, so the browser restores nothing: back from a folder or a settings
@@ -7,6 +8,12 @@ import { useLocation, useNavigationType } from 'react-router'
 // the user scrolls and put back on a POP navigation, once the new page has had
 // a frame to lay out its rows (a second frame for a list that arrives late).
 const KEY = 'weebsync.scroll.'
+
+// where the window stands, noted as it scrolls: reading scrollY on demand
+// would force a layout of a page that is being mounted
+let winY = 0
+if (typeof window !== 'undefined')
+  window.addEventListener('scroll', () => (winY = window.scrollY), { passive: true })
 
 export default function ScrollMemory() {
   const { key, hash, pathname } = useLocation()
@@ -17,7 +24,8 @@ export default function ScrollMemory() {
   // before paint: a new screen must not show at the old position for a frame
   // and then jump while it animates in
   useLayoutEffect(() => {
-    const newPath = lastPath.current !== pathname
+    const prevPath = lastPath.current
+    const newPath = prevPath !== pathname
     lastPath.current = pathname
     const main = document.querySelector<HTMLElement>('.app-shell > main')
     const read = () => Math.max(main?.scrollTop ?? 0, window.scrollY)
@@ -47,7 +55,12 @@ export default function ScrollMemory() {
       }
       target(20)
     } else if (newPath) {
-      write(0)
+      // Another top-level page remounts <main> (keyed by it), which then
+      // starts at the top: writing scrollTop there only forced a layout of
+      // the page being mounted. The window scrolls only on a desktop, and
+      // only when it has been scrolled.
+      if (main && topPage(prevPath) === topPage(pathname)) main.scrollTop = 0
+      if (winY > 0) window.scrollTo(0, 0)
     }
     return () => {
       clearTimeout(pending)
