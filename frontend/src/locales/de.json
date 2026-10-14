@@ -2432,7 +2432,7 @@
       "tvf": "Titeldaten"
     },
     "busy": "Hintergrundarbeit läuft",
-    "busyOne": "{{name}} wird gerade aufgebaut",
+    "busyOne": "Wird gerade aufgebaut: {{name}}",
     "hold": "Anhalten",
     "holdHint": "Hält diese Aufgabe an und bricht den laufenden Durchgang ab. Bereits Berechnetes bleibt erhalten.",
     "paused": "pausiert",

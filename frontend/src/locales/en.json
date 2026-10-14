@@ -2432,7 +2432,7 @@
       "tvf": "Title metadata"
     },
     "busy": "Background work running",
-    "busyOne": "{{name}} is being rebuilt",
+    "busyOne": "Being rebuilt: {{name}}",
     "hold": "Hold",
     "holdHint": "Holds this task and cancels the running pass. What was already computed stays.",
     "paused": "paused",
