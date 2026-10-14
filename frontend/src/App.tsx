@@ -21,6 +21,7 @@ import {
   Route,
   useLocation,
   useMatches,
+  useNavigate,
   useNavigationType,
   useRouteError,
 } from 'react-router'
@@ -28,6 +29,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppShell, EmptyState, enterPage, Kbd, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
+import { bugReport } from './bugReport'
 import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
 import Logo from './components/Logo'
@@ -98,34 +100,81 @@ const loadingScreen = (
   </div>
 )
 
-// A screen that failed to load. After a deploy an open tab still asks for its
-// own build's chunks, which are gone: one reload fetches the new build (once
-// in ten seconds, so a chunk that is really broken cannot loop). Anything
-// else shows the error with a way to reload.
-const RELOADED = 'weebsync.chunkReload'
-function RouteError() {
+// A screen that failed to load or broke while drawing: an error page inside
+// the shell, never a forced reload. Trying again loads or draws the screen
+// once more in place, which is all a dropped connection needs. Only a reload
+// can fix a bundle of an older build that a deploy removed; then the update
+// toast offers it too (armed by the same failure, raised here in case the
+// bundler's event did not fire).
+const isChunkError = (e: unknown) =>
+  /dynamically imported module|module script failed/i.test(e instanceof Error ? e.message : String(e))
+function ScreenError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
   const { t } = useTranslation()
-  const err = useRouteError()
-  const msg = err instanceof Error ? err.message : String(err)
-  const stale = /dynamically imported module|module script failed/i.test(msg)
+  const chunk = isChunkError(error)
   useEffect(() => {
-    if (!stale) return
-    try {
-      if (Date.now() - Number(sessionStorage.getItem(RELOADED) ?? 0) < 10_000) return
-      sessionStorage.setItem(RELOADED, String(Date.now()))
-    } catch {
-      return
-    }
-    location.reload()
-  }, [stale])
-  // in the content area: the shell around it stays, as for any other page
+    if (chunk) window.dispatchEvent(new Event('vite:preloadError'))
+  }, [chunk])
   return (
-    <EmptyState label={stale ? t('app.updateAvailable') : t('app.error')} className="py-16">
-      {!stale && <span className="block font-mono text-sm break-all">{msg}</span>}
-      <button type="button" className="t-btn t-btn--primary mt-3" onClick={() => location.reload()}>
-        {t('app.reloadNow')}
-      </button>
+    <EmptyState label={t(chunk ? 'app.screenFailed' : 'app.screenBroke')} className="py-16">
+      <span className="block">{t(chunk ? 'app.screenFailedHint' : 'app.screenBrokeHint')}</span>
+      {!chunk && (
+        <span className="mt-2 block font-mono text-xs break-all">
+          {error instanceof Error ? error.message : String(error)}
+        </span>
+      )}
+      <span className="mt-4 flex flex-wrap justify-center gap-2">
+        <button type="button" className="t-btn t-btn--primary" onClick={onRetry}>
+          {t('app.tryAgain')}
+        </button>
+        <button type="button" className="t-btn" onClick={() => location.reload()}>
+          {t('app.reloadNow')}
+        </button>
+      </span>
+      <ErrorDetails error={error} />
     </EmptyState>
+  )
+}
+
+// the technical side for a bug report, folded away and stripped of addresses,
+// paths and keys before it is shown (bugReport.ts)
+function ErrorDetails({ error }: { error: unknown }) {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const pre = useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = useState(false)
+  const report = useMemo(
+    () => bugReport(error, { version: qc.getQueryData<{ version?: string }>(['version'])?.version }),
+    [error, qc],
+  )
+  const copy = () =>
+    navigator.clipboard.writeText(report).then(
+      () => setCopied(true),
+      // no clipboard (an insecure origin, a refusal): select it for Ctrl+C
+      () => {
+        const sel = getSelection()
+        if (pre.current && sel) sel.selectAllChildren(pre.current)
+      },
+    )
+  return (
+    <details className="ws-err-details">
+      <summary>{t('app.details')}</summary>
+      <p>{t('app.detailsNote')}</p>
+      <pre ref={pre}>{report}</pre>
+      <button type="button" className="t-btn" onClick={copy}>
+        {copied ? t('app.copied') : t('app.copyReport')}
+      </button>
+    </details>
+  )
+}
+// a screen that broke while drawing: the same navigation again draws it anew
+function RouteError() {
+  const navigate = useNavigate()
+  const loc = useLocation()
+  return (
+    <ScreenError
+      error={useRouteError()}
+      onRetry={() => navigate(loc.pathname + loc.search + loc.hash, { replace: true })}
+    />
   )
 }
 
@@ -209,10 +258,52 @@ const discoverTab = (title: string) => h(title, undefined, 'nav.suggestions')
  * `admin` puts it behind the admin check, as the settings sections that need
  * one are.
  */
+// A browser remembers a failed module import by its URL and fails every later
+// import of it without asking the server again, so a dropped connection would
+// stick until a reload. One more try under a fresh URL fetches it for real;
+// the module's own imports keep their URLs and stay shared. The failure names
+// the URL in Chromium and Firefox; where it does not, the error stands.
+const loadAgain = async <M,>(load: () => Promise<M>): Promise<M> => {
+  try {
+    return await load()
+  } catch (e) {
+    const url = String((e as Error)?.message).match(/https?:\/\/\S+?\.js/)?.[0]
+    if (!url) throw e
+    return import(/* @vite-ignore */ `${url}?retry=${Date.now()}`) as Promise<M>
+  }
+}
+// A screen whose bundle would not load. The router keeps a failed lazy() for
+// good, so the route resolves to this stand-in instead: it shows the error
+// page, tries the bundle again itself and then draws the real screen, and
+// remembers it for every later visit.
+const unloaded = <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType, first: unknown): ComponentType => {
+  let Loaded: ComponentType | null = null
+  return function Unloaded() {
+    const [error, setError] = useState(first)
+    const [, loaded] = useReducer((n: number) => n + 1, 0)
+    if (Loaded) return <Loaded />
+    return (
+      <ScreenError
+        error={error}
+        onRetry={() =>
+          loadAgain(load).then((m) => {
+            Loaded = pick(m)
+            loaded()
+          }, setError)
+        }
+      />
+    )
+  }
+}
 const screen =
   <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType, admin = false) =>
   async () => {
-    const Page = pick(await load())
+    let Page: ComponentType
+    try {
+      Page = pick(await loadAgain(load))
+    } catch (e) {
+      Page = unloaded(load, pick, e)
+    }
     return {
       Component: admin
         ? () => (

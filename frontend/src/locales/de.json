@@ -68,6 +68,15 @@
     "updateAvailable": "WeebSync wurde aktualisiert. Neu laden, um die neue Version zu bekommen.",
     "reloadIn": "Neu laden in {{s}} s",
     "reloadNow": "Jetzt neu laden",
+    "tryAgain": "Erneut versuchen",
+    "screenFailed": "Diese Ansicht konnte nicht geladen werden",
+    "screenFailedHint": "Oft nur ein kurzer Verbindungsaussetzer. Hilft erneutes Versuchen nicht, holt Neu laden die aktuelle Version.",
+    "screenBroke": "In dieser Ansicht ist etwas schiefgelaufen",
+    "screenBrokeHint": "Der Rest der App läuft weiter. Erneut versuchen baut die Ansicht neu auf.",
+    "details": "Technische Details",
+    "detailsNote": "Für einen Fehlerbericht. Adressen, Pfade, Abfragen und Schlüssel sind entfernt, bitte vor dem Teilen trotzdem kurz durchsehen.",
+    "copyReport": "Für Fehlerbericht kopieren",
+    "copied": "Kopiert",
     "later": "Später"
   },
   "tips": {

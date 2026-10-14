@@ -68,6 +68,15 @@
     "updateAvailable": "WeebSync was updated. Reload to get the new version.",
     "reloadIn": "Reloading in {{s}} s",
     "reloadNow": "Reload now",
+    "tryAgain": "Try again",
+    "screenFailed": "This view could not be loaded",
+    "screenFailedHint": "Often just a brief connection drop. If trying again does not help, reloading fetches the current version.",
+    "screenBroke": "Something went wrong in this view",
+    "screenBrokeHint": "The rest of the app keeps running. Trying again rebuilds the view.",
+    "details": "Technical details",
+    "detailsNote": "For a bug report. Addresses, paths, queries and keys are removed, still give it a quick look before sharing.",
+    "copyReport": "Copy for a bug report",
+    "copied": "Copied",
     "later": "Later"
   },
   "tips": {
