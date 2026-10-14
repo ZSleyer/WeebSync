@@ -85,7 +85,15 @@ func TestPasskeyHoldLiftsOnRemoval(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"replaceDue":true`) {
 		t.Errorf("list does not name the passkey to replace: %s", rec.Body)
 	}
-	if rec := doReq(mux, "DELETE", "/api/auth/webauthn/credentials/"+strconv.FormatInt(credID, 10), "", userC); rec.Code != http.StatusOK {
+	del := "/api/auth/webauthn/credentials/" + strconv.FormatInt(credID, 10)
+	// the session of the unverified sign-in alone cannot lift the hold
+	if rec := doReq(mux, "DELETE", del, `{"password":""}`, userC); rec.Code != http.StatusForbidden {
+		t.Fatalf("remove without the password: got %d, want 403: %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/servers", "", userC); rec.Code != http.StatusForbidden {
+		t.Fatalf("hold lifted by a refused removal: %d", rec.Code)
+	}
+	if rec := doReq(mux, "DELETE", del, `{"password":"longenough123"}`, userC); rec.Code != http.StatusOK {
 		t.Fatalf("remove: got %d: %s", rec.Code, rec.Body)
 	}
 	if rec := doReq(mux, "GET", "/api/servers", "", userC); rec.Code != http.StatusOK {

@@ -282,7 +282,6 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 // @Tags     TwoFactor
 // @Produce  json
 // @Param    X-WA-Session header string true "ceremony id from register/begin"
-// @Param    X-WA-Type header string false "\"key\" for a second-factor security key; otherwise passwordless"
 // @Param    X-WA-Name header string false "display name for the credential"
 // @Param    body body object true "WebAuthn attestation"
 // @Success  200 {object} OkResponse
@@ -320,7 +319,10 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	if name == "" {
 		name = "Passkey"
 	}
-	passwordless := r.Header.Get("X-WA-Type") != "key"
+	// what kind of credential this is was decided at begin, behind the
+	// password check, and travels in the ceremony; a header on this request
+	// could turn a security key (no user verification) into a passkey
+	passwordless := session.UserVerification == protocol.VerificationRequired
 	if err := s.storeCredential(u.ID, cred, name, passwordless); err != nil {
 		writeErr(w, http.StatusConflict, "credential already registered")
 		return
@@ -594,13 +596,23 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 // @Tags     TwoFactor
 // @Produce  json
 // @Param    id path int true "Credential ID"
+// @Param    body body reauthRequest true "the account's password"
 // @Success  200 {object} OkResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	// removing a way in is confirmed with the password like adding one: a
+	// stolen session must not strip the owner's second factor, and the
+	// session of a passkey that signed in without verifying must not lift
+	// its own hold that way
+	var in reauthRequest
+	if !readJSON(w, r, &in) || !s.reauth(w, u.ID, in.Password) {
+		return
+	}
 	// removing the passkey that signed in without verifying is the other way
 	// out of the hold: the account goes on with its password
 	removed := false

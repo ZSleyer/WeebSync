@@ -183,7 +183,8 @@ function PasskeySection() {
     if (!ok) return
     setBusy(true)
     try {
-      await api.del(`/api/auth/webauthn/credentials/${c.id}`)
+      await api.del(`/api/auth/webauthn/credentials/${c.id}`, { password })
+      setPassword('')
       qc.invalidateQueries({ queryKey: ['webauthn'] })
     } catch (e) {
       setError(e instanceof Error ? e.message : t('app.error'))
@@ -202,7 +203,12 @@ function PasskeySection() {
               title={c.name}
               sub={c.passwordless ? t('account.passkeyKindPasskey') : t('account.passkeyKindKey')}
               trailing={
-                <RowAction className="text-err" disabled={busy} onClick={remove(c)}>
+                <RowAction
+                  className="text-err"
+                  disabled={busy || (!oidcOnly && !password)}
+                  title={oidcOnly || password ? undefined : t('account.removeNeedsPassword')}
+                  onClick={remove(c)}
+                >
                   {t('account.remove')}
                 </RowAction>
               }

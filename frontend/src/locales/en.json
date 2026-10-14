@@ -343,6 +343,7 @@
     "removeHint": "This device will no longer sign you in without a password.",
     "removeLast": "This is your last passkey. Afterwards you sign in with your password only.",
     "removeKeyHint": "This key will no longer confirm your sign-in as a second factor.",
+    "removeNeedsPassword": "Enter your password first to remove it.",
     "passkeyKindPasskey": "Passkey",
     "passkeyKindKey": "2nd factor",
     "passwordTitle": "Password",

@@ -146,7 +146,7 @@ function PasskeyUpgrade() {
   }
   const remove = () =>
     run(async () => {
-      for (const c of old) await api.del(`/api/auth/webauthn/credentials/${c.id}`)
+      for (const c of old) await api.del(`/api/auth/webauthn/credentials/${c.id}`, { password })
     })
 
   return (
@@ -173,7 +173,12 @@ function PasskeyUpgrade() {
       <Button type="submit" variant="primary" className="ws-login-go" disabled={busy || !password}>
         {t('upgrade.passkeyReplace')}
       </Button>
-      <Button type="button" className="ws-login-alt" disabled={busy || old.length === 0} onClick={() => void remove()}>
+      <Button
+        type="button"
+        className="ws-login-alt"
+        disabled={busy || old.length === 0 || !password}
+        onClick={() => void remove()}
+      >
         {t('upgrade.passkeyRemove')}
       </Button>
       <button type="button" className="ws-login-back" onClick={() => void logout()}>

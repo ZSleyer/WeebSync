@@ -343,6 +343,7 @@
     "removeHint": "Mit diesem Gerät meldest du dich danach nicht mehr ohne Passwort an.",
     "removeLast": "Das ist dein letzter Passkey. Danach meldest du dich nur noch mit Passwort an.",
     "removeKeyHint": "Dieser Key bestätigt deine Anmeldung danach nicht mehr als zweiter Faktor.",
+    "removeNeedsPassword": "Zum Entfernen erst dein Passwort eingeben.",
     "passkeyKindPasskey": "Passkey",
     "passkeyKindKey": "2. Faktor",
     "passwordTitle": "Passwort",

@@ -12431,6 +12431,19 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/api.reauthRequest",
+                                "description": "the account's password",
+                                "summary": "body"
+                            }
+                        }
+                    },
+                    "description": "the account's password",
+                    "required": true
+                },
                 "responses": {
                     "200": {
                         "content": {
@@ -12451,6 +12464,16 @@
                             }
                         },
                         "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
                     },
                     "500": {
                         "content": {
@@ -12687,14 +12710,6 @@
                         "in": "header",
                         "name": "X-WA-Session",
                         "required": true,
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    {
-                        "description": "\\",
-                        "in": "header",
-                        "name": "X-WA-Type",
                         "schema": {
                             "type": "string"
                         }
