@@ -487,7 +487,7 @@ function Shell({ email }: { email: string }) {
     <aside className="ws-side" aria-label={t('nav.side')}>
       <div className="ws-brand">
         {/* the mark is the way home from anywhere, as on every site */}
-        <Link to="/" className="rounded-xs" aria-label={t('nav.dashboard')}>
+        <Link to="/" className="rounded-xs">
           {/* folds into the mark and back out on every page change */}
           <Brand variant="rail" slogan={t('app.tagline')} replayKey={location.pathname} className="mt-3 mb-2" />
         </Link>

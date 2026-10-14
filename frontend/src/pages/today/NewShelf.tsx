@@ -119,14 +119,7 @@ export function NewShelf({
                   }
                 }
                 return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    className="td-tile"
-                    data-fresh={fresh || undefined}
-                    onClick={go}
-                    aria-label={[title, ep, item?.title].filter(Boolean).join(', ')}
-                  >
+                  <button key={d.id} type="button" className="td-tile" data-fresh={fresh || undefined} onClick={go}>
                     <span className="td-cv">
                       <CoverImg
                         set={coverSet({ large: group?.cover, extraLarge: group?.coverLarge })}

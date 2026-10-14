@@ -331,8 +331,9 @@ export default function Brand({
       aria-hidden
       className="pointer-events-none absolute right-[0.2em] bottom-full left-0 mb-0.5 flex justify-between font-mono text-[max(0.38em,10px)] leading-none font-normal tracking-normal text-accent/80"
     >
+      {/* drawn by CSS, not text: decoration that must not join the link's name */}
       {[...slogan].map((c, i) => (
-        <span key={i}>{c}</span>
+        <span key={i} data-c={c} className="before:content-[attr(data-c)]" />
       ))}
     </span>
   )
