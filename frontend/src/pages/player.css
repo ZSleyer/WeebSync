@@ -247,7 +247,7 @@
 .t-player-card-btn--go { background: var(--pl-accent); color: #000; }
 .t-player-card-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 @media (prefers-reduced-motion: no-preference) {
-  .t-player-card { animation: t-pl-card-in var(--dur-2) var(--ease-out); }
+  .t-player-card { animation: t-pl-card-in var(--dur-2) var(--ease-enter); }
 }
 @keyframes t-pl-card-in { from { opacity: 0; translate: 0 8px; } }
 

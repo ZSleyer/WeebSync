@@ -188,7 +188,7 @@ export function useTileRise(box: RefObject<HTMLElement | null>, key: unknown) {
         const boxes = cells.map((c) => c.getBoundingClientRect())
         const w = innerWidth
         const h = innerHeight
-        const easing = getComputedStyle(document.documentElement).getPropertyValue('--spring-calm').trim()
+        const easing = getComputedStyle(document.documentElement).getPropertyValue('--ease-enter').trim()
         cells.forEach((c, i) => {
           const r = boxes[i]
           if (r.bottom <= 0 || r.top >= h || typeof c.animate !== 'function') return

@@ -79,7 +79,7 @@ span.td-pn { cursor: default; }
   .td-pn:active { scale: 0.97; transition-duration: 90ms; }
   /* the panels wait out of sight until their pictures are decoded, then slide in */
   .td-hero:not([data-enter]) .td-pn { opacity: 0; }
-  .td-hero[data-enter] .td-pn { animation: td-panel 700ms var(--spring-calm) calc(var(--k, 0) * 70ms) backwards; }
+  .td-hero[data-enter] .td-pn { animation: td-panel 700ms var(--ease-enter) calc(var(--k, 0) * 70ms) backwards; }
 }
 @keyframes td-panel { from { opacity: 0; translate: 18px 0; } }
 
@@ -302,7 +302,7 @@ span.td-pn { cursor: default; }
 .hs-facts dd { margin: 0; overflow-wrap: anywhere; }
 .hs-facts .mono { font-family: var(--f-mono); }
 @media (prefers-reduced-motion: no-preference) {
-  .hs-row > details[open] > .hs-facts { animation: t-enter-rise 320ms var(--spring-calm); }
+  .hs-row > details[open] > .hs-facts { animation: t-enter-rise 320ms var(--ease-enter); }
 }
 @media (max-width: 719px) {
   .hs-facts { padding-left: 0; }

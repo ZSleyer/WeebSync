@@ -57,7 +57,7 @@
 @media (width < 30rem) { .ws-cl-actions .t-btn > svg { display: none; } }
 @media (width >= 64rem) { .ws-cl-actions { display: none; } }
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="off"]) .ws-cl-actions { animation: ws-bar-in 200ms var(--ease-out); }
+  :root:not([data-motion="off"]) .ws-cl-actions { animation: ws-bar-in 200ms var(--ease-enter); }
 }
 @keyframes ws-bar-in { from { opacity: 0; translate: 0 12px; } }
 
@@ -105,7 +105,7 @@
   .ws-sel-bar > button { flex-direction: row; gap: 0.5rem; padding: 0 0.875rem; border-radius: var(--r-ctl, 8px); font-size: 0.875rem; }
 }
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="off"]) .ws-sel-bar { animation: ws-bar-in 220ms var(--ease-out); }
+  :root:not([data-motion="off"]) .ws-sel-bar { animation: ws-bar-in 220ms var(--ease-enter); }
 }
 
 /* the details panel beside the list on a desktop */
