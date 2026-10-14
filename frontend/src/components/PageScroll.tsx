@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowUp, Check, RefreshCw } from 'lucide-react'
 import { haptic, useMediaQuery } from 'fluid-lycoris'
+import { smoothRefresh } from '../smoothRefresh'
 import { WIDE_MQ } from './PageActions'
 
 // the ring's circumference at r = 20 in a 44 box
@@ -141,7 +142,7 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       mark.dataset.state = 'busy'
       say('app.refreshing')
       const t0 = performance.now()
-      await qc.refetchQueries({ type: 'active' }).catch(() => {})
+      await smoothRefresh(qc).catch(() => {})
       await new Promise((r) => setTimeout(r, Math.max(0, PULL_MIN_MS - (performance.now() - t0))))
       mark.dataset.state = 'done'
       say('app.refreshed')
