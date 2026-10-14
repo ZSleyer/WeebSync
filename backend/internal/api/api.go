@@ -145,6 +145,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// account, however many addresses they come from (NIST 800-63B-4 3.2.2)
 	if s.accountLimiter == nil {
 		s.accountLimiter = newIPLimiter(0.2, 10, nil)
+		// typed addresses, most of them one-offs: swept early
+		s.accountLimiter.sweepAt = 1000
 	}
 	// a challenge guesses nothing; the cap only keeps the ceremony store small
 	if s.challengeLimiter == nil {

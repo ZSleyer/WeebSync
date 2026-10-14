@@ -15,6 +15,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // A wrong password says how many attempts are left before the pause and how
@@ -65,13 +66,71 @@ func TestLoginRefusedCountsAttempts(t *testing.T) {
 }
 
 // loginFrom posts a login from the given client address.
-func loginFrom(mux *http.ServeMux, ip, email, pw string) *httptest.ResponseRecorder {
+func loginFrom(mux *http.ServeMux, ip, email, pw string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"`+email+`","password":"`+pw+`"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.RemoteAddr = net.JoinHostPort(ip, "40000")
+	for _, c := range cookies {
+		req.AddCookie(c)
+	}
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec
+}
+
+func cookieNamed(rec *httptest.ResponseRecorder, name string) *http.Cookie {
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
+
+// A stranger draining the account's bucket keeps strangers out, not the
+// owner: a browser that signed in before carries a device cookie and is let
+// through. A forged cookie, or one for another account, is worth nothing.
+func TestDeviceCookieBeatsLockout(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	d := dbtest.Open(t)
+	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	mux := http.NewServeMux()
+	s.Register(mux)
+	if rec := doReq(mux, "POST", "/api/auth/register", `{"email":"a@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusCreated {
+		t.Fatalf("register: %d %s", rec.Code, rec.Body)
+	}
+	rec := loginFrom(mux, "198.51.100.200", "a@example.com", "longenough123")
+	device := cookieNamed(rec, deviceCookie)
+	if rec.Code != http.StatusOK || device == nil || device.MaxAge < 300*24*3600 {
+		t.Fatalf("sign-in did not hand out a device cookie: %d %+v", rec.Code, device)
+	}
+	for i := 0; i < 10; i++ {
+		loginFrom(mux, "198.51.100."+strconv.Itoa(i+1), "a@example.com", "wrong-password")
+	}
+	if rec := loginFrom(mux, "203.0.113.70", "a@example.com", "longenough123"); rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("a browser without the cookie got past the drained bucket: %d", rec.Code)
+	}
+	if rec := loginFrom(mux, "203.0.113.71", "a@example.com", "longenough123", device); rec.Code != http.StatusOK {
+		t.Errorf("the owner's device was held out: %d %s", rec.Code, rec.Body)
+	}
+	// drained again: the owner's success above reset it
+	for i := 0; i < 10; i++ {
+		loginFrom(mux, "198.51.100."+strconv.Itoa(i+20), "a@example.com", "wrong-password")
+	}
+	forged := &http.Cookie{Name: deviceCookie, Value: device.Value[:len(device.Value)-2] + "00"}
+	if rec := loginFrom(mux, "203.0.113.72", "a@example.com", "longenough123", forged); rec.Code != http.StatusTooManyRequests {
+		t.Errorf("a forged device cookie got through: %d", rec.Code)
+	}
+	if knownDevice(httptest.NewRequest("GET", "/", nil), "b@example.com") {
+		t.Error("no cookie counts as a known device")
+	}
+	req := httptest.NewRequest("GET", "/", nil)
+	req.AddCookie(device)
+	if knownDevice(req, "b@example.com") {
+		t.Error("a device cookie counted for another account")
+	}
 }
 
 // Guesses spread over many addresses still run into the account's own

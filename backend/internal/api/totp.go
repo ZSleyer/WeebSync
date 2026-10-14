@@ -276,7 +276,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(email)
+	s.accountSignedIn(w, r, email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }
 

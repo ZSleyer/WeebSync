@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -96,4 +97,18 @@ func Decrypt(data []byte) (string, error) {
 		return "", fmt.Errorf("decrypt failed (WEEBSYNC_SECRET changed?): %w", err)
 	}
 	return string(plain), nil
+}
+
+// MAC signs msg with a key derived from the encryption key (never the key
+// itself), so a value the server hands out and gets back, like a device
+// cookie, can neither be forged nor moved to another account.
+func MAC(msg string) ([]byte, error) {
+	k, err := key()
+	if err != nil {
+		return nil, err
+	}
+	derived := sha256.Sum256(append([]byte("weebsync-mac\x00"), k...))
+	m := hmac.New(sha256.New, derived[:])
+	m.Write([]byte(msg))
+	return m.Sum(nil), nil
 }

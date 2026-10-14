@@ -1,6 +1,9 @@
 package api
 
 import (
+	"crypto/hmac"
+	"encoding/base64"
+	"encoding/hex"
 	"math"
 	"net/http"
 	"net/netip"
@@ -13,6 +16,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // ipLimiter is a per-IP token-bucket rate limiter for auth endpoints, guarding
@@ -23,6 +27,8 @@ type ipLimiter struct {
 	ips   map[string]*ipEntry
 	rate  rate.Limit
 	burst int
+	// buckets beyond this many trigger a sweep of the full ones
+	sweepAt int
 	// trusted returns true for IPs that bypass the limit entirely (admin-
 	// configured safe networks). May be nil.
 	trusted func(ip string) bool
@@ -37,6 +43,7 @@ func newIPLimiter(perMinute float64, burst int, trusted func(ip string) bool) *i
 		ips:     map[string]*ipEntry{},
 		rate:    rate.Limit(perMinute / 60.0),
 		burst:   burst,
+		sweepAt: 10000,
 		trusted: trusted,
 	}
 }
@@ -125,7 +132,7 @@ func (l *ipLimiter) take(ip string) (bool, time.Duration) {
 		// A bucket back at full tokens is the same as no bucket, so those
 		// go whatever their age; a drained one stays, which is what keeps
 		// a blocked address blocked through a flood of one-hit peers.
-		if len(l.ips) > 10000 {
+		if len(l.ips) > l.sweepAt {
 			for k, v := range l.ips {
 				if v.lim.Tokens() >= float64(l.burst) {
 					delete(l.ips, k)
@@ -180,8 +187,15 @@ func (s *Server) handleRateLimitList(w http.ResponseWriter, r *http.Request) {
 	if s.authLimiter != nil {
 		out = append(out, s.authLimiter.status("ip")...)
 	}
+	// accounts only while blocked: the keys are whatever was typed into
+	// the email field, now and then a password, and none of that is the
+	// admin's to read once it is harmless again
 	if s.accountLimiter != nil {
-		out = append(out, s.accountLimiter.status("account")...)
+		for _, st := range s.accountLimiter.status("account") {
+			if st.Blocked {
+				out = append(out, st)
+			}
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -256,9 +270,16 @@ func tooMany(w http.ResponseWriter, wait time.Duration) {
 // shut them out for good - and not at all from a trusted network, which is
 // the way back in for an owner whose account is under attack.
 
+//
+// A browser that once signed in to the account carries a device cookie for
+// it (OWASP's device cookies) and is not held by the account's bucket at all:
+// otherwise one wrong guess every five minutes from anywhere would keep the
+// owner out for as long as the stranger cares to. The per-address limit still
+// applies to it.
+
 // accountWait is how long the account behind email must wait; 0 lets it in.
 func (s *Server) accountWait(r *http.Request, email string) time.Duration {
-	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) {
+	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) || knownDevice(r, email) {
 		return 0
 	}
 	return s.accountLimiter.blockedFor(email)
@@ -266,14 +287,54 @@ func (s *Server) accountWait(r *http.Request, email string) time.Duration {
 
 // accountFailed counts a wrong password or second factor against email.
 func (s *Server) accountFailed(r *http.Request, email string) {
-	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) {
+	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) && !knownDevice(r, email) {
 		s.accountLimiter.take(email)
 	}
 }
 
-// accountSignedIn forgets the failures once the whole sign-in succeeded.
-func (s *Server) accountSignedIn(email string) {
+// accountSignedIn forgets the failures once the whole sign-in succeeded, and
+// marks the browser as one of the account's devices.
+func (s *Server) accountSignedIn(w http.ResponseWriter, r *http.Request, email string) {
 	if s.accountLimiter != nil {
 		s.accountLimiter.reset(email)
 	}
+	if v, ok := deviceValue(email); ok {
+		auth.SetCookie(w, r, &http.Cookie{Name: deviceCookie, Value: v, Path: "/api/auth", MaxAge: 365 * 24 * 3600})
+	}
+}
+
+const deviceCookie = "weebsync_device"
+
+// deviceValue is a device cookie for email: the address, a nonce and a MAC
+// over both. false without a key to sign with.
+func deviceValue(email string) (string, bool) {
+	nonce := randToken()[:32]
+	mac, err := secret.MAC("device|" + email + "|" + nonce)
+	if err != nil {
+		return "", false
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(email)) + "." + nonce + "." + hex.EncodeToString(mac), true
+}
+
+// knownDevice reports whether the request carries a valid device cookie for
+// email.
+func knownDevice(r *http.Request, email string) bool {
+	c, err := r.Cookie(deviceCookie)
+	if err != nil {
+		return false
+	}
+	parts := strings.Split(c.Value, ".")
+	if len(parts) != 3 {
+		return false
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil || string(raw) != email {
+		return false
+	}
+	want, err := secret.MAC("device|" + email + "|" + parts[1])
+	if err != nil {
+		return false
+	}
+	got, err := hex.DecodeString(parts[2])
+	return err == nil && hmac.Equal(got, want)
 }

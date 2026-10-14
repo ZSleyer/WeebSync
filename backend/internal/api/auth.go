@@ -303,7 +303,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(c.Email)
+	s.accountSignedIn(w, r, c.Email)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: id, Email: c.Email})
 }
 
