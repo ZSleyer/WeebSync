@@ -32,14 +32,16 @@ const loggedOut = landing.has('loggedout')
 const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
 
-// "stay signed in" is remembered per browser: a convenience, so a failing
-// storage just falls back to unticked
+// "stay signed in" is remembered per browser and ticked until someone unticks
+// it: the app is opened daily, and a box nobody sees (oidc-auto redirects
+// before the page shows) must not sign everyone out every day. A shared
+// computer unticks it once.
 const REMEMBER_KEY = 'ws-remember'
 function readRemember(): boolean {
   try {
-    return localStorage.getItem(REMEMBER_KEY) === '1'
+    return localStorage.getItem(REMEMBER_KEY) !== '0'
   } catch {
-    return false
+    return true
   }
 }
 function writeRemember(v: boolean) {
@@ -453,7 +455,7 @@ export default function Login() {
               )}
               {noticeLine}
               {errorLine}
-              {mode === 'login' && rememberBox}
+              {rememberBox}
               <Button type="submit" variant="primary" className="ws-login-go" disabled={busy}>
                 {busy && !waiting
                   ? t('login.checking')

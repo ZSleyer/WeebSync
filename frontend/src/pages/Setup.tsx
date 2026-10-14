@@ -334,7 +334,7 @@ export default function Setup({
             <SetupFoot>
               <ButtonLink
                 variant="primary"
-                href="/api/auth/oidc/login"
+                href="/api/auth/oidc/login?remember=1"
                 onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
               >
                 {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
