@@ -59,3 +59,31 @@ export function useRiseOnData(ref: { current: HTMLElement | null }, ready: boole
     }
   }, [ready, ref])
 }
+
+/**
+ * A Heute section's fold, kept for the browser session: a section folded to
+ * reach the one below stays folded while the app is open. Returns what
+ * SectionHeading's `fold` takes; the body carries `id={controls}` and
+ * `hidden={!open}`.
+ */
+export function useFold(key: string) {
+  const k = `weebsync.today.fold.${key}`
+  const [open, setOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem(k) !== '1'
+    } catch {
+      return true
+    }
+  })
+  const onToggle = () => {
+    const next = !open
+    setOpen(next)
+    try {
+      if (next) sessionStorage.removeItem(k)
+      else sessionStorage.setItem(k, '1')
+    } catch {
+      // storage blocked: the fold still works until the page reloads
+    }
+  }
+  return { open, onToggle, controls: `td-${key}-body` }
+}

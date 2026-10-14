@@ -1,8 +1,7 @@
-import { useRef, type CSSProperties } from 'react'
+import { useRef, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { RefreshCw } from 'lucide-react'
 import { Progress, SectionHeading, useMediaQuery } from 'fluid-lycoris'
 import {
   api,
@@ -25,7 +24,7 @@ import { HeroBanner } from './today/HeroBanner'
 import { buildNeeds, hiddenNeeds } from './today/needs'
 import { Needs } from './today/Needs'
 import { NewShelf } from './today/NewShelf'
-import { useAfterFirstPaint, useRiseOnData } from './today/shared'
+import { useAfterFirstPaint, useFold, useRiseOnData } from './today/shared'
 import './today/today.css'
 
 /**
@@ -62,7 +61,9 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
   })
 
-  // the caption's line: what loads, what needs a hand, when the next one airs
+  const work = useWorkNote()
+  // the caption's line: what loads, what needs a hand, when the next one
+  // airs, and which background job runs or waits
   const loadingCount = downloads.filter((d) => d.status === 'running' || d.status === 'queued').length
   const hidden = hiddenNeeds()
   const needCount = buildNeeds(t, { downloads, meta, watches, hints, now }).filter((n) => !hidden.has(n.print)).length
@@ -78,7 +79,8 @@ export default function Dashboard() {
     loadingCount > 0 ? t('today.loadingCount', { count: loadingCount }) : t('today.quiet'),
     needCount > 0 ? t('today.needCount', { count: needCount }) : null,
     nextAt ? t('today.nextAt', { time: nextAt }) : null,
-  ].filter((s): s is string => !!s)
+    work,
+  ].filter(Boolean)
   const date = new Date(now).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
   const wide = useMediaQuery(WIDE_MQ)
   const loading = isLoading || watchesLoading
@@ -99,7 +101,6 @@ export default function Dashboard() {
             <>
               <Agenda watches={watches} loading={watchesLoading} />
               <Storage />
-              <BackgroundWork />
             </>
           )}
         </div>
@@ -117,6 +118,7 @@ function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?:
   const transfers = useTransfers()
   const body = useRef<HTMLDivElement>(null)
   useRiseOnData(body, !loading)
+  const fold = useFold('transfers')
   const running = downloads.filter((d) => d.status === 'running')
   const pct = (d: Download) => (d.size > 0 ? Math.min(100, (d.transferred / d.size) * 100) : 0)
   return (
@@ -134,8 +136,9 @@ function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?:
             {t('today.details')}
           </button>
         }
+        fold={fold}
       />
-      <div ref={body}>
+      <div ref={body} id={fold.controls} hidden={!fold.open}>
         <ul className="t-rows td-dl">
           {loading && <li aria-hidden className="td-sk-row" />}
           {!loading && running.length === 0 && (
@@ -187,13 +190,14 @@ function Storage() {
     enabled: !!user?.isAdmin,
   })
   const body = useRef<HTMLDivElement>(null)
+  const fold = useFold('storage')
   const disks = (data?.disks ?? (data?.disk ? [data.disk] : [])).filter((d) => d.totalBytes > 0)
   useRiseOnData(body, disks.length > 0)
   if (!user?.isAdmin || (data && disks.length === 0)) return null
   return (
     <section aria-labelledby="td-disk-h">
-      <SectionHeading id="td-disk-h" title={t('dash.storage')} />
-      <div ref={body}>
+      <SectionHeading id="td-disk-h" title={t('dash.storage')} fold={fold} />
+      <div ref={body} id={fold.controls} hidden={!fold.open}>
         {!data && <div aria-hidden className="td-sk-row" style={{ height: '1.75rem', border: 0 }} />}
         {disks.map((disk) => {
           const share = disk.usedBytes / disk.totalBytes
@@ -230,7 +234,7 @@ function Storage() {
 }
 
 /** What the machine is busy with, as one quiet line at the foot of the aside. */
-function BackgroundWork() {
+function useWorkNote(): ReactNode {
   const { t } = useTranslation()
   const { data: user } = useAuth()
   const { data } = useQuery<JobsStatus>({
@@ -241,25 +245,22 @@ function BackgroundWork() {
   const running = (data?.running ?? []).filter((f) => f !== 'suggestions')
   const paused = data?.paused ?? []
   if (running.length === 0 && paused.length === 0) return null
-  return (
-    <p role="status" className="td-work">
-      {running.length > 0 && (
-        <span className="inline-flex items-center gap-1">
-          <RefreshCw aria-hidden size="1em" />
-          {running.length === 1 ? t('jobs.busyOne', { name: jobLabel(t, running[0]) }) : t('jobs.busy')}
-        </span>
-      )}
-      {running.length > 1 && <span>{running.map((f) => jobLabel(t, f)).join(' · ')}</span>}
-      {paused.map((f) => (
-        <span key={f} className="text-warn">
-          {jobLabel(t, f)} · {t('jobs.paused')}
-        </span>
-      ))}
-      {user?.isAdmin && (
-        <Link to="/settings/jobs" className="t-link">
-          {t('settings.nav.jobs')}
-        </Link>
-      )}
-    </p>
+  const text = [
+    running.length === 1
+      ? t('jobs.busyOne', { name: jobLabel(t, running[0]) })
+      : running.length > 1
+        ? t('jobs.busy')
+        : '',
+    ...paused.map((f) => `${jobLabel(t, f)} ${t('jobs.paused')}`),
+  ]
+    .filter(Boolean)
+    .join(', ')
+  const cls = paused.length > 0 ? 'text-warn' : undefined
+  return user?.isAdmin ? (
+    <Link to="/settings/jobs" className={`t-link ${cls ?? ''}`}>
+      {text}
+    </Link>
+  ) : (
+    <span className={cls}>{text}</span>
   )
 }

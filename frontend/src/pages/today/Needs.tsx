@@ -11,7 +11,7 @@ import { useToast } from '../../components/toast'
 import { scopeChanged } from '../../components/useCatalogView'
 import { useNow } from '../../hooks'
 import { buildNeeds, hiddenNeeds, saveHidden, type Need } from './needs'
-import { seriesTarget, useRiseOnData } from './shared'
+import { seriesTarget, useFold, useRiseOnData } from './shared'
 
 /** rows shown before "N more" */
 const NEEDS_MAX = 5
@@ -243,14 +243,16 @@ export function Needs({
     )
 
   const rows = shown.slice(0, NEEDS_MAX)
+  const fold = useFold('needs')
   return (
     <section aria-labelledby="td-needs-h">
       <SectionHeading
         id="td-needs-h"
         title={t('today.needs')}
         action={!loading && <span className="td-count">{shown.length}</span>}
+        fold={fold}
       />
-      <div ref={body}>
+      <div ref={body} id={fold.controls} hidden={!fold.open}>
         <ul className="t-rows td-needs">
           {loading
             ? [0, 1].map((i) => <li key={i} aria-hidden className="td-sk-row" />)

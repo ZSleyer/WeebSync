@@ -275,7 +275,6 @@ span.td-pn { cursor: default; }
   [data-wipe="in"] .td-meter > i { animation: td-fill 900ms var(--spring-calm) 200ms both; }
 }
 @keyframes td-fill { from { transform: scaleX(0); } }
-.td-work { margin-top: 1.25rem; font-size: 0.8125rem; color: var(--fg-3); display: flex; flex-wrap: wrap; gap: 0.25rem 0.5rem; align-items: center; }
 
 /* ── Verlauf ── */
 .hs-sum { display: grid; grid-template-columns: repeat(auto-fit, minmax(8.125rem, 1fr)); gap: 0.625rem 1.5rem; margin: 0.25rem 0 1.125rem; }

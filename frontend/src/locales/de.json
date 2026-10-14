@@ -528,6 +528,8 @@
     "details": "Details",
     "ofSize": "{{done}} von {{total}}",
     "agenda": "Heute im Programm",
+    "soon": "Demnächst",
+    "noneLeft": "Heute läuft nichts mehr.",
     "week": "Woche",
     "nowAt": "Jetzt, {{time}}",
     "aired": "gelaufen",

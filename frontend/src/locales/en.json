@@ -528,6 +528,8 @@
     "details": "Details",
     "ofSize": "{{done}} of {{total}}",
     "agenda": "On today",
+    "soon": "Coming up",
+    "noneLeft": "Nothing more airs today.",
     "week": "Week",
     "nowAt": "Now, {{time}}",
     "aired": "aired",

@@ -8,7 +8,7 @@ import { watchTitle } from '../../api'
 import { useNow } from '../../hooks'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { daysAgo } from './history'
-import { seriesTarget, useRiseOnData } from './shared'
+import { seriesTarget, useFold, useRiseOnData } from './shared'
 
 type T = (key: string, opts?: Record<string, unknown>) => string
 
@@ -29,16 +29,19 @@ export function airingState(t: T, at: number, have: boolean | undefined, now: nu
   return { text: t('today.inDays', { count: Math.max(1, -daysAgo(at, now)) }) }
 }
 
-/** today's releases that already ran, then the next few ahead */
+/** today's releases split at now, then the next few of the days after */
 export function agendaRows(airings: Airing[], now: number) {
-  const past = airings.filter((a) => a.at * 1000 <= now && daysAgo(a.at * 1000, now) === 0)
-  const ahead = airings.filter((a) => a.at * 1000 > now).slice(0, AHEAD)
-  return { past, ahead }
+  const today = airings.filter((a) => daysAgo(a.at * 1000, now) === 0)
+  const past = today.filter((a) => a.at * 1000 <= now)
+  const ahead = today.filter((a) => a.at * 1000 > now)
+  const later = airings.filter((a) => daysAgo(a.at * 1000, now) < 0).slice(0, AHEAD)
+  return { past, ahead, later }
 }
 
 /**
- * "Heute im Programm": the next releases with a line where now is; today's
- * earlier ones above it say whether they landed. A row opens its series.
+ * "Heute im Programm": today's releases with a line where now is, the earlier
+ * ones above it saying whether they landed. "Demnächst" below it: the next
+ * few of the days after. A row opens its series.
  */
 export function Agenda({ watches, loading }: { watches: Watch[]; loading: boolean }) {
   const { t, i18n } = useTranslation()
@@ -46,7 +49,9 @@ export function Agenda({ watches, loading }: { watches: Watch[]; loading: boolea
   const { open } = useSeriesModal()
   const body = useRef<HTMLDivElement>(null)
   useRiseOnData(body, !loading)
-  const { past, ahead } = agendaRows(upcomingAirings(watches, now, 7), now)
+  const fold = useFold('agenda')
+  const foldSoon = useFold('soon')
+  const { past, ahead, later } = agendaRows(upcomingAirings(watches, now, 7), now)
   const hm = (ms: number) => new Date(ms).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
   const when = (ms: number) =>
     daysAgo(ms, now) === 0
@@ -78,36 +83,50 @@ export function Agenda({ watches, loading }: { watches: Watch[]; loading: boolea
       </li>
     )
   }
-  const empty = !loading && past.length === 0 && ahead.length === 0
   return (
-    <section aria-labelledby="td-agenda-h">
-      <SectionHeading
-        id="td-agenda-h"
-        tone="accent-2"
-        title={t('today.agenda')}
-        action={
-          <Link to="/watches?view=calendar" className="t-link t-link--2">
-            {t('today.week')}
-          </Link>
-        }
-      />
-      <div ref={body}>
-        <ul className="t-rows t-rows--dense td-agenda">
+    <>
+      <section aria-labelledby="td-agenda-h">
+        <SectionHeading id="td-agenda-h" tone="accent-2" title={t('today.agenda')} fold={fold} />
+        <div ref={body} id={fold.controls} hidden={!fold.open}>
+          <ul className="t-rows t-rows--dense td-agenda">
+            {loading ? (
+              [0, 1, 2].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
+            ) : (
+              <>
+                {past.map((a) => row(a, true))}
+                <li className="td-now">
+                  <span aria-hidden>{hm(now)}</span>
+                  <span className="sr-only">{t('today.nowAt', { time: hm(now) })}</span>
+                </li>
+                {ahead.map((a) => row(a, false))}
+                {ahead.length === 0 && <li className="td-empty">{t('today.noneLeft')}</li>}
+              </>
+            )}
+          </ul>
+        </div>
+      </section>
+      <section aria-labelledby="td-soon-h">
+        <SectionHeading
+          id="td-soon-h"
+          tone="accent-2"
+          title={t('today.soon')}
+          fold={foldSoon}
+          action={
+            <Link to="/watches?view=calendar" className="t-link t-link--2">
+              {t('today.week')}
+            </Link>
+          }
+        />
+        <ul className="t-rows t-rows--dense td-agenda" id={foldSoon.controls} hidden={!foldSoon.open}>
           {loading ? (
-            [0, 1, 2].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
+            [0, 1].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
+          ) : later.length > 0 ? (
+            later.map((a) => row(a, false))
           ) : (
-            <>
-              {past.map((a) => row(a, true))}
-              <li className="td-now">
-                <span aria-hidden>{hm(now)}</span>
-                <span className="sr-only">{t('today.nowAt', { time: hm(now) })}</span>
-              </li>
-              {ahead.map((a) => row(a, false))}
-            </>
+            <li className="td-empty">{t('dash.upNextEmpty')}</li>
           )}
-          {empty && <li className="td-empty">{t('dash.upNextEmpty')}</li>}
         </ul>
-      </div>
-    </section>
+      </section>
+    </>
   )
 }
