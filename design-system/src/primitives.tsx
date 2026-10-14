@@ -9,8 +9,7 @@ import type {
   Ref,
   TextareaHTMLAttributes,
 } from 'react'
-import { useEffect, useRef, useState } from 'react'
-import { DUO_SHAPES } from './duo'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useWave } from './wave'
 
 // Presentational wrappers around the t-* classes in fluid-lycoris.css. Deliberately
@@ -311,20 +310,34 @@ export interface LoadingIndicatorProps {
 }
 
 /**
- * Indeterminate loading, the design's own: a red and a teal half that turn
- * steadily and morph together from two dots into a yin and yang, a
- * flower cut in two and a pair of diamonds (shapes in duo.ts). For a wait
+ * Indeterminate loading, the design's own: a red and a teal drop circle each
+ * other, flow together into one two-tone drop, a turning yin and yang, and
+ * pull apart again, while a small drop runs the other way round and melts
+ * in as it passes. The liquid look is a goo filter (blur, then a hard alpha
+ * edge), so every outline stays smooth however the drops meet. For a wait
  * with nothing to measure. It shows only once the wait has lasted a moment,
  * so a quick answer never flashes it; the status is in the tree from the
- * start. Motion off: the yin and yang, still.
+ * start. Motion off: the two drops half merged, still.
  */
 export function LoadingIndicator({ label, showLabel, size = 'md', className }: LoadingIndicatorProps) {
+  const goo = `goo${useId().replace(/\W/g, '')}`
   return (
     <div role="status" className={cx('t-loading', `t-loading--${size}`, className)}>
-      <span aria-hidden className="t-loading-duo" style={DUO_SHAPES}>
-        <span />
-        <span />
-      </span>
+      <svg aria-hidden className="t-loading-duo" viewBox="0 0 100 100">
+        <filter id={goo} filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
+          <feGaussianBlur stdDeviation="5" />
+          <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10" />
+        </filter>
+        <g filter={`url(#${goo})`}>
+          <g className="t-duo-orbit">
+            <circle className="t-duo-a" cx="50" cy="50" r="17" />
+            <circle className="t-duo-b" cx="50" cy="50" r="13" />
+          </g>
+          <g className="t-duo-moon">
+            <circle className="t-duo-c" cx="50" cy="50" r="7" />
+          </g>
+        </g>
+      </svg>
       <span className={showLabel ? 't-loading-label' : 'sr-only'}>{label}</span>
     </div>
   )
