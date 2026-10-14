@@ -377,7 +377,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
       {body}
       {watch &&
         (watch.inCard ? (
-          <SeriesCardView onClose={() => setWatch(null)}>
+          <SeriesCardView title={watch.name} onClose={() => setWatch(null)}>
             {(v) => (
               <WatchForm
                 {...v}

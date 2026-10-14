@@ -26,13 +26,7 @@ import {
 
 // icon per AniList airing status, shown inside the detail dialog's t-label chip
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import {
-  SeriesCardView,
-  BackToCard,
-  useSeriesModal,
-  type CardViewProps,
-  type SeriesAction,
-} from '../components/SeriesModal'
+import { SeriesCardView, useSeriesModal, type CardViewProps, type SeriesAction } from '../components/SeriesModal'
 import { useToast } from '../components/toast'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useNavigate, useSearchParams } from 'react-router'
@@ -836,7 +830,7 @@ export default function Files() {
       {syncEntry &&
         syncSeed &&
         (inCard ? (
-          <SeriesCardView onClose={() => setSyncEntry(null)}>
+          <SeriesCardView title={t('remote.syncTitle', { name: syncEntry.name })} onClose={() => setSyncEntry(null)}>
             {(v) => <SyncForm {...v} {...syncProps(syncEntry, syncSeed)} />}
           </SeriesCardView>
         ) : (
@@ -845,7 +839,7 @@ export default function Files() {
       {watchEntry &&
         !kindPending &&
         (inCard ? (
-          <SeriesCardView onClose={() => setWatchEntry(null)}>
+          <SeriesCardView title={watchProps(watchEntry).title} onClose={() => setWatchEntry(null)}>
             {(v) => <WatchForm {...v} {...watchProps(watchEntry)} />}
           </SeriesCardView>
         ) : (
@@ -1689,7 +1683,7 @@ export function CatalogGrid({
         )}
         {rematch &&
           (rematchInCard ? (
-            <SeriesCardView onClose={() => setRematch(null)}>
+            <SeriesCardView title={rematchTitle(rematch)} onClose={() => setRematch(null)}>
               {(v) => (
                 <RematchForm
                   {...v}
@@ -1902,7 +1896,7 @@ function SyncForm({
   onConfirm,
   onClose,
   seed,
-  onBack,
+  inPage,
   className = '',
 }: SyncFormProps & Partial<CardViewProps>) {
   const { t } = useTranslation()
@@ -1939,14 +1933,14 @@ function SyncForm({
   const targetLabel = useLocalTargetLabel(target)
   return (
     <div className={`dialog-body ${className}`}>
-      <header className="flex items-start gap-2 border-b border-border-subtle px-5 py-4">
-        {onBack && <BackToCard onClick={onBack} />}
-        <div className="min-w-0 self-center">
+      <header className={`border-b border-border-subtle px-5 ${inPage ? 'py-3' : 'py-4'}`}>
+        {/* in the series page its bar names the form, the path stays */}
+        {!inPage && (
           <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
-          <span className="mt-1 block truncate font-mono text-xs text-t-muted" title={entry.path}>
-            {entry.path}
-          </span>
-        </div>
+        )}
+        <span className={`block truncate font-mono text-xs text-t-muted ${inPage ? '' : 'mt-1'}`} title={entry.path}>
+          {entry.path}
+        </span>
       </header>
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
@@ -2159,6 +2153,8 @@ function RematchDialog(props: RematchProps) {
   )
 }
 
+const rematchTitle = (item: RematchProps['item']) => `MATCH: ${item.entry.name}`
+
 // The match search without a dialog, for the title card to show in place of
 // its content.
 function RematchForm({
@@ -2166,7 +2162,7 @@ function RematchForm({
   item,
   onClose,
   onPicked,
-  onBack,
+  inPage,
   className = '',
 }: RematchProps & Partial<CardViewProps>) {
   const { t } = useTranslation()
@@ -2239,10 +2235,8 @@ function RematchForm({
 
   return (
     <div className={`overflow-y-auto p-5 ${className}`}>
-      <div className="mb-1 flex items-center gap-2">
-        {onBack && <BackToCard onClick={onBack} />}
-        <h3 className="min-w-0 font-display font-semibold tracking-wider">MATCH: {item.entry.name}</h3>
-      </div>
+      {/* in the series page its bar names the form */}
+      {!inPage && <h3 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(item)}</h3>}
       {item.media && (
         <p className="mb-2 text-xs text-t-muted">
           {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}

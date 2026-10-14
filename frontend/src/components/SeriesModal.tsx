@@ -106,13 +106,19 @@ interface ViewApi {
   /** where a view renders: inside the page, in place of its content */
   host: HTMLElement | null
   attach: (v: View) => () => void
+  /** what the page's bar calls the view while it is shown */
+  name: (title: string) => void
 }
 const ViewCtx = createContext<ViewApi | null>(null)
 
 /** What a form shown in the page gets from it, to spread onto the form. */
 export interface CardViewProps {
-  /** the back arrow: asks the form's guard, then goes back to the page */
-  onBack: () => void
+  /**
+   * The form stands in the page, whose bar already names it and leads back
+   * (past the form's guard): the form leaves out a header of its own, as a
+   * stacked screen leaves its large title to the app bar.
+   */
+  inPage: true
   /** hands over the form's unsaved-changes check */
   onGuard: (check: () => Promise<boolean>) => void
   /** the slide in, on the routes' shared axis */
@@ -128,9 +134,12 @@ export interface CardViewProps {
  * gesture leaves the form first, past its guard.
  */
 export function SeriesCardView({
+  title,
   onClose,
   children,
 }: {
+  /** the form's name, shown in the page's bar in place of the series name */
+  title: string
   onClose: () => void
   children: (v: CardViewProps) => ReactNode
 }) {
@@ -141,33 +150,21 @@ export function SeriesCardView({
   useLayoutEffect(() => {
     closeRef.current = onClose
   })
-  const { attach } = ctx
+  const { attach, name } = ctx
   useLayoutEffect(() => attach({ close: () => closeRef.current(), guard: () => guard.current() }), [attach])
+  useLayoutEffect(() => name(title), [name, title])
   const close = useCallback(() => closeRef.current(), [])
   const ask = useCallback(() => guard.current(), [])
   useBackEntry(close, ask)
-  const onBack = useCallback(async () => {
-    if (await guard.current()) closeRef.current()
-  }, [])
   const onGuard = useCallback((check: () => Promise<boolean>) => {
     guard.current = check
   }, [])
   if (!ctx.host) return null
-  return createPortal(<ViewBody render={children} onBack={onBack} onGuard={onGuard} />, ctx.host)
+  return createPortal(<ViewBody render={children} onGuard={onGuard} />, ctx.host)
 }
 
-function ViewBody({ render, ...v }: Omit<CardViewProps, 'className'> & { render: (v: CardViewProps) => ReactNode }) {
-  return render({ ...v, className: 'anim-route-push' })
-}
-
-/** The back arrow at the head of a form shown in the page; focus starts there. */
-export function BackToCard({ onClick }: { onClick: () => void }) {
-  const { t } = useTranslation()
-  return (
-    <IconButton aria-label={t('watch.backToCard')} title={t('watch.backToCard')} onClick={onClick} autoFocus>
-      <ArrowLeft aria-hidden size="1.2em" />
-    </IconButton>
-  )
+function ViewBody({ render, ...v }: Pick<CardViewProps, 'onGuard'> & { render: (v: CardViewProps) => ReactNode }) {
+  return render({ ...v, inPage: true, className: 'anim-route-push' })
 }
 
 /** The one way to open the series page, from any cover in the app. */
@@ -419,6 +416,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
   // The form shown in the page, if any. One at a time: a second replaces the
   // first. The page asks its guard before it closes, and closes it with it.
   const [viewOn, setViewOn] = useState(false)
+  const [viewTitle, setViewTitle] = useState('')
   const [host, setHost] = useState<HTMLElement | null>(null)
   // the page notes its scroll and focus here before its content steps aside
   const away = useRef<() => void>(() => {})
@@ -432,7 +430,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       setViewOn(false)
     }
   }, [])
-  const views = useMemo(() => ({ host, attach }), [host, attach])
+  const views = useMemo(() => ({ host, attach, name: setViewTitle }), [host, attach])
   // the page went (back gesture, a route change): its form goes with it
   useEffect(() => {
     if (!shown) view.current?.close()
@@ -505,6 +503,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
               onRelated={related}
               onBack={() => nav(-1)}
               viewOn={viewOn}
+              viewTitle={viewTitle}
               viewHost={setHost}
               viewGuard={() => view.current?.guard() ?? Promise.resolve(true)}
               viewClose={() => view.current?.close()}
@@ -533,6 +532,8 @@ interface CardProps {
   onBack: () => void
   /** a form is shown in place of the content (SeriesCardView) */
   viewOn: boolean
+  /** its name, for the bar */
+  viewTitle: string
   viewHost: (el: HTMLElement | null) => void
   viewGuard: () => Promise<boolean>
   viewClose: () => void
@@ -547,6 +548,7 @@ function SeriesCard({
   onRelated,
   onBack,
   viewOn,
+  viewTitle,
   viewHost,
   viewGuard,
   viewClose,
@@ -882,6 +884,11 @@ function SeriesCard({
     if (sec.current[k]) jump(k, false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mine.length, watchesIn])
+  // into a form shown in the page, focus starts on the bar's way back, the
+  // first thing of the form's own header
+  useLayoutEffect(() => {
+    if (viewOn) scroller.current?.querySelector<HTMLElement>('.ws-d-bar button')?.focus({ preventScroll: true })
+  }, [viewOn])
   // back from the editor: the scroll it left, and focus where the edit came from
   useLayoutEffect(() => {
     const was = away.current
@@ -919,7 +926,7 @@ function SeriesCard({
   return (
     <>
       {editing && (
-        <SeriesCardView onClose={() => setEditing(null)}>
+        <SeriesCardView title={t('watch.editTitle')} onClose={() => setEditing(null)}>
           {(v) => (
             <WatchForm
               {...v}
@@ -948,13 +955,24 @@ function SeriesCard({
           void back()
         }}
       >
+        {/* the one header of a form shown in the page: its way back and its
+            name, which only here is a heading - the series name it stands in
+            for is the page's h1 further down */}
         <div className="ws-d-bar">
-          <IconButton aria-label={t('series.backLabel')} title={t('series.backLabel')} onClick={() => void back()}>
+          <IconButton
+            aria-label={viewOn ? t('watch.backToCard') : t('series.backLabel')}
+            title={viewOn ? t('watch.backToCard') : t('series.backLabel')}
+            onClick={() => void back()}
+          >
             <ArrowLeft aria-hidden size="1.25rem" />
           </IconButton>
-          <span className="ws-d-bar-t" aria-hidden>
-            {viewOn ? t('watch.editTitle') : name}
-          </span>
+          {viewOn ? (
+            <h2 className="ws-d-bar-t">{viewTitle}</h2>
+          ) : (
+            <span className="ws-d-bar-t" aria-hidden>
+              {name}
+            </span>
+          )}
         </div>
         {viewOn ? (
           <div ref={viewHost} className="ws-d-edit" />

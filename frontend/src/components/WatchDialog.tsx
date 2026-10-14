@@ -1,9 +1,9 @@
-import { ArrowLeft, Folder, Save, X } from 'lucide-react'
+import { Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
-import { Button, Dialog, Field, IconButton, Input, Select } from 'fluid-lycoris'
+import { Button, Dialog, Field, Input, Select } from 'fluid-lycoris'
 import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
@@ -98,13 +98,13 @@ export function WatchForm({
   saveLabel,
   info,
   onGuard,
-  onBack,
+  inPage,
   className,
 }: WatchFormProps & {
   /** receives the unsaved-changes check, for the container to ask */
   onGuard: (check: () => Promise<boolean>) => void
-  /** a back arrow before the title, for a form that replaced other content */
-  onBack?: () => void
+  /** shown in the series page, whose bar carries the title and the way back */
+  inPage?: boolean
   className?: string
 }) {
   const { t } = useTranslation()
@@ -328,21 +328,27 @@ export function WatchForm({
 
   return (
     <form className={`dialog-body ${className ?? ''}`} onSubmit={submit}>
-      <header className="flex items-start gap-2 border-b border-border-subtle px-5 py-4">
-        {onBack && (
-          <IconButton aria-label={t('watch.backToCard')} title={t('watch.backToCard')} onClick={onBack} autoFocus>
-            <ArrowLeft aria-hidden size="1.2em" />
-          </IconButton>
-        )}
-        <div className="min-w-0 self-center">
+      {inPage ? (
+        // the page's bar names the form; only the context lines stay
+        info?.length ? (
+          <div className="border-b border-border-subtle px-5 py-3">
+            {info.map((line, i) => (
+              <p key={i} className="text-ctl-sm text-t-secondary">
+                {line}
+              </p>
+            ))}
+          </div>
+        ) : null
+      ) : (
+        <header className="border-b border-border-subtle px-5 py-4">
           <h2 className="ws-form-title">{title}</h2>
           {info?.map((line, i) => (
             <p key={i} className="mt-1 text-ctl-sm text-t-secondary">
               {line}
             </p>
           ))}
-        </div>
-      </header>
+        </header>
+      )}
 
       <div className="min-h-0 flex-1 space-y-7 overflow-y-auto px-5 py-4">
         <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPaths')}>

@@ -4,7 +4,6 @@ import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes, Link, 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
-  BackToCard,
   SeriesCardView,
   SeriesModalProvider,
   TITLE_PATH,
@@ -78,6 +77,7 @@ function Opener() {
       <button onClick={() => back(-1)}>zurück</button>
       {form && (
         <SeriesCardView
+          title="Sync-Formular"
           onClose={() => {
             formClosed++
             setForm(false)
@@ -85,8 +85,7 @@ function Opener() {
         >
           {(v) => (
             <div className={`dialog-body ${v.className}`}>
-              <BackToCard onClick={v.onBack} />
-              <h3>Sync-Formular</h3>
+              <p>Formularinhalt</p>
             </div>
           )}
         </SeriesCardView>
@@ -507,7 +506,11 @@ describe('SeriesModalProvider', () => {
     await openEditor()
 
     expect(screen.getAllByRole('dialog')).toHaveLength(1)
-    expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()
+    // one header: the page's bar names the editor and leads back, the form
+    // repeats neither
+    expect(screen.getAllByRole('heading', { name: 'watch.editTitle' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: 'watch.backToCard' })).toHaveLength(1)
+    expect(screen.getAllByText('watch.editTitle')).toHaveLength(1)
     expect(screen.queryByRole('navigation', { name: 'series.sectionsLabel' })).toBeNull()
     expect(screen.getByRole('button', { name: 'watch.backToCard' })).toHaveFocus()
 
