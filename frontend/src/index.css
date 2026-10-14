@@ -423,12 +423,8 @@ main:has(.page-fill) {
 @keyframes nav-turn { from { rotate: -150deg; } }
 @keyframes nav-needle { from { rotate: -60deg; } }
 @keyframes nav-open { from { rotate: -10deg; scale: 0.8; } }
-/* Heute's tiles grow in one after the other, each from its own centre */
-.t-nav-tile { transform-box: fill-box; transform-origin: center; }
-[aria-current='page'] .t-nav-tile { animation: nav-tile 320ms var(--m3-spatial) calc(var(--i) * 60ms) backwards; }
-@keyframes nav-tile { from { scale: 0.4; opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { [aria-current='page'] :is(.t-nav-icon, .t-nav-tile) { animation: none; } }
-:root[data-motion='off'] [aria-current='page'] :is(.t-nav-icon, .t-nav-tile) { animation: none; }
+@media (prefers-reduced-motion: reduce) { [aria-current='page'] .t-nav-icon { animation: none; } }
+:root[data-motion='off'] [aria-current='page'] .t-nav-icon { animation: none; }
 
 /* A video row's icon is its play button: the file glyph gives way to the play
    glyph under the pointer or focus. A finger has no hover, so on touch the

@@ -1,9 +1,9 @@
-import { useEffect, useEffectEvent, useRef, type CSSProperties, type RefObject } from 'react'
+import { useEffect, useEffectEvent, useRef, type RefObject } from 'react'
 import type { LucideProps } from 'lucide-react'
 
 // Two navigation icons drawn in lucide's grid with moving parts, played as
-// their page becomes the current one: the dashboard's tiles grow in one by
-// one, the folder's front swings open and stays open while the page is
+// their page becomes the current one: the dashboard's columns trade their
+// tiles and back, the folder's front swings open and stays open while the page is
 // current. Lucide's own icons are one piece and can't do that. The folder
 // morphs its outline with SVG <animate>, which every engine runs (WebKit
 // can't animate the CSS d property).
@@ -54,29 +54,38 @@ function play(a: SVGAnimationElement | null) {
   else a.beginElement()
 }
 
-// Heute's sign: lucide's dashboard grid, the tiles growing in one after
-// the other as the page becomes current (.t-nav-tile in index.css)
+// Heute's sign: lucide's dashboard grid. As the page becomes current the
+// two columns trade their tall and short tiles and trade back, once; at rest
+// it is the plain grid. y and height move by SVG <animate> (WebKit doesn't
+// animate them as CSS).
 const TILES = [
-  { x: 3, y: 3, h: 9 },
-  { x: 14, y: 3, h: 5 },
-  { x: 14, y: 12, h: 9 },
-  { x: 3, y: 16, h: 5 },
+  { x: 3, y: [3, 3], h: [9, 5] },
+  { x: 14, y: [3, 3], h: [5, 9] },
+  { x: 14, y: [12, 16], h: [9, 5] },
+  { x: 3, y: [16, 12], h: [5, 9] },
 ]
+const there = (a: number[]) => `${a[0]};${a[1]};${a[1]};${a[0]}`
 
 export function DashboardIcon(props: LucideProps) {
+  const ref = useRef<SVGSVGElement>(null)
+  useCurrent(ref, (current, first) => {
+    if (!current || first || still()) return
+    ref.current?.querySelectorAll('animate').forEach((a) => a.beginElement())
+  })
+  const swap = {
+    dur: '0.9s',
+    begin: 'indefinite',
+    keyTimes: '0;0.4;0.6;1',
+    calcMode: 'spline',
+    keySplines: '0.3 0 0.2 1;0 0 1 1;0.4 0 0.2 1',
+  } as const
   return (
-    <svg {...svg(props)}>
+    <svg ref={ref} {...svg(props)}>
       {TILES.map((r, i) => (
-        <rect
-          key={i}
-          className="t-nav-tile"
-          style={{ '--i': i } as CSSProperties}
-          width="7"
-          height={r.h}
-          x={r.x}
-          y={r.y}
-          rx="1"
-        />
+        <rect key={i} width="7" height={r.h[0]} x={r.x} y={r.y[0]} rx="1">
+          <animate {...swap} attributeName="y" values={there(r.y)} />
+          <animate {...swap} attributeName="height" values={there(r.h)} />
+        </rect>
       ))}
     </svg>
   )
