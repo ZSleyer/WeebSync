@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Download, Lightbulb, X } from 'lucide-react'
@@ -72,15 +72,41 @@ const subscribe = (f: () => void) => {
 const useOffer = () => useSyncExternalStore(subscribe, () => offer)
 const useInstalledNow = () => useSyncExternalStore(subscribe, () => installedNow)
 
+const TIPS_KEY = 'weebsync.tips'
+function readTips(): TipsState | undefined {
+  try {
+    const v = JSON.parse(localStorage.getItem(TIPS_KEY) ?? 'null') as TipsState | null
+    return v && Array.isArray(v.dismissed) ? v : undefined
+  } catch {
+    return undefined
+  }
+}
+function writeTips(v: TipsState) {
+  try {
+    localStorage.setItem(TIPS_KEY, JSON.stringify(v))
+  } catch {
+    /* private mode: the next visit asks the server again */
+  }
+}
+
 export default function Tips() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  // nothing shows until the list is in: a hint closed elsewhere must not flash
+  // nothing shows until the list is in: a hint closed elsewhere must not
+  // flash. The last list this browser saw stands in meanwhile (and is checked
+  // against the server at once), so a hint still open does not drop in after
+  // the first paint and push the whole page down.
   const { data } = useQuery({
     queryKey: ['tips'],
     queryFn: () => api.get<TipsState>('/api/auth/tips'),
-    staleTime: Infinity,
+    // the stand-in is stale from the start, the server's answer never is
+    staleTime: (q) => (q.state.dataUpdatedAt === 0 ? 0 : Infinity),
+    initialData: readTips,
+    initialDataUpdatedAt: 0,
   })
+  useEffect(() => {
+    if (data) writeTips(data)
+  }, [data])
   const desktop = useMediaQuery(`(pointer: fine) and ${WIDE_MQ}`)
   const touch = useMediaQuery('(pointer: coarse)')
   const standalone = useMediaQuery('(display-mode: standalone)')

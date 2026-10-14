@@ -48,6 +48,7 @@ describe('Tips', () => {
   afterEach(() => {
     window.matchMedia = real
     vi.restoreAllMocks()
+    localStorage.clear()
   })
 
   // a phone: a finger, in a browser tab
@@ -75,6 +76,18 @@ describe('Tips', () => {
     vi.spyOn(api, 'get').mockReturnValue(new Promise(() => {}))
     mount()
     expect(screen.queryByRole('complementary')).toBeNull()
+  })
+
+  it('shows a hint still open on the last visit at once, then asks the server', async () => {
+    asPhone()
+    localStorage.setItem('weebsync.tips', JSON.stringify({ dismissed: [] }))
+    const get = vi.spyOn(api, 'get').mockResolvedValue({ dismissed: ['install-pwa'] })
+    mount()
+    // no wait for the request: the page does not move down when it lands
+    expect(screen.getByRole('complementary')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledWith('/api/auth/tips')
+    // closed on another device: the answer takes it away again
+    await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull())
   })
 
   it('keeps a hint closed elsewhere hidden', async () => {
