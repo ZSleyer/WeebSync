@@ -15,6 +15,8 @@ const arg = (name, dflt) => {
   return i > 0 ? process.argv[i + 1] : dflt
 }
 const BASE = arg('base', 'http://127.0.0.1:8099')
+// WS_LANG=en audits the English UI; German is the default
+const LANG = process.env.WS_LANG === 'en' ? 'en' : 'de'
 const OUT = arg('out', './e2e-shots')
 const TAG = arg('tag', '')
 
@@ -421,7 +423,10 @@ const run = async (name, browserType) => {
       colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light',
       reducedMotion: 'reduce',
       serviceWorkers: 'block',
+      locale: LANG === 'en' ? 'en-US' : 'de-DE',
     })
+    // the app keeps the language it was last shown in: set it before it reads it
+    await ctx.addInitScript((l) => localStorage.setItem('weebsync.locale', l), LANG)
     const page = await ctx.newPage()
     const errors = []
     // a navigation aborts the app's open SSE streams; that is expected noise

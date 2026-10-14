@@ -13,6 +13,8 @@ const arg = (n, d) => {
   return i > 0 ? process.argv[i + 1] : d
 }
 const BASE = arg('base', 'http://127.0.0.1:8080')
+// WS_LANG=en audits the English UI; German is the default
+const LANG = process.env.WS_LANG === 'en' ? 'en' : 'de'
 
 // route -> the controls that open a dialog there, by accessible name. `setup`
 // runs first for views that are not the route's default, and returns false
@@ -333,7 +335,10 @@ const run = async (browserName, type) => {
       colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light',
       reducedMotion: 'reduce',
       serviceWorkers: 'block',
+      locale: LANG === 'en' ? 'en-US' : 'de-DE',
     })
+    // the app keeps the language it was last shown in: set it before it reads it
+    await ctx.addInitScript((l) => localStorage.setItem('weebsync.locale', l), LANG)
     const page = await ctx.newPage()
     await signIn(ctx, page, BASE)
     for (const { route, names, setup, label, role = 'button', css } of TRIGGERS) {
