@@ -27,7 +27,7 @@ export default function About() {
 
   return (
     <SettingsPanel className="set-about">
-      <div className="set-about-brand">
+      <div className="set-about-brand font-display text-2xl font-bold tracking-[0.2em]">
         <Brand variant="about" slogan={t('app.tagline')} />
       </div>
       <p className="set-about-v">
