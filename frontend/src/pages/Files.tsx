@@ -93,7 +93,7 @@ import { useStored } from '../hooks/useStored'
 import { catalogTitle, firstVideo, isVideo, playHref, viewHref, viewKind } from '../components/playLinks'
 import PathInput from '../components/PathInput'
 import FileIcon from '../components/FileIcon'
-import PageActions from '../components/PageActions'
+import PageActions, { PageToolbar } from '../components/PageActions'
 import { TrashButton } from './Trash'
 import RenameOptions, { type RenameProfile, type RenameRule } from '../components/RenameOptions'
 import RenamePreview from '../components/RenamePreview'
@@ -795,24 +795,27 @@ export default function Files() {
       )}
 
       {selecting && (
-        <div className="ws-sel-bar" role="toolbar" aria-label={t('files.selection')}>
-          <button type="button" className="ws-sel-done" onClick={() => setChecked(new Set())}>
-            <X aria-hidden size={20} />
-            <span>{t('files.checkedCount', { count: checked.size })}</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => goTo(`/rename?path=${encodeURIComponent(path)}`)}
-            aria-label={t('local.renameEpisodes')}
-          >
-            <PenLine aria-hidden size={20} />
-            <span>{t('local.rename')}</span>
-          </button>
-          <button type="button" className="ws-sel-danger" onClick={() => void removeChecked()}>
-            <Trash2 aria-hidden size={20} />
-            <span>{t('local.delete')}</span>
-          </button>
-        </div>
+        // on a phone it takes the tab bar's place, on a desktop it floats
+        <PageToolbar>
+          <div className="ws-sel-bar" role="toolbar" aria-label={t('files.selection')}>
+            <button type="button" className="ws-sel-done" onClick={() => setChecked(new Set())}>
+              <X aria-hidden size={20} />
+              <span>{t('files.checkedCount', { count: checked.size })}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => goTo(`/rename?path=${encodeURIComponent(path)}`)}
+              aria-label={t('local.renameEpisodes')}
+            >
+              <PenLine aria-hidden size={20} />
+              <span>{t('local.rename')}</span>
+            </button>
+            <button type="button" className="ws-sel-danger" onClick={() => void removeChecked()}>
+              <Trash2 aria-hidden size={20} />
+              <span>{t('local.delete')}</span>
+            </button>
+          </div>
+        </PageToolbar>
       )}
 
       {sheet && (

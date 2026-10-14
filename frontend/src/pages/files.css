@@ -59,21 +59,13 @@
 }
 @keyframes ws-bar-in { from { opacity: 0; translate: 0 12px; } }
 
-/* the selection bar: over the tab bar on a phone, floating on a desktop */
+/* the selection bar: in the shell's toolbar slot in place of the tab bar on
+   a phone, floating over the content on a desktop */
 .ws-sel-bar {
-  position: fixed;
-  /* over the tab bar (z 50), under the full-screen media views (z 60) */
-  z-index: 55;
-  left: 0;
-  right: 0;
-  bottom: 0;
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: 1fr;
-  height: calc(var(--nav-h, 60px) + env(safe-area-inset-bottom, 0px));
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: var(--card);
-  border-top: 1px solid var(--line-strong);
+  height: var(--nav-h, 60px);
 }
 .ws-sel-bar > button {
   display: flex;
@@ -94,6 +86,8 @@
 .ws-sel-bar > .ws-sel-danger { color: var(--err); }
 @media (width >= 64rem) {
   .ws-sel-bar {
+    position: fixed;
+    z-index: 40;
     left: calc(50% + var(--side-w, 0px) / 2);
     right: auto;
     bottom: 1.5rem;
@@ -102,6 +96,7 @@
     gap: 0.25rem;
     height: 3.25rem;
     padding: 0 0.375rem;
+    background: var(--card);
     border: 1px solid var(--line-strong);
     border-radius: 0.75rem;
   }
