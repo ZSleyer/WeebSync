@@ -107,9 +107,12 @@ export function FolderIcon(props: LucideProps) {
   const ref = useRef<SVGSVGElement>(null)
   const open = useRef<SVGAnimationElement>(null)
   const close = useRef<SVGAnimationElement>(null)
+  const tilt = useRef<SVGAnimationElement>(null)
+  const settle = useRef<SVGAnimationElement>(null)
   useCurrent(ref, (current, first) => {
     if (first && !current) return
     play(current ? open.current : close.current)
+    play(current ? tilt.current : settle.current)
   })
   const morph = {
     attributeName: 'd',
@@ -122,11 +125,16 @@ export function FolderIcon(props: LucideProps) {
   } as const
   return (
     <svg ref={ref} {...svg(props)}>
-      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
-      <path d={FLAT}>
-        <animate ref={open} {...morph} values={`${FLAT};${TIPPED}`} />
-        <animate ref={close} {...morph} values={`${TIPPED};${FLAT}`} />
-      </path>
+      {/* the whole folder leans a little as it opens, on its bottom edge */}
+      <g>
+        <animateTransform ref={tilt} {...morph} attributeName="transform" type="rotate" values="0 12 20;-6 12 20" />
+        <animateTransform ref={settle} {...morph} attributeName="transform" type="rotate" values="-6 12 20;0 12 20" />
+        <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+        <path d={FLAT}>
+          <animate ref={open} {...morph} values={`${FLAT};${TIPPED}`} />
+          <animate ref={close} {...morph} values={`${TIPPED};${FLAT}`} />
+        </path>
+      </g>
     </svg>
   )
 }
