@@ -32,6 +32,10 @@ type OIDC struct {
 	claim       string
 	adminValues []string
 	userValues  []string
+	// the provider announces S256 PKCE, so every login carries a code
+	// challenge (RFC 9700 2.1.1). Only then: a provider that does not know
+	// the parameter may refuse the whole login over it.
+	pkce bool
 }
 
 // Manager holds the current OIDC provider; settings changes rebuild it at
@@ -89,6 +93,10 @@ func (m *Manager) Reload(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("oidc discovery: %w", err)
 	}
+	var disc struct {
+		Methods []string `json:"code_challenge_methods_supported"`
+	}
+	provider.Claims(&disc)
 	claim := db.SettingOrEnv(m.DB, "oidc_claim", "OIDC_CLAIM")
 	scopes := []string{oidc.ScopeOpenID, "email", "profile"}
 	if claim != "" && claim != "email" && claim != "profile" {
@@ -107,6 +115,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 		claim:       claim,
 		adminValues: splitCSV(db.SettingOrEnv(m.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES")),
 		userValues:  splitCSV(db.SettingOrEnv(m.DB, "oidc_user_values", "OIDC_USER_VALUES")),
+		pkce:        slices.Contains(disc.Methods, "S256"),
 	}
 	m.mu.Lock()
 	m.cur = o
@@ -159,7 +168,18 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_oidc_remember", Value: remember, Path: "/api/auth/oidc",
 		MaxAge: 600,
 	})
-	http.Redirect(w, r, o.config.AuthCodeURL(state, oidc.Nonce(nonce)), http.StatusFound)
+	opts := []oauth2.AuthCodeOption{oidc.Nonce(nonce)}
+	if o.pkce {
+		// the verifier stays with this browser; a stolen code alone cannot
+		// be exchanged without it
+		verifier := oauth2.GenerateVerifier()
+		SetCookie(w, r, &http.Cookie{
+			Name: "weebsync_oidc_pkce", Value: verifier, Path: "/api/auth/oidc",
+			MaxAge: 600,
+		})
+		opts = append(opts, oauth2.S256ChallengeOption(verifier))
+	}
+	http.Redirect(w, r, o.config.AuthCodeURL(state, opts...), http.StatusFound)
 }
 
 func randHex() (string, error) {
@@ -203,9 +223,19 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		Name: "weebsync_oidc_nonce", Value: "", Path: "/api/auth/oidc",
 		MaxAge: -1,
 	})
+	var exchangeOpts []oauth2.AuthCodeOption
+	if o.pkce {
+		pc, perr := r.Cookie("weebsync_oidc_pkce")
+		SetCookie(w, r, &http.Cookie{Name: "weebsync_oidc_pkce", Value: "", Path: "/api/auth/oidc", MaxAge: -1})
+		if perr != nil || pc.Value == "" {
+			callbackFail(w, r, "invalid_state")
+			return
+		}
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pc.Value))
+	}
 	// token exchange + JWKS verification also go through the guarded client
 	octx := oidc.ClientContext(r.Context(), netguard.Client(10*time.Second))
-	token, err := o.config.Exchange(octx, r.URL.Query().Get("code"))
+	token, err := o.config.Exchange(octx, r.URL.Query().Get("code"), exchangeOpts...)
 	if err != nil {
 		callbackFail(w, r, "exchange_failed")
 		return
