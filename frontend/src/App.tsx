@@ -35,6 +35,7 @@ import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage }
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, ShellToolbar, TitleActions, WIDE_MQ } from './components/PageActions'
 import { LiveProvider } from './components/liveState'
+import { BackLink } from './components/BackLink'
 import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
 import Setup, { FINISHING_KEY } from './pages/Setup'
 import Login from './pages/Login'
@@ -164,6 +165,9 @@ export interface RouteHandle {
    *  its notice row and the live pill step aside, and no route motion is
    *  left on the page; a desktop keeps its sidebar */
   immersive?: boolean
+  /** a layout that draws its own desktop heading with its back link
+   *  (settings): the shell's title row stays out */
+  ownTitle?: boolean
 }
 const h = (title: string, back?: string, section?: string): RouteHandle => ({ title, back, section })
 const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
@@ -254,7 +258,7 @@ export const router = createBrowserRouter(
         element={<Rules />}
         handle={{ title: 'settings.nav.rules', back: '/settings', backHistory: true }}
       />
-      <Route path="/settings" element={<SettingsLayout />} handle={h('nav.settings')}>
+      <Route path="/settings" element={<SettingsLayout />} handle={{ ...h('nav.settings'), ownTitle: true }}>
         <Route index element={<SettingsHub />} />
         <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
         <Route path="look" element={<Navigate to="/settings/general" replace />} />
@@ -417,7 +421,11 @@ function Shell({ email }: { email: string }) {
   // the desktop title row, both held in state like the app bar's
   const [toolbar, setToolbar] = useState<HTMLElement | null>(null)
   const [titleActions, setTitleActions] = useState<HTMLElement | null>(null)
-  const titleRow = wide && !back
+  // the desktop title row: every screen's h1, with the way back on a stacked
+  // one; not over a full-screen view and not where a layout draws its own
+  const matches = useMatches()
+  const ownTitle = matches.some((m) => (m.handle as RouteHandle | undefined)?.ownTitle)
+  const titleRow = wide && !fullScreen && !ownTitle
   const navType = useNavigationType()
   const prev = useRef({ path: location.pathname, back })
   const motion = useMemo(() => {
@@ -627,12 +635,13 @@ function Shell({ email }: { email: string }) {
                           </>
                         }
                       >
-                        {/* the desktop's title row: a top-level page's h1 over the
-                      content; a stacked screen keeps its own heading. Only
+                        {/* the desktop's title row: the screen's h1 over the
+                      content, with a back link on a stacked screen. Only
                       rendered wide: on a phone the pull to refresh moves the
                       first thing in <main> */}
                         {titleRow && (
                           <header className="ws-title">
+                            {back && <BackLink to={back} className="-ml-2" />}
                             <h1>
                               <span ref={deskTitle}>{screenTitle}</span>
                             </h1>

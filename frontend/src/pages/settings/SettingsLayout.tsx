@@ -23,6 +23,7 @@ import { api } from '../../api'
 import { logout, useAuth, useUpdateHint } from '../../hooks'
 import { WIDE_MQ } from '../../components/PageActions'
 import { SectionOutlet } from '../../components/RouteTransition'
+import { BackLink } from '../../components/BackLink'
 import type { SectionGroup, SectionItem } from '../../components/SectionNav'
 import type { RouteHandle } from '../../App'
 import './settings.css'
@@ -244,6 +245,9 @@ export default function SettingsLayout() {
     <div className="flex min-h-0 flex-1 flex-col">
       {/* the desktop's title row; on a phone the app bar holds the h1 */}
       <header className="set-head">
+        {/* out of settings: back where they were opened from, home when
+            nothing of the app is behind them (/settings opens a section) */}
+        <BackLink to="/" className="mr-2 -ml-2" />
         <h1>{t('settings.title')}</h1>
       </header>
       <div className="set-wrap">

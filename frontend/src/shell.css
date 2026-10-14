@@ -188,13 +188,16 @@
   }
 }
 
-/* ── Desktop title row: the page's h1 over the content. A phone names the
-   page in its top bar instead, so no top-level page draws a large title of
-   its own; a stacked screen (a back link) keeps its heading on a desktop. ── */
+/* ── Desktop title row: the screen's h1 over the content, after a back link
+   on a stacked screen. A phone names the screen in its top bar instead. So
+   a page's own large title stays out wherever one of these names it: the
+   title row on a desktop, the top bar of a top-level page on a phone (a
+   stacked one hides the whole in-page header, see index.css). A layout that
+   draws its own heading (settings) has no title row and keeps its titles. ── */
 .ws-title {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem 1rem;
   min-height: 2.75rem;
   margin-bottom: 1rem;
 }
@@ -203,7 +206,12 @@
   font: 600 var(--fs-title-lg) / 1.15 var(--f-display);
   letter-spacing: 0.01em;
 }
-.app-shell:not([data-stacked]) > main .t-page-title {
+@media (width < 64rem) {
+  .app-shell:not([data-stacked]) > main .t-page-title {
+    display: none;
+  }
+}
+.app-shell > main:has(> .ws-title) .t-page-title {
   display: none;
 }
 
