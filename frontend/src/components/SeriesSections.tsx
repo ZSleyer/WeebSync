@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ExternalLink } from 'lucide-react'
-import { Button, Rows, SectionHeading } from 'fluid-lycoris'
+import { ChevronRight } from 'lucide-react'
+import { Badge, Button, Rows, SectionHeading } from 'fluid-lycoris'
 import {
   api,
   mediaTitle,
@@ -19,6 +19,8 @@ import type { SheetAction } from './ActionSheet'
 import { CatalogWhy } from './CatalogWhy'
 import Loading from './Loading'
 import { CoverImg, SmartImg } from './SmartImg'
+import { ThreadReader, threadLabel } from './ThreadReader'
+import { shortThreadTitle, type ShortTitle } from './threadText'
 
 /** One line, where the source is down: the section is not broken, the provider is. */
 export function Unavailable({ when, source }: { when: boolean; source: string }) {
@@ -165,22 +167,32 @@ export function Similar({
   )
 }
 
-/** Reviews first, as quotes, then the forum threads. */
+/**
+ * Reviews first, as quotes, then the forum threads. Each part reports its
+ * own failure: the reviews and the threads come from separate requests.
+ * A thread opens in the reader; its title is shortened by the series' own
+ * names (`names`), so episode threads read "Episode 21" in the reader's language, not the same cut-off
+ * series title every time.
+ */
 export function Community({
   source,
   id,
   threads,
+  names,
   failed,
   headingId,
 }: {
   source: string
   id: number
   threads?: MediaExtras['threads']
+  /** the series' titles and synonyms, stripped from thread titles */
+  names: (string | undefined)[]
   failed: boolean
   headingId: string
 }) {
   const { t } = useTranslation()
   const [all, setAll] = useState(false)
+  const [reading, setReading] = useState<{ th: MediaExtras['threads'][number]; short: ShortTitle } | null>(null)
   const { data: rev, isError: reviewsFailed } = useQuery<{ reviews: Review[] }>({
     queryKey: ['reviews', source, id],
     queryFn: () => api.get(`/api/media/reviews?source=${source}&id=${id}`),
@@ -198,7 +210,7 @@ export function Community({
         title={t('series.tab.community')}
         action={<span className="ws-d-count">{src}</span>}
       />
-      <Unavailable when={failed || reviewsFailed} source={source} />
+      <Unavailable when={reviewsFailed} source={source} />
       {!rev && !reviewsFailed && <Loading />}
       {rev && rev.reviews.length === 0 && <p className="ws-d-quiet">{t('series.noReviews', { source: src })}</p>}
       {!!shown?.length && (
@@ -227,31 +239,58 @@ export function Community({
       {!source.startsWith('tmdb') && (
         <>
           <h3 className="ws-d-h3">{t('series.threads')}</h3>
+          <Unavailable when={failed && !threads} source={source} />
           {!threads && !failed && <Loading />}
           {threads && threads.length === 0 && <p className="ws-d-quiet">{t('series.noThreads')}</p>}
           {!!threads?.length && (
             <Rows className="ws-d-threads">
-              {threads.map((th) => (
-                <li key={th.id} className="t-row">
-                  <a className="t-row-in" href={th.url} target="_blank" rel="noreferrer">
-                    <span className="t-row-t">
-                      <strong>{th.title}</strong>
-                      <span>
-                        {[
-                          th.category,
-                          t('series.replies', { count: th.replies }),
-                          th.views ? t('series.views', { count: th.views }) : '',
-                          th.repliedAt ? t('series.lastReply', { date: day(th.repliedAt) }) : '',
-                        ]
-                          .filter(Boolean)
-                          .join(' · ')}
+              {threads.map((th) => {
+                const short = shortThreadTitle(th.title, names)
+                const label = threadLabel(short, th.title, t)
+                return (
+                  <li key={th.id} className="t-row">
+                    <button
+                      type="button"
+                      className="t-row-in"
+                      title={th.title}
+                      onClick={() => setReading({ th, short })}
+                    >
+                      <span className="t-row-t">
+                        <strong className="ws-th-title">
+                          {short.spoiler && (
+                            <Badge size="sm" tone="warn" aria-hidden>
+                              {t('thread.spoiler')}
+                            </Badge>
+                          )}
+                          <span aria-hidden>{label}</span>
+                          <span className="sr-only">{th.title}</span>
+                        </strong>
+                        <span>
+                          {[
+                            th.category,
+                            t('series.replies', { count: th.replies }),
+                            th.views ? t('series.views', { count: th.views }) : '',
+                            th.repliedAt ? t('series.lastReply', { date: day(th.repliedAt) }) : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </span>
                       </span>
-                    </span>
-                    <ExternalLink aria-hidden size="1rem" className="shrink-0 text-t-muted" />
-                  </a>
-                </li>
-              ))}
+                      <ChevronRight aria-hidden size="1rem" className="shrink-0 text-t-muted" />
+                    </button>
+                  </li>
+                )
+              })}
             </Rows>
+          )}
+          {reading && (
+            <ThreadReader
+              id={reading.th.id}
+              title={reading.th.title}
+              short={reading.short}
+              url={reading.th.url}
+              onClose={() => setReading(null)}
+            />
           )}
         </>
       )}

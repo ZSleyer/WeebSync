@@ -2708,5 +2708,24 @@
         "upgradesD": "Only whole steps count (720, 1080, 1440, 2160). An extra language only counts when it is one you want."
       }
     }
+  },
+  "thread": {
+    "episode": "Episode {{n}}",
+    "spoiler": "Spoiler",
+    "open": "Open on AniList",
+    "newTab": "opens in a new tab",
+    "comments": "Comments",
+    "noComments": "No comments yet.",
+    "more": "Load more",
+    "failed": "The discussion could not be loaded.",
+    "retry": "Try again",
+    "showSpoiler": "Show spoiler",
+    "hideSpoiler": "Hide spoiler",
+    "image": "Image",
+    "video": "Video",
+    "likes_one": "{{count}} like",
+    "likes_other": "{{count}} likes",
+    "by": "Post by {{name}}",
+    "replies": "Replies to {{name}}"
   }
 }

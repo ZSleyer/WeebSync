@@ -2708,5 +2708,24 @@
         "upgradesD": "Nur ganze Stufen zählen (720, 1080, 1440, 2160). Eine zusätzliche Sprache zählt nur, wenn sie zu den gewünschten gehört."
       }
     }
+  },
+  "thread": {
+    "episode": "Folge {{n}}",
+    "spoiler": "Spoiler",
+    "open": "Auf AniList öffnen",
+    "newTab": "öffnet in neuem Tab",
+    "comments": "Kommentare",
+    "noComments": "Noch keine Kommentare.",
+    "more": "Mehr laden",
+    "failed": "Die Diskussion konnte nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "showSpoiler": "Spoiler anzeigen",
+    "hideSpoiler": "Spoiler verbergen",
+    "image": "Bild",
+    "video": "Video",
+    "likes_one": "{{count}} Like",
+    "likes_other": "{{count}} Likes",
+    "by": "Beitrag von {{name}}",
+    "replies": "Antworten auf {{name}}"
   }
 }

@@ -1,0 +1,184 @@
+/* ── the thread reader: one AniList discussion, read in place ── */
+.ws-th-head {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem 0.5rem;
+  border-bottom: 1px solid var(--line);
+}
+.ws-th-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+}
+.ws-th-top h3 {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ws-th-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-th-meta .t-link {
+  min-height: 2.75rem;
+}
+.ws-th-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem 1.5rem;
+  overscroll-behavior: contain;
+}
+.ws-th-post,
+.ws-th-c {
+  display: grid;
+  gap: 0.375rem;
+  max-width: 68ch;
+  overflow-wrap: anywhere;
+}
+.ws-th-post {
+  margin-bottom: 1.25rem;
+}
+.ws-th-post p,
+.ws-th-c p {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+}
+.ws-th-post p:last-child,
+.ws-th-c p:last-child {
+  margin-bottom: 0;
+}
+.ws-th-by {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-th-by img,
+.ws-th-noav {
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-2);
+}
+.ws-th-by strong {
+  color: var(--fg);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-th-list,
+.ws-th-replies {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.ws-th-list > li {
+  padding: 0.875rem 0;
+  border-bottom: 1px solid var(--line);
+}
+.ws-th-replies {
+  margin: 0.75rem 0 0 0.875rem;
+  padding-left: 0.875rem;
+  border-left: 2px solid color-mix(in oklab, var(--accent-2) 45%, var(--line));
+  display: grid;
+  gap: 0.875rem;
+}
+.ws-th-text {
+  display: block;
+}
+/* the @name of a deeper reply runs into its first paragraph */
+.ws-th-to {
+  float: left;
+  margin-right: 0.25rem;
+  color: var(--accent-2);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  font-weight: 500;
+}
+.ws-th-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--fg-2);
+}
+.ws-th-a {
+  color: var(--accent-2);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.ws-th-media {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ws-th-spoiler button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  margin: 0.125rem 0;
+  padding: 0 0.625rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-chip);
+  background: var(--bg-2);
+  color: var(--fg);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+/* the button's hit area reaches 44px without making the line taller */
+.ws-th-spoiler button {
+  position: relative;
+}
+.ws-th-spoiler button::after {
+  content: '';
+  position: absolute;
+  inset: -0.5rem -0.25rem;
+}
+.ws-th-spoiler[data-open] > span {
+  display: block;
+  margin: 0.25rem 0 0.5rem;
+  padding-left: 0.75rem;
+  border-left: 2px solid var(--line-strong);
+}
+.ws-th-more {
+  margin-top: 1rem;
+}
+
+/* thread rows in the community section: a button, the badge before the title */
+.ws-d-threads .t-row-in {
+  width: 100%;
+  text-align: start;
+  color: var(--fg);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.ws-d-threads .ws-th-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.ws-d-threads .ws-th-title > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .ws-d-threads .t-row-in:hover .ws-th-title > span:last-child {
+    text-decoration: underline;
+  }
+}

@@ -1169,6 +1169,13 @@ function SeriesCard({
                             source={source}
                             id={cur.id}
                             threads={extras?.threads}
+                            names={[
+                              media?.title?.romaji,
+                              media?.title?.english,
+                              media?.title?.native,
+                              media?.title?.preferred,
+                              ...(extras?.synonyms ?? []),
+                            ]}
                             failed={extrasFailed}
                             headingId={hid(k)}
                           />
