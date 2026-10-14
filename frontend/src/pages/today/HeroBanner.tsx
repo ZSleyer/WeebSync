@@ -149,11 +149,23 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   // the panels slide in once, after the first paint of the dealt page
   const [enter, setEnter] = useState(false)
   const dealt = !!(cut && box && data)
+  // and only once their pictures are decoded (at most 250ms): a slide over
+  // pictures still decoding waited on the raster threads frame by frame
   useEffect(() => {
     if (!dealt) return
+    let gone = false
+    let a = 0
     let b = 0
-    const a = requestAnimationFrame(() => (b = requestAnimationFrame(() => setEnter(true))))
+    const imgs = [...(pageRef.current?.querySelectorAll('img') ?? [])]
+    void Promise.race([
+      Promise.all(imgs.map((i) => (i.decode ? i.decode().catch(() => {}) : null))),
+      new Promise((r) => setTimeout(r, 250)),
+    ]).then(() => {
+      if (gone) return
+      a = requestAnimationFrame(() => (b = requestAnimationFrame(() => setEnter(true))))
+    })
     return () => {
+      gone = true
       cancelAnimationFrame(a)
       cancelAnimationFrame(b)
     }

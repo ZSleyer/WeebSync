@@ -77,7 +77,9 @@ span.td-pn { cursor: default; }
 @media (prefers-reduced-motion: no-preference) {
   .td-pn { transition: scale 260ms var(--spring); }
   .td-pn:active { scale: 0.97; transition-duration: 90ms; }
-  .td-hero[data-enter] .td-pn { animation: td-panel 700ms var(--spring-calm) calc(var(--k, 0) * 70ms) both; }
+  /* the panels wait out of sight until their pictures are decoded, then slide in */
+  .td-hero:not([data-enter]) .td-pn { opacity: 0; }
+  .td-hero[data-enter] .td-pn { animation: td-panel 700ms var(--spring-calm) calc(var(--k, 0) * 70ms) backwards; }
 }
 @keyframes td-panel { from { opacity: 0; translate: 18px 0; } }
 
