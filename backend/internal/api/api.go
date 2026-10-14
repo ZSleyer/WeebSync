@@ -99,6 +99,9 @@ type Server struct {
 	accountLimiter *ipLimiter
 	// the cross-site request guard (see CrossOrigin)
 	crossOrigin *http.CrossOriginProtection
+	// connection tests per user: each one dials a host the user names, and
+	// their different failures would otherwise map a network
+	testLimiter *ipLimiter
 	// replaces the security notice's mail send in tests
 	securityMail func(to, subject, text, html string) error
 	// the passkey challenge: the login page asks for one on every visit, so it
@@ -156,6 +159,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	if s.socialLimiter == nil {
 		s.socialLimiter = newIPLimiter(12, 6, nil)
+	}
+	if s.testLimiter == nil {
+		s.testLimiter = newIPLimiter(10, 5, nil)
 	}
 	mux.HandleFunc("POST /api/auth/register", s.authLimiter.limit(s.handleRegister))
 	mux.HandleFunc("POST /api/auth/login", s.authLimiter.limit(s.handleLogin))
@@ -317,9 +323,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/watches/{id}/explain", authed(http.HandlerFunc(s.handleWatchExplain)))
 	checkH := http.HandlerFunc(s.handleWatchCheck)
 	mux.Handle("POST /api/watches/{id}/check", s.bearerOr(authed(checkH), checkH))
-	mux.Handle("POST /api/watches/{id}/plex-streams", authed(http.HandlerFunc(s.handleWatchPlexStreams)))
+	mux.Handle("POST /api/watches/{id}/plex-streams", authed(adminOnly(http.HandlerFunc(s.handleWatchPlexStreams))))
 	mux.Handle("GET /api/watches/{id}/plex-show", authed(http.HandlerFunc(s.handleWatchPlexShow)))
-	mux.Handle("PUT /api/watches/{id}/plex-show", authed(http.HandlerFunc(s.handleWatchPlexShowLink)))
+	mux.Handle("PUT /api/watches/{id}/plex-show", authed(adminOnly(http.HandlerFunc(s.handleWatchPlexShowLink))))
 	mux.Handle("GET /api/watches/{id}/episodes", authed(http.HandlerFunc(s.handleWatchEpisodes)))
 
 	// anilist + catalog
@@ -331,8 +337,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
 	mux.Handle("GET /api/media/extras", authed(http.HandlerFunc(s.handleMediaExtras)))
 	mux.Handle("GET /api/media/backdrop", authed(http.HandlerFunc(s.handleMediaBackdrop)))
-	mux.Handle("GET /api/plex/me", authed(http.HandlerFunc(s.handlePlexMe)))
-	mux.Handle("GET /api/plex/sections", authed(http.HandlerFunc(s.handlePlexSections)))
+	mux.Handle("GET /api/plex/me", authed(adminOnly(http.HandlerFunc(s.handlePlexMe))))
+	mux.Handle("GET /api/plex/sections", authed(adminOnly(http.HandlerFunc(s.handlePlexSections))))
 	mux.Handle("GET /api/plex/suggestions", authed(http.HandlerFunc(s.handlePlexSuggestions)))
 
 	mux.Handle("GET /api/servers/{id}/rename-profile", authed(http.HandlerFunc(s.handleRenameProfile)))
@@ -395,7 +401,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))
-	mux.Handle("POST /api/rename/apply", authed(http.HandlerFunc(s.handleRenameApply)))
+	mux.Handle("POST /api/rename/apply", authed(adminOnly(http.HandlerFunc(s.handleRenameApply))))
 	mux.Handle("POST /api/rename/names", authed(http.HandlerFunc(s.handleRenameNames)))
 
 	// admin: background jobs and cache maintenance

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useAuth } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Button, Checkbox, Radio, TextLink } from 'fluid-lycoris'
 import type { LocalSeason, UpgradeDims, UpgradeSuggestion, UpgradeVariant } from '../api'
@@ -86,7 +87,10 @@ export default function UpgradeCard({
 }) {
   const { t } = useTranslation()
   const [more, setMore] = useState(false)
+  // moving the old copy aside acts on the shared library: an admin's
+  const { data: me } = useAuth()
   const [replaceOld, setReplaceOld] = useState(u.sync?.replace ?? true)
+  const replace = !!me?.isAdmin && replaceOld
   const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
   const options: UpgradeVariant[] = u.options ?? []
   const others = options.filter((o) => !isChosen(o))
@@ -187,11 +191,11 @@ export default function UpgradeCard({
       )}
       <span className="sg-acts">
         {canLoad && (
-          <Button size="sm" variant="primary" onClick={() => (onLoad ? onLoad(req(), replaceOld) : onSync(req()))}>
+          <Button size="sm" variant="primary" onClick={() => (onLoad ? onLoad(req(), replace) : onSync(req()))}>
             {t('discover.upgradeLoad')}
           </Button>
         )}
-        {canLoad && onLoad && (
+        {canLoad && onLoad && me?.isAdmin && (
           <Checkbox
             labelClassName="sg-rep"
             checked={replaceOld}

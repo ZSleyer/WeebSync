@@ -80,6 +80,9 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
+// maxAIChats is how many saved chats an account keeps; older ones go.
+const maxAIChats = 200
+
 // handleAiChatCreate saves a new chat.
 //
 //	@Summary		Save a new assistant chat
@@ -106,6 +109,10 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, _ := res.LastInsertId()
+	// the newest maxAIChats stay: a saved chat may be 12 MiB, and nothing
+	// else bounds how many one account keeps
+	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id NOT IN
+		(SELECT id FROM ai_chats WHERE user_id = ? ORDER BY id DESC LIMIT ?)`, u.ID, u.ID, maxAIChats)
 	writeJSON(w, http.StatusOK, aiChatCreated{ID: id})
 }
 

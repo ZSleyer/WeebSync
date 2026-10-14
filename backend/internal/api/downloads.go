@@ -152,6 +152,7 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	adminFields(u, &in, nil)
 	if in.ServerID == 0 || in.RemotePath == "" {
 		writeErr(w, http.StatusBadRequest, "serverId and remotePath required")
 		return

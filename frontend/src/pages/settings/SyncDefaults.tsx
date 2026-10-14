@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useProviders } from '../../hooks'
+import { useAuth, useProviders } from '../../hooks'
 import { useTranslation } from 'react-i18next'
 import { FolderOpen } from 'lucide-react'
 import { IconButton, Segmented, Select, SettingsField } from 'fluid-lycoris'
@@ -44,6 +44,8 @@ const EMPTY: WatchDefaults = {
 // and to every proposal the assistant makes.
 export default function SyncDefaults() {
   const { t } = useTranslation()
+  // Plex track choices act on the admin's Plex account: an admin's
+  const isAdmin = !!useAuth().data?.isAdmin
   const qc = useQueryClient()
   const { data } = useQuery<WatchDefaults>({
     queryKey: ['watch-defaults'],
@@ -234,20 +236,24 @@ export default function SyncDefaults() {
             onChange={(v) => setCommon({ dubLagDays: Math.max(0, parseInt(v, 10) || 0) })}
           />
           <span aria-hidden className="hidden sm:block" />
-          <TextSetting
-            label={t('watch.plexAudio')}
-            mono
-            value={form.common.plexAudioLang}
-            placeholder="Ger"
-            onChange={(v) => setCommon({ plexAudioLang: v.trim() })}
-          />
-          <TextSetting
-            label={t('watch.plexSub')}
-            mono
-            value={form.common.plexSubLang}
-            placeholder="off, Ger, Ger:forced"
-            onChange={(v) => setCommon({ plexSubLang: v.trim() })}
-          />
+          {isAdmin && (
+            <>
+              <TextSetting
+                label={t('watch.plexAudio')}
+                mono
+                value={form.common.plexAudioLang}
+                placeholder="Ger"
+                onChange={(v) => setCommon({ plexAudioLang: v.trim() })}
+              />
+              <TextSetting
+                label={t('watch.plexSub')}
+                mono
+                value={form.common.plexSubLang}
+                placeholder="off, Ger, Ger:forced"
+                onChange={(v) => setCommon({ plexSubLang: v.trim() })}
+              />
+            </>
+          )}
         </div>
         <p className="sf-note">{t('settings.sync.langHint')}</p>
       </SettingsPanel>

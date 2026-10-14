@@ -1792,6 +1792,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	adminFields(u, &in, nil)
 	if in.ServerID == 0 || in.RemotePath == "" {
 		writeErr(w, http.StatusBadRequest, "serverId and remotePath required")
 		return
@@ -1910,6 +1911,15 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub, &oldSubfolder); err != nil {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return
+	}
+	// moving a folder's contents reaches into the shared library, whatever
+	// the watch's own files are: an admin's
+	if in.MoveFiles && !u.IsAdmin {
+		writeErr(w, http.StatusForbidden, "admin only: moveFiles")
+		return
+	}
+	if !u.IsAdmin {
+		in.PlexAudioLang, in.PlexSubLang = oldAudio, oldSub
 	}
 	// same as on create: say so now, not through a failed download later
 	if s.rejectUnwritable(w, in.LocalPath) {
@@ -2131,4 +2141,19 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	go s.runWatch(id)
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
+}
+
+// adminFields drops what only an admin may ask of a sync or a watch: moving
+// the old copies of an episode aside reaches files anyone may have put in the
+// shared library, and the Plex track choices act on the admin's Plex account.
+// keep holds a watch's stored track choices on an update (nil: none kept).
+func adminFields(u *auth.User, in *Watch, keep *Watch) {
+	if u.IsAdmin {
+		return
+	}
+	in.ReplaceOld = false
+	in.PlexAudioLang, in.PlexSubLang = "", ""
+	if keep != nil {
+		in.PlexAudioLang, in.PlexSubLang = keep.PlexAudioLang, keep.PlexSubLang
+	}
 }

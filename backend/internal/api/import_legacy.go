@@ -81,7 +81,8 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if in.IntervalMin >= 5 && in.IntervalMin <= 1440 {
+	// the interval is the instance's, set for everyone: an admin's
+	if u.IsAdmin && in.IntervalMin >= 5 && in.IntervalMin <= 1440 {
 		db.SetSetting(s.DB, "watch_interval_min", strconv.Itoa(in.IntervalMin))
 	}
 

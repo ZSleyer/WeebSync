@@ -1047,6 +1047,11 @@ export function CatalogGrid({
   const { t, i18n } = useTranslation()
   const confirm = useConfirm()
   const goTo = useNavigate()
+  // the local library is everyone's: its matches, sources and rules are an
+  // admin's to change (the server refuses anyone else). A remote server's
+  // catalog belongs to whoever added the server.
+  const { data: me } = useAuth()
+  const canCurate = serverId !== 0 || !!me?.isAdmin
   // the title being looked into for its first episode, so its button can show it
   const [starting, setStarting] = useState<string | null>(null)
   const { data, isLoading, error } = useQuery<CatalogResponse>({
@@ -1078,7 +1083,7 @@ export function CatalogGrid({
   const scopeMore = (close: () => void) =>
     path || (whyHere && data?.scope) ? (
       <div className="ws-scope-more">
-        {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
+        {path && canCurate && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
         {whyHere && data?.scope !== '' && (
           <button
             type="button"
@@ -1152,13 +1157,17 @@ export function CatalogGrid({
           },
         ]
       : []),
-    {
-      key: 'rematch',
-      label: t('series.action.rematch'),
-      icon: <Replace aria-hidden size="1em" />,
-      more: true,
-      onClick: () => rematchInside(it),
-    },
+    ...(canCurate
+      ? [
+          {
+            key: 'rematch',
+            label: t('series.action.rematch'),
+            icon: <Replace aria-hidden size="1em" />,
+            more: true,
+            onClick: () => rematchInside(it),
+          },
+        ]
+      : []),
     {
       key: 'files',
       label: t('series.action.files'),
@@ -1186,7 +1195,7 @@ export function CatalogGrid({
             series.close()
             onSelect(e)
           }}
-          onRematch={rematchInside}
+          onRematch={canCurate ? rematchInside : undefined}
           onWhy={(it) => setWhy(it)}
           onFiles={(e) => {
             series.close()
@@ -1275,7 +1284,7 @@ export function CatalogGrid({
           // "Match ändern" spelled out needs 114px of a 131px
           // tile, so it travels as the Replace glyph the detail
           // dialog uses, with the name in title/aria
-          ...(!g.pending && it.source
+          ...(!g.pending && it.source && canCurate
             ? [
                 {
                   key: 'rematch',
@@ -1543,21 +1552,23 @@ export function CatalogGrid({
               </Select>
             </>
           )}
-          <ScopeChip
-            wide={wide}
-            value={data?.scope ?? ''}
-            label={data?.scope === '' ? t('remote.scopeNone') : scopeShort(data?.scope ?? '')}
-            ruleOn={ruleOn}
-            options={scopeOptions}
-            onPick={(v) => void setScope(v)}
-            onSheet={() => setScopeSheet(true)}
-            more={scopeMore}
-          />
+          {canCurate && (
+            <ScopeChip
+              wide={wide}
+              value={data?.scope ?? ''}
+              label={data?.scope === '' ? t('remote.scopeNone') : scopeShort(data?.scope ?? '')}
+              ruleOn={ruleOn}
+              options={scopeOptions}
+              onPick={(v) => void setScope(v)}
+              onSheet={() => setScopeSheet(true)}
+              more={scopeMore}
+            />
+          )}
           <CatalogActions
-            canRematch={data?.scope !== '' && pendingCount === 0 && items.length > 0}
+            canRematch={canCurate && data?.scope !== '' && pendingCount === 0 && items.length > 0}
             noMatchCount={noMatchCount}
             onRematch={triggerRematch}
-            onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
+            onClearScope={canCurate && data && data.scope !== '' ? () => setScope('') : undefined}
             pin={pin}
           />
         </div>
@@ -1753,11 +1764,15 @@ export function CatalogGrid({
             serverId={serverId}
             folder={why.entry.path}
             onClose={() => setWhy(null)}
-            onRematch={() => {
-              setRematch(why)
-              setRematchInCard(false)
-              setWhy(null)
-            }}
+            onRematch={
+              canCurate
+                ? () => {
+                    setRematch(why)
+                    setRematchInCard(false)
+                    setWhy(null)
+                  }
+                : undefined
+            }
           />
         )}
         {rematch &&
@@ -2227,7 +2242,8 @@ function CatalogVersions({
   group: CatalogGroup
   selected?: string
   onSelect: (e: Entry) => void
-  onRematch: (it: CatalogItem) => void
+  /** absent for someone who may not change the match */
+  onRematch?: (it: CatalogItem) => void
   /** why this version got its series, or none */
   onWhy?: (it: CatalogItem) => void
   onFiles: (e: Entry) => void
@@ -2273,10 +2289,12 @@ function CatalogVersions({
                 {t('watch.add')}
               </Button>
             )}
-            <Button size="sm" className="shrink-0" onClick={() => onRematch(it)}>
-              <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-              {t('remote.changeMatch')}
-            </Button>
+            {onRematch && (
+              <Button size="sm" className="shrink-0" onClick={() => onRematch(it)}>
+                <Replace aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+                {t('remote.changeMatch')}
+              </Button>
+            )}
             {onWhy && it.source && !it.pending && (
               <Button
                 size="sm"

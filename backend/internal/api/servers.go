@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -321,6 +322,12 @@ type HostKeyConflict struct {
 func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
+	if s.testLimiter != nil {
+		if ok, wait := s.testLimiter.take("user:" + strconv.FormatInt(u.ID, 10)); !ok {
+			tooMany(w, wait)
+			return
+		}
+	}
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
 		writeDialErr(w, err)

@@ -57,7 +57,8 @@ func (s *Server) handleAiStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := aiStatusResponse{Configured: true, Model: s.AI.Model(), WebSearch: s.aiSearchURL() != ""}
-	if r.URL.Query().Get("force") != "" {
+	// a forced ping costs a call to the configured endpoint: an admin's
+	if r.URL.Query().Get("force") != "" && auth.UserFrom(r.Context()).IsAdmin {
 		if err := s.AI.Ping(r.Context()); err != nil {
 			out.Error = logSafe(err.Error())
 		} else {

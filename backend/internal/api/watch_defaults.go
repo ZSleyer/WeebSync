@@ -400,6 +400,10 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 	if !validDubLag(w, in.Common.DubLagDays) {
 		return
 	}
+	if !u.IsAdmin {
+		// Plex track choices act on the admin's Plex account
+		in.Common.PlexAudioLang, in.Common.PlexSubLang = "", ""
+	}
 	clean := WatchDefaults{Kinds: map[string]KindDefaults{}, Common: in.Common}
 	for kind, k := range in.Kinds {
 		if !slices.Contains(watchKinds, kind) {

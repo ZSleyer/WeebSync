@@ -6,20 +6,22 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"path"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // haClient posts events to the configured Home Assistant webhook. Short
 // timeout: HA answers a webhook immediately, and a hung POST must never
 // hold up the transfer pipeline behind OnFinished.
-var haClient = &http.Client{Timeout: 5 * time.Second}
+// netguard: the admin sets the URL, but a redirect or a rebinding host must
+// not carry the POST to a metadata endpoint; the LAN stays reachable.
+var haClient = netguard.Client(5 * time.Second)
 
 // postHaWebhook fires one event at the configured webhook, fire-and-forget:
 // one retry after a pause, then a warning in the log. No-op without a URL.

@@ -27,7 +27,7 @@ import {
 } from 'fluid-lycoris'
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
 import { coverSet } from '../images'
-import { useNow } from '../hooks'
+import { useAuth, useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { mediaLink } from './MediaDetail'
@@ -673,8 +673,10 @@ function SeriesCard({
   })
 
   // the menu of a watch: everything but check now and edit, which are buttons
+  // Plex track choices act on the admin's Plex account: an admin's
+  const isAdmin = !!useAuth().data?.isAdmin
   const watchMenu = (w: Watch): SheetAction[] => [
-    ...(w.plexAudioLang || w.plexSubLang
+    ...(isAdmin && (w.plexAudioLang || w.plexSubLang)
       ? [
           {
             key: 'plex',

@@ -1,7 +1,7 @@
 import { Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useProviders } from '../hooks'
+import { useAuth, useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog, Field, Input, Select } from 'fluid-lycoris'
 import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
@@ -110,6 +110,11 @@ export function WatchForm({
   const { t } = useTranslation()
   const confirm = useConfirm()
   const [f, setF] = useState(initial)
+  // replacing old copies, moving a folder's contents and Plex track choices
+  // act on the shared library or the admin's Plex: an admin's (the server
+  // refuses or drops them for anyone else)
+  const { data: me } = useAuth()
+  const isAdmin = !!me?.isAdmin
   // TVDB is only offered as a source when a key is set
   const caps = useProviders()
   // the rename profile + resolved series match Plex/the provider report
@@ -236,7 +241,7 @@ export function WatchForm({
         ...rest,
         localPath: syncRequestPath(subMode, f.localPath, targetDir),
         subfolder: subMode === 'remote',
-        ...(targetMoved ? { moveFiles } : {}),
+        ...(targetMoved && isAdmin ? { moveFiles } : {}),
       }
       // rename off = keep original names, persist empty rules
       const note = await onSave(renameOn ? saved : { ...saved, template: '', pattern: '', replacement: '' })
@@ -363,7 +368,7 @@ export function WatchForm({
             title={shownTitle}
             seasonFolder={seasonFolder}
           />
-          {f.replaceOld !== undefined && (
+          {isAdmin && f.replaceOld !== undefined && (
             <label className="flex items-center gap-2 text-sm text-t-secondary">
               <input
                 type="checkbox"
@@ -377,7 +382,7 @@ export function WatchForm({
           {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
           {targetMissing && <p className="text-ctl-sm text-t-muted">{t('watch.targetMissing')}</p>}
-          {targetMoved && (
+          {targetMoved && isAdmin && (
             <label className="flex items-start gap-2 text-sm">
               <input
                 type="checkbox"
@@ -499,47 +504,52 @@ export function WatchForm({
               </div>
             </section>
 
-            <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPlex')}>
-              <h3 className="ws-form-h">{t('watch.sectionPlex')}</h3>
-              {/* which show the track selection acts on. Only on an existing
+            {isAdmin && (
+              <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPlex')}>
+                <h3 className="ws-form-h">{t('watch.sectionPlex')}</h3>
+                {/* which show the track selection acts on. Only on an existing
                 watch: the binding hangs on its series, which a watch that is
                 not saved yet does not have. */}
-              {watchId && plexShow && (
-                <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
-              )}
-              <div className={ROW_GRID}>
-                {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
-                  // Subtitles carry a second dimension the language cannot express:
-                  // the forced track holds signs and foreign dialogue only. Both
-                  // variants are offered per language and neither is derived from
-                  // the audio - watching a dub with full subtitles and watching the
-                  // original with signs only are both things people do on purpose.
-                  const opts = plexStreamOptions(key === 'plexAudioLang' ? langs.dub : langs.sub, key === 'plexSubLang')
-                  const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
-                  return (
-                    <Field
-                      key={key}
-                      label={
-                        <>
-                          {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                          {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                        </>
-                      }
-                    >
-                      <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
-                        <option value="">{t('watch.plexNoChange')}</option>
-                        {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
-                        {all.map((c) => (
-                          <option key={c} value={c}>
-                            {plexStreamLabel(c, t)}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  )
-                })}
-              </div>
-            </section>
+                {watchId && plexShow && (
+                  <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
+                )}
+                <div className={ROW_GRID}>
+                  {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
+                    // Subtitles carry a second dimension the language cannot express:
+                    // the forced track holds signs and foreign dialogue only. Both
+                    // variants are offered per language and neither is derived from
+                    // the audio - watching a dub with full subtitles and watching the
+                    // original with signs only are both things people do on purpose.
+                    const opts = plexStreamOptions(
+                      key === 'plexAudioLang' ? langs.dub : langs.sub,
+                      key === 'plexSubLang',
+                    )
+                    const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+                    return (
+                      <Field
+                        key={key}
+                        label={
+                          <>
+                            {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                            {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                          </>
+                        }
+                      >
+                        <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                          <option value="">{t('watch.plexNoChange')}</option>
+                          {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
+                          {all.map((c) => (
+                            <option key={c} value={c}>
+                              {plexStreamLabel(c, t)}
+                            </option>
+                          ))}
+                        </Select>
+                      </Field>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
 
             <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionRename')}>
               <div className="flex items-center justify-between">

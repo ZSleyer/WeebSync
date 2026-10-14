@@ -55,7 +55,7 @@ import { useSeriesModal, type SeriesTarget } from '../components/SeriesModal'
 import PageActions, { WIDE_MQ } from '../components/PageActions'
 import { CoverImg } from '../components/SmartImg'
 import { coverSet } from '../images'
-import { useNow } from '../hooks'
+import { useAuth, useNow } from '../hooks'
 import { usePersistedView } from '../hooks/usePersistedView'
 import { WATCH_SORTS, groupWatches } from '../watchGroups'
 import {
@@ -240,6 +240,8 @@ export default function Watches() {
   const editWatch = (w: Watch) => (w.media ? openSeries(Object.assign(targetOf(w), { edit: true })) : setEdit(w))
   const openTile = (w: Watch) => (w.category === 'manga' ? void read(w) : w.media ? showSeries(w) : setEdit(w))
   // every action of a watch, for the long-press sheet
+  // Plex track choices act on the admin's Plex account: an admin's
+  const isAdmin = !!useAuth().data?.isAdmin
   const rowActions = (w: Watch): RowAction[] => [
     ...(w.category === 'manga'
       ? [
@@ -252,7 +254,7 @@ export default function Watches() {
         ]
       : []),
     { key: 'edit', icon: <Pencil aria-hidden size="1em" />, label: t('servers.edit'), onClick: () => editWatch(w) },
-    ...(w.plexAudioLang || w.plexSubLang
+    ...(isAdmin && (w.plexAudioLang || w.plexSubLang)
       ? [
           {
             key: 'plex',

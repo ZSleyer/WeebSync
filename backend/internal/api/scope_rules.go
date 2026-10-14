@@ -237,8 +237,9 @@ func (s *Server) handleScopeRules(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/catalog/scope-rules/{id} [delete]
 func (s *Server) handleScopeRuleDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	res, err := s.DB.Exec(`DELETE FROM catalog_scope_rules WHERE id = ? AND (server_id = 0
-		OR server_id IN (SELECT id FROM servers WHERE user_id = ?))`, pathID(r), u.ID)
+	// a rule on the local library (server 0) is an admin's, see localCurateDenied
+	res, err := s.DB.Exec(`DELETE FROM catalog_scope_rules WHERE id = ? AND ((server_id = 0 AND ?)
+		OR server_id IN (SELECT id FROM servers WHERE user_id = ?))`, pathID(r), u.IsAdmin, u.ID)
 	if err != nil {
 		dbErr(w)
 		return

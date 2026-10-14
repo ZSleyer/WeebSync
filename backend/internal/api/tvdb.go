@@ -90,7 +90,8 @@ func (s *Server) handleTvdbMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, tvdbMeResponse{})
 		return
 	}
-	force := r.URL.Query().Get("force") != ""
+	// a forced fresh login at TVDB spends the instance's quota: an admin's
+	force := r.URL.Query().Get("force") != "" && auth.UserFrom(r.Context()).IsAdmin
 	if err := s.Tvdb.Ping(r.Context(), force); err != nil {
 		writeJSON(w, http.StatusOK, tvdbMeResponse{Configured: true, Error: err.Error()})
 		return

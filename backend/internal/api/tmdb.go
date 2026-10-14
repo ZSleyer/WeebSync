@@ -152,6 +152,9 @@ type scopeRequest struct {
 func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
+	if localCurateDenied(w, u, serverID) {
+		return
+	}
 	var in scopeRequest
 	if !readJSON(w, r, &in) {
 		return

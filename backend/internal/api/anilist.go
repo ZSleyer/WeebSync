@@ -918,6 +918,9 @@ type rematchResponse struct {
 func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
+	if localCurateDenied(w, u, serverID) {
+		return
+	}
 	var in rematchRequest
 	if !readJSON(w, r, &in) {
 		return
@@ -1005,6 +1008,9 @@ type catalogMatchRequest struct {
 func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
+	if localCurateDenied(w, u, serverID) {
+		return
+	}
 	var in catalogMatchRequest
 	if !readJSON(w, r, &in) {
 		return
@@ -1033,4 +1039,15 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// localCurateDenied refuses a change to the local library's catalog (matches,
+// sources, rules) to anyone but an admin: that library is everyone's, a
+// remote server's catalog belongs to whoever added the server.
+func localCurateDenied(w http.ResponseWriter, u *auth.User, serverID int64) bool {
+	if serverID == localServerID && !u.IsAdmin {
+		writeErr(w, http.StatusForbidden, "admin only")
+		return true
+	}
+	return false
 }
