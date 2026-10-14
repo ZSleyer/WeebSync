@@ -60,6 +60,10 @@ jobs:
           flavor: latest=false
           # YEAR.MONTH.N reads as semver: the exact release, and the month's
           # line (2026.10) that moves with its fixes
+          # the tag's commit, not the run's: a dispatched rebuild runs on
+          # main, and the default label then named main's head
+          labels: |
+            org.opencontainers.image.revision=${{ steps.sha.outputs.sha }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }},enable=${{ inputs.moving != 'no' }}
