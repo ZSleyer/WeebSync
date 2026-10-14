@@ -1862,7 +1862,9 @@ li.t-swiperow { border-radius: 0; }
 
 /* ── Content: section headings, hairline rows, text links, empty lines ──
    Lists carry hairlines instead of panels; covers are the only cards. */
-.t-sec-h { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.5rem; }
+/* centred, not on the baseline: a title with a fold button or a tall marker
+   left the count or the link at its end hanging below the words */
+.t-sec-h { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 0 0 0.5rem; }
 .t-sec-title {
   display: flex;
   align-items: center;
