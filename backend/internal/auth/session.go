@@ -188,7 +188,11 @@ func SessionToken(r *http.Request) string {
 // mail's link, or the signed-in account itself). sql.ErrNoRows when the
 // account does not exist.
 func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
-	if err := ValidatePassword(password); err != nil {
+	var email string
+	if err := d.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
+		return err
+	}
+	if err := ValidatePassword(password, email); err != nil {
 		return err
 	}
 	hash, err := HashPassword(password)

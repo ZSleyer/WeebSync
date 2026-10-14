@@ -95,7 +95,7 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid email")
 		return
 	}
-	if err := auth.ValidatePassword(c.Password); err != nil {
+	if err := auth.ValidatePassword(c.Password, c.Email); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}

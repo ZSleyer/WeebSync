@@ -25,7 +25,7 @@ type passwordSet struct {
 // writePasswordErr answers for a failed auth.SetPassword.
 func writePasswordErr(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, auth.ErrWeakPassword):
+	case errors.Is(err, auth.ErrWeakPassword), errors.Is(err, auth.ErrCommonPassword):
 		writeErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, sql.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "user not found")

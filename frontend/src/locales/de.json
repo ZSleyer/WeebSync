@@ -11,6 +11,7 @@
     "registrationClosed": "Die Registrierung ist geschlossen. Frag einen Admin nach einem Konto.",
     "passwordDisabled": "Die Anmeldung mit Passwort ist hier aus. Nutze den Anbieter.",
     "weakPassword": "Das Passwort braucht mindestens 10 Zeichen.",
+    "commonPassword": "Dieses Passwort ist zu verbreitet oder zu leicht zu erraten. Nimm einen Satz aus mehreren Wörtern.",
     "wrongPassword": "Das Passwort ist falsch.",
     "resetLinkInvalid": "Der Link ist ungültig oder abgelaufen. Fordere einen neuen an.",
     "oidcAccount": "Dieses Konto meldet sich über den Anbieter an.",

@@ -11,6 +11,7 @@
     "registrationClosed": "Registration is closed. Ask an admin for an account.",
     "passwordDisabled": "Sign-in with a password is off here. Use the provider.",
     "weakPassword": "The password needs at least 10 characters.",
+    "commonPassword": "This password is too common or too easy to guess. Try a phrase of several words.",
     "wrongPassword": "The password is wrong.",
     "resetLinkInvalid": "This link is invalid or has expired. Ask for a new one.",
     "oidcAccount": "This account signs in through the provider.",

@@ -245,6 +245,7 @@ const ERROR_KEYS: Record<string, string> = {
   'registration is disabled': 'errors.registrationClosed',
   'password auth is disabled, use OIDC': 'errors.passwordDisabled',
   'password must be at least 10 characters': 'errors.weakPassword',
+  'password is too common or easy to guess': 'errors.commonPassword',
   'current password is wrong': 'errors.wrongPassword',
   'invalid password': 'errors.wrongPassword',
   'this reset link is invalid or has expired': 'errors.resetLinkInvalid',
