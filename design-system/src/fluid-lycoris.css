@@ -1930,6 +1930,22 @@ li.t-swiperow { border-radius: 0; }
   cursor: pointer;
 }
 .t-link--2 { color: var(--accent-2); }
+/* A link in running text ("... Retry") takes the paragraph's line, not a box
+   of its own: the padding that makes a standalone link 24px+ tall would
+   stretch the line it sits on. The target (WCAG 2.5.8) keeps its size through
+   a hit area drawn around the text instead, which clicks the link and moves
+   nothing. */
+p > .t-link {
+  position: relative;
+  padding-block: 0;
+  font-size: inherit;
+  vertical-align: baseline;
+}
+p > .t-link::before {
+  content: "";
+  position: absolute;
+  inset: -0.5rem 0;
+}
 @media (hover: hover) {
   .t-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 }

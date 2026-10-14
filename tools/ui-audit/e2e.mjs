@@ -98,6 +98,21 @@ const audit = () => {
     if (r < (large ? 3 : 4.5)) contrast.push({ text: own.slice(0, 40), size: +size.toFixed(1), ratio: +r.toFixed(2) })
   }
 
+  // the target is the hit area: a link in running text draws it with an
+  // absolutely positioned pseudo-element around its text, so its own box can
+  // stay a line tall without failing 2.5.8
+  const hitBox = (el) => {
+    const b = el.getBoundingClientRect()
+    let { width, height } = b
+    for (const which of ['::before', '::after']) {
+      const s = getComputedStyle(el, which)
+      if (s.position !== 'absolute' || s.content === 'none' || s.content === 'normal') continue
+      const px = (v) => parseFloat(v) || 0
+      width = Math.max(width, b.width - px(s.left) - px(s.right))
+      height = Math.max(height, b.height - px(s.top) - px(s.bottom))
+    }
+    return { width, height }
+  }
   const targets = []
   for (const el of document.querySelectorAll('a[href], button, input, select, textarea, [role="option"], [role="tab"], [tabindex]:not([tabindex="-1"])')) {
     if (!visible(el) || el.disabled) continue
@@ -107,7 +122,7 @@ const audit = () => {
     if (cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clipPath === 'inset(50%)') continue
     // 2.5.8 exempts a link inline in a sentence
     if (el.tagName === 'A' && cs.display.startsWith('inline')) continue
-    const b = el.getBoundingClientRect()
+    const b = hitBox(el)
     if (b.width < 24 || b.height < 24)
       targets.push({ tag: el.tagName.toLowerCase(), text: (el.textContent || '').trim().slice(0, 30), w: +b.width.toFixed(1), h: +b.height.toFixed(1) })
   }

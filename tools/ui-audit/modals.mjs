@@ -218,13 +218,28 @@ const auditDialog = () => {
   if (out > 1) scroll.push({ where: `${widest} sticks out of the dialog by ${out}px`, x: out })
 
   // target size 2.5.8
+  // the target is the hit area: a link in running text draws it with an
+  // absolutely positioned pseudo-element around its text, so its own box can
+  // stay a line tall without failing 2.5.8
+  const hitBox = (el) => {
+    const b = el.getBoundingClientRect()
+    let { width, height } = b
+    for (const which of ['::before', '::after']) {
+      const s = getComputedStyle(el, which)
+      if (s.position !== 'absolute' || s.content === 'none' || s.content === 'normal') continue
+      const px = (v) => parseFloat(v) || 0
+      width = Math.max(width, b.width - px(s.left) - px(s.right))
+      height = Math.max(height, b.height - px(s.top) - px(s.bottom))
+    }
+    return { width, height }
+  }
   const targets = []
   for (const e of d.querySelectorAll('a[href], button, input, select, textarea')) {
     if (!vis(e) || e.disabled) continue
     const cs = getComputedStyle(e)
     if (cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clipPath === 'inset(50%)') continue
     if (e.tagName === 'A' && cs.display.startsWith('inline')) continue
-    const b = e.getBoundingClientRect()
+    const b = hitBox(e)
     if (b.width < 24 || b.height < 24) targets.push(`${name(e)} ${b.width.toFixed(1)}x${b.height.toFixed(1)}`)
   }
 
