@@ -2408,3 +2408,7 @@ input[type='search']::-webkit-search-results-decoration { -webkit-appearance: no
   .t-toast__ring { animation: none; --t-toast-p: 1; opacity: 0.4; }
 }
 :root[data-motion="off"] .t-toast__ring { animation: none; --t-toast-p: 1; opacity: 0.4; }
+
+/* number fields: never the browser's stepper arrows, anywhere */
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+input[type="number"]::-webkit-inner-spin-button, input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
