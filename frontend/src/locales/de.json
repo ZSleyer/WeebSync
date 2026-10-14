@@ -1012,6 +1012,7 @@
     "versions_other": "{{count}} Versionen",
     "detailsFor": "{{name}}, Details",
     "trailer": "Trailer",
+    "trailerPlay": "Trailer abspielen",
     "description": "Beschreibung",
     "status": {
       "FINISHED": "Abgeschlossen",

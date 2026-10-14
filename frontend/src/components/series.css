@@ -431,6 +431,39 @@ html[data-overlay] .app-shell > main > * {
   border: 0;
   border-radius: var(--r-panel);
 }
+/* the trailer before it is asked for: the series' banner and a play pill */
+.ws-d-trailer-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  background: var(--card);
+  color: #fff;
+  cursor: pointer;
+}
+.ws-d-trailer-btn > img {
+  position: absolute;
+  inset: -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 10px);
+  object-fit: cover;
+}
+.ws-d-trailer-play {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.72);
+  font-weight: 600;
+}
+.ws-d-trailer-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 /* ── cast and posters: a snap row on a phone, a wrapping grid on desktop ── */
 .ws-d-cast,

@@ -196,28 +196,51 @@ export default function MediaDetail({
           </a>
         </li>
       </ul>
-      {m.trailer?.site === 'youtube' && (
-        <iframe
-          className="ws-d-trailer"
-          title={t('remote.trailer')}
-          loading="lazy"
-          src={`https://www.youtube-nocookie.com/embed/${m.trailer.id}`}
-          // the page sends no referrer at all, which the player rejects
-          // with "error 153"; this hands it the bare origin, no path
-          referrerPolicy="strict-origin"
-          // the player needs its scripts and its own origin (without the
-          // latter it is a black box); popups are the "watch on YouTube"
-          // link, which opens a normal tab, not a sandboxed one. Forms,
-          // downloads and navigating the page stay blocked. The rule
-          // objects to scripts plus origin together, which for a
-          // cross-origin frame is still a sandbox
-          // eslint-disable-next-line react/iframe-missing-sandbox
-          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
-          allow="encrypted-media; fullscreen"
-          allowFullScreen
-        />
-      )}
+      {m.trailer?.site === 'youtube' && <Trailer id={m.trailer.id} art={m.bannerImage} />}
       {children}
     </>
+  )
+}
+
+/**
+ * The trailer behind a play button: the YouTube player is only built once
+ * asked for. On Android the cross-origin frame shares the page's main thread,
+ * and the player's scripts held it for hundreds of milliseconds right while
+ * the series page opened. Until then nothing is sent to YouTube either.
+ */
+function Trailer({ id, art }: { id: string; art?: string | null }) {
+  const { t } = useTranslation()
+  const [on, setOn] = useState(false)
+  if (!on)
+    return (
+      <button type="button" className="ws-d-trailer ws-d-trailer-btn" onClick={() => setOn(true)}>
+        {art && <img src={art} alt="" decoding="async" loading="lazy" />}
+        <span className="ws-d-trailer-play">
+          <Play aria-hidden size="1.25rem" />
+          {t('remote.trailerPlay')}
+        </span>
+      </button>
+    )
+  return (
+    <iframe
+      // the button it replaces had the focus: the player takes it over
+      ref={(el) => el?.focus()}
+      className="ws-d-trailer"
+      title={t('remote.trailer')}
+      src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1`}
+      // the page sends no referrer at all, which the player rejects
+      // with "error 153"; this hands it the bare origin, no path
+      referrerPolicy="strict-origin"
+      // the player needs its scripts and its own origin (without the
+      // latter it is a black box); popups are the "watch on YouTube"
+      // link, which opens a normal tab, not a sandboxed one. Forms,
+      // downloads and navigating the page stay blocked. The rule
+      // objects to scripts plus origin together, which for a
+      // cross-origin frame is still a sandbox
+      // eslint-disable-next-line react/iframe-missing-sandbox
+      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation"
+      allow="autoplay; encrypted-media; fullscreen"
+      allowFullScreen
+    />
   )
 }
