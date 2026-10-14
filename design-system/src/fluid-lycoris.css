@@ -2180,11 +2180,29 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 .t-cover-bar > i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: var(--accent-2); }
 
 /* ── Rail: a horizontal shelf. It fades at an edge with more behind it and
-   offers a round button there (hover devices only); a mouse drags it. ── */
+   offers a round button there (hover devices only); a mouse drags it. The
+   fades are two overlays in the ground colour (--rail-fade), not a mask on
+   the scroller: a masked scroller is repainted on every frame it scrolls,
+   which a phone's WebKit felt. --rail-bleed reaches them past a shelf that
+   runs out to the screen edge. ── */
 .t-rail { position: relative; }
+.t-rail::before,
+.t-rail::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 3rem;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-2) var(--ease-out);
+}
+.t-rail::before { left: calc(-1 * var(--rail-bleed, 0px)); background: linear-gradient(to right, var(--rail-fade, var(--bg)), transparent); }
+.t-rail::after { right: calc(-1 * var(--rail-bleed, 0px)); background: linear-gradient(to left, var(--rail-fade, var(--bg)), transparent); }
+.t-rail[data-more-start]::before,
+.t-rail[data-more-end]::after { opacity: 1; }
 .t-shelf {
-  --fade-l: 0px;
-  --fade-r: 0px;
   display: flex;
   gap: 0.75rem;
   overflow-x: auto;
@@ -2192,13 +2210,9 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   scroll-snap-type: x proximity;
   scrollbar-width: none;
   padding-block: 2px 6px;
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent);
 }
 .t-shelf::-webkit-scrollbar { display: none; }
 .t-shelf > * { flex: none; scroll-snap-align: start; }
-.t-rail[data-more-start] > .t-shelf { --fade-l: 3rem; }
-.t-rail[data-more-end] > .t-shelf { --fade-r: 3rem; }
 .t-shelf.dragging { cursor: grabbing; scroll-snap-type: none; user-select: none; }
 .t-shelf.dragging * { pointer-events: none; }
 .t-rail-btn {

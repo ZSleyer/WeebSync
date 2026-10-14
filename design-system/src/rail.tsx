@@ -62,33 +62,40 @@ export function Rail({ children, prevLabel, nextLabel, className, shelfClassName
   const box = useRef<HTMLDivElement>(null)
   const [edges, setEdges] = useState<RailEdges>({ start: false, end: false })
 
+  // per scroll event only the edges: reading a cover's height and writing a
+  // custom property each time cost a layout read and a style pass per frame,
+  // which a phone's scroll felt
   const sync = useCallback(() => {
     const el = row.current
     if (!el) return
     const next = railEdges(el.scrollLeft, el.clientWidth, el.scrollWidth)
     setEdges((e) => (e.start === next.start && e.end === next.end ? e : next))
-    // the paging buttons sit on the covers' middle, not the captions'
-    const cover = el.querySelector<HTMLElement>('.t-cover, img')
-    if (cover && box.current) box.current.style.setProperty('--cover-h', `${cover.offsetHeight}px`)
   }, [])
+  // the paging buttons sit on the covers' middle, not the captions': measured
+  // when the row's size or content changes, never while it scrolls
+  const measure = useCallback(() => {
+    sync()
+    const cover = row.current?.querySelector<HTMLElement>('.t-cover, img')
+    if (cover && box.current) box.current.style.setProperty('--cover-h', `${cover.offsetHeight}px`)
+  }, [sync])
 
   useEffect(() => {
     const el = row.current
     if (!el) return
     el.addEventListener('scroll', sync, { passive: true })
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(sync) : undefined
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : undefined
     // a ResizeObserver reports once after the first layout: reading the
     // sizes right here instead forced a layout of the page being mounted
     if (ro) ro.observe(el)
-    else sync()
-    const mo = typeof MutationObserver === 'function' ? new MutationObserver(sync) : undefined
+    else measure()
+    const mo = typeof MutationObserver === 'function' ? new MutationObserver(measure) : undefined
     mo?.observe(el, { childList: true })
     return () => {
       el.removeEventListener('scroll', sync)
       ro?.disconnect()
       mo?.disconnect()
     }
-  }, [sync])
+  }, [sync, measure])
 
   // mouse drag: a few pixels of slack, then the row follows the pointer; the
   // click that ends a drag is eaten so the cover under it does not open
