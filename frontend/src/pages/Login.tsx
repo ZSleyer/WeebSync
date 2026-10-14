@@ -277,7 +277,7 @@ export default function Login() {
   // applies to every way in on this page: password, passkey and the provider
   const rememberBox = (
     <Checkbox
-      className="ws-login-remember"
+      labelClassName="ws-login-remember"
       checked={remember}
       onChange={(e) => setRemember(e.target.checked)}
       label={t('login.remember')}
