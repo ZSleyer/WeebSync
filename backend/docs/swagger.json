@@ -2295,6 +2295,34 @@
                 ],
                 "type": "object"
             },
+            "api.SecurityCheck": {
+                "properties": {
+                    "count": {
+                        "type": "integer"
+                    },
+                    "detail": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    },
+                    "level": {
+                        "description": "\"risk\": fix it before exposing the instance; \"warn\": should be fixed;\n\"info\": worth knowing; \"ok\": checked and fine",
+                        "enum": [
+                            "risk",
+                            "warn",
+                            "info",
+                            "ok"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "level"
+                ],
+                "type": "object"
+            },
             "api.ServerLanguagesResponse": {
                 "properties": {
                     "dub": {
@@ -8725,6 +8753,55 @@
                     }
                 ],
                 "summary": "List catalog matches",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/security-check": {
+            "get": {
+                "description": "Lists what about the instance's setup weakens it, worst first, with the checks that passed (admin only). Judged partly from this very request: the transport and proxy findings describe the way the admin reached the instance.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.SecurityCheck"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Security review",
                 "tags": [
                     "Admin"
                 ]

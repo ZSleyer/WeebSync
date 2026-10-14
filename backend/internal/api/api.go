@@ -414,6 +414,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 
 	// admin: background jobs and cache maintenance
 	mux.Handle("GET /api/admin/jobs", authed(adminOnly(http.HandlerFunc(s.handleAdminJobs))))
+	mux.Handle("GET /api/admin/security-check", authed(adminOnly(http.HandlerFunc(s.handleSecurityCheck))))
 	mux.Handle("POST /api/admin/jobs/{name}/run", authed(adminOnly(http.HandlerFunc(s.handleAdminJobRun))))
 	mux.Handle("POST /api/admin/jobs/{name}/stop", authed(adminOnly(http.HandlerFunc(s.handleAdminJobStop))))
 	mux.Handle("POST /api/admin/jobs/pause", authed(adminOnly(http.HandlerFunc(s.handleAdminJobPause))))

@@ -45,6 +45,7 @@ export default function Security() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
+      <SecurityReview />
       <SettingsPanel title={t('settings.auth')}>
         <SettingsField label={t('settings.authMode')} htmlFor={modeId}>
           <Select
@@ -349,6 +350,69 @@ function RateLimitSection() {
         <p className="sf-issue mt-2" role="alert">
           {error}
         </p>
+      )}
+    </SettingsPanel>
+  )
+}
+
+interface SecurityFinding {
+  id: string
+  level: 'risk' | 'warn' | 'info' | 'ok'
+  count?: number
+  detail?: string
+}
+
+const toneOf = { risk: 'err', warn: 'warn', info: undefined, ok: 'ok' } as const
+
+// What about this instance is not set up as well as it could be, worst first,
+// with the checks that passed folded away. The server words nothing: each
+// finding is an id the texts below explain, with what to do about it.
+function SecurityReview() {
+  const { t } = useTranslation()
+  const { data } = useQuery<SecurityFinding[]>({
+    queryKey: ['security-check'],
+    queryFn: () => api.get('/api/admin/security-check'),
+  })
+  const findings = (data ?? []).filter((f) => f.level !== 'ok')
+  const passed = (data ?? []).filter((f) => f.level === 'ok')
+  const text = (f: SecurityFinding, part: 'title' | 'fix') =>
+    t(`securityCheck.items.${f.id}_${f.level}.${part}`, {
+      count: f.count ?? 0,
+      detail: f.detail ?? '',
+      defaultValue: t(`securityCheck.items.${f.id}.${part}`, {
+        count: f.count ?? 0,
+        detail: f.detail ?? '',
+        defaultValue: '',
+      }),
+    })
+  return (
+    <SettingsPanel id="security-check" title={t('securityCheck.title')} desc={t('securityCheck.hint')}>
+      {data && findings.length === 0 && <p className="sf-note text-ok">{t('securityCheck.allGood')}</p>}
+      {findings.length > 0 && (
+        <Rows>
+          {findings.map((f) => (
+            <Row
+              key={f.id}
+              title={
+                <span className="flex flex-wrap items-center gap-2">
+                  <Badge tone={toneOf[f.level]}>{t(`securityCheck.level.${f.level}`)}</Badge>
+                  <span>{text(f, 'title')}</span>
+                </span>
+              }
+              sub={text(f, 'fix')}
+            />
+          ))}
+        </Rows>
+      )}
+      {passed.length > 0 && (
+        <details className="mt-3">
+          <summary className="sf-note cursor-pointer">{t('securityCheck.passed', { count: passed.length })}</summary>
+          <ul className="sf-note mt-2 list-disc ps-5">
+            {passed.map((f) => (
+              <li key={f.id}>{text(f, 'title')}</li>
+            ))}
+          </ul>
+        </details>
       )}
     </SettingsPanel>
   )

@@ -953,6 +953,16 @@ export interface Schemas {
   'api.SearchResponse': {
     results: Schemas['api.SearchHit'][]
   }
+  'api.SecurityCheck': {
+    count?: number
+    detail?: string
+    id: string
+    /**
+     * "risk": fix it before exposing the instance; "warn": should be fixed;
+     * "info": worth knowing; "ok": checked and fine
+     */
+    level: "risk" | "warn" | "info" | "ok"
+  }
   'api.ServerLanguagesResponse': {
     dub: string[]
     sub: string[]
