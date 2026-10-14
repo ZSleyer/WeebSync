@@ -1,18 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  ArrowDown,
-  ArrowUp,
-  Bookmark,
-  Bot,
-  CircleArrowUp,
-  CircleDashed,
-  Copy,
-  EyeOff,
-  RefreshCw,
-  Sparkles,
-  TrendingUp,
-  type LucideIcon,
-} from 'lucide-react'
+import { ArrowDown, ArrowUp, RefreshCw } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate } from 'react-router'
@@ -43,7 +30,6 @@ import { CatalogTile, useTileRise } from '../components/CatalogTile'
 import { useAiStatus, useNow, usePersistedQuery, useAuth, useWholeSave } from '../hooks'
 import { rememberSection, sectionOf, slugOf, type DiscoverSection } from '../discoverRoutes'
 import { SectionOutlet } from '../components/RouteTransition'
-import type { SectionGroup } from '../components/SectionNav'
 import { coverSet } from '../images'
 import { ANILIST_SETTINGS, useAnilistMe } from '../anilistMe'
 import {
@@ -58,6 +44,7 @@ import {
   type DiscoverNavGroup,
 } from './DiscoverParts'
 import { asOfLine, copyLine, listOf, metaLine, progressLine, shortPath } from './discoverText'
+import { LAYOUT, useCounts, useDismissed, useSuggestions, type ListSection } from './discoverGroups'
 import './discover.css'
 
 // Entdecken: the suggestion lists by what they are for (Merkliste,
@@ -65,70 +52,6 @@ import './discover.css'
 // Unvollständig, Duplikate), and the questions (Assistent, Ausgeblendet).
 // One blob from GET /api/suggestions feeds every list. Each section has its
 // own address under /discover (discoverRoutes.ts).
-type ListSection = Exclude<DiscoverSection, 'assistant' | 'ignored'>
-
-const useSuggestions = () =>
-  usePersistedQuery<SuggestionsResponse>('suggestions', () => api.get('/api/suggestions'), {
-    refetchInterval: (q) => (q.state.data?.building ? 4000 : false),
-  })
-const useDismissed = () => usePersistedQuery<DismissedItem[]>('dismissed', () => api.get('/api/suggestions/dismissed'))
-
-// the sections in their groups, in the mock's order; the assistant only
-// with a configured endpoint (the page itself explains when opened directly)
-const LAYOUT: { label: string; items: [DiscoverSection, string, LucideIcon][] }[] = [
-  {
-    label: 'suggestions.groupDiscover',
-    items: [
-      ['watchlist', 'suggestions.tabWatchlist', Bookmark],
-      ['recommended', 'suggestions.tabRecommended', Sparkles],
-      ['trending', 'suggestions.tabTrending', TrendingUp],
-    ],
-  },
-  {
-    label: 'suggestions.groupLibrary',
-    items: [
-      ['upgrades', 'suggestions.tabUpgrades', CircleArrowUp],
-      ['incomplete', 'suggestions.tabIncomplete', CircleDashed],
-      ['duplicates', 'suggestions.tabDuplicates', Copy],
-    ],
-  },
-  {
-    label: 'discover.groupAsk',
-    items: [
-      ['assistant', 'nav.assistant', Bot],
-      ['ignored', 'suggestions.ignored', EyeOff],
-    ],
-  },
-]
-
-/** Every section with its count. The counts come from the blob, stale ones included, and show 0. */
-function useCounts(): Partial<Record<DiscoverSection, number>> {
-  const { data } = useSuggestions()
-  const { data: dismissed } = useDismissed()
-  const n = (k: ListSection) => (data ? (data[k]?.length ?? 0) : undefined)
-  return {
-    watchlist: n('watchlist'),
-    recommended: n('recommended'),
-    trending: n('trending'),
-    upgrades: n('upgrades'),
-    incomplete: n('incomplete'),
-    duplicates: n('duplicates'),
-    ignored: dismissed?.length,
-  }
-}
-
-/** The sections as the command palette lists them: groups of routes with icons and counts. */
-export function useSuggestionGroups(): SectionGroup[] {
-  const { data: ai } = useAiStatus()
-  const counts = useCounts()
-  return LAYOUT.map((g) => ({
-    label: g.label,
-    items: g.items
-      .filter(([id]) => id !== 'assistant' || ai?.configured)
-      .map(([id, key, icon]) => ({ to: slugOf(id), key, icon, hint: `suggestions.hub.${id}`, count: counts[id] })),
-  })).filter((g) => g.items.length > 0)
-}
-
 // the head of each list section: title and the quiet line under it
 const HEADS: Record<Exclude<DiscoverSection, 'assistant'>, string> = {
   watchlist: 'suggestions.tabWatchlist',

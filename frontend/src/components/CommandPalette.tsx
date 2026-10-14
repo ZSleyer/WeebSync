@@ -9,7 +9,7 @@ import { localColor, serverColor, tint, type SourceColorName } from './sourceCol
 import { useSeriesModal } from './SeriesModal'
 import { filesLink } from './playLinks'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
-import { useSuggestionGroups } from '../pages/Suggestions'
+import { useSuggestionGroups } from '../pages/discoverGroups'
 import { DISCOVER_BASE, legacyDiscoverPath } from '../discoverRoutes'
 import './palette.css'
 

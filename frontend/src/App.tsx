@@ -1,4 +1,14 @@
-import { useEffect, useMemo, useReducer, useRef, useState, type ReactNode } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  type ComponentType,
+  type ReactNode,
+} from 'react'
 import { ArrowLeft, BookOpen, Compass, FolderOpen, House, RefreshCw, Search, Settings } from 'lucide-react'
 import {
   createBrowserRouter,
@@ -37,37 +47,11 @@ import { AppBarActions, ShellFooter, ShellToolbar, TitleActions, WIDE_MQ } from 
 import { LiveProvider } from './components/liveState'
 import { BackLink } from './components/BackLink'
 import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
-import Setup, { FINISHING_KEY } from './pages/Setup'
-import Login from './pages/Login'
+import { FINISHING_KEY } from './pages/setupState'
 import Dashboard from './pages/Dashboard'
-import History from './pages/History'
-import Files from './pages/Files'
-import Trash from './pages/Trash'
-import Watches from './pages/Watches'
-import SuggestionsLayout, {
-  BucketSection,
-  DuplicatesSection,
-  IgnoredSection,
-  UpgradesSection,
-} from './pages/Suggestions'
 import { DiscoverIndex, LegacySuggestions } from './components/DiscoverRedirect'
 import { DISCOVER_BASE, discoverPath, slugOf } from './discoverRoutes'
-import Assistant from './pages/Assistant'
-import Rename from './pages/Rename'
 import SettingsLayout, { AdminRoute, SettingsHub } from './pages/settings/SettingsLayout'
-import SyncDefaults from './pages/settings/SyncDefaults'
-import Rules from './pages/settings/Rules'
-import General from './pages/settings/General'
-import About from './pages/settings/About'
-import Servers from './pages/settings/Servers'
-import Account from './pages/settings/Account'
-import Notifications from './pages/settings/Notifications'
-import Transfers from './pages/settings/Transfers'
-import Security from './pages/settings/Security'
-import Integrations from './pages/settings/Integrations'
-import Jobs from './pages/settings/Jobs'
-import Matching, { MatchesPage } from './pages/settings/Matching'
-import Data, { StorePage } from './pages/settings/Data'
 
 // Four pages, the same on every device - no "more" sheet: a menu behind a
 // button is found half as often as one in sight. The calendar is a view of
@@ -96,13 +80,17 @@ const ENTER_MS = 1200
 type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 
-// Files keeps its folder in state and writes it to the URL itself, so a link
-// into it from the search would be written over. A jump (navigation state
-// from the search) mounts it afresh, and it starts from the link.
-function FilesJump() {
-  const { state } = useLocation()
-  return <Files key={(state as { jump?: number } | null)?.jump ?? 0} />
-}
+// Signed out, or an admin before the first server: whole screens of their own
+// that a signed-in session never needs, so they load only when shown. Until
+// then the same centred spinner as the session check stands in, which is
+// what the screen showed a moment before - nothing moves when they arrive.
+const Login = lazy(() => import('./pages/Login'))
+const Setup = lazy(() => import('./pages/Setup'))
+const loadingScreen = (
+  <div className="grid min-h-dvh place-items-center">
+    <Loading />
+  </div>
+)
 
 // Root layout element of the data router. A data router (createBrowserRouter)
 // is required so form pages can useBlocker() to guard unsaved changes.
@@ -111,14 +99,13 @@ function RootLayout() {
   useEvents(!!user)
   useSpeedSampler(!!user)
 
-  if (isLoading) {
+  if (isLoading) return loadingScreen
+  if (!user)
     return (
-      <div className="grid min-h-dvh place-items-center">
-        <Loading />
-      </div>
+      <Suspense fallback={loadingScreen}>
+        <Login />
+      </Suspense>
     )
-  }
-  if (!user) return <Login />
   if (user.isAdmin) return <AdminGate email={user.email} />
   return <Shell email={user.email} />
 }
@@ -139,13 +126,15 @@ function AdminGate({ email }: { email: string }) {
   // the wizard's closing step outlives the save that marks onboarding done
   if (data?.onboardingDone === false || sessionStorage.getItem(FINISHING_KEY))
     return (
-      <Setup
-        initialStep="import"
-        onDone={() => {
-          rerender()
-          void qc.invalidateQueries({ queryKey: ['settings'] })
-        }}
-      />
+      <Suspense fallback={loadingScreen}>
+        <Setup
+          initialStep="import"
+          onDone={() => {
+            rerender()
+            void qc.invalidateQueries({ queryKey: ['settings'] })
+          }}
+        />
+      </Suspense>
     )
   return <Shell email={email} />
 }
@@ -174,14 +163,49 @@ const inSettings = (title: string) => h(title, '/settings', 'nav.settings')
 // every section of Entdecken is a tab of one page, none stacked on another
 const discoverTab = (title: string) => h(title, undefined, 'nav.suggestions')
 
+/**
+ * A screen that is not the first one anybody sees, loaded with its route: its
+ * code is a chunk of its own, fetched on the way in. The router keeps the
+ * screen being left on show until the chunk is in and only then commits the
+ * navigation, so there is no fallback to flash or to shift the layout, and
+ * the route motion and the page's entry animations run on the real screen.
+ * `admin` puts it behind the admin check, as the settings sections that need
+ * one are.
+ */
+const screen =
+  <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType, admin = false) =>
+  async () => {
+    const Page = pick(await load())
+    return {
+      Component: admin
+        ? () => (
+            <AdminRoute>
+              <Page />
+            </AdminRoute>
+          )
+        : Page,
+    }
+  }
+const files = () => import('./pages/Files')
+const history = () => import('./pages/History')
+const discover = () => import('./pages/Suggestions')
+const assistant = () => import('./pages/Assistant')
+const rename = () => import('./pages/Rename')
+const trash = () => import('./pages/Trash')
+const rules = () => import('./pages/settings/Rules')
+const matching = () => import('./pages/settings/Matching')
+const data = () => import('./pages/settings/Data')
+
 export const router = createBrowserRouter(
   createRoutesFromElements(
-    <Route element={<RootLayout />}>
+    // a first load straight onto a lazy screen waits for its chunk with the
+    // same spinner the session check shows next
+    <Route element={<RootLayout />} hydrateFallbackElement={loadingScreen}>
       <Route path="/" element={<Dashboard />} handle={h('nav.dashboard')} />
       {/* a title card's own URL, opened from a link or a reload: the card
           stands over the dashboard (SeriesModalProvider reads the path) */}
       <Route path={TITLE_PATH} element={<Dashboard />} handle={h('nav.dashboard')} />
-      <Route path="/files" element={<FilesJump />} handle={h('nav.files')} />
+      <Route path="/files" lazy={screen(files, (m) => m.FilesJump)} handle={h('nav.files')} />
       {/* the remote and local browsers merged into /files; their links keep
           the folder they pointed at */}
       <Route path="/remote" element={<RedirectWithQuery to="/files" />} />
@@ -191,44 +215,63 @@ export const router = createBrowserRouter(
         path="/calendar"
         element={<RedirectWithQuery to="/watches" rewrite={(p) => (p.set('view', 'calendar'), p)} />}
       />
-      <Route path="/history" element={<History />} handle={h('history.title', '/', 'nav.dashboard')} />
-      <Route path="/watches" element={<Watches />} handle={h('nav.watches')} />
+      <Route
+        path="/history"
+        lazy={screen(history, (m) => m.default)}
+        handle={h('history.title', '/', 'nav.dashboard')}
+      />
+      <Route
+        path="/watches"
+        lazy={screen(
+          () => import('./pages/Watches'),
+          (m) => m.default,
+        )}
+        handle={h('nav.watches')}
+      />
       {/* Entdecken: every section a tab of one page, the assistant and the
           ignored items included; the index opens the last one used */}
-      <Route path={DISCOVER_BASE} element={<SuggestionsLayout />} handle={h('nav.suggestions')}>
+      <Route path={DISCOVER_BASE} lazy={screen(discover, (m) => m.default)} handle={h('nav.suggestions')}>
         <Route index element={<DiscoverIndex />} />
         <Route
           path={slugOf('watchlist')}
-          element={<BucketSection bucket="watchlist" />}
+          lazy={screen(discover, (m) => () => <m.BucketSection bucket="watchlist" />)}
           handle={discoverTab('suggestions.tabWatchlist')}
         />
         <Route
           path={slugOf('recommended')}
-          element={<BucketSection bucket="recommended" />}
+          lazy={screen(discover, (m) => () => <m.BucketSection bucket="recommended" />)}
           handle={discoverTab('suggestions.tabRecommended')}
         />
         <Route
           path={slugOf('trending')}
-          element={<BucketSection bucket="trending" />}
+          lazy={screen(discover, (m) => () => <m.BucketSection bucket="trending" />)}
           handle={discoverTab('suggestions.tabTrending')}
         />
         <Route
           path={slugOf('upgrades')}
-          element={<UpgradesSection />}
+          lazy={screen(discover, (m) => m.UpgradesSection)}
           handle={discoverTab('suggestions.tabUpgrades')}
         />
         <Route
           path={slugOf('incomplete')}
-          element={<BucketSection bucket="incomplete" />}
+          lazy={screen(discover, (m) => () => <m.BucketSection bucket="incomplete" />)}
           handle={discoverTab('suggestions.tabIncomplete')}
         />
         <Route
           path={slugOf('duplicates')}
-          element={<DuplicatesSection />}
+          lazy={screen(discover, (m) => m.DuplicatesSection)}
           handle={discoverTab('suggestions.tabDuplicates')}
         />
-        <Route path={slugOf('ignored')} element={<IgnoredSection />} handle={discoverTab('suggestions.ignored')} />
-        <Route path={slugOf('assistant')} element={<Assistant />} handle={discoverTab('nav.assistant')} />
+        <Route
+          path={slugOf('ignored')}
+          lazy={screen(discover, (m) => m.IgnoredSection)}
+          handle={discoverTab('suggestions.ignored')}
+        />
+        <Route
+          path={slugOf('assistant')}
+          lazy={screen(assistant, (m) => m.default)}
+          handle={discoverTab('nav.assistant')}
+        />
         <Route path="*" element={<Navigate to={DISCOVER_BASE} replace />} />
       </Route>
       {/* the old addresses of the same screens */}
@@ -236,8 +279,12 @@ export const router = createBrowserRouter(
       <Route path="/assistant" element={<Navigate to={discoverPath('assistant')} replace />} />
       <Route path="/plex" element={<Navigate to={DISCOVER_BASE} replace />} />
       <Route path="/servers" element={<Navigate to="/settings/servers" replace />} />
-      <Route path="/rename" element={<Rename />} handle={h('nav.rename', '/files', 'nav.files')} />
-      <Route path="/files/trash" element={<Trash />} handle={h('trash.title', '/files', 'nav.files')} />
+      <Route path="/rename" lazy={screen(rename, (m) => m.default)} handle={h('nav.rename', '/files', 'nav.files')} />
+      <Route
+        path="/files/trash"
+        lazy={screen(trash, (m) => m.default)}
+        handle={h('trash.title', '/files', 'nav.files')}
+      />
       {/* lazy: libass, hls.js and the player controls are megabytes nobody
           else needs */}
       <Route
@@ -255,89 +302,111 @@ export const router = createBrowserRouter(
           from settings; on a phone it stacks on settings */}
       <Route
         path={RULES.to}
-        element={<Rules />}
+        lazy={screen(rules, (m) => m.default)}
         handle={{ title: 'settings.nav.rules', back: '/settings', backHistory: true }}
       />
       <Route path="/settings" element={<SettingsLayout />} handle={{ ...h('nav.settings'), ownTitle: true }}>
         <Route index element={<SettingsHub />} />
-        <Route path="general" element={<General />} handle={inSettings('settings.nav.general')} />
+        <Route
+          path="general"
+          lazy={screen(
+            () => import('./pages/settings/General'),
+            (m) => m.default,
+          )}
+          handle={inSettings('settings.nav.general')}
+        />
         <Route path="look" element={<Navigate to="/settings/general" replace />} />
-        <Route path="about" element={<About />} handle={inSettings('settings.nav.about')} />
-        <Route path="account" element={<Account />} handle={inSettings('settings.nav.account')} />
-        <Route path="sync" element={<SyncDefaults />} handle={inSettings('settings.nav.sync')} />
+        <Route
+          path="about"
+          lazy={screen(
+            () => import('./pages/settings/About'),
+            (m) => m.default,
+          )}
+          handle={inSettings('settings.nav.about')}
+        />
+        <Route
+          path="account"
+          lazy={screen(
+            () => import('./pages/settings/Account'),
+            (m) => m.default,
+          )}
+          handle={inSettings('settings.nav.account')}
+        />
+        <Route
+          path="sync"
+          lazy={screen(
+            () => import('./pages/settings/SyncDefaults'),
+            (m) => m.default,
+          )}
+          handle={inSettings('settings.nav.sync')}
+        />
         <Route path="rules" element={<RedirectWithQuery to="/rules" />} />
-        <Route path="notifications" element={<Notifications />} handle={inSettings('settings.nav.notifications')} />
-        <Route path="servers" element={<Servers />} handle={inSettings('nav.servers')} />
+        <Route
+          path="notifications"
+          lazy={screen(
+            () => import('./pages/settings/Notifications'),
+            (m) => m.default,
+          )}
+          handle={inSettings('settings.nav.notifications')}
+        />
+        <Route
+          path="servers"
+          lazy={screen(
+            () => import('./pages/settings/Servers'),
+            (m) => m.default,
+          )}
+          handle={inSettings('nav.servers')}
+        />
         <Route
           path="transfers"
-          element={
-            <AdminRoute>
-              <Transfers />
-            </AdminRoute>
-          }
+          lazy={screen(
+            () => import('./pages/settings/Transfers'),
+            (m) => m.default,
+            true,
+          )}
           handle={inSettings('settings.nav.transfers')}
         />
         <Route
           path="security"
-          element={
-            <AdminRoute>
-              <Security />
-            </AdminRoute>
-          }
+          lazy={screen(
+            () => import('./pages/settings/Security'),
+            (m) => m.default,
+            true,
+          )}
           handle={inSettings('settings.nav.security')}
         />
         <Route
           path="integrations"
-          element={
-            <AdminRoute>
-              <Integrations />
-            </AdminRoute>
-          }
+          lazy={screen(
+            () => import('./pages/settings/Integrations'),
+            (m) => m.default,
+            true,
+          )}
           handle={inSettings('settings.nav.integrations')}
         />
         <Route
           path="jobs"
-          element={
-            <AdminRoute>
-              <Jobs />
-            </AdminRoute>
-          }
+          lazy={screen(
+            () => import('./pages/settings/Jobs'),
+            (m) => m.default,
+            true,
+          )}
           handle={inSettings('settings.nav.jobs')}
         />
         <Route
           path="matching"
-          element={
-            <AdminRoute>
-              <Matching />
-            </AdminRoute>
-          }
+          lazy={screen(matching, (m) => m.default, true)}
           handle={inSettings('settings.nav.matching')}
         />
         <Route
           path="matching/:server/:source"
-          element={
-            <AdminRoute>
-              <MatchesPage />
-            </AdminRoute>
-          }
+          lazy={screen(matching, (m) => m.MatchesPage, true)}
           handle={h('settings.nav.matching', '/settings/matching', 'nav.settings')}
         />
-        <Route
-          path="data"
-          element={
-            <AdminRoute>
-              <Data />
-            </AdminRoute>
-          }
-          handle={inSettings('settings.nav.data')}
-        />
+        <Route path="data" lazy={screen(data, (m) => m.default, true)} handle={inSettings('settings.nav.data')} />
         <Route
           path="data/:store"
-          element={
-            <AdminRoute>
-              <StorePage />
-            </AdminRoute>
-          }
+          lazy={screen(data, (m) => m.StorePage, true)}
           handle={h('settings.nav.data', '/settings/data', 'nav.settings')}
         />
         {/* merged sections: the old paths land on their panel */}

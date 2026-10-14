@@ -8,6 +8,7 @@ import SetupSteps, { SetupFoot, SetupHeading, type SetupSummary } from '../compo
 import { EnvBadge } from './settings/useSettingsForm'
 import Brand from '../components/Brand'
 import { MIN_PASSWORD } from './authLimits'
+import { FINISHING_KEY } from './setupState'
 import './auth.css'
 
 // First-run wizard, shown while the instance has no users yet
@@ -31,10 +32,6 @@ const OPTIONAL: Step[] = ['oidc', 'import']
 // comes back at step 03. Signed out (initialStep "account") there is no
 // account yet, so nothing past step 01 can be resumed.
 const STEP_KEY = 'weebsync.setup.step'
-// Set from the last save to the click on "start": the save reports onboarding
-// done, and the gate would swap the app in before the closing step showed.
-// While it is set, the gate keeps the wizard on screen.
-export const FINISHING_KEY = 'weebsync.setup.finishing'
 const storedStep = (initial: Step): Step => {
   if (initial === 'account') return initial
   const s = sessionStorage.getItem(STEP_KEY) as Step | null

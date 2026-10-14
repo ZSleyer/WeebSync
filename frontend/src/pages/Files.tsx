@@ -29,7 +29,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SeriesCardView, useSeriesModal, type CardViewProps, type SeriesAction } from '../components/SeriesModal'
 import { useToast } from '../components/toast'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
 import {
@@ -138,6 +138,14 @@ const sourceFromStorage = (): Source | null => {
 // search a server's index, switch to the catalog view, sync once, watch, and
 // on the local library (admins) rename and delete. Replaces the Remote and
 // Local pages; their URLs redirect here with the folder kept.
+// Files keeps its folder in state and writes it to the URL itself, so a link
+// into it from the search would be written over. A jump (navigation state
+// from the search) mounts it afresh, and it starts from the link.
+export function FilesJump() {
+  const { state } = useLocation()
+  return <Files key={(state as { jump?: number } | null)?.jump ?? 0} />
+}
+
 export default function Files() {
   const { t } = useTranslation()
   const { data: user } = useAuth()
