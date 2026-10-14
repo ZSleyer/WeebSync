@@ -16,7 +16,15 @@ import { matchPath, useLocation, useNavigate, type Location } from 'react-router
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Trash2 } from 'lucide-react'
-import { Button, ButtonLink, IconButton, localTransition, markOverflow, useBackEntry } from 'fluid-lycoris'
+import {
+  Button,
+  ButtonLink,
+  IconButton,
+  localTransition,
+  markOverflow,
+  useBackEntry,
+  useMediaQuery,
+} from 'fluid-lycoris'
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
 import { coverSet } from '../images'
 import { useNow } from '../hooks'
@@ -79,7 +87,7 @@ export interface SeriesAction extends SheetAction {
   more?: boolean
 }
 
-export type SeriesTab = 'overview' | 'episodes' | 'cast' | 'community' | 'similar'
+export type SeriesTab = 'overview' | 'episodes' | 'cast' | 'community' | 'similar' | 'match'
 
 interface SeriesModalApi {
   open: (target: SeriesTarget) => void
@@ -509,7 +517,9 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
 }
 
 // the order the sections stand in on the one scrolling page
-const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'cast', 'similar', 'community']
+const SECTIONS: SeriesTab[] = ['overview', 'episodes', 'cast', 'similar', 'community', 'match']
+// where the aside stands as a column of its own beside the sections
+const ASIDE_MQ = '(width >= 64rem)'
 
 interface CardProps {
   entry: TitleEntry
@@ -612,7 +622,12 @@ function SeriesCard({
   // back from the player returns here. A manga's volumes open in the reader.
   const play = (server: number, path: string) => goTo(isVideo(path) ? playHref(server, path) : viewHref(server, path))
 
-  const sections = SECTIONS.filter((k) => k !== 'episodes' || mine.length > 0 || folders.length > 0)
+  // the match of an auto-sync stands in the aside where it is a column;
+  // on a narrower page it is a section of its own, with its tab
+  const asideMatch = useMediaQuery(ASIDE_MQ)
+  const sections = SECTIONS.filter(
+    (k) => (k !== 'episodes' || mine.length > 0 || folders.length > 0) && (k !== 'match' || (!!lead && !asideMatch)),
+  )
   const ids = useId()
   const hid = (k: string) => `${ids}-${k}-h`
   const name = cur.title || (media ? mediaTitle(media) : '')
@@ -1050,8 +1065,12 @@ function SeriesCard({
                     />
                   )}
                   <WatchExplain watch={lead} now={now} />
-                  <MatchSection watch={lead} />
-                  <MoreWatches watches={mine.slice(1)} menu={watchMenu} />
+                  {asideMatch && (
+                    <>
+                      <MatchSection watch={lead} />
+                      <MoreWatches watches={mine.slice(1)} menu={watchMenu} />
+                    </>
+                  )}
                 </div>
               )}
               <div className="ws-d-main">
@@ -1063,9 +1082,15 @@ function SeriesCard({
                       sec.current[k] = el
                     }}
                     tabIndex={-1}
-                    aria-labelledby={hid(k)}
+                    aria-labelledby={k === 'match' && lead ? `ws-match-${lead.id}` : hid(k)}
                     className="ws-d-sec"
                   >
+                    {k === 'match' && lead && (
+                      <>
+                        <MatchSection watch={lead} />
+                        <MoreWatches watches={mine.slice(1)} menu={watchMenu} />
+                      </>
+                    )}
                     {k === 'overview' && (
                       <>
                         <h2 id={hid(k)} className="sr-only">
