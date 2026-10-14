@@ -256,6 +256,7 @@
   },
   "upgrade": {"title": "Konto absichern", "passwordTitle": "Neues Passwort nötig", "passwordHint": "Dein Passwort erfüllt die aktuellen Regeln nicht mehr: es ist zu kurz, sehr verbreitet oder aus deiner Adresse gebildet. Lege ein neues fest, dann geht es weiter.", "logout": "Abmelden", "passkeyTitle": "Passkey ersetzen", "passkeyHint": "Dein Passkey „{{name}}“ hat bei der Anmeldung weder PIN noch Fingerabdruck oder Gesicht verlangt. Damit ist er nur ein halber Schutz. Lege mit deinem Passwort einen neuen an, der dich bestätigt; der alte wird dann entfernt. Kann dein Gerät das nicht, entferne den alten und melde dich künftig mit Passwort an.", "passkeyReplace": "Neuen Passkey anlegen", "passkeyRemove": "Alten Passkey entfernen"},
   "login": {
+    "insecure": "Diese Verbindung ist nicht verschlüsselt: Passwort und Sitzung gehen im Klartext übers Netz. Ruf die Seite über https:// auf.",
     "approvalPending": "Ein Admin muss dein Konto noch freischalten, du bekommst dann eine Mail.",
     "remember": "Angemeldet bleiben",
     "showPassword": "Zeigen",

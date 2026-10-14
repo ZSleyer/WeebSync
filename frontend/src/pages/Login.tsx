@@ -51,6 +51,12 @@ function writeRemember(v: boolean) {
     // private window or blocked storage: the box still applies to this sign-in
   }
 }
+// Reached over plain HTTP from another machine: the password and the session
+// would cross the network in clear text (and passkeys refuse to work)
+const insecure =
+  typeof window !== 'undefined' &&
+  !window.isSecureContext &&
+  !['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
 const oidcHref = (remember: boolean) => '/api/auth/oidc/login' + (remember ? '?remember=1' : '')
 
 // The 401 of a wrong email or password counts what the rate limit leaves.
@@ -295,6 +301,11 @@ export default function Login() {
       </div>
       <div className="ws-login-side">
         <div key={stage} className="ws-login-form ws-stage">
+          {insecure && (
+            <p className="ws-login-err" role="alert">
+              {t('login.insecure')}
+            </p>
+          )}
           {oidcOnly ? (
             <>
               {cfg.authMode === 'oidc-auto' && !holdRedirect ? (
