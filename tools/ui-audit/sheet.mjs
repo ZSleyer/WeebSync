@@ -172,7 +172,10 @@ for (const vp of VIEWPORTS) {
 
   const open = async () => {
     if (await page.evaluate(() => !!document.querySelector('dialog[open]'))) return true
-    const btn = page.getByRole('button', { name: /Details zu|Details for/ }).first()
+    // the local catalogue's "why" sheet, which every instance with a local
+    // folder has; the title cards that used to be the sheet here open as a
+    // page now
+    const btn = page.getByRole('button', { name: /^Warum\?$|^Why\?$/ }).first()
     if (!(await btn.count().catch(() => 0))) return false
     await btn.click({ timeout: 8000 }).catch(() => {})
     await page.waitForSelector('dialog[open]', { timeout: 8000 }).catch(() => {})
@@ -189,7 +192,7 @@ for (const vp of VIEWPORTS) {
       return { x: Math.round(r.x + r.width / 2), face: Math.round(r.y + 120), h: Math.round(r.height) }
     })
 
-  await page.goto(`${BASE}/watches`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`${BASE}/files?source=local`, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(5000)
   if (!(await open())) {
     bad(`${tag}: no sheet dialog reachable`)
