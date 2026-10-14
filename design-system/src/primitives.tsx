@@ -10,6 +10,7 @@ import type {
   TextareaHTMLAttributes,
 } from 'react'
 import { useEffect, useRef, useState } from 'react'
+import { DUO_SHAPES } from './duo'
 import { useWave } from './wave'
 
 // Presentational wrappers around the t-* classes in fluid-lycoris.css. Deliberately
@@ -297,6 +298,35 @@ function WaveFill({ pct, active, small }: { pct: number; active: boolean; small:
       <path />
       <circle className="t-progress-head" r="0" />
     </svg>
+  )
+}
+
+export interface LoadingIndicatorProps {
+  /** what is loading, for assistive tech; shown beside the mark with `showLabel` */
+  label: string
+  showLabel?: boolean
+  /** sm sits in a line of text, md in a section, lg on a screen of its own */
+  size?: 'sm' | 'md' | 'lg'
+  className?: string
+}
+
+/**
+ * Indeterminate loading, the design's own: a red and a teal half that turn
+ * steadily and morph together from two dots into a yin and yang, a
+ * flower cut in two and a pair of diamonds (shapes in duo.ts). For a wait
+ * with nothing to measure. It shows only once the wait has lasted a moment,
+ * so a quick answer never flashes it; the status is in the tree from the
+ * start. Motion off: the yin and yang, still.
+ */
+export function LoadingIndicator({ label, showLabel, size = 'md', className }: LoadingIndicatorProps) {
+  return (
+    <div role="status" className={cx('t-loading', `t-loading--${size}`, className)}>
+      <span aria-hidden className="t-loading-duo" style={DUO_SHAPES}>
+        <span />
+        <span />
+      </span>
+      <span className={showLabel ? 't-loading-label' : 'sr-only'}>{label}</span>
+    </div>
   )
 }
 
