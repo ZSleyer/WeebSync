@@ -207,6 +207,8 @@ export function SecretSetting({
   const confirm = useConfirm()
   const id = useId()
   const name = typeof label === 'string' ? label : ''
+  // the button already says a value is there: the word stays for screen readers
+  const removable = stored && !env && !!onRemove
   return (
     <SettingsField
       label={label}
@@ -229,10 +231,10 @@ export function SecretSetting({
           aria-describedby={describedBy(id + 's', hint !== undefined && id + 'h', issue && id + 'i')}
           onChange={(e) => onChange(e.target.value)}
         />
-        <span id={id + 's'} className={cx('sec-st', stored && 'ok')}>
+        <span id={id + 's'} className={cx('sec-st', stored && 'ok', removable && 'sr-only')}>
           {stored ? t('settings.secretStored') : t('settings.secretMissing')}
         </span>
-        {stored && !env && onRemove && (
+        {removable && (
           <Button
             size="sm"
             aria-label={t('settings.secretRemoveLabel', { name })}
@@ -243,7 +245,7 @@ export function SecretSetting({
                 confirmLabel: t('settings.secretRemove'),
                 destructive: true,
               })
-              if (ok) onRemove()
+              if (ok) onRemove?.()
             }}
           >
             {t('settings.secretRemove')}
