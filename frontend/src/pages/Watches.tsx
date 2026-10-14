@@ -397,25 +397,18 @@ export default function Watches() {
     )
   }
   // one release as a row: time, title and episode, how far off it is
-  const entry = (e: Airing, withCover?: boolean) => {
+  const entry = (e: Airing) => {
     const w = e.watch
     const past = e.at * 1000 <= now
     return (
       <Press onLongPress={() => setMore(w)}>
-        <button
-          type="button"
-          className={`w-ag ${withCover ? 'w-ag--cov' : ''}`}
-          disabled={!w.media}
-          onClick={() => showSeries(w)}
-        >
-          {withCover !== false && (
-            <CoverImg
-              className="w-ag-cov"
-              set={coverSet(w.media?.coverImage)}
-              tint={w.media?.coverImage?.color}
-              sizes="2.75rem"
-            />
-          )}
+        <button type="button" className="w-ag" disabled={!w.media} onClick={() => showSeries(w)}>
+          <CoverImg
+            className="w-ag-cov"
+            set={coverSet(w.media?.coverImage)}
+            tint={w.media?.coverImage?.color}
+            sizes="2.75rem"
+          />
           <time
             dateTime={new Date(e.at * 1000).toISOString()}
             title={w.mediaSource?.startsWith('tmdb') ? undefined : `${jst(e.at)} JST`}
@@ -434,11 +427,11 @@ export default function Watches() {
       </Press>
     )
   }
-  const rows = (items: Airing[], withCover?: boolean) => (
+  const rows = (items: Airing[]) => (
     <Rows dense>
       {items.map((e) => (
         <li key={entryKey(e)} className="t-row">
-          {entry(e, withCover)}
+          {entry(e)}
         </li>
       ))}
     </Rows>
@@ -637,7 +630,7 @@ export default function Watches() {
           <div className="flex flex-col gap-6">
             {calGroups.map((g) => (
               <CalDay key={g.day.getTime()} heading={calDayHeading(t, g.day, today)}>
-                {rows(g.items, false)}
+                {rows(g.items)}
               </CalDay>
             ))}
           </div>

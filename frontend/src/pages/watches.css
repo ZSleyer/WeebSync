@@ -347,8 +347,11 @@
     background: color-mix(in oklab, var(--fg) 5%, transparent);
   }
 }
+/* every release carries its cover, as the calendar did before: on a phone
+   the day and the agenda are a list of titles, and a cover is read faster
+   than a name */
 .w-ag .w-ag-cov {
-  display: none;
+  display: block;
   width: 2.75rem;
   flex: none;
   aspect-ratio: 2 / 3;
@@ -400,8 +403,7 @@
 .w-file[data-kind='late'] {
   color: var(--warn);
 }
-.w-week .w-ag,
-.w-ag.w-ag--cov {
+.w-week .w-ag {
   display: grid;
   grid-template-columns: 2.75rem minmax(0, 1fr);
   grid-template-areas: 'cov time' 'cov t';
@@ -409,18 +411,15 @@
   gap: 0.125rem 0.625rem;
   padding: 0.625rem 0.25rem;
 }
-.w-week .w-ag .w-ag-cov,
-.w-ag.w-ag--cov .w-ag-cov {
+.w-week .w-ag .w-ag-cov {
   display: block;
   grid-area: cov;
 }
-.w-week .w-ag time,
-.w-ag.w-ag--cov time {
+.w-week .w-ag time {
   grid-area: time;
   width: auto;
 }
-.w-week .w-ag .w-ag-t,
-.w-ag.w-ag--cov .w-ag-t {
+.w-week .w-ag .w-ag-t {
   grid-area: t;
 }
 .w-week .w-ag .w-ag-t > strong {
