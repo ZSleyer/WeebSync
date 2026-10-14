@@ -286,12 +286,13 @@ function Acts({
         type="button"
         className="ws-th-like"
         aria-pressed={liked}
-        aria-label={t('thread.like')}
+        // the name carries the count: an aria-label replaced the visible
+        // number, and a screen reader heard the toggle without it
+        aria-label={`${t('thread.like')}, ${t('thread.likes', { count: likes })}`}
         onClick={() => w.like(target)}
       >
         <Heart aria-hidden size="1rem" fill={liked ? 'currentColor' : 'none'} />
         <span aria-hidden>{likes}</span>
-        <span className="sr-only">{t('thread.likes', { count: likes })}</span>
       </button>
       {reply && (
         <TextLink
