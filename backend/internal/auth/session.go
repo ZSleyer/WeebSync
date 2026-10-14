@@ -120,6 +120,31 @@ type User struct {
 	ID      int64  `json:"id"`
 	Email   string `json:"email"`
 	IsAdmin bool   `json:"isAdmin"`
+	// what the account must replace before it may use the app ("password",
+	// "passkey"), "" when nothing is due; see users.auth_upgrade
+	Upgrade string `json:"-"`
+}
+
+// upgradeRoutes are what an account held for an upgrade may still reach: who
+// it is, and the routes that carry out the replacement. Everything else
+// answers 403 until it is done.
+var upgradeRoutes = map[string][]string{
+	"password": {"PUT /api/auth/password"},
+	"passkey": {"GET /api/auth/webauthn/credentials",
+		"POST /api/auth/webauthn/register/begin", "POST /api/auth/webauthn/register/finish"},
+}
+
+func upgradeAllows(kind string, r *http.Request) bool {
+	route := r.Method + " " + r.URL.Path
+	if route == "GET /api/auth/me" || route == "PUT /api/auth/locale" {
+		return true
+	}
+	for _, p := range upgradeRoutes[kind] {
+		if p == route {
+			return true
+		}
+	}
+	return false
 }
 
 type ctxKey struct{}
@@ -200,7 +225,8 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 		return err
 	}
 	return db.Tx(d, func(tx *sql.Tx) error {
-		res, err := tx.Exec(`UPDATE users SET password_hash = ?, reset_token_hash = '', email_verified = 1 WHERE id = ?`, hash, userID)
+		res, err := tx.Exec(`UPDATE users SET password_hash = ?, reset_token_hash = '', email_verified = 1,
+			auth_upgrade = CASE auth_upgrade WHEN 'password' THEN '' ELSE auth_upgrade END WHERE id = ?`, hash, userID)
 		if err != nil {
 			return err
 		}
@@ -246,12 +272,18 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 				var u User
 				var expires string
 				var isAdmin int
-				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, s.expires_at
+				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ?`, hashToken(c.Value)).
-					Scan(&u.ID, &u.Email, &isAdmin, &expires)
+					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires)
 				if err == nil {
 					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(time.Now()) {
+						if u.Upgrade != "" && !upgradeAllows(u.Upgrade, r) {
+							w.Header().Set("Content-Type", "application/json")
+							w.WriteHeader(http.StatusForbidden)
+							w.Write([]byte(`{"error":"account upgrade required","upgrade":"` + u.Upgrade + `"}`))
+							return
+						}
 						u.IsAdmin = isAdmin == 1
 						next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, &u)))
 						return

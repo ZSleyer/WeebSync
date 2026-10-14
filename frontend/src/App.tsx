@@ -94,6 +94,7 @@ const tabCurrent = (n: NavEntry, path: string) => onPath(n, path) || !!ALSO[n.to
 // what the screen showed a moment before - nothing moves when they arrive.
 const Login = lazy(() => import('./pages/Login'))
 const Setup = lazy(() => import('./pages/Setup'))
+const AccountUpgrade = lazy(() => import('./pages/AccountUpgrade'))
 const loadingScreen = (
   <div className="grid min-h-dvh place-items-center">
     <Loading size="lg" />
@@ -182,14 +183,22 @@ function RouteError() {
 // is required so form pages can useBlocker() to guard unsaved changes.
 function RootLayout() {
   const { data: user, isLoading } = useAuth()
-  useEvents(!!user)
-  useSpeedSampler(!!user)
+  // an account held for an upgrade reaches nothing but the upgrade itself
+  const live = !!user && !user.upgradeRequired
+  useEvents(live)
+  useSpeedSampler(live)
 
   if (isLoading) return loadingScreen
   if (!user)
     return (
       <Suspense fallback={loadingScreen}>
         <Login />
+      </Suspense>
+    )
+  if (user.upgradeRequired)
+    return (
+      <Suspense fallback={loadingScreen}>
+        <AccountUpgrade kind={user.upgradeRequired} />
       </Suspense>
     )
   if (user.isAdmin) return <AdminGate email={user.email} />

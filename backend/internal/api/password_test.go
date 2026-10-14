@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -56,6 +57,34 @@ func TestPasswordChange(t *testing.T) {
 	}
 	if rec := doReq(mux, "POST", "/api/auth/login", `{"email":"user@example.com","password":"newpassword1"}`, nil); rec.Code != http.StatusOK {
 		t.Errorf("login with the new password: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// A password the policy refuses still opens the account, but onto nothing
+// except the change; the new one lifts the hold.
+func TestWeakPasswordHoldsAccount(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	setPassword(t, s, userID, "1234567890") // on the breach list
+
+	rec := doReq(mux, "POST", "/api/auth/login", `{"email":"user@example.com","password":"1234567890"}`, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login: got %d: %s", rec.Code, rec.Body)
+	}
+	c := rec.Result().Cookies()[0]
+	if rec := doReq(mux, "GET", "/api/auth/me", "", c); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"upgradeRequired":"password"`) {
+		t.Fatalf("me: got %d %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/servers", "", c); rec.Code != http.StatusForbidden {
+		t.Errorf("held account reached the app: %d", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", "/api/auth/password", `{"current":"1234567890","new":"qwertyuiop"}`, c); rec.Code != http.StatusBadRequest {
+		t.Errorf("another listed password: got %d, want 400", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", "/api/auth/password", `{"current":"1234567890","new":"a much better phrase"}`, c); rec.Code != http.StatusOK {
+		t.Fatalf("change: got %d %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/servers", "", c); rec.Code != http.StatusOK {
+		t.Errorf("hold not lifted: %d %s", rec.Code, rec.Body)
 	}
 }
 

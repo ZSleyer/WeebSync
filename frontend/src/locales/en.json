@@ -249,6 +249,7 @@
     "createdCount": "{{ok}} created, {{failed}} failed",
     "target": "Target"
   },
+  "upgrade": {"title": "Secure your account", "passwordTitle": "New password needed", "passwordHint": "Your password no longer meets the current rules: it is too short, very common or built from your address. Set a new one to continue.", "logout": "Sign out"},
   "login": {
     "showPassword": "Show",
     "hidePassword": "Hide",

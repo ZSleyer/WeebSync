@@ -1793,6 +1793,13 @@
                     "tvdbApiKeySet": {
                         "description": "which metadata providers the instance has keys for, so every user (not\nonly an admin, who can read the settings) is offered their options",
                         "type": "boolean"
+                    },
+                    "upgradeRequired": {
+                        "description": "what must be replaced before the app opens: \"password\" (the policy\nrefuses the current one) or \"passkey\" (one signed in without user\nverification); empty when nothing is due",
+                        "enum": [
+                            "password"
+                        ],
+                        "type": "string"
                     }
                 },
                 "required": [

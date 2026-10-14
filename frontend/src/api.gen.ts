@@ -784,6 +784,12 @@ export interface Schemas {
      * only an admin, who can read the settings) is offered their options
      */
     tvdbApiKeySet: boolean
+    /**
+     * what must be replaced before the app opens: "password" (the policy
+     * refuses the current one) or "passkey" (one signed in without user
+     * verification); empty when nothing is due
+     */
+    upgradeRequired?: "password"
   }
   'api.MkdirLocalRequest': {
     path: string

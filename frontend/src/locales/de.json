@@ -249,6 +249,7 @@
     "createdCount": "{{ok}} angelegt, {{failed}} fehlgeschlagen",
     "target": "Ziel"
   },
+  "upgrade": {"title": "Konto absichern", "passwordTitle": "Neues Passwort nötig", "passwordHint": "Dein Passwort erfüllt die aktuellen Regeln nicht mehr: es ist zu kurz, sehr verbreitet oder aus deiner Adresse gebildet. Lege ein neues fest, dann geht es weiter.", "logout": "Abmelden"},
   "login": {
     "showPassword": "Zeigen",
     "hidePassword": "Verbergen",

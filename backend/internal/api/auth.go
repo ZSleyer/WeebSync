@@ -242,9 +242,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		s.loginRefused(w, r)
 		return
 	}
-	if !auth.VerifyPassword(c.Password, hash) {
+	ok, legacy := auth.VerifyPasswordLegacy(c.Password, hash)
+	if !ok {
 		s.loginRefused(w, r)
 		return
+	}
+	// a hash over the unnormalised bytes is renewed while the password is
+	// at hand; nothing changes for the user
+	if legacy {
+		if h, err := auth.HashPassword(c.Password); err == nil {
+			s.DB.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, h, id)
+		}
+	}
+	// a password from before the current rules still opens the account, but
+	// only onto the page that asks for a new one (auth.Middleware holds it)
+	if auth.ValidatePassword(c.Password, c.Email) != nil {
+		s.DB.Exec(`UPDATE users SET auth_upgrade = 'password' WHERE id = ?`, id)
 	}
 	// Without a mail server there is no inbox to check and no link could come:
 	// the account was registered while one was set up, which is gone since.
@@ -302,6 +315,10 @@ type MeResponse struct {
 	TmdbApiKeySet bool `json:"tmdbApiKeySet"`
 	// the language mail and push go out in (de or en)
 	Locale string `json:"locale"`
+	// what must be replaced before the app opens: "password" (the policy
+	// refuses the current one) or "passkey" (one signed in without user
+	// verification); empty when nothing is due
+	UpgradeRequired string `json:"upgradeRequired,omitempty" enums:"password"`
 }
 
 // handleMe returns the current user.
@@ -317,9 +334,10 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	writeJSON(w, http.StatusOK, MeResponse{
 		ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID),
-		TvdbApiKeySet: secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
-		TmdbApiKeySet: secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
-		Locale:        s.userLocale(u.ID),
+		TvdbApiKeySet:   secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",
+		TmdbApiKeySet:   secret.SettingOrEnv(s.DB, "tmdb_api_key", "TMDB_API_KEY") != "",
+		Locale:          s.userLocale(u.ID),
+		UpgradeRequired: u.Upgrade,
 	})
 }
 
