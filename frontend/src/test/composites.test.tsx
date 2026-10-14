@@ -540,7 +540,7 @@ describe('Menu and MenuItem', () => {
     expect(list).toBeInTheDocument()
     // rounded and clipped sideways, so an item's hover fill cannot poke past
     // the corners; upright it scrolls, so a long list keeps its first entries
-    expect(list).toHaveClass('rounded-lg', 'overflow-x-clip', 'overflow-y-auto')
+    expect(list).toHaveClass('rounded-[10px]', 'overflow-x-clip', 'overflow-y-auto')
     const options = screen.getAllByRole('option')
     expect(options[0]).toHaveAttribute('aria-selected', 'true')
     expect(options[0]).toHaveClass('text-accent')

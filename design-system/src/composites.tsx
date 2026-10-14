@@ -1425,7 +1425,7 @@ export function Menu({ children, className, anchor, placement = 'bottom-start', 
       {...(anchored ? { popover: 'manual', 'data-placement': placement } : {})}
       style={anchored ? { positionAnchor: anchor } : undefined}
       className={cx(
-        't-pop t-glass max-h-[min(60dvh,20rem)] min-w-44 overflow-x-clip overflow-y-auto rounded-lg border py-1',
+        't-pop t-glass max-h-[min(60dvh,20rem)] min-w-55 overflow-x-clip overflow-y-auto rounded-[10px] border p-1.5',
         up && 't-pop--up',
         anchored ? 't-menu' : anchor ? cx(MENU_FALLBACK[placement], 'w-max max-w-[70vw]') : undefined,
         className,
@@ -1451,7 +1451,7 @@ export function MenuItem({ selected, trailing, children, className, ...rest }: M
         {...(kind === 'menu' ? { role: 'menuitem' } : { role: 'option', 'aria-selected': selected })}
         {...rest}
         className={cx(
-          'flex min-h-(--ctl-h) w-full items-center justify-between gap-4 px-3 py-2 text-left text-sm hover:bg-bg-secondary focus-visible:bg-bg-secondary',
+          'flex min-h-(--ctl-h) w-full items-center justify-between gap-4 rounded-[7px] px-3 py-2 text-left text-sm hover:bg-bg-hover focus-visible:bg-bg-hover',
           selected ? 'text-accent' : 'text-t-secondary',
           className,
         )}
