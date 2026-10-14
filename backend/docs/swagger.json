@@ -540,6 +540,10 @@
             },
             "api.DismissedItem": {
                 "properties": {
+                    "cover": {
+                        "description": "Cover and Section as the client sent them on hiding; empty for items\nhidden before they were kept",
+                        "type": "string"
+                    },
                     "dismissedAt": {
                         "type": "string"
                     },
@@ -551,13 +555,18 @@
                     },
                     "refKey": {
                         "type": "string"
+                    },
+                    "section": {
+                        "type": "string"
                     }
                 },
                 "required": [
                     "kind",
                     "refKey",
                     "label",
-                    "dismissedAt"
+                    "dismissedAt",
+                    "cover",
+                    "section"
                 ],
                 "type": "object"
             },
@@ -4541,6 +4550,10 @@
             },
             "api.dismissRequest": {
                 "properties": {
+                    "cover": {
+                        "description": "Cover is the item's picture and Section the list it was hidden from\n(a page's own name for it, \"watchlist\", \"upgrades\"), both only for the\nrestore list; optional.",
+                        "type": "string"
+                    },
                     "kind": {
                         "description": "\"suggestion\" | \"upgrade\"",
                         "type": "string"
@@ -4551,6 +4564,9 @@
                     },
                     "refKey": {
                         "description": "stable id: \"series:42\" or \"source:media_id\"",
+                        "type": "string"
+                    },
+                    "section": {
                         "type": "string"
                     }
                 },

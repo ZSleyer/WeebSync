@@ -264,10 +264,16 @@ export interface Schemas {
     recursive: boolean
   }
   'api.DismissedItem': {
+    /**
+     * Cover and Section as the client sent them on hiding; empty for items
+     * hidden before they were kept
+     */
+    cover: string
     dismissedAt: string
     kind: string
     label: string
     refKey: string
+    section: string
   }
   'api.DownloadCreateRequest': {
     /**
@@ -1984,6 +1990,12 @@ export interface Schemas {
   }
   'api.dismissRequest': {
     /**
+     * Cover is the item's picture and Section the list it was hidden from
+     * (a page's own name for it, "watchlist", "upgrades"), both only for the
+     * restore list; optional.
+     */
+    cover?: string
+    /**
      * "suggestion" | "upgrade"
      */
     kind: string
@@ -1995,6 +2007,7 @@ export interface Schemas {
      * stable id: "series:42" or "source:media_id"
      */
     refKey: string
+    section?: string
   }
   'api.explainCandidate': {
     cover?: string

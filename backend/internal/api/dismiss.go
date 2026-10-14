@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -12,6 +13,11 @@ type dismissRequest struct {
 	Kind   string `json:"kind"`   // "suggestion" | "upgrade"
 	RefKey string `json:"refKey"` // stable id: "series:42" or "source:media_id"
 	Label  string `json:"label"`  // display title, for the restore list
+	// Cover is the item's picture and Section the list it was hidden from
+	// (a page's own name for it, "watchlist", "upgrades"), both only for the
+	// restore list; optional.
+	Cover   string `json:"cover,omitempty"`
+	Section string `json:"section,omitempty"`
 }
 
 // DismissedItem is one row of the ignore list.
@@ -20,6 +26,33 @@ type DismissedItem struct {
 	RefKey      string `json:"refKey"`
 	Label       string `json:"label"`
 	DismissedAt string `json:"dismissedAt"`
+	// Cover and Section as the client sent them on hiding; empty for items
+	// hidden before they were kept
+	Cover   string `json:"cover"`
+	Section string `json:"section"`
+}
+
+// dismissCover keeps a cover only when it is a web address: it is put into
+// an img src on the restore list, so nothing else gets through.
+func dismissCover(u string) string {
+	u = strings.TrimSpace(u)
+	if len(u) > 2048 || !(strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://")) {
+		return ""
+	}
+	return u
+}
+
+// dismissSection keeps a short identifier and nothing else.
+func dismissSection(v string) string {
+	if len(v) > 32 {
+		return ""
+	}
+	for _, r := range v {
+		if (r < 'a' || r > 'z') && r != '-' && r != '_' {
+			return ""
+		}
+	}
+	return v
 }
 
 // dismissedKeys returns the ref keys a user has ignored for a kind, for
@@ -61,8 +94,9 @@ func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "kind and refKey required")
 		return
 	}
-	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key, label, dismissed_at)
-		VALUES (?, ?, ?, ?, ?)`, u.ID, in.Kind, in.RefKey, in.Label, time.Now().UTC().Format(time.RFC3339)); err != nil {
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key, label, dismissed_at, cover, section)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, u.ID, in.Kind, in.RefKey, in.Label, time.Now().UTC().Format(time.RFC3339),
+		dismissCover(in.Cover), dismissSection(in.Section)); err != nil {
 		dbErr(w)
 		return
 	}
@@ -105,7 +139,7 @@ func (s *Server) handleDismissRestore(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/suggestions/dismissed [get]
 func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rows, err := s.DB.Query(`SELECT kind, ref_key, label, dismissed_at FROM suggestion_dismissals
+	rows, err := s.DB.Query(`SELECT kind, ref_key, label, dismissed_at, cover, section FROM suggestion_dismissals
 		WHERE user_id = ? ORDER BY dismissed_at DESC`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -115,7 +149,7 @@ func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 	out := []DismissedItem{}
 	for rows.Next() {
 		var d DismissedItem
-		if rows.Scan(&d.Kind, &d.RefKey, &d.Label, &d.DismissedAt) == nil {
+		if rows.Scan(&d.Kind, &d.RefKey, &d.Label, &d.DismissedAt, &d.Cover, &d.Section) == nil {
 			out = append(out, d)
 		}
 	}
