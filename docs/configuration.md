@@ -9,7 +9,11 @@ WeebSync does not terminate TLS. Bind it to loopback (the compose file does) and
 - set `WEEBSYNC_BASE_URL` to the public origin,
 - set `WEEBSYNC_TRUSTED_PROXY` to the proxy's address so the real client IP is used,
 - set `WEEBSYNC_FORCE_HTTPS=true`,
-- and disable registration under **Settings → Security** once your accounts exist.
+- and disable registration under **Settings → Security** once your accounts exist (accounts that sign themselves up wait for an admin's approval either way).
+
+**Settings → Security** opens with a review of the setup: it names what is still missing (HTTPS, the trusted proxy, an admin without a second factor, mail or integrations reached in clear text, ...) and what to do about it. Its transport checks describe the way you reached it, so open it through the proxy.
+
+A fresh instance takes its first account only with the setup code it writes to the log at startup (`setup_token`), so nobody who reaches it before you can claim it. Set `WEEBSYNC_SETUP_TOKEN` to choose the code up front.
 
 ## Environment variables
 
@@ -23,6 +27,8 @@ WeebSync does not terminate TLS. Bind it to loopback (the compose file does) and
 | `WEEBSYNC_DOWNLOADS` | `$WEEBSYNC_DATA/downloads` | `:`-separated allowlist of local roots; the first is the default download dir. Mount your media anywhere and list the mounts (`/media:/data/downloads`) - only these paths are browsable and writable |
 | `WEEBSYNC_SECRET` | auto-generated | Key for stored credentials. Without it, `$WEEBSYNC_DATA/secret.key` is created on first start. **Back it up** - a lost key makes stored passwords unreadable |
 | `WEEBSYNC_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error` |
+| `WEEBSYNC_SETUP_TOKEN` | random, logged | The code the setup wizard asks for while no account exists |
+| `SSL_CERT_FILE`, `SSL_CERT_DIR` | system roots | A CA bundle file or directory to trust for outgoing TLS (mail, FTPS, OIDC, Plex, the AI endpoint) - for services with a certificate from your own CA. Certificates are always verified; there is no switch to skip that |
 
 ### Also settable in the UI
 
@@ -37,13 +43,13 @@ A variable that is set **overrides** the UI and locks the field. Booleans accept
 | `OIDC_PROVIDER_NAME` | Label on the login button |
 | `OIDC_CLAIM`, `OIDC_ADMIN_VALUES`, `OIDC_USER_VALUES` | Role mapping: the claim to read (e.g. `groups`, requested as a scope) and the comma-separated values granting admin or user access. With admin values set, the IdP owns all roles |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Outgoing mail (password reset, notifications) |
-| `SMTP_SECURITY` | `starttls` (default), `tls`, `none` |
+| `SMTP_SECURITY` | `starttls` (default, port 587), `tls` (port 465), `none` (port 25; no login unless the relay runs on the same machine) |
 | `ANILIST_CLIENT_ID`, `ANILIST_CLIENT_SECRET` | Your own AniList OAuth app; without it a public pin-flow client is used |
 | `ANILIST_TOKEN` | Operator token for background matching instead of a linked account (no UI counterpart) |
 | `TMDB_API_KEY`, `TVDB_API_KEY` | Movie and series metadata |
 | `ANIMESCHEDULE_TOKEN` | Release dates for the calendar |
-| `PLEX_URL`, `PLEX_TOKEN` | Plex server; its libraries are matched against your series |
-| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | OpenAI-compatible endpoint for the assistant |
+| `PLEX_URL`, `PLEX_TOKEN` | Plex server; its libraries are matched against your series. Plain `http://` only for an address in your own network - from outside use the server's `https://…plex.direct` address |
+| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | OpenAI-compatible endpoint for the assistant; plain `http://` only for an address in your own network |
 | `AI_SEARCH_URL` | SearXNG instance the assistant may search |
 
 ## File ownership

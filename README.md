@@ -33,7 +33,7 @@ curl -O https://raw.githubusercontent.com/ZSleyer/WeebSync/main/docker-compose.y
 docker compose up -d
 ```
 
-Open `http://localhost:8080` - the first account you register becomes the admin.
+Open `http://localhost:8080` and enter the setup code the server writes to its log (`docker compose logs weebsync | grep setup_token`) - the first account you register becomes the admin. Accounts that sign themselves up later wait for an admin to approve them.
 
 WeebSync speaks plain HTTP; put it behind a TLS reverse proxy (Traefik, Caddy, Nginx). Everything else - media folders, OIDC, mail, metadata keys - is in [docs/configuration.md](docs/configuration.md).
 

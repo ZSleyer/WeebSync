@@ -41,21 +41,30 @@ Worth knowing when judging a finding:
 
 Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
 
+- First run: until the first account exists, registering and the provider
+  setup need the setup code from the server log (or `WEEBSYNC_SETUP_TOKEN`).
+- New accounts: anyone who signs themselves up - registration, open or
+  not, or a first sign-in through the identity provider - waits for an
+  admin's approval. Accounts an admin creates, the first account and provider
+  identities whose groups make them admin need none.
 - Passwords: at least 10 characters (counted as characters, NFC-normalised),
   no composition rules, checked against a list of common and breached
   passwords and against the account's own address. An account whose existing
   password fails these rules is held at a "set a new password" page after its
   next sign-in. Hashed with argon2id (64 MiB, t=3, p=4).
 - Brute force: 5 attempts per address (per /64 for IPv6), then one per 12 s;
-  10 failed passwords or TOTP codes per account, then one per 5 minutes. Both
-  refill instead of locking, so nobody can lock an owner out for good, and
-  admin-configured trusted networks are exempt.
+  10 failed passwords or second factors per account, then one per 5 minutes.
+  Both refill instead of locking; a browser that signed in to the account
+  before carries a signed device cookie and is not held by the account's
+  limit, so a stranger cannot keep the owner out, and admin-configured
+  trusted networks are exempt.
 - Passkeys must verify the user (PIN or biometrics). A passkey registered
   before that rule which signs in without verification holds the account until
   it is replaced or removed. Adding a passkey, a security key or TOTP needs the
   account's password.
 - Sessions: a random 256-bit token, stored hashed, `HttpOnly`,
-  `SameSite=Lax`, `Secure` behind HTTPS. Without "stay signed in" the cookie
+  `SameSite=Lax`, `Secure` behind HTTPS. "Stay signed in" starts ticked and is
+  remembered per browser; untick it on a shared computer. Without it the cookie
   ends with the browser session and the server ends it after 12 idle hours or
   24 hours at most. With it, the session slides with use: it ends after 30 idle
   days and 90 days at most. That is longer than the 30 days overall NIST
@@ -63,7 +72,36 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
   bounded by server-side revocation, the session list in the account settings
   and a mail on every change to the sign-in factors.
 - The account owner gets a mail (without links) whenever the password, TOTP,
-  a passkey or a security key changes.
+  a passkey or a security key changes; adding or removing any of them needs
+  the password.
+- Cross-site requests: Go's `CrossOriginProtection` refuses state-changing
+  browser requests from other origins, sibling subdomains included, on top of
+  `SameSite` and the JSON-only API. The configured public address is trusted
+  for older browsers that send only `Origin`; behind a proxy that rewrites the
+  `Host` header over plain HTTP, set it.
+- Least privilege: what reaches the shared library, the admin's Plex account
+  or instance-wide settings (renaming or moving files in the media roots,
+  replacing old copies, the local library's matches and rules, Plex track
+  choices) is an admin's, enforced by the server whatever the UI shows.
+
+## Outgoing connections
+
+- TLS everywhere it applies: certificates and host names are verified
+  against the system roots (add a private CA with `SSL_CERT_FILE` or
+  `SSL_CERT_DIR`), TLS 1.2 at least, and there is no option to skip
+  verification. FTPS encrypts the data channel as well as the control
+  connection.
+- SFTP host keys are pinned explicitly on first contact; the client offers no
+  SHA-1 based algorithms and asks for the pinned key's type only.
+- Redirects never go from HTTPS to HTTP, and drop `Authorization`, cookies,
+  `X-Plex-Token` and `X-Api-Key` when they leave the origin.
+- A URL that carries a credential (identity provider, AI endpoint, Plex, Home
+  Assistant webhook) may be plain `http://` only for a host inside your own
+  network (loopback, RFC 1918, IPv6 ULA). Mail with a login needs STARTTLS or
+  TLS. Plain FTP stays possible for servers that offer nothing else, and the
+  security review lists it.
+- OIDC uses PKCE (S256) whenever the provider announces it. After an upgrade,
+  sign in once through the provider to confirm it accepts the challenge.
 
 ## Hardening the deployment
 
