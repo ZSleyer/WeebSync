@@ -62,6 +62,10 @@
 .ws-cat-facts { margin-top: 0.125rem; font-size: 0.75rem; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .ws-cat-sub { font-size: 0.75rem; color: var(--fg-3); }
 .ws-cat-sub--sync { color: var(--accent-2); }
+/* Erscheinen noch: when to expect a title, in the tone of its wait */
+.ws-cat-sub--accent { color: var(--accent); }
+.ws-cat-sub--warn { color: var(--warn); }
+.ws-cat-folder { display: flex; align-items: center; gap: 0.375rem; max-width: 100%; min-width: 0; margin-top: 0.25rem; font-size: 0.75rem; }
 .ws-cat-tile--pending :is(.ws-cat-name, .ws-cat-sub) { color: var(--fg-3); }
 
 /* studio and next airing on #000 at 82%, white: readable on any cover art */

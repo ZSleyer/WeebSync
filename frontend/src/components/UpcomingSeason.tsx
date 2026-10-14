@@ -1,9 +1,10 @@
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { Files as FilesIcon } from 'lucide-react'
-import { Badge, Button, Cover, Panel } from 'fluid-lycoris'
+import { SectionHeading, TextLink } from 'fluid-lycoris'
 import { mediaTitle, type Media } from '../api'
 import { countdown } from '../countdown'
+import { CatalogTile } from './CatalogTile'
 import { useSeriesModal } from './SeriesModal'
 
 // Expected is when a not-yet-uploaded series should turn up, at the precision
@@ -142,49 +143,38 @@ function Section({
   const series = useSeriesModal()
   if (rows.length === 0) return null
   return (
-    <section className="mt-8" aria-labelledby={`${id}-heading`}>
-      <h2 id={`${id}-heading`} className="text-sm font-medium text-t-primary">
-        {title}
-      </h2>
-      <p className="mb-3 text-xs text-t-muted">{hint}</p>
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-4">
+    <section className="ws-cat-section mt-10" aria-labelledby={`${id}-heading`}>
+      <SectionHeading
+        id={`${id}-heading`}
+        tone="accent-2"
+        title={title}
+        action={<span className="text-sm text-t-muted tabular-nums">{rows.length}</span>}
+      />
+      <p className="ws-cat-note">{hint}</p>
+      <div className="ws-cat-grid">
         {rows.map(({ m, e }) => {
-          const name = mediaTitle(m)
           const folder = elsewhere[m.id]
           return (
-            <Panel as="article" key={m.id} className="group flex flex-col overflow-clip">
-              <button className="text-left" onClick={() => series.open({ source: 'anilist', id: m.id, media: m })}>
-                <Cover
-                  size="fill"
-                  src={m.coverImage.extraLarge || m.coverImage.large}
-                  tint={m.coverImage.color ?? undefined}
-                  loading="lazy"
-                  className="opacity-60 grayscale-[40%] transition group-hover:opacity-90 group-hover:grayscale-0"
-                />
-                <div className="p-2">
-                  <h3 className="line-clamp-2 text-sm font-medium text-t-primary" title={name}>
-                    {name}
-                  </h3>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    <Badge tone={e.tone}>{e.label}</Badge>
-                  </div>
-                </div>
-              </button>
+            <div key={m.id} className="ws-cat-cell">
+              <CatalogTile
+                media={m}
+                name={mediaTitle(m)}
+                sub={<span className={`ws-cat-sub--${e.tone}`}>{e.label}</span>}
+                onOpen={() => series.open({ source: 'anilist', id: m.id, media: m })}
+              />
               {folder && (
-                <div className="mx-2 mt-auto mb-2 flex">
-                  <Button
-                    size="sm"
-                    className="min-w-0 flex-1"
-                    title={folder}
-                    aria-label={t('upcoming.openFolder', { folder })}
-                    onClick={() => onOpenFolder(folder)}
-                  >
-                    <FilesIcon aria-hidden size="1.2em" className="shrink-0" />
-                    <span className="truncate">{folderName(folder)}</span>
-                  </Button>
-                </div>
+                <TextLink
+                  tone="accent-2"
+                  className="ws-cat-folder"
+                  title={folder}
+                  aria-label={t('upcoming.openFolder', { folder })}
+                  onClick={() => onOpenFolder(folder)}
+                >
+                  <FilesIcon aria-hidden size="1em" className="shrink-0" />
+                  <span className="truncate">{folderName(folder)}</span>
+                </TextLink>
               )}
-            </Panel>
+            </div>
           )
         })}
       </div>
