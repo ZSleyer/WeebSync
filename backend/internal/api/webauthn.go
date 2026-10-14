@@ -320,9 +320,15 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	if name == "" {
 		name = "Passkey"
 	}
-	if err := s.storeCredential(u.ID, cred, name, r.Header.Get("X-WA-Type") != "key"); err != nil {
+	passwordless := r.Header.Get("X-WA-Type") != "key"
+	if err := s.storeCredential(u.ID, cred, name, passwordless); err != nil {
 		writeErr(w, http.StatusConflict, "credential already registered")
 		return
+	}
+	if passwordless {
+		s.securityNotice(r, u.ID, noticePasskeyAdded)
+	} else {
+		s.securityNotice(r, u.ID, noticeKeyAdded)
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
@@ -595,14 +601,21 @@ func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	// removing the passkey that signed in without verifying is the other way
 	// out of the hold: the account goes on with its password
+	removed := false
 	if err := db.Tx(s.DB, func(tx *sql.Tx) error {
-		if _, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID); err != nil {
+		res, err := tx.Exec(`DELETE FROM webauthn_credentials WHERE id = ? AND user_id = ?`, pathID(r), u.ID)
+		if err != nil {
 			return err
 		}
+		n, _ := res.RowsAffected()
+		removed = n > 0
 		return liftPasskeyHold(tx, u.ID)
 	}); err != nil {
 		dbErr(w)
 		return
+	}
+	if removed {
+		s.securityNotice(r, u.ID, noticeCredRemoved)
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

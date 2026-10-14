@@ -76,6 +76,7 @@ func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 		writePasswordErr(w, err)
 		return
 	}
+	s.securityNotice(r, u.ID, noticePasswordChanged)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -105,6 +106,7 @@ func (s *Server) handleUserPassword(w http.ResponseWriter, r *http.Request) {
 		writePasswordErr(w, err)
 		return
 	}
+	s.securityNotice(r, pathID(r), noticePasswordAdmin)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -211,5 +213,6 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 		writePasswordErr(w, err)
 		return
 	}
+	s.securityNotice(r, id, noticePasswordReset)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

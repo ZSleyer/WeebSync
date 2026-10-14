@@ -59,6 +59,78 @@ var catalog = map[string]map[string]string{
 		"en": "If that was not you, ignore this message: your password stays as it is.",
 		"de": "Warst du das nicht, ignoriere diese Nachricht: dein Passwort bleibt, wie es ist.",
 	},
+	"email.securityWhere": {
+		"en": "When: %s · Address: %s · Browser: %s",
+		"de": "Wann: %s · Adresse: %s · Browser: %s",
+	},
+	"email.securityNotMe": {
+		"en": "Was this not you? Sign in to WeebSync, set a new password (or use \"Forgot password\" on the sign-in page) and end all other sessions under Settings → Account.",
+		"de": "Warst du das nicht? Melde dich bei WeebSync an, setze ein neues Passwort (oder nutze „Passwort vergessen\" auf der Anmeldeseite) und beende alle anderen Sitzungen unter Einstellungen → Konto.",
+	},
+	"email.security.passwordChanged": {
+		"en": "Your password was changed",
+		"de": "Dein Passwort wurde geändert",
+	},
+	"email.security.passwordChanged.body": {
+		"en": "The password of your account was changed. Your other sessions have been ended.",
+		"de": "Das Passwort deines Kontos wurde geändert. Deine anderen Sitzungen wurden beendet.",
+	},
+	"email.security.passwordReset": {
+		"en": "Your password was reset",
+		"de": "Dein Passwort wurde zurückgesetzt",
+	},
+	"email.security.passwordReset.body": {
+		"en": "A new password was set for your account through a reset link. All sessions have been ended.",
+		"de": "Über einen Link aus der Passwort-vergessen-Mail wurde ein neues Passwort für dein Konto gesetzt. Alle Sitzungen wurden beendet.",
+	},
+	"email.security.passwordAdmin": {
+		"en": "An administrator set your password",
+		"de": "Ein Administrator hat dein Passwort gesetzt",
+	},
+	"email.security.passwordAdmin.body": {
+		"en": "An administrator of this WeebSync set a new password for your account. All your sessions have been ended.",
+		"de": "Ein Administrator dieser WeebSync-Instanz hat ein neues Passwort für dein Konto gesetzt. Alle deine Sitzungen wurden beendet.",
+	},
+	"email.security.totpOn": {
+		"en": "Two-factor sign-in turned on",
+		"de": "Zwei-Faktor-Anmeldung eingeschaltet",
+	},
+	"email.security.totpOn.body": {
+		"en": "An authenticator app now has to confirm every password sign-in to your account.",
+		"de": "Jede Anmeldung mit Passwort muss jetzt zusätzlich mit einem Code aus einer Authenticator-App bestätigt werden.",
+	},
+	"email.security.totpOff": {
+		"en": "Two-factor sign-in turned off",
+		"de": "Zwei-Faktor-Anmeldung ausgeschaltet",
+	},
+	"email.security.totpOff.body": {
+		"en": "Your account no longer asks for a code from an authenticator app after the password.",
+		"de": "Dein Konto fragt nach dem Passwort nicht mehr nach einem Code aus der Authenticator-App.",
+	},
+	"email.security.passkeyAdded": {
+		"en": "A passkey was added",
+		"de": "Ein Passkey wurde hinzugefügt",
+	},
+	"email.security.passkeyAdded.body": {
+		"en": "A new passkey can now sign in to your account without a password.",
+		"de": "Ein neuer Passkey kann sich jetzt ohne Passwort bei deinem Konto anmelden.",
+	},
+	"email.security.keyAdded": {
+		"en": "A security key was added",
+		"de": "Ein Sicherheitsschlüssel wurde hinzugefügt",
+	},
+	"email.security.keyAdded.body": {
+		"en": "A new security key can now confirm password sign-ins to your account.",
+		"de": "Ein neuer Sicherheitsschlüssel kann jetzt Anmeldungen mit Passwort bei deinem Konto bestätigen.",
+	},
+	"email.security.credentialRemoved": {
+		"en": "A passkey or security key was removed",
+		"de": "Ein Passkey oder Sicherheitsschlüssel wurde entfernt",
+	},
+	"email.security.credentialRemoved.body": {
+		"en": "A passkey or security key was removed from your account and can no longer sign in.",
+		"de": "Ein Passkey oder Sicherheitsschlüssel wurde von deinem Konto entfernt und kann sich nicht mehr anmelden.",
+	},
 	"email.downloadDoneOne": {
 		"en": "Download finished",
 		"de": "Download fertig",

@@ -164,6 +164,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "could not generate recovery codes")
 		return
 	}
+	s.securityNotice(r, u.ID, noticeTotpOn)
 	writeJSON(w, http.StatusOK, RecoveryCodesResponse{RecoveryCodes: codes})
 }
 
@@ -209,6 +210,7 @@ func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "could not disable TOTP")
 		return
 	}
+	s.securityNotice(r, u.ID, noticeTotpOff)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
