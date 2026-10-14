@@ -107,14 +107,16 @@ export default function Logo({
         set(el.lnS, 'stroke-dashoffset', 1 - ps)
         set(el.hdW, 'stroke-dashoffset', HEAD - pw)
         set(el.hdS, 'stroke-dashoffset', HEAD - ps)
-        set(el.hdW, 'stroke-opacity', pw > 0 && pw < 1 ? 1 : 0)
-        set(el.hdS, 'stroke-opacity', ps > 0 && ps < 1 ? 1 : 0)
-        set(el.wipe, 'points', slant(-300 + 1700 * seg(700, 1200, outExpo)))
-        level(seg(900, 1350, outExpo))
-        const fade = 1 - seg(1100, 1400, lin)
+        set(el.hdW, 'stroke-opacity', pen && pw > 0 && pw < 1 ? 1 : 0)
+        set(el.hdS, 'stroke-opacity', pen && ps > 0 && ps < 1 ? 1 : 0)
+        // without the pen the fills come straight after the rise
+        const d = pen ? 0 : 600
+        set(el.wipe, 'points', slant(-300 + 1700 * seg(700 - d, 1200 - d, outExpo)))
+        level(seg(900 - d, 1350 - d, outExpo))
+        const fade = pen ? 1 - seg(1100, 1400, lin) : 0
         set(el.lnW, 'stroke-opacity', fade)
         set(el.lnS, 'stroke-opacity', fade)
-        sheen(seg(1350, 1950, inOut))
+        sheen(seg(1350 - d, 1950 - d, inOut))
       },
       // the letters set down in turn and glide to a stop
       set: (_t, seg) => {
@@ -136,6 +138,9 @@ export default function Logo({
       },
     }
 
+    // the trace's pen is drawn for the 56px hero; on the 20px header mark its
+    // outlines read as hollow letters, so a small mark only rises and fills
+    const pen = root.getBoundingClientRect().height >= 40
     rest()
     const t0 = performance.now()
     let raf = 0
