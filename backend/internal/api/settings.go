@@ -45,6 +45,31 @@ func validateTrustedNetworks(csv string) error {
 // a container, the UI for a bare install - end up in the same place.
 func (s *Server) applyProxyConfig() {
 	auth.SetProxyConfig(db.Setting(s.DB, "trusted_proxies"), truthySetting(db.Setting(s.DB, "force_https")))
+	// the public origin is ours even when a proxy hands the request a
+	// different Host: an older browser without Sec-Fetch-Site is judged by
+	// Origin against Host, and must not lose every POST behind such a proxy
+	if o := s.baseURL(); o != "" && s.crossOrigin != nil {
+		s.crossOrigin.AddTrustedOrigin(o)
+	}
+}
+
+// CrossOrigin refuses state-changing requests a browser sends on behalf of
+// another site, subdomains of our own included (Go's CrossOriginProtection:
+// Sec-Fetch-Site, else Origin against Host). SameSite=Lax alone lets a
+// sibling subdomain post with the session cookie, and the JSON content-type
+// check misses the routes without a body. Requests with neither header are
+// not from a browser and pass: the identity provider's back-channel logout,
+// the *arr apps, webhooks. GET, HEAD and OPTIONS always pass, so nothing may
+// change state on those.
+func (s *Server) CrossOrigin(next http.Handler) http.Handler {
+	if s.crossOrigin == nil {
+		s.crossOrigin = http.NewCrossOriginProtection()
+		s.crossOrigin.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			writeErr(w, http.StatusForbidden, "cross-origin request refused")
+		}))
+		s.applyProxyConfig()
+	}
+	return s.crossOrigin.Handler(next)
 }
 
 // truthySetting reads a boolean setting. The env form of these is a string, so

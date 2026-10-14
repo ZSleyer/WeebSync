@@ -186,7 +186,7 @@ func main() {
 		Addr: addr,
 		// gzip inside harden: harden caps request bodies on the raw writer
 		// (MaxBytesReader closes the connection through it on overflow)
-		Handler: harden(gzipHandler(srv.ForgetLocalOnWrite(mux))),
+		Handler: harden(srv.CrossOrigin(gzipHandler(srv.ForgetLocalOnWrite(mux)))),
 		// request contexts inherit rootCtx: on SIGTERM the SSE streams
 		// (/api/events) end immediately, so Shutdown below returns fast
 		BaseContext: func(net.Listener) context.Context { return rootCtx },
@@ -235,12 +235,11 @@ func healthcheck(addr string) int {
 	return 0
 }
 
-// harden sets security headers on every response. CSRF is covered by the
-// application/json requirement in readJSON (a cross-site form can't set that
-// content-type without a CORS preflight the server never allows) plus the
-// SameSite=Lax session cookie (not sent on cross-site POST). An Origin==Host
-// check was intentionally dropped: it breaks legitimate proxied setups (dev
-// Vite proxy, reverse proxies that rewrite Host but not Origin).
+// harden sets security headers on every response. CSRF is covered in layers:
+// the SameSite=Lax session cookie, the application/json requirement in
+// readJSON, and Server.CrossOrigin, which judges by Sec-Fetch-Site first, so
+// a proxy that rewrites Host no longer matters (the configured base_url is
+// trusted for the older browsers that only send Origin).
 func harden(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()

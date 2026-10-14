@@ -97,6 +97,8 @@ type Server struct {
 	authLimiter *ipLimiter
 	// failed sign-ins per account (see accountWait), admin-inspectable too
 	accountLimiter *ipLimiter
+	// the cross-site request guard (see CrossOrigin)
+	crossOrigin *http.CrossOriginProtection
 	// the passkey challenge: the login page asks for one on every visit, so it
 	// gets a budget of its own instead of eating the password attempts
 	challengeLimiter *ipLimiter
