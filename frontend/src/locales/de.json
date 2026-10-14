@@ -1610,7 +1610,7 @@
     "arrRoots": "Pfad-Mapping",
     "arrRootsHint": "Nur nötig, wenn Sonarr/Radarr den Download-Ordner unter einem anderen Pfad sehen: pro Zeile \"App-Pfad => lokaler Pfad\".",
     "arrSetup": "Einrichtung in Sonarr / Radarr / Prowlarr",
-    "arrSetupHint": "Indexer: \"Newznab\" (in Prowlarr \"Generic Newznab\"), API-Pfad /api. Download-Client: \"SABnzbd\", Kategorie tv bzw. movies, die URL-Basis steht unter \"Erweiterte Einstellungen\". Beide mit dem Schlüssel oben. Erreichen die Apps WeebSync unter einer anderen Adresse (etwa einem Container-Namen), nimm die.",
+    "arrSetupHint": "Indexer: \"Newznab\" (in Prowlarr \"Generic Newznab\"), API-Pfad /api. Download-Client: \"SABnzbd\", Kategorie tv bzw. movies (pro App eine eigene), die URL-Basis steht unter \"Erweiterte Einstellungen\". Beide mit dem Schlüssel oben. Erreichen die Apps WeebSync unter einer anderen Adresse (etwa einem Container-Namen), nimm die.",
     "arrIndexerUrl": "Indexer-URL",
     "arrClientHost": "Download-Client-Host",
     "arrClientPort": "Download-Client-Port",

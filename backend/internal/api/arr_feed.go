@@ -286,8 +286,8 @@ const newznabCaps = `<?xml version="1.0" encoding="UTF-8"?>
   <categories>
     <category id="2000" name="Movies"/>
     <category id="5000" name="TV">
-      <subcat id="5040" name="TV/HD"/>
-      <subcat id="5070" name="TV/Anime"/>
+      <subcat id="5040" name="HD"/>
+      <subcat id="5070" name="Anime"/>
     </category>
   </categories>
 </caps>

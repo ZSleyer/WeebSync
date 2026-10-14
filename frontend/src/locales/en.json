@@ -1610,7 +1610,7 @@
     "arrRoots": "Path mapping",
     "arrRootsHint": "Only needed when Sonarr/Radarr see the download folder under another path: one line \"appPath => localPath\".",
     "arrSetup": "Setup in Sonarr / Radarr / Prowlarr",
-    "arrSetupHint": "Indexer: \"Newznab\" (in Prowlarr \"Generic Newznab\"), API path /api. Download client: \"SABnzbd\", category tv or movies; the URL base is under \"advanced settings\". Both use the key above. If the apps reach WeebSync under another address (a container name, say), use that instead.",
+    "arrSetupHint": "Indexer: \"Newznab\" (in Prowlarr \"Generic Newznab\"), API path /api. Download client: \"SABnzbd\", category tv or movies (one per app, never the same); the URL base is under \"advanced settings\". Both use the key above. If the apps reach WeebSync under another address (a container name, say), use that instead.",
     "arrIndexerUrl": "Indexer URL",
     "arrClientHost": "Download client host",
     "arrClientPort": "Download client port",

@@ -39,6 +39,11 @@ Settings → Integrations → **Sonarr / Radarr**:
 | Anime Categories (Sonarr) | `5070` |
 | Anime Standard Format Search (Sonarr) | on |
 
+Added through Prowlarr, the category list shows every category twice: once
+with its standard id (`5000`, `5040`, ...) and once as a Prowlarr custom
+category (`105000`, `105040`, ...). That is Prowlarr's doing and harmless,
+it maps both back to the same id. Picking the standard ones is enough.
+
 Sonarr searches series of the type *Anime* by title and absolute number,
 which WeebSync does not answer (it searches by TVDB id). With *Anime Standard
 Format Search* on, Sonarr also asks by TVDB id, season and episode.
@@ -61,6 +66,12 @@ crawl), then add the indexer.
 
 *URL Base* is an advanced setting: click *Show Advanced* to see it. Left empty
 the app asks `/api`, which WeebSync answers as well.
+
+Give each app its own category. Sonarr and Radarr pick their jobs out of the
+queue by category, just as with a real SABnzbd: with the same category (or
+both left empty) every grab shows up in both apps, and the one that did not
+grab it reports "Manual Import required". Keep *Remove Completed* on, so the
+app clears a job from WeebSync once it has imported it.
 
 Use the address the apps reach WeebSync under - in a Docker setup usually the
 container name, not the public URL.
