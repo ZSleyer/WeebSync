@@ -70,6 +70,11 @@ export default function Users() {
   const approve = useMutation({
     mutationFn: (id: number) => api.post(`/api/users/${id}/approve`),
     ...opts,
+    onSuccess: () => {
+      // the security review counts the accounts still waiting
+      qc.invalidateQueries({ queryKey: ['security-check'] })
+      opts.onSuccess()
+    },
   })
 
   // how accounts sign in and where their role comes from: the instance's
