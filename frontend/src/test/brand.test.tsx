@@ -13,7 +13,11 @@ describe('Brand', () => {
     expect([...container.querySelectorAll<HTMLElement>('[data-ch]')].map((e) => e.style.transform)).toEqual(
       Array(8).fill(''),
     )
-    expect(container.querySelector('[data-slogan]')).toHaveTextContent('かしら')
+    // the slogan is text under the wordmark, or ruby drawn by CSS over it (no
+    // text node, so it never joins the link's name): either way it reads かしら
+    const slogan = container.querySelector<HTMLElement>('[data-slogan]')!
+    const drawn = [...slogan.querySelectorAll<HTMLElement>('[data-c]')].map((e) => e.dataset.c).join('')
+    expect(slogan.textContent || drawn).toBe('かしら')
   })
 
   it('shows the wordmark alone on the about page', () => {
