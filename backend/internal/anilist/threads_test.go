@@ -48,7 +48,7 @@ func TestThreadFlattensRepliesAndCaches(t *testing.T) {
 		return `{"id":` + itoa(id) + `,"comment":"c` + itoa(id) + `","likeCount":1,"createdAt":5,"user":{"name":"` + name + `","avatar":{"medium":"m"}},"childComments":` + kids + `}`
 	}
 	tree := reply(2, "bob", "["+reply(3, "cat", "["+reply(4, "dan", "["+reply(5, "eve", "null")+"]")+"]")+"]")
-	body := `{"data":{"Thread":{"id":9,"title":"[Spoilers] Show - Episode 3 Discussion","body":"hi","replyCount":4,"viewCount":70,"createdAt":1,"siteUrl":"https://anilist.co/forum/thread/9","user":{"name":"op","avatar":{"medium":"a"}}},
+	body := `{"data":{"Thread":{"id":9,"title":"[Spoilers] Show - Episode 3 Discussion","body":"hi","replyCount":4,"viewCount":70,"createdAt":1,"siteUrl":"https://example.com/forum/thread/9","user":{"name":"op","avatar":{"medium":"a"}}},
 		"Page":{"pageInfo":{"hasNextPage":true},"threadComments":[` + reply(1, "ann", "["+tree+"]") + `]}}}`
 	c, n, vars := fakeGraphQL(t, body)
 
