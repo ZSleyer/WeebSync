@@ -1,8 +1,9 @@
-import { useState, type FormEvent, type Ref } from 'react'
+import { useState, type CSSProperties, type FormEvent, type ReactNode, type Ref } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useQueryClient } from '@tanstack/react-query'
-import { Badge, Button, Field, Input, Panel, Select } from 'fluid-lycoris'
-import { api, keyConflictOf, type KeyConflict } from '../api'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { CircleCheck } from 'lucide-react'
+import { Button, Input, Segmented } from 'fluid-lycoris'
+import { api, fmtBytes, keyConflictOf, type DiskUsage, type KeyConflict, type SystemStatus } from '../api'
 import HostKeyPrompt from './HostKeyPrompt'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'
 import LegacyImport from './LegacyImport'
@@ -12,8 +13,67 @@ import LegacyImport from './LegacyImport'
 // exists - the wizard frame, the step indicator and the step order live there.
 export type RestStep = 'import' | 'server' | 'storage' | 'meta'
 
+/** What the steps after the account left behind, for the closing summary. */
+export interface SetupSummary {
+  server?: string
+  imported: boolean
+  roots: number
+  meta: string[]
+}
+
 // 409 from /test = SSH host key unknown or changed; nothing is pinned until the
 // user reviews the fingerprint (same contract as the servers page).
+
+/** A step's heading: the wizard moves focus here on every step change. */
+export function SetupHeading({ headingRef, children }: { headingRef: Ref<HTMLHeadingElement>; children: ReactNode }) {
+  return (
+    <h2 ref={headingRef} tabIndex={-1} className="ws-su-h">
+      {children}
+    </h2>
+  )
+}
+
+/**
+ * The wizard's one footer, sticking to the bottom edge: back at the left, then
+ * skip on an optional step and the step's main action at the right.
+ */
+export function SetupFoot({
+  onBack,
+  onSkip,
+  skipLabel,
+  error,
+  children,
+}: {
+  onBack?: () => void
+  onSkip?: () => void
+  skipLabel?: string
+  error?: ReactNode
+  children?: ReactNode
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="ws-su-foot">
+      <div className="ws-su-foot-in">
+        {error && (
+          <p className="ws-login-err" role="alert">
+            {error}
+          </p>
+        )}
+        {onBack && <Button onClick={onBack}>{t('setup.back')}</Button>}
+        <span className="ws-su-sp" />
+        {onSkip && <Button onClick={onSkip}>{skipLabel ?? t('setup.skip')}</Button>}
+        {children}
+      </div>
+    </div>
+  )
+}
+
+type Protocol = 'sftp' | 'ftps' | 'ftp'
+
+// the disk a root lives on: the status lists each filesystem once, with the
+// other library paths that share it
+const diskOf = (disks: DiskUsage[] | undefined, root: string) =>
+  disks?.find((d) => d.path === root || d.paths?.includes(root))
 
 export default function SetupSteps({
   step,
@@ -23,17 +83,27 @@ export default function SetupSteps({
 }: {
   step: RestStep
   onGo: (s: RestStep) => void
-  onFinish: () => void
+  onFinish: (summary: SetupSummary) => void
   /** the wizard moves focus here on every step change */
   headingRef: Ref<HTMLHeadingElement>
 }) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { form, set, save, locked } = useSettingsForm()
+  // the free space next to each root; the endpoint is admin-gated and the
+  // wizard's account is the admin, a refusal just leaves the meters out
+  const { data: status } = useQuery<SystemStatus>({
+    queryKey: ['status', 'setup'],
+    queryFn: () => api.get('/api/status'),
+    retry: false,
+    enabled: step === 'storage',
+  })
 
   const [serverId, setServerId] = useState(0)
+  const [serverName, setServerName] = useState('')
+  const [protocol, setProtocol] = useState<Protocol>('sftp')
   const [srvErr, setSrvErr] = useState('')
-  const [srvStatus, setSrvStatus] = useState('')
+  const [testing, setTesting] = useState(false)
   // the connection test passed: only then is the server settled and the form
   // locked; a failed test leaves it open to correct and test again
   const [srvOk, setSrvOk] = useState(false)
@@ -58,25 +128,43 @@ export default function SetupSteps({
   // one save at the end covers whatever the storage and metadata steps changed,
   // and marks the wizard done so it never reopens
   const finish = () => {
-    if (!form) return onFinish()
-    // a refused save stays on this step with its reason (shown in nav):
+    const meta = (
+      [
+        ['anilistClientId', 'AniList'],
+        ['tmdbApiKey', 'TMDB'],
+        ['tvdbApiKey', 'TVDB'],
+        ['plexUrl', 'Plex'],
+      ] as const
+    ).flatMap(([k, name]) =>
+      form?.[k] || (k === 'tmdbApiKey' && form?.tmdbApiKeySet) || (k === 'tvdbApiKey' && form?.tvdbApiKeySet)
+        ? [name]
+        : [],
+    )
+    const summary: SetupSummary = {
+      server: srvOk ? serverName : undefined,
+      imported,
+      roots: form?.downloadRoots?.length ?? 0,
+      meta,
+    }
+    if (!form) return onFinish(summary)
+    // a refused save stays on this step with its reason (shown in the footer):
     // before, it reported "setup complete" with nothing stored
-    save.mutate({ ...form, onboardingDone: true }, { onSuccess: onFinish })
+    save.mutate({ ...form, onboardingDone: true }, { onSuccess: () => onFinish(summary) })
   }
 
   const testServer = async (id: number) => {
-    setSrvStatus('…')
+    setTesting(true)
     setSrvErr('')
     setKeyConflict(null)
     try {
       await api.post(`/api/servers/${id}/test`)
-      setSrvStatus(t('setup.serverOk'))
       setSrvOk(true)
     } catch (e) {
       const kc = keyConflictOf(e)
       if (kc) setKeyConflict(kc)
-      setSrvStatus('')
-      if (!kc) setSrvErr(t('setup.serverTestFailed', { msg: e instanceof Error ? e.message : t('app.error') }))
+      else setSrvErr(t('setup.serverTestFailed', { msg: e instanceof Error ? e.message : t('app.error') }))
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -87,7 +175,7 @@ export default function SetupSteps({
     setSrvErr('')
     const body = {
       name: String(fd.get('name') ?? ''),
-      protocol: String(fd.get('protocol') ?? 'sftp'),
+      protocol,
       host: String(fd.get('host') ?? ''),
       port: Number(fd.get('port')) || 0,
       username: String(fd.get('username') ?? ''),
@@ -101,6 +189,7 @@ export default function SetupSteps({
       if (id) await api.put(`/api/servers/${id}`, body)
       else id = (await api.post<{ id: number }>('/api/servers', body)).id
       setServerId(id)
+      setServerName(body.name)
       qc.invalidateQueries({ queryKey: ['servers'] })
       await testServer(id)
     } catch (err) {
@@ -110,207 +199,269 @@ export default function SetupSteps({
     }
   }
 
-  const heading = (text: string) => (
-    <h2 ref={headingRef} tabIndex={-1} className="mb-1 font-display text-sm font-bold">
-      {text}
-    </h2>
-  )
-
-  const nav = (skipLabel = t('setup.skip')) => (
-    <>
-      {save.error && (
-        <p className="mt-4 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-          {t('setup.finishFailed', { msg: save.error.message })}
-        </p>
-      )}
-      <div className="mt-5 flex flex-wrap gap-2">
-        {step !== 'import' && (
-          <Button className="flex-1" onClick={back}>
-            {t('setup.back')}
-          </Button>
-        )}
-        <Button className="flex-1" onClick={next}>
-          {skipLabel}
-        </Button>
-        <Button variant="primary" className="flex-1" disabled={save.isPending} onClick={finish}>
-          {t('setup.finish')}
-        </Button>
-      </div>
-    </>
+  const saveError = save.error ? t('setup.finishFailed', { msg: save.error.message }) : undefined
+  const nextButton = (
+    <Button variant="primary" disabled={save.isPending} onClick={next}>
+      {step === 'meta' ? t('setup.finish') : t('setup.continue')}
+    </Button>
   )
 
   if (step === 'import')
     return (
-      <section className="animate-fadeIn" aria-label={t('setup.step.import')}>
-        <Panel className="mb-4 p-6">
-          {heading(t('setup.importTitle'))}
-          <p className="text-sm text-t-secondary">{t('setup.importHint')}</p>
-        </Panel>
-        {/* stay put after importing so its result summary stays readable */}
-        <LegacyImport onDone={() => setImported(true)} />
-        {nav(imported ? t('setup.continue') : t('setup.noOldConfig'))}
+      <section className="ws-su-step" aria-labelledby="su-h">
+        <div className="ws-su-body ws-su-body--wide">
+          <SetupHeading headingRef={headingRef}>
+            <span id="su-h">{t('setup.importTitle')}</span>
+          </SetupHeading>
+          <p className="ws-quiet">{t('setup.importHint')}</p>
+          {/* stay put after importing so its result summary stays readable */}
+          <LegacyImport onDone={() => setImported(true)} />
+        </div>
+        <SetupFoot onSkip={imported ? undefined : next} error={saveError}>
+          {imported && nextButton}
+        </SetupFoot>
       </section>
     )
 
-  if (step === 'server')
+  if (step === 'server') {
+    const pending = busy || testing
     return (
-      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.server')}>
-        {heading(t('setup.serverTitle'))}
-        <p className="mb-4 text-sm text-t-secondary">{t('setup.serverHint')}</p>
-        <form onSubmit={createServer} className="grid gap-3 sm:grid-cols-2">
-          <Field label={t('servers.name')} className="sm:col-span-2">
-            <Input name="name" required disabled={srvOk} />
-          </Field>
-          <Field label={t('servers.protocol')}>
-            <Select name="protocol" defaultValue="sftp" disabled={srvOk}>
-              <option value="sftp">SFTP (SSH)</option>
-              <option value="ftps">FTPS (TLS)</option>
-              <option value="ftp">{t('servers.ftpOption')}</option>
-            </Select>
-          </Field>
-          <Field label={t('servers.port')}>
-            <Input
-              name="port"
-              className="font-mono"
-              type="number"
-              min={1}
-              max={65535}
-              placeholder="22 / 21"
-              disabled={srvOk}
+      <form className="ws-su-step" onSubmit={createServer} aria-labelledby="su-h">
+        <div className="ws-su-body">
+          <SetupHeading headingRef={headingRef}>
+            <span id="su-h">{t('setup.serverTitle')}</span>
+          </SetupHeading>
+          <p className="ws-quiet">{t('setup.serverHint')}</p>
+          <span className="ws-lbl" aria-hidden>
+            {t('servers.protocol')}
+          </span>
+          <Segmented
+            aria-label={t('servers.protocol')}
+            size="md"
+            className="w-full"
+            value={protocol}
+            onChange={(p) => !srvOk && setProtocol(p)}
+            options={[
+              { value: 'sftp', label: 'SFTP' },
+              { value: 'ftps', label: 'FTPS' },
+              { value: 'ftp', label: 'FTP' },
+            ]}
+          />
+          {protocol === 'ftp' && <p className="ws-su-warn mt-2">{t('servers.ftpWarning')}</p>}
+          <label htmlFor="su-name" className="ws-lbl">
+            {t('servers.name')}
+          </label>
+          <Input id="su-name" name="name" required disabled={srvOk} />
+          <div className="ws-su-hp">
+            <div>
+              <label htmlFor="su-host" className="ws-lbl">
+                {t('servers.host')}
+              </label>
+              <Input id="su-host" name="host" className="font-mono" required disabled={srvOk} />
+            </div>
+            <div>
+              <label htmlFor="su-port" className="ws-lbl">
+                {t('servers.port')}
+              </label>
+              <Input
+                id="su-port"
+                name="port"
+                className="font-mono"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                placeholder={protocol === 'sftp' ? '22' : '21'}
+                disabled={srvOk}
+              />
+            </div>
+          </div>
+          <div className="ws-su-2">
+            <div>
+              <label htmlFor="su-user" className="ws-lbl">
+                {t('servers.user')}
+              </label>
+              <Input id="su-user" name="username" className="font-mono" required disabled={srvOk} />
+            </div>
+            <div>
+              <label htmlFor="su-pass" className="ws-lbl">
+                {t('servers.password')}
+              </label>
+              {/* on a retry an empty password keeps the one already stored */}
+              <Input
+                id="su-pass"
+                name="password"
+                type="password"
+                required={!serverId}
+                autoComplete="new-password"
+                disabled={srvOk}
+              />
+            </div>
+          </div>
+          <label htmlFor="su-root" className="ws-lbl">
+            {t('servers.rootPath')}
+          </label>
+          <Input id="su-root" name="rootPath" className="font-mono" defaultValue="/" disabled={srvOk} />
+          {testing && (
+            <p className="ws-quiet mt-3" role="status">
+              {t('setup.serverTesting')}
+            </p>
+          )}
+          {srvOk && (
+            <p className="ws-su-ok" role="status">
+              <CircleCheck aria-hidden size={18} />
+              {t('setup.serverOk')}
+            </p>
+          )}
+          {keyConflict && (
+            <HostKeyPrompt
+              className="mt-4"
+              serverId={serverId}
+              conflict={keyConflict}
+              onAccepted={() => testServer(serverId)}
+              onRejected={() => setKeyConflict(null)}
             />
-          </Field>
-          <Field label={t('servers.host')} className="sm:col-span-2">
-            <Input name="host" className="font-mono" required disabled={srvOk} />
-          </Field>
-          <Field label={t('servers.user')}>
-            <Input name="username" className="font-mono" required disabled={srvOk} />
-          </Field>
-          <Field label={t('servers.password')}>
-            {/* on a retry an empty password keeps the one already stored */}
-            <Input name="password" type="password" required={!serverId} autoComplete="new-password" disabled={srvOk} />
-          </Field>
-          <Field label={t('servers.rootPath')} className="sm:col-span-2">
-            <Input name="rootPath" className="font-mono" defaultValue="/" disabled={srvOk} />
-          </Field>
-          {!srvOk && (
-            <Button type="submit" variant="primary" className="sm:col-span-2" disabled={busy}>
+          )}
+        </div>
+        <SetupFoot onBack={back} onSkip={srvOk ? undefined : next} error={srvErr || saveError}>
+          {srvOk ? (
+            nextButton
+          ) : (
+            <Button type="submit" variant="primary" disabled={pending}>
               {serverId ? t('setup.serverRetry') : t('setup.serverCreate')}
             </Button>
           )}
-        </form>
-        {srvErr && (
-          <p className="mt-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-            {srvErr}
-          </p>
-        )}
-        {srvStatus && (
-          <p className="mt-3 text-xs text-t-secondary" role="status">
-            {srvStatus}
-          </p>
-        )}
-        {keyConflict && (
-          <HostKeyPrompt
-            className="mt-3"
-            serverId={serverId}
-            conflict={keyConflict}
-            onAccepted={() => testServer(serverId)}
-            onRejected={() => setKeyConflict(null)}
-          />
-        )}
-        {nav(srvOk ? t('setup.continue') : t('setup.skip'))}
-      </Panel>
+        </SetupFoot>
+      </form>
     )
+  }
 
   if (step === 'storage' && form)
     return (
-      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.storage')}>
-        {heading(t('setup.storageTitle'))}
-        <p className="mb-4 text-sm text-t-secondary">{t('setup.storageHint')}</p>
-        <Badge>{t('setup.roots')}</Badge>
-        <ul className="mb-2 mt-1 rounded-lg border border-border-subtle p-2 font-mono text-xs break-all text-t-secondary">
-          {form.downloadRoots?.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-        {!form.downloadsEnvSet && (
-          <p className="mb-4 rounded-md border border-warn/40 bg-warn/5 px-3 py-2 text-xs text-warn" role="note">
-            {t('setup.rootsWarn')}
+      <section className="ws-su-step" aria-labelledby="su-h">
+        <div className="ws-su-body">
+          <SetupHeading headingRef={headingRef}>
+            <span id="su-h">{t('setup.storageTitle')}</span>
+          </SetupHeading>
+          <p className="ws-quiet">{t('setup.storageHint')}</p>
+          <p className="ws-lbl" id="su-roots">
+            {t('setup.roots')}
           </p>
-        )}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={t('settings.watchInterval')}>
-            <Input
-              type="number"
-              min={5}
-              max={1440}
-              className="font-mono"
-              value={form.watchIntervalMin || ''}
-              onChange={(e) => set('watchIntervalMin', Math.trunc(Number(e.target.value)))}
-            />
-          </Field>
-          <Field label={t('settings.maxConcurrent')}>
-            <Input
-              type="number"
-              min={1}
-              max={20}
-              className="font-mono"
-              value={form.maxConcurrent || ''}
-              onChange={(e) => set('maxConcurrent', Math.trunc(Number(e.target.value)))}
-            />
-          </Field>
-          <Field label={t('settings.globalLimit')}>
-            <Input
-              type="number"
-              min={0}
-              className="font-mono"
-              value={Math.round(form.globalRateLimit / 1024)}
-              onChange={(e) => set('globalRateLimit', Math.trunc(Number(e.target.value)) * 1024)}
-            />
-          </Field>
+          <ul className="ws-su-disks" aria-labelledby="su-roots">
+            {form.downloadRoots?.map((r) => {
+              const d = diskOf(status?.disks, r)
+              return (
+                <li key={r}>
+                  <span className="ws-su-path">{r}</span>
+                  {d && d.totalBytes > 0 && (
+                    <>
+                      <span className="ws-quiet">{t('setup.free', { size: fmtBytes(d.freeBytes) })}</span>
+                      <span
+                        className="ws-su-meter"
+                        role="meter"
+                        aria-label={t('setup.used', { path: r })}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={Math.round((d.usedBytes / d.totalBytes) * 100)}
+                      >
+                        <span style={{ '--f': d.usedBytes / d.totalBytes } as CSSProperties} />
+                      </span>
+                    </>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {!form.downloadsEnvSet && (
+            <p className="ws-su-warn" role="note">
+              {t('setup.rootsWarn')}
+            </p>
+          )}
+          <div className="ws-su-2">
+            <div>
+              <label htmlFor="su-interval" className="ws-lbl">
+                {t('settings.watchInterval')}
+              </label>
+              <Input
+                id="su-interval"
+                inputMode="numeric"
+                className="font-mono"
+                value={form.watchIntervalMin || ''}
+                onChange={(e) => set('watchIntervalMin', Math.trunc(Number(e.target.value.replace(/\D/g, ''))))}
+              />
+            </div>
+            <div>
+              <label htmlFor="su-parallel" className="ws-lbl">
+                {t('settings.maxConcurrent')}
+              </label>
+              <Input
+                id="su-parallel"
+                inputMode="numeric"
+                className="font-mono"
+                value={form.maxConcurrent || ''}
+                onChange={(e) => set('maxConcurrent', Math.trunc(Number(e.target.value.replace(/\D/g, ''))))}
+              />
+            </div>
+          </div>
+          <label htmlFor="su-limit" className="ws-lbl">
+            {t('settings.globalLimit')}
+          </label>
+          <Input
+            id="su-limit"
+            inputMode="numeric"
+            className="font-mono"
+            value={Math.round(form.globalRateLimit / 1024)}
+            onChange={(e) => set('globalRateLimit', Math.trunc(Number(e.target.value.replace(/\D/g, ''))) * 1024)}
+          />
         </div>
-        {nav()}
-      </Panel>
+        <SetupFoot onBack={back} error={saveError}>
+          {nextButton}
+        </SetupFoot>
+      </section>
     )
 
   if (step === 'meta' && form)
     return (
-      <Panel as="section" className="animate-fadeIn p-6" aria-label={t('setup.step.meta')}>
-        {heading(t('setup.metaTitle'))}
-        <p className="mb-4 text-sm text-t-secondary">{t('setup.metaHint')}</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {(
-            [
-              ['tmdbApiKey', 'settings.tmdbApiKey', 'password'],
-              ['tvdbApiKey', 'settings.tvdbApiKey', 'password'],
-              ['plexUrl', 'settings.plexUrl', 'text'],
-              ['plexToken', 'settings.plexToken', 'password'],
-              ['anilistClientId', 'settings.anilistClientId', 'text'],
-              ['anilistClientSecret', 'settings.anilistClientSecret', 'password'],
-            ] as const
-          ).map(([key, label, type]) => (
-            <Field
-              key={key}
-              label={
-                <span className="flex w-fit items-center">
-                  {t(label)}
+      <section className="ws-su-step" aria-labelledby="su-h">
+        <div className="ws-su-body ws-su-body--wide">
+          <SetupHeading headingRef={headingRef}>
+            <span id="su-h">{t('setup.metaTitle')}</span>
+          </SetupHeading>
+          <p className="ws-quiet">{t('setup.metaHint')}</p>
+          <div className="ws-su-2">
+            {(
+              [
+                ['tmdbApiKey', 'settings.tmdbApiKey', 'password'],
+                ['tvdbApiKey', 'settings.tvdbApiKey', 'password'],
+                ['plexUrl', 'settings.plexUrl', 'text'],
+                ['plexToken', 'settings.plexToken', 'password'],
+                ['anilistClientId', 'settings.anilistClientId', 'text'],
+                ['anilistClientSecret', 'settings.anilistClientSecret', 'password'],
+              ] as const
+            ).map(([key, label, type]) => (
+              <div key={key}>
+                <span className="ws-lbl-row">
+                  <label htmlFor={`su-${key}`} className="ws-lbl">
+                    {t(label)}
+                  </label>
                   <EnvBadge show={locked(key)} />
                 </span>
-              }
-            >
-              <Input
-                type={type}
-                className="font-mono"
-                autoComplete="off"
-                disabled={locked(key)}
-                value={form[key] ?? ''}
-                onChange={(e) => set(key, e.target.value)}
-              />
-            </Field>
-          ))}
+                <Input
+                  id={`su-${key}`}
+                  type={type}
+                  className="font-mono"
+                  autoComplete="off"
+                  disabled={locked(key)}
+                  value={form[key] ?? ''}
+                  onChange={(e) => set(key, e.target.value)}
+                />
+              </div>
+            ))}
+          </div>
+          <p className="ws-quiet mt-4">{t('setup.metaLater')}</p>
         </div>
-        <p className="mt-3 text-xs text-t-muted">{t('setup.metaLater')}</p>
-        {nav()}
-      </Panel>
+        <SetupFoot onBack={back} error={saveError}>
+          {nextButton}
+        </SetupFoot>
+      </section>
     )
 
   return null

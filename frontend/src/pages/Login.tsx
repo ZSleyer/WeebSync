@@ -8,6 +8,7 @@ import { loginPasskey, assertSecurityKey, supportsPasskeyAutofill, conditionalPa
 import Loading from '../components/Loading'
 import Setup from './Setup'
 import Brand from '../components/Brand'
+import { MIN_PASSWORD } from './authLimits'
 import './auth.css'
 
 interface AuthConfig {
@@ -27,8 +28,6 @@ const oidcError = landing.get('oidc_error') ?? ''
 const loggedOut = landing.has('loggedout')
 // a refused sign-in or a logout must not bounce back to the provider
 const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
-// the backend's minimum (auth.ErrWeakPassword)
-export const MIN_PASSWORD = 10
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
 
 // The 401 of a wrong email or password counts what the rate limit leaves.

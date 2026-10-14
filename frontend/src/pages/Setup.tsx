@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, ButtonLink, Input, Panel } from 'fluid-lycoris'
+import { CircleCheck, CircleMinus } from 'lucide-react'
+import { Button, ButtonLink, Input, Switch } from 'fluid-lycoris'
 import { api } from '../api'
-import SetupSteps from '../components/SetupSteps'
+import SetupSteps, { SetupFoot, SetupHeading, type SetupSummary } from '../components/SetupSteps'
 import { EnvBadge } from './settings/useSettingsForm'
 import Brand from '../components/Brand'
+import { MIN_PASSWORD } from './authLimits'
+import './auth.css'
 
 // First-run wizard, shown while the instance has no users yet
 // (authConfig.setupNeeded). One list of steps, one indicator - the only fork is
@@ -17,6 +20,8 @@ import Brand from '../components/Brand'
 // ['me'] before the last step, that would swap in the app shell mid-wizard.
 export type Step = 'account' | 'oidc' | 'import' | 'server' | 'storage' | 'meta' | 'done'
 const STEPS: Step[] = ['account', 'oidc', 'import', 'server', 'storage', 'meta']
+// steps the rail marks as optional (the OIDC step is required without a local account)
+const OPTIONAL: Step[] = ['oidc', 'import']
 
 // The step survives the wizard being mounted afresh: a reload, or RootLayout
 // swapping from the login screen's wizard to the signed-in one once ['me'] is
@@ -75,6 +80,9 @@ export default function Setup({
   // recommended default for public instances: close open registration
   const [registrationDisabled, setRegistrationDisabled] = useState(true)
   const [discovered, setDiscovered] = useState('')
+  // what the run left behind, for the closing list; gone after a reload
+  const [oidcSaved, setOidcSaved] = useState(false)
+  const [summary, setSummary] = useState<SetupSummary | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const headingRef = useRef<HTMLHeadingElement>(null)
@@ -115,6 +123,8 @@ export default function Setup({
 
   const createAccount = (e: FormEvent) => {
     e.preventDefault()
+    // no local account: straight on to the provider's settings
+    if (oidcOnly) return setStep('oidc')
     if (password !== again) return setError(t('account.passwordMismatch'))
     run(async () => {
       // locale rides along so server-delivered texts match the ui language
@@ -140,6 +150,7 @@ export default function Setup({
         setError(out.oidcError)
         return
       }
+      setOidcSaved(withOidc && !!oidc.oidcIssuer)
       setStep('import')
     })
 
@@ -177,22 +188,13 @@ export default function Setup({
     return onDone ? onDone() : qc.invalidateQueries({ queryKey: ['me'] })
   }
 
-  const heading = (text: string) => (
-    <h2 ref={headingRef} tabIndex={-1} className="mb-1 font-display text-sm font-bold">
-      {text}
-    </h2>
-  )
-  const errorBox = error && (
-    <p className="mb-3 rounded-md border border-err/40 px-3 py-2 text-sm text-err" role="alert">
-      {error}
-    </p>
-  )
+  const heading = (text: string) => <SetupHeading headingRef={headingRef}>{text}</SetupHeading>
   const field = (key: keyof typeof oidc, label: string, type = 'text', required = false, hint = '') => (
-    <div className="mb-3">
-      <span className="mb-1 flex w-fit items-center">
-        <Badge as="label" htmlFor={`setup-${key}`} className="block w-fit">
+    <div>
+      <span className="ws-lbl-row">
+        <label htmlFor={`setup-${key}`} className="ws-lbl">
           {label}
-        </Badge>
+        </label>
         <EnvBadge show={envLocked(key)} />
       </span>
       <Input
@@ -205,163 +207,150 @@ export default function Setup({
         onChange={(e) => setOidc({ ...oidc, [key]: e.target.value })}
       />
       {hint && (
-        <p id={`setup-${key}-hint`} className="mt-1 text-xs text-t-muted">
+        <p id={`setup-${key}-hint`} className="ws-login-hint">
           {hint}
         </p>
       )}
     </div>
   )
 
-  // the account/oidc/done panels are narrow forms; the later steps hold tables
-  // and two-column grids and need the room
-  const wide = step === 'import' || step === 'server' || step === 'storage' || step === 'meta'
-
   // "done" is the last of the steps the wizard counts, as the user sees it
   const all = [...STEPS, 'done'] as const
   const at = all.indexOf(step)
   const pad = (n: number) => String(n).padStart(2, '0')
   const label = (s: (typeof all)[number]) => (s === 'done' ? t('setup.stepDone') : t(`setup.step.${s}`))
+  const tooShort = Math.max(0, MIN_PASSWORD - password.length)
 
   return (
     // a desktop keeps the steps in a rail on the left, a phone counts them
-    // above the form
-    <main className="grid min-h-dvh lg:grid-cols-[17rem_minmax(0,1fr)]">
-      <aside className="hidden border-r border-border-subtle bg-bg-secondary px-4 py-6 lg:block">
-        <p className="mb-8 px-2 font-display text-lg font-bold tracking-[0.2em]" aria-hidden>
+    // above the step
+    <main className="ws-su">
+      <aside className="ws-su-rail">
+        <p className="ws-su-brand font-display text-lg font-bold tracking-[0.2em]" aria-hidden>
           <Brand variant="rail" />
         </p>
-        <ol className="grid gap-0.5" aria-label={t('setup.title')}>
+        <ol className="ws-su-steps" aria-label={t('setup.title')}>
           {all.map((s, i) => (
             <li
               key={s}
               aria-current={s === step ? 'step' : undefined}
-              className={`flex items-baseline gap-3 rounded-md px-3 py-2 text-sm ${
-                s === step ? 'bg-accent/12 font-medium text-t-primary' : i < at ? 'text-t-secondary' : 'text-t-muted'
-              }`}
+              data-st={s === step ? 'on' : i < at ? 'done' : undefined}
             >
-              <span className={`font-mono text-ctl-sm ${s === step ? 'text-accent' : ''}`}>{pad(i + 1)}</span>
+              <span>{pad(i + 1)}</span>
               {label(s)}
+              {OPTIONAL.includes(s as Step) && <small>{t('setup.optional')}</small>}
             </li>
           ))}
         </ol>
       </aside>
-      <div className="grid content-start justify-items-center p-4 pt-[max(2rem,var(--safe-t))] pb-[calc(1rem+var(--safe-b))] sm:content-center sm:pt-4 sm:pb-4">
-        {/* min-w-0: a grid item grows to its content's min width, and the step
-          row's is ~480px - wider than a phone, so the whole wizard overflowed */}
-        <div className={`w-full min-w-0 ${wide ? 'max-w-2xl' : 'max-w-md'}`}>
-          <div className="mb-6 text-center lg:text-left">
-            <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
-              <span className="lg:hidden">
-                <Brand variant="hero" />
-              </span>
-              <span className="hidden text-2xl tracking-wider lg:inline">{t('setup.title')}</span>
-            </h1>
-            <span className="lg:hidden">
-              <Badge className="mt-3">{t('setup.title')}</Badge>
-            </span>
-          </div>
+      <div className="ws-su-main">
+        <h1 className="sr-only">{t('setup.title')}</h1>
+        {/* where the wizard stands: "04 / 07" and a bar, on every width */}
+        <div className="ws-su-top" aria-hidden>
+          <span>
+            {pad(at + 1)} / {pad(all.length)}
+          </span>
+          <span className="ws-su-bar">
+            <span style={{ transform: `scaleX(${(at + 1) / all.length})` }} />
+          </span>
+        </div>
+        <p className="sr-only" aria-live="polite">
+          {t('setup.stepOf', { n: at + 1, total: all.length })}: {label(step)}
+        </p>
 
-          {/* where the wizard stands: "04 / 07" and a bar, on every width */}
-          <div className="mb-5 flex items-center gap-3" aria-hidden>
-            <span className="font-mono text-xs text-t-muted">
-              {pad(at + 1)} / {pad(all.length)}
-            </span>
-            <span className="h-1 flex-1 overflow-hidden rounded-full bg-border-subtle">
-              <span
-                className="t-setup-bar block h-full origin-left bg-accent"
-                style={{ transform: `scaleX(${(at + 1) / all.length})` }}
+        {step === 'account' && (
+          <form key="account" className="ws-su-step" onSubmit={createAccount}>
+            <div className="ws-su-body">
+              {heading(t('setup.accountTitle'))}
+              <p className="ws-quiet">{t('setup.accountHint')}</p>
+              <Switch
+                label={<span className="text-sm font-medium">{t('setup.noLocalAccount')}</span>}
+                aria-describedby="setup-oidc-only-hint"
+                checked={oidcOnly}
+                onChange={(e) => setOidcOnly(e.target.checked)}
               />
-            </span>
-          </div>
-          <p className="sr-only" aria-live="polite">
-            {t('setup.stepOf', { n: at + 1, total: all.length })}: {label(step)}
-          </p>
-
-          {step === 'account' && (
-            <Panel as="form" className="animate-fadeIn p-6" onSubmit={createAccount}>
-              {heading(t('setup.step.account'))}
-              <p className="mb-4 text-sm text-t-secondary">{t('setup.accountHint')}</p>
-              <Badge as="label" htmlFor="setup-email" className="mb-1 block w-fit">
-                {t('login.email')}
-              </Badge>
-              <Input
-                id="setup-email"
-                className="mb-4"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <Badge as="label" htmlFor="setup-password" className="mb-1 block w-fit">
-                {t('login.password')}
-              </Badge>
-              <Input
-                id="setup-password"
-                className="mb-4"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={10}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-              <Badge as="label" htmlFor="setup-password-again" className="mb-1 block w-fit">
-                {t('login.passwordAgain')}
-              </Badge>
-              <Input
-                id="setup-password-again"
-                className="mb-4"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={10}
-                value={again}
-                onChange={(e) => setAgain(e.target.value)}
-              />
-              {errorBox}
-              <Button type="submit" variant="primary" className="w-full" disabled={busy}>
-                {t('login.submitRegister')}
+              <p id="setup-oidc-only-hint" className="ws-login-hint">
+                {t('setup.noLocalAccountHint')}
+              </p>
+              {!oidcOnly && (
+                <>
+                  <label htmlFor="setup-email" className="ws-lbl">
+                    {t('login.email')}
+                  </label>
+                  <Input
+                    id="setup-email"
+                    type="email"
+                    autoComplete="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                  <label htmlFor="setup-password" className="ws-lbl">
+                    {t('login.password')}
+                  </label>
+                  <Input
+                    id="setup-password"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={MIN_PASSWORD}
+                    aria-describedby="setup-password-hint"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <p id="setup-password-hint" className="ws-login-hint" data-ok={tooShort === 0 || undefined}>
+                    {tooShort > 0 ? t('login.lengthLeft', { min: MIN_PASSWORD, n: tooShort }) : t('login.lengthOk')}
+                  </p>
+                  <label htmlFor="setup-password-again" className="ws-lbl">
+                    {t('login.passwordAgain')}
+                  </label>
+                  <Input
+                    id="setup-password-again"
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={MIN_PASSWORD}
+                    value={again}
+                    onChange={(e) => setAgain(e.target.value)}
+                  />
+                </>
+              )}
+            </div>
+            <SetupFoot error={error}>
+              <Button type="submit" variant="primary" disabled={busy}>
+                {oidcOnly ? t('setup.continue') : t('login.submitRegister')}
               </Button>
-              <div className="mt-4 border-t border-border-subtle pt-4">
-                <Button
-                  className="w-full"
-                  disabled={busy}
-                  onClick={() => {
-                    setOidcOnly(true)
-                    setStep('oidc')
-                  }}
-                >
-                  {t('setup.noLocalAccount')}
-                </Button>
-                <p className="mt-1 text-xs text-t-muted">{t('setup.noLocalAccountHint')}</p>
-              </div>
-            </Panel>
-          )}
+            </SetupFoot>
+          </form>
+        )}
 
-          {/* OIDC config stored and the provider answered: the first login through
+        {/* OIDC config stored and the provider answered: the first login through
             it creates the admin account, and the wizard resumes afterwards */}
-          {step === 'oidc' && oidcReady && (
-            <Panel className="animate-fadeIn p-6 text-center">
-              {heading(t('setup.step.oidc'))}
-              <p className="mb-4 text-sm text-t-secondary" role="status">
+        {step === 'oidc' && oidcReady && (
+          <section key="oidc-ready" className="ws-su-step">
+            <div className="ws-su-body">
+              {heading(t('setup.oidcTitle'))}
+              <p className="ws-quiet" role="status">
                 {t('setup.oidcReady')}
               </p>
+            </div>
+            <SetupFoot>
               <ButtonLink
                 variant="primary"
-                className="block w-full"
                 href="/api/auth/oidc/login"
                 onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
               >
                 {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
               </ButtonLink>
-            </Panel>
-          )}
+            </SetupFoot>
+          </section>
+        )}
 
-          {step === 'oidc' && !oidcReady && (
-            <Panel as="form" className="animate-fadeIn p-6" onSubmit={saveOidc}>
-              {heading(t('setup.step.oidc'))}
-              <p className="mb-4 text-sm text-t-secondary">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
+        {step === 'oidc' && !oidcReady && (
+          <form key="oidc" className="ws-su-step" onSubmit={saveOidc}>
+            <div className="ws-su-body">
+              {heading(t('setup.oidcTitle'))}
+              <p className="ws-quiet">{t(oidcOnly ? 'setup.oidcOnlyHint' : 'setup.oidcHint')}</p>
               {field(
                 'oidcProviderName',
                 t('settings.oidcProviderName'),
@@ -369,19 +358,21 @@ export default function Setup({
                 false,
                 t('settings.oidcProviderNameHint'),
               )}
-              <div className="mb-3">
-                <span className="mb-1 flex w-fit items-center">
-                  <Badge as="label" htmlFor="setup-oidcIssuer" className="block w-fit">
+              <div>
+                <span className="ws-lbl-row">
+                  <label htmlFor="setup-oidcIssuer" className="ws-lbl">
                     {t('settings.oidcIssuer')}
-                  </Badge>
+                  </label>
                   <EnvBadge show={envLocked('oidcIssuer')} />
                 </span>
                 <div className="flex gap-2">
                   <Input
                     id="setup-oidcIssuer"
                     type="text"
+                    className="font-mono"
                     required={oidcOnly && !envLocked('oidcIssuer')}
                     disabled={envLocked('oidcIssuer')}
+                    aria-describedby="setup-oidcIssuer-hint"
                     value={oidc.oidcIssuer}
                     onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
                   />
@@ -394,20 +385,25 @@ export default function Setup({
                   </Button>
                 </div>
                 {discovered && (
-                  <p className="mt-1 text-xs text-t-muted" role="status">
+                  <p className="ws-su-ok" role="status">
+                    <CircleCheck aria-hidden size={18} />
                     {t('settings.oidcDiscoverFound', { issuer: discovered })}
                   </p>
                 )}
-                <p className="mt-1 text-xs text-t-muted">{t('settings.oidcIssuerHint')}</p>
+                <p id="setup-oidcIssuer-hint" className="ws-login-hint">
+                  {t('settings.oidcIssuerHint')}
+                </p>
               </div>
-              {field('oidcClientId', t('settings.oidcClientId'), 'text', oidcOnly, t('settings.oidcClientIdHint'))}
-              {field(
-                'oidcClientSecret',
-                t('settings.oidcClientSecret'),
-                'password',
-                false,
-                t('settings.oidcClientSecretHint'),
-              )}
+              <div className="ws-su-2">
+                {field('oidcClientId', t('settings.oidcClientId'), 'text', oidcOnly, t('settings.oidcClientIdHint'))}
+                {field(
+                  'oidcClientSecret',
+                  t('settings.oidcClientSecret'),
+                  'password',
+                  false,
+                  t('settings.oidcClientSecretHint'),
+                )}
+              </div>
               {field(
                 'oidcRedirectUrl',
                 t('settings.oidcRedirectUrl'),
@@ -416,69 +412,101 @@ export default function Setup({
                 t('settings.oidcRedirectUrlHint'),
               )}
               {field('oidcClaim', t('settings.oidcClaim'), 'text', false, t('settings.oidcClaimHint'))}
-              {field(
-                'oidcAdminValues',
-                t('settings.oidcAdminValues'),
-                'text',
-                false,
-                t('settings.oidcAdminValuesHint'),
-              )}
-              {field('oidcUserValues', t('settings.oidcUserValues'), 'text', false, t('settings.oidcUserValuesHint'))}
-              {/* only meaningful with a password account: OIDC-only has no
-                password registration to close (and it is off by default) */}
-              {!oidcOnly && (
-                <>
-                  <label className="mb-1 flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={registrationDisabled}
-                      onChange={(e) => setRegistrationDisabled(e.target.checked)}
-                    />
-                    {t('setup.closeRegistration')}
-                  </label>
-                  <p className="mb-4 text-xs text-t-muted">{t('setup.closeRegistrationHint')}</p>
-                </>
-              )}
-              {errorBox}
-              <div className="flex gap-2">
-                <Button
-                  className="flex-1"
-                  disabled={busy}
-                  onClick={() => (oidcOnly ? (setOidcOnly(false), setStep('account')) : saveAuth(false))}
-                >
-                  {t(oidcOnly ? 'setup.back' : 'setup.skip')}
-                </Button>
-                <Button type="submit" variant="primary" className="flex-1" disabled={busy}>
-                  {t('settings.save')}
-                </Button>
+              <div className="ws-su-2">
+                {field(
+                  'oidcAdminValues',
+                  t('settings.oidcAdminValues'),
+                  'text',
+                  false,
+                  t('settings.oidcAdminValuesHint'),
+                )}
+                {field('oidcUserValues', t('settings.oidcUserValues'), 'text', false, t('settings.oidcUserValuesHint'))}
               </div>
-            </Panel>
-          )}
+              {/* only meaningful with a password account: OIDC-only has no
+                  password registration to close (and it is off by default) */}
+              {!oidcOnly && (
+                <div className="mt-4">
+                  <Switch
+                    label={<span className="text-sm font-medium">{t('setup.closeRegistration')}</span>}
+                    aria-describedby="setup-close-hint"
+                    checked={registrationDisabled}
+                    onChange={(e) => setRegistrationDisabled(e.target.checked)}
+                  />
+                  <p id="setup-close-hint" className="ws-login-hint">
+                    {t('setup.closeRegistrationHint')}
+                  </p>
+                </div>
+              )}
+            </div>
+            <SetupFoot
+              onBack={
+                oidcOnly
+                  ? () => {
+                      setOidcOnly(false)
+                      setStep('account')
+                    }
+                  : undefined
+              }
+              onSkip={oidcOnly ? undefined : () => saveAuth(false)}
+              error={error}
+            >
+              <Button type="submit" variant="primary" disabled={busy}>
+                {t('setup.continue')}
+              </Button>
+            </SetupFoot>
+          </form>
+        )}
 
-          {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
-            <SetupSteps
-              step={step}
-              onGo={setStep}
-              onFinish={() => {
-                sessionStorage.setItem(FINISHING_KEY, '1')
-                setStep('done')
-              }}
-              headingRef={headingRef}
-            />
-          )}
+        {(step === 'import' || step === 'server' || step === 'storage' || step === 'meta') && (
+          <SetupSteps
+            key={step}
+            step={step}
+            onGo={setStep}
+            onFinish={(s) => {
+              sessionStorage.setItem(FINISHING_KEY, '1')
+              setSummary(s)
+              setStep('done')
+            }}
+            headingRef={headingRef}
+          />
+        )}
 
-          {step === 'done' && (
-            <Panel className="animate-fadeIn p-6 text-center">
-              {heading(t('setup.stepDone'))}
-              <p className="mb-4 text-sm text-t-secondary" role="status">
+        {step === 'done' && (
+          <section key="done" className="ws-su-step">
+            <div className="ws-su-body">
+              {heading(t('setup.doneTitle'))}
+              <p className="ws-quiet" role="status">
                 {t('setup.done')}
               </p>
-              <Button variant="primary" className="w-full" onClick={finish}>
+              {summary && (
+                <ul className="ws-su-sum">
+                  {(
+                    [
+                      [t('setup.step.account'), email || t('setup.sumDone')],
+                      [t('setup.step.oidc'), oidcSaved || oidcOnly ? t('setup.sumDone') : null],
+                      [t('setup.step.import'), summary.imported ? t('setup.sumDone') : null],
+                      [t('setup.step.server'), summary.server ?? null],
+                      [t('setup.step.storage'), t('setup.sumRoots', { count: summary.roots })],
+                      [t('setup.step.meta'), summary.meta.length ? summary.meta.join(', ') : null],
+                    ] as const
+                  ).map(([k, v]) => (
+                    <li key={k} data-skip={v === null || undefined}>
+                      {v === null ? <CircleMinus aria-hidden size={18} /> : <CircleCheck aria-hidden size={18} />}
+                      <span>{k}</span>
+                      <span>{v ?? t('setup.sumSkipped')}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="ws-quiet">{t('setup.doneNext')}</p>
+            </div>
+            <SetupFoot>
+              <Button variant="primary" onClick={finish}>
                 {t('setup.start')}
               </Button>
-            </Panel>
-          )}
-        </div>
+            </SetupFoot>
+          </section>
+        )}
       </div>
     </main>
   )
