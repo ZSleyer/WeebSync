@@ -10,6 +10,7 @@ import type {
   TextareaHTMLAttributes,
 } from 'react'
 import { useEffect, useId, useRef, useState } from 'react'
+import { DUO_SHAPES } from './duo'
 import { useWave } from './wave'
 
 // Presentational wrappers around the t-* classes in fluid-lycoris.css. Deliberately
@@ -310,27 +311,29 @@ export interface LoadingIndicatorProps {
 }
 
 /**
- * Indeterminate loading, the design's own: a red and a teal drop circle each
- * other, flow together into one two-tone drop, a turning yin and yang, and
- * pull apart again. The liquid look is a goo filter (blur, then a hard alpha
- * edge), so every outline stays smooth however the drops meet. For a wait
- * with nothing to measure. It shows only once the wait has lasted a moment,
- * so a quick answer never flashes it; the status is in the tree from the
- * start. Motion off: the two drops half merged, still.
+ * Indeterminate loading, the design's own: a red and a teal half that turn
+ * and flow from shape to shape, two dots that run together, a yin and yang
+ * twisted as if still stirring, a flower cut in two, two diamonds (shapes in
+ * duo.ts). A light goo filter (blur, then a hard alpha edge) keeps every
+ * outline liquid and round while the seams stay open. For a wait with
+ * nothing to measure. It shows only once the wait has lasted a moment, so a
+ * quick answer never flashes it; the status is in the tree from the start.
+ * Motion off: the yin and yang, still.
  */
 export function LoadingIndicator({ label, showLabel, size = 'md', className }: LoadingIndicatorProps) {
   const goo = `goo${useId().replace(/\W/g, '')}`
   return (
     <div role="status" className={cx('t-loading', `t-loading--${size}`, className)}>
-      <svg aria-hidden className="t-loading-duo" viewBox="0 0 100 100">
-        <filter id={goo} filterUnits="userSpaceOnUse" x="0" y="0" width="100" height="100">
-          <feGaussianBlur stdDeviation="5" />
-          <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 24 -10" />
+      {/* the shapes fill 0..100, the margin gives the blur room */}
+      <svg aria-hidden className="t-loading-duo" viewBox="-8 -8 116 116" style={DUO_SHAPES}>
+        <filter id={goo} filterUnits="userSpaceOnUse" x="-8" y="-8" width="116" height="116">
+          <feGaussianBlur stdDeviation="2.2" />
+          <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8" />
         </filter>
         <g filter={`url(#${goo})`}>
           <g className="t-duo-orbit">
-            <circle className="t-duo-a" cx="50" cy="50" r="17" />
-            <circle className="t-duo-b" cx="50" cy="50" r="13" />
+            <rect className="t-duo-a" width="100" height="100" />
+            <rect className="t-duo-b" width="100" height="100" />
           </g>
         </g>
       </svg>

@@ -1607,29 +1607,44 @@ li.t-swiperow { border-radius: 0; }
 @keyframes t-fade-out { to { opacity: 0; } }
 @keyframes t-spin { to { rotate: 360deg; } }
 
-/* ── Loading indicator (LoadingIndicator): the duo. A red and a teal drop
-   circle each other, flow together into one two-tone drop and pull apart
-   again, twice a turn. The goo filter in the component does the melting.
-   It fades in after 400 ms, so a quick answer never shows it. Motion off:
-   the two drops half merged, still. ── */
+/* ── Loading indicator (LoadingIndicator): the duo. A red and a teal half
+   turn and flow from shape to shape, a beat on each: two dots, the dots run
+   together, a stirred yin and yang, a flower cut in two, two diamonds
+   (--a0..4 and --b0..4 from duo.ts). Underneath, the pair turns without a
+   stop and breathes a little, like a liquid settling. The goo filter in the
+   component rounds every edge. It fades in after 400 ms, so a quick answer
+   never shows it. Motion off: the yin and yang, still. ── */
 .t-loading { display: inline-flex; align-items: center; gap: 0.625rem; }
 /* a placeholder that waits its turn the same way (skeleton rows) */
 .t-loading, .t-late { animation: t-loading-in var(--dur-2) var(--ease-out) 400ms backwards; }
 .t-loading--sm { --li-size: 1.25rem; }
 .t-loading--md { --li-size: 1.75rem; }
 .t-loading--lg { --li-size: 2.25rem; }
-.t-loading-duo { display: block; flex: none; width: var(--li-size); height: var(--li-size); overflow: visible; }
-.t-loading-duo :is(g, circle) { transform-box: view-box; transform-origin: 50px 50px; }
-.t-duo-a { fill: var(--accent); translate: -10px 0; }
-.t-duo-b { fill: var(--accent-2); translate: 12px 0; }
+.t-loading-duo { display: block; flex: none; width: var(--li-size); height: var(--li-size); }
+.t-duo-orbit { transform-box: view-box; transform-origin: 50px 50px; }
+.t-duo-a { fill: var(--accent); clip-path: var(--a2); }
+.t-duo-b { fill: var(--accent-2); clip-path: var(--b2); }
 .t-loading-label { color: var(--fg-2); font-size: 0.875rem; }
 @keyframes t-loading-in { from { opacity: 0; } }
-@keyframes t-duo-a { 0%, 100% { translate: -22px 0; scale: 1; } 50% { translate: -4px 0; scale: 0.9; } }
-@keyframes t-duo-b { 0%, 100% { translate: 24px 0; scale: 1; } 50% { translate: 5px 0; scale: 0.9; } }
+@keyframes t-duo-a {
+  0%, 10%, 100% { clip-path: var(--a0); }
+  20%, 26% { clip-path: var(--a1); }
+  36%, 48% { clip-path: var(--a2); }
+  58%, 66% { clip-path: var(--a3); }
+  76%, 84% { clip-path: var(--a4); }
+}
+@keyframes t-duo-b {
+  0%, 10%, 100% { clip-path: var(--b0); }
+  20%, 26% { clip-path: var(--b1); }
+  36%, 48% { clip-path: var(--b2); }
+  58%, 66% { clip-path: var(--b3); }
+  76%, 84% { clip-path: var(--b4); }
+}
+@keyframes t-duo-breathe { 33% { scale: 1.04 0.96; } 66% { scale: 0.97 1.03; } }
 @media (prefers-reduced-motion: no-preference) {
-  :root:not([data-motion="off"]) .t-duo-orbit { animation: t-spin 2400ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
-  :root:not([data-motion="off"]) .t-duo-a { animation: t-duo-a 1200ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
-  :root:not([data-motion="off"]) .t-duo-b { animation: t-duo-b 1200ms cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite; }
+  :root:not([data-motion="off"]) .t-duo-orbit { animation: t-spin 3000ms linear infinite, t-duo-breathe 1500ms ease-in-out infinite; }
+  :root:not([data-motion="off"]) .t-duo-a { animation: t-duo-a 6000ms cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+  :root:not([data-motion="off"]) .t-duo-b { animation: t-duo-b 6000ms cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 }
 
 
