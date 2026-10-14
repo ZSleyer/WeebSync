@@ -1,24 +1,20 @@
 import { LOGO_H, LOGO_PATH_S, LOGO_PATH_W, LOGO_W } from './logo'
 
-// The tab icon is the mark with the S in the current accent. It is built on
-// the fly and handed to the browser as a data URL, so a new accent shows in
-// the tab at once. The W follows the browser's own colour scheme, not the
-// app's theme: the tab strip is the browser's surface.
-export function faviconSvg(accent: string): string {
+// The tab icon is the mark as the header shows it: the W in the first accent,
+// the S in the second. It is built on the fly and handed to the browser as a
+// data URL, so a new accent or theme shows in the tab at once.
+export function faviconSvg(w: string, s: string): string {
   const pad = (LOGO_W - LOGO_H) / 2
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 ${-pad} ${LOGO_W} ${LOGO_W}">` +
-    `<style>.w{fill:#0a1628}@media(prefers-color-scheme:dark){.w{fill:#f4f6f8}}</style>` +
-    `<path class="w" d="${LOGO_PATH_W}"/><path fill="${accent}" d="${LOGO_PATH_S}"/></svg>`
+    `<path fill="${w}" d="${LOGO_PATH_W}"/><path fill="${s}" d="${LOGO_PATH_S}"/></svg>`
   )
 }
 
-export function currentAccent(): string {
-  const v = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()
-  return v || '#ef6177'
-}
+const token = (name: string, fallback: string) =>
+  getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback
 
-export function setFavicon(accent = currentAccent()) {
+export function setFavicon(w = token('--accent', '#ef6177'), s = token('--accent-2', '#33c2b5')) {
   const link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-  if (link) link.href = `data:image/svg+xml;utf8,${encodeURIComponent(faviconSvg(accent))}`
+  if (link) link.href = `data:image/svg+xml;utf8,${encodeURIComponent(faviconSvg(w, s))}`
 }
