@@ -82,7 +82,7 @@
 .ws-sel-bar > button:hover { background: var(--hover); color: var(--fg); }
 .ws-sel-bar > button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .ws-sel-bar > .ws-sel-done { color: var(--fg); font-weight: 600; }
-.ws-sel-bar > .ws-sel-danger { color: var(--err); }
+.ws-sel-bar > .ws-sel-danger { color: var(--accent); }
 @media (width >= 64rem) {
   .ws-sel-bar {
     position: fixed;

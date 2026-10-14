@@ -406,8 +406,8 @@ body {
 /* Destructive area: the border itself carries the warning. The danger body
    of a dialog is a direct child without a border of its own, so the dialog
    takes the tint instead. */
-.t-panel--danger { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
-dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--err) 65%, transparent); }
+.t-panel--danger { border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
+dialog:has(> .t-panel--danger) { border-color: color-mix(in srgb, var(--accent) 65%, transparent); }
 
 /* Hatch texture: faint 135° diagonal hairlines. A placeholder texture for
    covers and skeletons, no longer the page background. */
@@ -553,14 +553,16 @@ a.t-label {
   border-color: var(--accent);
   color: var(--on-accent);
 }
-.t-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 60%, transparent); }
-/* the destructive confirm: the error colour as a fill */
-.t-btn--danger-fill { background: var(--err); border-color: var(--err); color: var(--bg); }
+/* destructive actions are Lycoris red, the design's alarm colour; the orange
+   of --err is for error text only (as a button it read as the old theme) */
+.t-btn--danger { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
+/* the destructive confirm: the red as a fill */
+.t-btn--danger-fill { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 @media (hover: hover) {
   .t-btn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--hover); }
   .t-btn--primary:hover { background: color-mix(in srgb, var(--accent) 85%, var(--bg)); }
-  .t-btn--danger:hover { border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
-  .t-btn--danger-fill:hover { background: color-mix(in srgb, var(--err) 85%, var(--bg)); }
+  .t-btn--danger:hover { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .t-btn--danger-fill:hover { background: color-mix(in srgb, var(--accent) 85%, var(--bg)); }
 }
 /* WCAG 2.5.8 target size; the shared variable keeps it level with every other
    small control in the same row */
