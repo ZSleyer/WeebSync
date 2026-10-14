@@ -9,6 +9,7 @@ import (
 	"net"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -90,11 +91,21 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		return nil, err
 	}
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+	algos := ssh.SupportedAlgorithms()
 	sc, chans, reqs, err := ssh.NewClientConn(netConn, addr, &ssh.ClientConfig{
-		User:            cfg.Username,
-		Auth:            []ssh.AuthMethod{ssh.Password(cfg.Password)},
-		HostKeyCallback: hostKeyCB,
-		Timeout:         15 * time.Second,
+		// only what x/crypto counts as secure, and nothing built on SHA-1 at
+		// all: no group14-sha1 key exchange, no hmac-sha1, no ssh-rsa
+		// (SHA-1) or DSA host key signatures
+		Config: ssh.Config{
+			KeyExchanges: noSHA1(algos.KeyExchanges),
+			Ciphers:      algos.Ciphers,
+			MACs:         noSHA1(algos.MACs),
+		},
+		User:              cfg.Username,
+		Auth:              []ssh.AuthMethod{ssh.Password(cfg.Password)},
+		HostKeyCallback:   hostKeyCB,
+		HostKeyAlgorithms: hostKeyAlgorithms(cfg.HostKey, algos.HostKeys),
+		Timeout:           15 * time.Second,
 	})
 	if err != nil {
 		netConn.Close()
@@ -104,6 +115,40 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		return nil, err
 	}
 	return ssh.NewClient(sc, chans, reqs), nil
+}
+
+// noSHA1 drops the algorithms built on SHA-1.
+func noSHA1(list []string) []string {
+	out := make([]string, 0, len(list))
+	for _, a := range list {
+		if !strings.Contains(a, "sha1") {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// hostKeyAlgorithms asks the server for the pinned key's own type, as OpenSSH
+// does, so a server that also holds a key of another type is not taken for a
+// changed one. An RSA key is asked for with SHA-2 signatures only. Before a
+// key is pinned, any secure type will do.
+func hostKeyAlgorithms(pinned string, secure []string) []string {
+	if raw, err := base64.StdEncoding.DecodeString(pinned); err == nil && pinned != "" {
+		if pk, err := ssh.ParsePublicKey(raw); err == nil {
+			if pk.Type() == ssh.KeyAlgoRSA {
+				return []string{ssh.KeyAlgoRSASHA512, ssh.KeyAlgoRSASHA256}
+			}
+			return []string{pk.Type()}
+		}
+	}
+	out := noSHA1(secure)
+	for i := 0; i < len(out); i++ {
+		if out[i] == ssh.KeyAlgoRSA { // SHA-1 signatures; DSA is not in the secure set at all
+			out = append(out[:i], out[i+1:]...)
+			i--
+		}
+	}
+	return out
 }
 
 // KeyLabel renders a host key (base64 wire format) as "algo SHA256:..." for
