@@ -1,8 +1,19 @@
 /* ═══ Dateien > Katalog: the head, the tile grid and the unmatched rows ═══ */
 
-.ws-cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.ws-cat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; justify-content: flex-end; margin-bottom: 0.5rem; }
 .ws-cat-head > .t-select-wrap,
-.ws-cat-head > .ws-cat-sel { flex: 1 1 9rem; min-width: 0; }
+.ws-cat-head > .ws-cat-sel { flex: 1 1 0; min-width: 0; }
+@media (width >= 40rem) {
+  .ws-cat-head > .ws-cat-sel { flex: 0 1 13rem; }
+  .ws-cat-head { justify-content: flex-start; }
+}
+/* the folder's source as a sentence with its choice, the notes and the rule
+   under it, set apart from the covers */
+.ws-cat-info { display: grid; gap: 0.375rem; margin: 0.25rem 0 1.25rem; font-size: 0.8125rem; color: var(--fg-3); }
+.ws-cat-info:empty { display: none; }
+.ws-cat-info .ws-cat-note { margin: 0; }
+.ws-cat-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.625rem; }
+.ws-cat-scope-sel { width: auto; min-width: 0; max-width: 100%; }
 .ws-cat-note { font-size: 0.8125rem; color: var(--fg-3); margin: 0 0 1rem; }
 
 .ws-cat-grid {

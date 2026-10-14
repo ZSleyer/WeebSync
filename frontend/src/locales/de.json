@@ -979,7 +979,7 @@
     "footSeries_other": "{{count}} Serien"
   },
   "remote": {
-    "scopeSource": "Die Ordner hier werden als {{kind}} gesucht.",
+    "scopeAs": "Gesucht als",
     "title": "Remote",
     "sub": "browse · sync · download",
     "source": "Quelle",

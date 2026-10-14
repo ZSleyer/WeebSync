@@ -979,7 +979,7 @@
     "footSeries_other": "{{count}} series"
   },
   "remote": {
-    "scopeSource": "The folders here are looked up as {{kind}}.",
+    "scopeAs": "Looked up as",
     "title": "Remote",
     "sub": "browse · sync · download",
     "source": "Source",

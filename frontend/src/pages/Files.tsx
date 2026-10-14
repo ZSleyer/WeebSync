@@ -1463,22 +1463,9 @@ export function CatalogGrid({
           scroll gesture and the page never turned. It has to allow the
           horizontal axis itself. */}
       <div className="min-h-0 flex-1 overflow-y-auto pt-2 pb-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
-        {/* what the folder is matched against, how the tiles are ordered and
-            which airing state they show; the rest behind the overflow */}
+        {/* how the tiles are ordered and which airing state they show, the
+            rest behind the overflow: one line on a phone too */}
         <div className="ws-cat-head">
-          <Select
-            wrapperClassName="ws-cat-sel"
-            aria-label={t('remote.scope')}
-            value={data?.scope ?? ''}
-            onChange={(e) => void setScope(e.target.value)}
-          >
-            {data?.scope === '' && <option value="">{t('remote.scopeNone')}</option>}
-            {scopeOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
           {tiles.length + (status ? 1 : 0) > 1 && (
             <>
               <Select
@@ -1515,30 +1502,49 @@ export function CatalogGrid({
             onClearScope={data && data.scope !== '' ? () => setScope('') : undefined}
           />
         </div>
-        {scopeError && (
-          <p className="ws-cat-note text-err!" role="alert">
-            {scopeError}
-          </p>
-        )}
-        {data?.scope === '' ? (
-          <p className="ws-cat-note" role="status">
-            {t('remote.scopePick')}
-          </p>
-        ) : (
-          pendingCount > 0 && (
-            <p className="ws-cat-note" role="status">
-              {t('remote.matchingCount', { count: pendingCount })}
+        {/* what the folder is matched against, as a sentence holding its
+            choice, with the way to why and the rule that marks folders like it */}
+        <div className="ws-cat-info">
+          <div className="ws-cat-scope">
+            <span id="cat-scope-l">{t('remote.scopeAs')}</span>
+            <Select
+              size="sm"
+              wrapperClassName="ws-cat-scope-sel"
+              aria-labelledby="cat-scope-l"
+              value={data?.scope ?? ''}
+              onChange={(e) => void setScope(e.target.value)}
+            >
+              {data?.scope === '' && <option value="">{t('remote.scopeNone')}</option>}
+              {scopeOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </Select>
+            {whyHere && data?.scope !== '' && (
+              <button type="button" className="t-link" onClick={() => setWhy(whyHere)}>
+                {t('explain.whySource')}
+              </button>
+            )}
+          </div>
+          {scopeError && (
+            <p className="ws-cat-note text-err!" role="alert">
+              {scopeError}
             </p>
-          )
-        )}
-        {path && (
-          <ScopeRuleLine
-            serverId={serverId}
-            path={path}
-            kindLabel={scopeLabel}
-            onWhy={whyHere ? () => setWhy(whyHere) : undefined}
-          />
-        )}
+          )}
+          {data?.scope === '' ? (
+            <p className="ws-cat-note" role="status">
+              {t('remote.scopePick')}
+            </p>
+          ) : (
+            pendingCount > 0 && (
+              <p className="ws-cat-note" role="status">
+                {t('remote.matchingCount', { count: pendingCount })}
+              </p>
+            )
+          )}
+          {path && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
+        </div>
         {/* a leaf folder holds files, not titles: offer the classic list instead
           of leaving the user at a dead end */}
         {items.length === 0 && (
