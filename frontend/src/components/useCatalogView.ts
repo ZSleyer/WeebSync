@@ -77,15 +77,17 @@ export function useCatalogView(serverId: number, path: string) {
 
   const set = async (next: CatalogViewValue) => {
     if (next === 'classic') {
+      // a look at the files only: the mark and its provider match stay, so
+      // switching back finds the catalog as it was. Only the pin drops it
       setOverride('classic')
-      // clear the mark: folder is classic again (under a scope rule the server
-      // stores "none" instead, or the rule would mark it again at once)
-      if (scoped) await putScope('')
     } else if (next === 'catalogOnce') {
+      // the pin pressed off on a saved folder drops its mark (a tv/movie/tvdb
+      // mark too; under a scope rule the server stores "none" instead, or the
+      // rule would mark it again at once). Coming back from classic only
+      // shows the catalog again
+      const unpin = view === 'catalog' && scoped
       setOverride('catalog') // transient, no persistence
-      // unpinning a saved folder drops its mark (a tv/movie/tvdb mark too,
-      // same as switching to classic); the override keeps the catalog up
-      if (scoped) await putScope('')
+      if (unpin) await putScope('')
     } else {
       setOverride('catalog')
       if (!scoped) await putScope('anime') // persist; keep an existing tv/movie/tvdb mark
