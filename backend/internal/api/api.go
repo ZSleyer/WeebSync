@@ -134,6 +134,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// resolve the client IP and the cookie's Secure flag from the stored
 	// settings before the first request arrives; env still wins over them
 	s.applyProxyConfig()
+	s.hashLegacyVerifyTokens()
 
 	// auth - login/register are rate-limited per IP against brute-force;
 	// admin-configured trusted networks bypass the limit

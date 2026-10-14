@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 	"html"
@@ -165,7 +166,7 @@ func (s *Server) reissueVerify(userID int64, email string) {
 	}
 	token := randToken()
 	res, err := s.DB.Exec(`UPDATE users SET verify_token = ?, verify_sent_at = datetime('now')
-		WHERE id = ? AND email_verified = 0 AND verify_sent_at <= datetime('now', '-24 hours')`, token, userID)
+		WHERE id = ? AND email_verified = 0 AND verify_sent_at <= datetime('now', '-24 hours')`, hashToken(token), userID)
 	if err != nil {
 		return
 	}
@@ -174,6 +175,45 @@ func (s *Server) reissueVerify(userID int64, email string) {
 		s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale)
 		go s.sendVerifyEmail(email, token, locale)
 	}
+}
+
+// hashLegacyVerifyTokens replaces the verification tokens stored in the clear
+// before only their hash was kept, once: a link already in someone's inbox
+// keeps working, and a copy of the database stops being a stack of them.
+// SQLite has no hash function, so this cannot be a plain migration.
+func (s *Server) hashLegacyVerifyTokens() {
+	if db.Setting(s.DB, "verify_tokens_hashed_v1") == "1" {
+		return
+	}
+	err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		rows, err := tx.Query(`SELECT id, verify_token FROM users WHERE verify_token != ''`)
+		if err != nil {
+			return err
+		}
+		type row struct {
+			id    int64
+			token string
+		}
+		var all []row
+		for rows.Next() {
+			var r row
+			if rows.Scan(&r.id, &r.token) == nil {
+				all = append(all, r)
+			}
+		}
+		rows.Close()
+		for _, r := range all {
+			if _, err := tx.Exec(`UPDATE users SET verify_token = ? WHERE id = ?`, hashToken(r.token), r.id); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Error("hash verify tokens", "err", err)
+		return
+	}
+	db.SetSetting(s.DB, "verify_tokens_hashed_v1", "1")
 }
 
 // handleVerifyEmail consumes a verification token and marks the account
@@ -192,8 +232,9 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/?verify=invalid", http.StatusSeeOther)
 		return
 	}
+	// the database keeps only the token's hash, like the reset link's
 	res, err := s.DB.Exec(`UPDATE users SET email_verified = 1, verify_token = ''
-		WHERE verify_token = ? AND verify_token != '' AND verify_sent_at > datetime('now', '-24 hours')`, token)
+		WHERE verify_token = ? AND verify_token != '' AND verify_sent_at > datetime('now', '-24 hours')`, hashToken(token))
 	if err != nil {
 		dbErr(w)
 		return

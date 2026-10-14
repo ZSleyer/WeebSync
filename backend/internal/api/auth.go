@@ -107,13 +107,14 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verified, token := 1, ""
+	verified, token, stored := 1, "", ""
 	if needVerify {
 		verified, token = 0, randToken()
+		stored = hashToken(token)
 	}
 	// first user becomes admin
 	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, verify_sent_at, locale, upgrade_dims)
-		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft')`, c.Email, hash, verified, token, token, validLocale(c.Locale))
+		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft')`, c.Email, hash, verified, stored, stored, validLocale(c.Locale))
 	if err != nil {
 		writeErr(w, http.StatusConflict, "email already registered")
 		return

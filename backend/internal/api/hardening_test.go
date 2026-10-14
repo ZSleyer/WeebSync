@@ -47,4 +47,13 @@ func TestVerifyLinkExpires(t *testing.T) {
 	if verified != 0 {
 		t.Fatal("stale link verified the account")
 	}
+	// links mailed now leave only the hash in the database
+	d.Exec(`INSERT INTO users (id, email, password_hash, email_verified, verify_token, verify_sent_at) VALUES
+		(3, 'hashed@example.com', 'x', 0, ?, datetime('now'))`, hashToken("fresh"))
+	if rec := doReq(mux, "GET", "/api/auth/verify?token="+hashToken("fresh"), "", nil); rec.Header().Get("Location") != "/?verify=invalid" {
+		t.Fatalf("the stored hash itself opened the link: %s", rec.Header().Get("Location"))
+	}
+	if rec := doReq(mux, "GET", "/api/auth/verify?token=fresh", "", nil); rec.Header().Get("Location") != "/?verify=ok" {
+		t.Fatalf("hashed link refused: %s", rec.Header().Get("Location"))
+	}
 }
