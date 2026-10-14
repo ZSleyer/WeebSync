@@ -383,6 +383,7 @@ export default function EpisodeList({
             {/* the reason sits above the list: a list without titles
                 otherwise reads as a broken feature, not a missing provider */}
             {q.data?.reason && <p className="ws-ex-sub">{t(`watch.gaps.${q.data.reason}`)}</p>}
+            {q.data && !eps.length && !q.data.reason && <p className="ws-d-quiet">{t('series.noEpisodesKnown')}</p>}
             {seasons.map((se) => {
               const inSeason = eps.filter((e) => e.season === se)
               return (

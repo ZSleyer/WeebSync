@@ -740,6 +740,7 @@ function SeriesCard({
   // second observer watches the first lazy section come within a screen.
   const sec = useRef<Partial<Record<SeriesTab, HTMLElement | null>>>({})
   const [current, setCurrent] = useState<SeriesTab>('overview')
+  const jumpLock = useRef(0)
   const sticky = () => {
     const root = scroller.current
     return (
@@ -755,6 +756,8 @@ function SeriesCard({
     const spy = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => seen.set(e.target, e.isIntersecting))
+        // a jump holds its mark while the page glides there
+        if (performance.now() < jumpLock.current) return
         // scrolled to the end, the last section is the one being read even
         // though a short one never reaches the top of the band
         const end = root.scrollTop > 0 && root.scrollTop + root.clientHeight >= root.scrollHeight - 2
@@ -799,6 +802,7 @@ function SeriesCard({
     const sc = scroller.current
     if (!el || !sc) return
     setCurrent(k)
+    jumpLock.current = smooth && !reducedMotion() ? performance.now() + 900 : 0
     const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - sticky()
     sc.scrollTo?.({ top, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
     // a keyboard user lands in the section, not back at the top of the row

@@ -679,7 +679,8 @@
     },
     "views_one": "{{count}} Aufruf",
     "views_other": "{{count}} Aufrufe",
-    "watchMore": "Ansehen und mehr"
+    "watchMore": "Ansehen und mehr",
+    "noEpisodesKnown": "Der Anbieter nennt für diese Auto-Sync noch keine Folgen."
   },
   "trash": {
     "open_zero": "Papierkorb",

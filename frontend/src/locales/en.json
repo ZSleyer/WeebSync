@@ -679,7 +679,8 @@
     },
     "views_one": "{{count}} view",
     "views_other": "{{count}} views",
-    "watchMore": "Watch and more"
+    "watchMore": "Watch and more",
+    "noEpisodesKnown": "The provider lists no episodes for this auto-sync yet."
   },
   "trash": {
     "open_zero": "Trash",
