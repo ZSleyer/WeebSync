@@ -3,8 +3,8 @@
    is hidden while it is open, so nothing bleeds through. Sync parts carry
    the teal half of the colour code. ═══ */
 
-html[data-overlay] .app-shell > main {
-  visibility: hidden;
+html[data-overlay] .app-shell > main > * {
+  content-visibility: hidden;
 }
 
 .ws-detail {

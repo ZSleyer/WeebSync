@@ -438,8 +438,19 @@
    bleeding through. The overlay itself is fixed and leaves the sidebar
    standing (left: var(--side-w)); on a phone it ends above the tab bar
    (--nav-h plus --safe-b, both from the design system). ── */
-html[data-overlay] .app-shell > main {
-  visibility: hidden;
+html[data-overlay] .app-shell > main > * {
+  /* skipped rather than restyled: visibility is inherited, so hiding the page
+     with it restyled every element of the page in the frame an overlay opens
+     (the one its morph snapshots), and again as it closed. A skipped subtree
+     keeps its layout and is out of the accessibility tree as well. On the
+     children, not on <main>: a skipped scroller loses its scroll height and
+     snaps to the top. */
+  content-visibility: hidden;
+}
+/* while skipped, a child keeps the height it last had (the page's scroll
+   position with it) */
+.app-shell > main > * {
+  contain-intrinsic-size: auto none;
 }
 
 /* the page's own controls beside the desktop title (PageActions) */
