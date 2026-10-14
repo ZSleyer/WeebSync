@@ -51,7 +51,11 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   const phone = useMediaQuery(PHONE_HERO_MQ)
   // a new draw per visit: the key changes with every mount
   const [visit] = useState(() => Date.now())
-  const { data: got, isPending, isError } = useQuery<Banners>({
+  const {
+    data: got,
+    isPending,
+    isError,
+  } = useQuery<Banners>({
     queryKey: ['today', 'banners', visit],
     queryFn: () => api.get('/api/today/banners'),
     staleTime: Infinity,
@@ -211,16 +215,22 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
         })}
       </div>
       <div ref={caption} className="td-cap">
-        <p className="td-date t-wipe">{date}</p>
+        <p className="td-date t-wipe" style={{ '--i': 0 } as CSSProperties}>
+          {date}
+        </p>
         {noWatches ? (
-          <p className="td-cta t-wipe">
+          <p className="td-cta t-wipe" style={{ '--i': 1 } as CSSProperties}>
             <span>{t('today.ctaText')}</span>
             <Link to="/watches" className="t-btn t-btn--primary">
               {t('today.ctaButton')}
             </Link>
           </p>
         ) : (
-          <p className="td-status t-wipe" data-loading={statusLoading || undefined}>
+          <p
+            className="td-status t-wipe"
+            style={{ '--i': 1 } as CSSProperties}
+            data-loading={statusLoading || undefined}
+          >
             {status.map((s, i) => (
               <span key={i}>
                 {i > 0 && <i aria-hidden />}
