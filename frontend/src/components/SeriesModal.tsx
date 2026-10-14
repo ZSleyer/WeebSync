@@ -1069,17 +1069,19 @@ function SeriesCard({
                         <h2 id={hid(k)} className="sr-only">
                           {t('series.tab.overview')}
                         </h2>
-                        {/* not in the morph's first frame: only the head morphs */}
+                        {/* not in the morph's first frame (only the head morphs): it rises in after */}
                         {media && stage > 0 && (
-                          <MediaDetail
-                            media={media}
-                            source={source}
-                            airings={lead?.airings}
-                            links={extras?.links}
-                            now={now}
-                          >
-                            {cur.extra}
-                          </MediaDetail>
+                          <div className="ws-d-late">
+                            <MediaDetail
+                              media={media}
+                              source={source}
+                              airings={lead?.airings}
+                              links={extras?.links}
+                              now={now}
+                            >
+                              {cur.extra}
+                            </MediaDetail>
+                          </div>
                         )}
                       </>
                     )}
