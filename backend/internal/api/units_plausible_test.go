@@ -24,11 +24,11 @@ func TestCopyAgrees(t *testing.T) {
 		years  []int
 		want   bool
 	}{
-		{"/Library/Movies-1080p/Skyscraper (2018)", []int{1996}, false},          // wrong film, wrong era
+		{"/Library/Movies-1080p/Skyscraper (2018)", []int{1996}, false},           // wrong film, wrong era
 		{"/FTP/WEB/Detektiv Conan [GerDub,GerSub,CR]", []int{1996}, true},         // the show
 		{"/FTP/BD/Meitantei Conan (Case Closed) S02 [JapDub]", []int{1996}, true}, // alt title in parens
 		{"/media/x/Detektiv_Conan/Season_01", []int{1996}, true},                  // season folder: parent names it
-		{"/Library/Shows-1080p/One Piece (2022)", []int{1999}, false},          // not this show, and not its era
+		{"/Library/Shows-1080p/One Piece (2022)", []int{1999}, false},             // not this show, and not its era
 		{"/FTP/BD/Assassins (1995)", []int{2019}, false},                          // dated before the show began
 		{"/FTP/WEB/Conan [tags]", []int{1996}, false},                             // one short word claims nothing
 	}
