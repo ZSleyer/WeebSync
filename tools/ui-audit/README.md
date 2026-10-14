@@ -35,6 +35,23 @@ one that finds labels which no longer fit on a single line.
   Playwright's Firefox driver dispatches neither touch nor pointer events for
   synthetic input, so there is nothing to drive there.
 
+- `overlap.mjs` is shared by `e2e.mjs` and `modals.mjs`: it scrolls a page
+  or dialog through and reports text drawn over other text (or a form
+  control), text hanging out of its box, and text cut off by
+  `overflow: hidden` without an ellipsis. The case it was written for: a
+  field with `height: 100%` in a stretched grid item, whose hints ran over
+  the next field's label.
+- `contrast.mjs` measures WCAG 2.2 AA contrast against what is actually
+  painted behind each thing (glass, opacity and text on cover art included,
+  the latter sampled from a screenshot), in the dark and the light theme:
+  text and placeholders, control boundaries and icon buttons (1.4.11) and
+  the focus indicator of the first 25 Tab stops. `--inject '<css>'` adds a
+  known failure, to check that a clean run is not a blind one.
+
+`--viewports phone,wide` (448x998 and 1440x900) and `--browsers chromium`
+narrow `e2e.mjs` and `modals.mjs` to a subset. Without `WS_TOKEN` all three
+log in with `WS_EMAIL` and `WS_PASSWORD`.
+
 A chip that is prose rather than a chip - a page subtitle, a status line
 carrying a user name - opts out of the wrap check with `<Badge multiline>`.
 

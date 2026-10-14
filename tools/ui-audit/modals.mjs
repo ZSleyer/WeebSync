@@ -5,6 +5,7 @@
 //
 //   node .ds-sync/modals.mjs [--base http://127.0.0.1:8080]
 import { chromium, firefox } from 'playwright'
+import { scanLayout } from './overlap.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
@@ -12,6 +13,8 @@ const arg = (n, d) => {
 }
 const BASE = arg('base', 'http://127.0.0.1:8080')
 const TOKEN = process.env.WS_TOKEN || ''
+// without a token, a password login (scratch instances)
+const LOGIN = { email: process.env.WS_EMAIL || 'a@example.com', password: process.env.WS_PASSWORD || 'testpassword123' }
 
 // route -> the controls that open a dialog there, by accessible name. `setup`
 // runs first for views that are not the route's default - the catalogue on
@@ -73,6 +76,11 @@ const openCatalogue = async (page) => {
 }
 
 const TRIGGERS = [
+  // reached by a CSS selector where the control has no stable name: the live
+  // activity's transfer sheet (only while something transfers)
+  { route: '/', label: 'Transfers', css: '.t-live', names: ['live'] },
+  // the search: a tab on the phone, a field in the header on the desktop
+  { route: '/', label: 'Suche', names: [/^Suchen|^Search/] },
   // the phone's overflow sheet is a dialog; the button only exists below lg
   { route: '/', label: 'Mehr', names: [/^Mehr$|^More$/] },
   { route: '/settings/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
@@ -164,11 +172,18 @@ const TRIGGERS = [
   { route: '/settings/data', names: [/^AniList-Suche|^AniList search/, /Alles neu aufbauen|Rebuild everything/] },
 ]
 
-const VIEWPORTS = {
+const ALL_VIEWPORTS = {
+  phone: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  wide: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 },
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 },
   pixel: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true },
   iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 }
+// --viewports and --browsers pick a subset, as in e2e.mjs
+const VIEWPORTS = Object.fromEntries(
+  arg('viewports', 'desktop,pixel,iphone').split(',').map((k) => [k, ALL_VIEWPORTS[k]]),
+)
+const BROWSERS = arg('browsers', 'chromium,firefox').split(',')
 
 const auditDialog = () => {
   // the *last* one open, not the first: a dialog can open a dialog (the Plex
@@ -316,13 +331,25 @@ const run = async (browserName, type) => {
   const found = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look
-    const ctx = await browser.newContext({ ...vp, colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light' })
+    // no service worker and no motion, for the reasons e2e.mjs gives
+    const ctx = await browser.newContext({
+      ...vp,
+      colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light',
+      reducedMotion: 'reduce',
+      serviceWorkers: 'block',
+    })
     if (TOKEN)
       await ctx.addCookies([
         { name: 'weebsync_session', value: TOKEN, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
       ])
     const page = await ctx.newPage()
-    for (const { route, names, setup, label, role = 'button', within } of TRIGGERS) {
+    if (!TOKEN) {
+      await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
+      await page.evaluate(async (l) => {
+        await fetch('/api/auth/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(l) })
+      }, LOGIN)
+    }
+    for (const { route, names, setup, label, role = 'button', within, css } of TRIGGERS) {
       await page.goto(BASE + route, { waitUntil: 'load' })
       // long enough for the list requests behind a route to land: a row action
       // that is not on the page yet reads exactly like a dialog that does not
@@ -331,7 +358,9 @@ const run = async (browserName, type) => {
       if (setup && !(await setup(page))) continue
       for (const re of names) {
         // a menu entry is an option, not a button: the trigger says so
-        const btn = (within ? page.getByRole(within) : page).getByRole(role, { name: re }).first()
+        const btn = css
+          ? page.locator(css).filter({ visible: true }).first()
+          : (within ? page.getByRole(within) : page).getByRole(role, { name: re }).first()
         // wait for the control rather than for a round number of milliseconds:
         // a row action that the list has not rendered yet is indistinguishable
         // from one that does not exist, and the coverage report below would
@@ -344,7 +373,10 @@ const run = async (browserName, type) => {
         }
         await page.waitForTimeout(500)
         const r = await page.evaluate(auditDialog)
-        if (r) found.push({ browser: browserName, viewport: vpName, route: label ? `${route} (${label})` : route, trigger: String(re), ...r })
+        if (r) {
+          const layout = await scanLayout(page, 'dialog[open]')
+          found.push({ browser: browserName, viewport: vpName, route: label ? `${route} (${label})` : route, trigger: String(re), ...r, layout })
+        }
         await page.keyboard.press('Escape')
         await page.waitForTimeout(400)
       }
@@ -355,10 +387,16 @@ const run = async (browserName, type) => {
   return found
 }
 
-const all = [...(await run('chromium', chromium)), ...(await run('firefox', firefox))]
+const engines = { chromium, firefox }
+const all = []
+for (const b of BROWSERS) all.push(...(await run(b, engines[b])))
 let bad = 0
 for (const d of all) {
   const p = []
+  const lay = d.layout
+  if (lay.overlaps.length) p.push(`${lay.overlaps.length}x Text über Text`)
+  if (lay.escapes.length) p.push(`${lay.escapes.length}x Text ragt aus seiner Box`)
+  if (lay.clipped.length) p.push(`${lay.clipped.length}x Text abgeschnitten`)
   if (d.scroll.length) p.push(`${d.scroll.length}x Scrollbalken`)
   if (d.targets.length) p.push(`${d.targets.length}x Zielgröße`)
   if (d.rows.length) p.push(`${d.rows.length}x Höhen in einer Zeile`)
@@ -367,6 +405,9 @@ for (const d of all) {
   if (p.length) {
     bad++
     console.log(`✗ ${d.browser}/${d.viewport} ${d.route} "${d.title}"${d.sheet ? ' [sheet]' : ''}: ${p.join(' · ')}`)
+    for (const o of lay.overlaps.slice(0, 6)) console.log(`    Überlappung ${o.w}x${o.h}px "${o.a}" (${o.ae}) / "${o.b}" (${o.be})`)
+    for (const o of lay.escapes.slice(0, 6)) console.log(`    Ragt ${o.dx}/${o.dy}px aus ${o.box}: "${o.text}"`)
+    for (const o of lay.clipped.slice(0, 6)) console.log(`    Abgeschnitten von ${o.by}: "${o.text}" (${o.el})`)
     for (const s of d.shell || []) console.log(`    Modal ${s}`)
     for (const s of d.scroll) console.log(`    Scroll ${JSON.stringify(s)}`)
     for (const t of d.targets.slice(0, 4)) console.log(`    Ziel ${t}`)

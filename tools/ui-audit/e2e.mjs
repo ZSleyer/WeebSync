@@ -7,6 +7,7 @@
 //   node .ds-sync/e2e.mjs [--base http://127.0.0.1:8099] [--out ./e2e-shots] [--tag before]
 import { chromium, firefox } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
+import { scanLayout } from './overlap.mjs'
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -19,18 +20,30 @@ const TAG = arg('tag', '')
 // via WS_TOKEN (inserted straight into the sessions table) wins, otherwise the
 // password login of a local account.
 const TOKEN = process.env.WS_TOKEN || ''
-const LOGIN = { email: 'a@example.com', password: 'testpassword123' }
+const LOGIN = { email: process.env.WS_EMAIL || 'a@example.com', password: process.env.WS_PASSWORD || 'testpassword123' }
 
 const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
   : [
-  '/', '/files', '/files?source=local', '/watches', '/suggestions', '/suggestions/upgrades', '/suggestions/incomplete', '/suggestions/assistant', '/rename',
-  '/settings', '/settings/general', '/settings/account', '/settings/sync', '/settings/notifications', '/settings/servers',
+  '/', '/files', '/files?source=local', '/files/trash', '/history', '/watches', '/watches?view=calendar', '/watches?layout=grid',
+  '/discover/merkliste', '/discover/empfohlen', '/discover/trending', '/discover/upgrades', '/discover/unvollstaendig',
+  '/discover/duplikate', '/discover/ausgeblendet', '/discover/assistent', '/rename', '/rules',
+  '/settings', '/settings/general', '/settings/about', '/settings/account', '/settings/sync', '/settings/notifications', '/settings/servers',
   '/settings/transfers', '/settings/security', '/settings/integrations',
   '/settings/jobs', '/settings/matching', '/settings/data',
 ]
+// States a route only shows after a click: extra fields that fold in. Each is
+// audited as a route of its own, after the click.
+const STATES = [
+  { route: '/settings/sync', label: 'Unterordner Serientitel', click: /^Serientitel$|^Series title$/ },
+  { route: '/settings/sync', label: 'Unterordner Remote-Ordner', click: /^Remote-Ordner$|^Remote folder$/ },
+]
 
-const VIEWPORTS = {
+const ALL_VIEWPORTS = {
+  // the two sizes the layout pass was written against: a 448px phone and a
+  // wide desktop window
+  phone: { viewport: { width: 448, height: 998 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  wide: { viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
   // Pixel 8 Pro: the CSS viewport Firefox for Android gives it
   pixel: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true },
@@ -38,6 +51,12 @@ const VIEWPORTS = {
   // that finds the labels which no longer fit on a single line
   iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
 }
+// --viewports phone,wide picks a subset; the default is the three of the
+// contrast and target pass
+const VIEWPORTS = Object.fromEntries(
+  arg('viewports', 'desktop,pixel,iphone').split(',').map((k) => [k, ALL_VIEWPORTS[k]]),
+)
+const BROWSERS = arg('browsers', 'chromium,firefox').split(',')
 
 // Runs in the page. Walks every text node for contrast and every interactive
 // element for target size, and collects one height per control family.
@@ -382,7 +401,16 @@ const run = async (name, browserType) => {
   const findings = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look
-    const ctx = await browser.newContext({ ...vp, colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light' })
+    // no service worker: a rebuild of the instance under test would reload the
+    // page mid-run, and a cached stylesheet would audit the old look. Reduced
+    // motion: entry animations hold text at opacity 0 for a moment, and text
+    // mid-wipe is neither readable nor fairly measured.
+    const ctx = await browser.newContext({
+      ...vp,
+      colorScheme: process.env.WS_THEME === 'dark' ? 'dark' : 'light',
+      reducedMotion: 'reduce',
+      serviceWorkers: 'block',
+    })
     const page = await ctx.newPage()
     const errors = []
     // a navigation aborts the app's open SSE streams; that is expected noise
@@ -427,13 +455,26 @@ const run = async (name, browserType) => {
       return null
     }).catch(() => null)
 
-    for (const route of [...ROUTES, ...(extra ? [extra] : [])]) {
+    const passes = [
+      ...[...ROUTES, ...(extra ? [extra] : [])].map((route) => ({ route })),
+      ...STATES.filter((st) => !arg('routes', '') || ROUTES.includes(st.route)),
+    ]
+    for (const { route, label, click } of passes) {
       errors.length = 0
       // not networkidle: the app keeps an SSE stream open, so it never idles
       await page.goto(BASE + route, { waitUntil: 'load' })
       await page.waitForTimeout(600)
+      if (click) {
+        const ctl = page.getByRole('radio', { name: click }).or(page.getByRole('button', { name: click })).first()
+        if (!(await ctl.count().catch(() => 0))) {
+          findings.push({ browser: name, viewport: vpName, route: `${route} (${label})`, missing: true })
+          continue
+        }
+        await ctl.click()
+        await page.waitForTimeout(500)
+      }
       const r = await page.evaluate(audit)
-      const slug = route.replace(/[^\w-]+/g, '_') || '_root'
+      const slug = (route + (label ? '-' + label : '')).replace(/[^\w-]+/g, '_') || '_root'
       const file = `${OUT}/${TAG ? TAG + '-' : ''}${name}-${vpName}${slug}.png`
       // a full-page shot is capped at 32767 device px; long lists on the real
       // test data blow past that, so clip instead of failing the whole run
@@ -444,7 +485,8 @@ const run = async (name, browserType) => {
           ? { path: file, clip: { x: 0, y: 0, width: vp.viewport.width, height: maxCss } }
           : { path: file, fullPage: true },
       )
-      findings.push({ browser: name, viewport: vpName, route, ...r, errors: [...new Set(errors)], shot: file })
+      const layout = await scanLayout(page)
+      findings.push({ browser: name, viewport: vpName, route: label ? `${route} (${label})` : route, ...r, layout, errors: [...new Set(errors)], shot: file })
     }
     await ctx.close()
   }
@@ -453,12 +495,23 @@ const run = async (name, browserType) => {
 }
 
 mkdirSync(OUT, { recursive: true })
-const all = [...(await run('chromium', chromium)), ...(await run('firefox', firefox))]
+const engines = { chromium, firefox }
+const all = []
+for (const b of BROWSERS) all.push(...(await run(b, engines[b])))
 writeFileSync(`${OUT}/${TAG ? TAG + '-' : ''}report.json`, JSON.stringify(all, null, 2))
 
 let bad = 0
 for (const f of all) {
   const problems = []
+  if (f.missing) {
+    bad++
+    console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: Zustand nicht erreichbar`)
+    continue
+  }
+  const lay = f.layout || { overlaps: [], escapes: [], clipped: [] }
+  if (lay.overlaps.length) problems.push(`${lay.overlaps.length}x Text über Text`)
+  if (lay.escapes.length) problems.push(`${lay.escapes.length}x Text ragt aus seiner Box`)
+  if (lay.clipped.length) problems.push(`${lay.clipped.length}x Text abgeschnitten`)
   if (f.contrast.length) problems.push(`${f.contrast.length}x Kontrast (min ${Math.min(...f.contrast.map((c) => c.ratio))}:1)`)
   if (f.targets.length) problems.push(`${f.targets.length}x Zielgröße`)
   if (f.errors.length) problems.push(`${f.errors.length}x Konsolenfehler`)
@@ -469,6 +522,9 @@ for (const f of all) {
   if (problems.length) {
     bad++
     console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: ${problems.join(' · ')}`)
+    for (const o of lay.overlaps.slice(0, 6)) console.log(`    Überlappung ${o.w}x${o.h}px "${o.a}" (${o.ae}) / "${o.b}" (${o.be})`)
+    for (const o of lay.escapes.slice(0, 6)) console.log(`    Ragt ${o.dx}/${o.dy}px aus ${o.box}: "${o.text}"`)
+    for (const o of lay.clipped.slice(0, 6)) console.log(`    Abgeschnitten von ${o.by}: "${o.text}" (${o.el})`)
     for (const c of f.contrast.slice(0, 4)) console.log(`    Kontrast ${c.ratio}:1 ${c.size}px "${c.text}"`)
     for (const t of f.targets.slice(0, 4)) console.log(`    Ziel ${t.w}x${t.h} <${t.tag}> "${t.text}"`)
     for (const sc of (f.scroll || []).slice(0, 4)) console.log(`    Scroll ${sc.axis} +${sc.overflow}px in "${sc.where}"`)
@@ -480,5 +536,5 @@ for (const f of all) {
   }
 }
 console.log(bad === 0
-  ? `\n✓ ${all.length} Seitenläufe (2 Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${new Set(all.map((r) => r.route)).size} Routen): keine Befunde`
+  ? `\n✓ ${all.length} Seitenläufe (${BROWSERS.length} Browser x ${Object.keys(VIEWPORTS).length} Viewports x ${new Set(all.map((r) => r.route)).size} Routen): keine Befunde`
   : `\n${bad}/${all.length} Seitenläufe mit Befunden`)
