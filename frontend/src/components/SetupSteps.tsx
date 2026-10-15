@@ -7,6 +7,7 @@ import { api, fmtBytes, keyConflictOf, type DiskUsage, type KeyConflict, type Sy
 import HostKeyPrompt from './HostKeyPrompt'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'
 import LegacyImport from './LegacyImport'
+import PlexServerSignIn from './PlexServerSignIn'
 
 // The setup steps that need a session: import, server, storage, metadata.
 // Split out of Setup.tsx only so its settings query mounts after the account
@@ -426,6 +427,17 @@ export default function SetupSteps({
             <span id="su-h">{t('setup.metaTitle')}</span>
           </SetupHeading>
           <p className="ws-quiet">{t('setup.metaHint')}</p>
+          {/* Plex by signing in; the URL and token fields below stay for a
+              server plex.tv does not list */}
+          {!locked('plexUrl') && !locked('plexToken') && (
+            <div className="mb-4">
+              <span className="ws-lbl">Plex</span>
+              <PlexServerSignIn
+                connected={!!form.plexUrl && !!form.plexTokenSet}
+                onConnected={(res) => set('plexUrl', res.url)}
+              />
+            </div>
+          )}
           <div className="ws-su-2">
             {(
               [

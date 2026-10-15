@@ -5573,6 +5573,85 @@
                 ],
                 "type": "object"
             },
+            "api.plexServerChoice": {
+                "properties": {
+                    "id": {
+                        "description": "the server's machine identifier",
+                        "type": "string"
+                    },
+                    "local": {
+                        "description": "it lists an address on the local network",
+                        "type": "boolean"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "owned": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "owned",
+                    "local"
+                ],
+                "type": "object"
+            },
+            "api.plexServerConnectRequest": {
+                "properties": {
+                    "id": {
+                        "description": "the PIN id of the sign-in",
+                        "type": "string"
+                    },
+                    "server": {
+                        "description": "the server's machine identifier",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "server"
+                ],
+                "type": "object"
+            },
+            "api.plexServerConnectResponse": {
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "url"
+                ],
+                "type": "object"
+            },
+            "api.plexServerPollResponse": {
+                "properties": {
+                    "linked": {
+                        "type": "boolean"
+                    },
+                    "servers": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.plexServerChoice"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "user": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "linked",
+                    "servers"
+                ],
+                "type": "object"
+            },
             "api.plexShowLinkRequest": {
                 "properties": {
                     "ratingKey": {
@@ -15946,6 +16025,163 @@
                 "summary": "Plex sections",
                 "tags": [
                     "Suggestions"
+                ]
+            }
+        },
+        "/api/plex/server/connect": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.plexServerConnectRequest",
+                                        "description": "Sign-in and server",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Sign-in and server",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexServerConnectResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Connect a Plex server",
+                "tags": [
+                    "Settings"
+                ]
+            }
+        },
+        "/api/plex/server/link/poll": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "PIN id from link/start",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexServerPollResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Poll Plex server sign-in",
+                "tags": [
+                    "Settings"
+                ]
+            }
+        },
+        "/api/plex/server/link/start": {
+            "post": {
+                "description": "Create a plex.tv PIN and return the page the admin signs in on, to connect a Plex server without pasting a token.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.plexLinkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Start Plex server sign-in",
+                "tags": [
+                    "Settings"
                 ]
             }
         },

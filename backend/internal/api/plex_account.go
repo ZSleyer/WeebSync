@@ -67,6 +67,13 @@ type plexLinkResponse struct {
 //	@Security		CookieAuth
 //	@Router			/api/plex/link/start [post]
 func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
+	s.startPlexPin(w, r, "plex")
+}
+
+// startPlexPin creates a strong plex.tv PIN for one sign-in (kind names which:
+// the user's account, or the server connection) and answers with the page the
+// user signs in on - the official PIN flow.
+func (s *Server) startPlexPin(w http.ResponseWriter, r *http.Request, kind string) {
 	u := auth.UserFrom(r.Context())
 	resp, err := s.plexTVReq(http.MethodPost, "https://plex.tv/api/v2/pins?strong=true", "")
 	if err != nil {
@@ -82,11 +89,26 @@ func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, "plex.tv PIN failed")
 		return
 	}
-	rememberLinkFlow("plex", fmt.Sprint(pin.ID), u.ID)
+	rememberLinkFlow(kind, fmt.Sprint(pin.ID), u.ID)
 	// the hash fragment carries the params the plex.tv auth page reads
 	authURL := fmt.Sprintf("https://app.plex.tv/auth#?clientID=%s&code=%s&context%%5Bdevice%%5D%%5Bproduct%%5D=%s",
 		url.QueryEscape(s.plexClientID()), url.QueryEscape(pin.Code), url.QueryEscape(plexProduct))
 	writeJSON(w, http.StatusOK, plexLinkResponse{ID: pin.ID, Code: pin.Code, URL: authURL})
+}
+
+// plexPinToken asks plex.tv whether a PIN was claimed: the account token, ""
+// while the user has not signed in yet. Plex asks for at most one poll a second.
+func (s *Server) plexPinToken(id string) (string, error) {
+	resp, err := s.plexTVReq(http.MethodGet, "https://plex.tv/api/v2/pins/"+url.PathEscape(id), "")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var pin struct {
+		AuthToken string `json:"authToken"`
+	}
+	json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin)
+	return pin.AuthToken, nil
 }
 
 // handlePlexLinkPoll checks whether the user has authorised the PIN yet. When
@@ -111,22 +133,17 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "link request not found")
 		return
 	}
-	resp, err := s.plexTVReq(http.MethodGet, "https://plex.tv/api/v2/pins/"+url.PathEscape(id), "")
+	token, err := s.plexPinToken(id)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv unreachable")
 		return
 	}
-	defer resp.Body.Close()
-	var pin struct {
-		AuthToken string `json:"authToken"`
-	}
-	json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin)
-	if pin.AuthToken == "" {
+	if token == "" {
 		writeJSON(w, http.StatusOK, plexAccountResponse{Linked: false}) // still waiting
 		return
 	}
-	name := s.plexTVUser(pin.AuthToken)
-	enc, err := secret.Encrypt(pin.AuthToken)
+	name := s.plexTVUser(token)
+	enc, err := secret.Encrypt(token)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "encrypt failed")
 		return

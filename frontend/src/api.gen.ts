@@ -2386,6 +2386,37 @@ export interface Schemas {
     username?: string
     version?: string
   }
+  'api.plexServerChoice': {
+    /**
+     * the server's machine identifier
+     */
+    id: string
+    /**
+     * it lists an address on the local network
+     */
+    local: boolean
+    name: string
+    owned: boolean
+  }
+  'api.plexServerConnectRequest': {
+    /**
+     * the PIN id of the sign-in
+     */
+    id: string
+    /**
+     * the server's machine identifier
+     */
+    server: string
+  }
+  'api.plexServerConnectResponse': {
+    name: string
+    url: string
+  }
+  'api.plexServerPollResponse': {
+    linked: boolean
+    servers: Schemas['api.plexServerChoice'][]
+    user?: string
+  }
   'api.plexShowLinkRequest': {
     ratingKey: string
   }

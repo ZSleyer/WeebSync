@@ -11,6 +11,7 @@ import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, Text
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
 import { useFailToast } from '../../components/toast'
+import PlexServerSignIn from '../../components/PlexServerSignIn'
 import { copyText } from '../../clipboard'
 import Smtp from './Smtp'
 
@@ -198,25 +199,36 @@ export default function Integrations() {
 
       <SettingsPanel id="plex" title={t('settings.plex')}>
         <PlexAccount />
+        {!locked('plexUrl') && !locked('plexToken') && (
+          <PlexServerSignIn
+            connected={form.plexTokenSet && !!form.plexUrl}
+            onConnected={(res) => set('plexUrl', res.url)}
+          />
+        )}
         <PlexWatchlistAccount />
-        <TextSetting
-          label={t('settings.plexUrl')}
-          hint={t('settings.plexUrlHint')}
-          env={locked('plexUrl')}
-          mono
-          placeholder="https://plex.example.com"
-          value={form.plexUrl}
-          onChange={(v) => set('plexUrl', v)}
-        />
-        <SecretSetting
-          label={t('settings.plexToken')}
-          hint={t('settings.plexTokenHint')}
-          env={locked('plexToken')}
-          stored={form.plexTokenSet}
-          value={form.plexToken ?? ''}
-          onChange={(v) => set('plexToken', v)}
-          onRemove={() => clearSecret('plexToken')}
-        />
+        {/* the sign-in fills both; by hand for a server plex.tv does not list,
+            or an address it does not know */}
+        <details className="sf-disc" open={locked('plexUrl') || locked('plexToken') || undefined}>
+          <summary>{t('settings.plexManual')}</summary>
+          <TextSetting
+            label={t('settings.plexUrl')}
+            hint={t('settings.plexUrlHint')}
+            env={locked('plexUrl')}
+            mono
+            placeholder="https://plex.example.com"
+            value={form.plexUrl}
+            onChange={(v) => set('plexUrl', v)}
+          />
+          <SecretSetting
+            label={t('settings.plexToken')}
+            hint={t('settings.plexTokenHint')}
+            env={locked('plexToken')}
+            stored={form.plexTokenSet}
+            value={form.plexToken ?? ''}
+            onChange={(v) => set('plexToken', v)}
+            onRemove={() => clearSecret('plexToken')}
+          />
+        </details>
         {form.plexTokenSet && form.plexUrl && (
           <>
             <PlexSections

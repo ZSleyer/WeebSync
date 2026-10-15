@@ -180,6 +180,8 @@ export type Tips = Schemas['api.TipsResponse']
 export type PlexAccount = Schemas['api.plexAccountResponse']
 
 export type PlexLinkStart = Schemas['api.plexLinkResponse']
+export type PlexServerPoll = Schemas['api.plexServerPollResponse']
+export type PlexServerConnect = Schemas['api.plexServerConnectResponse']
 
 export type PlexWatchItem = Schemas['api.PlexWatchItem']
 
