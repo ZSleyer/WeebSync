@@ -29,7 +29,7 @@ A fresh instance takes its first account only with the setup code it writes to t
 | `WEEBSYNC_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error` |
 | `WEEBSYNC_SETUP_TOKEN` | random, logged | The code the setup wizard asks for while no account exists |
 | `WEEBSYNC_HWACCEL` | `auto` | GPU encoder for the player's transcodes: `auto` tries NVENC, then VA-API on each `/dev/dri/renderD*`, and falls back to software; `nvenc`, `vaapi` or `none` pick one. A GPU writes 1080p, software 720p. The log says which one is used (`player transcodes on the GPU`). See [Hardware transcoding](#hardware-transcoding) |
-| `SSL_CERT_FILE`, `SSL_CERT_DIR` | system roots | A CA bundle file or directory to trust for outgoing TLS (mail, FTPS, OIDC, Plex, the AI endpoint) - for services with a certificate from your own CA. Certificates are always verified; there is no switch to skip that |
+| `SSL_CERT_FILE`, `SSL_CERT_DIR` | system roots | A CA bundle file or directory to trust for outgoing TLS (mail, FTPS, OIDC, Plex, Jellyfin, the AI endpoint) - for services with a certificate from your own CA. Certificates are always verified; there is no switch to skip that |
 
 ### Also settable in the UI
 
@@ -50,6 +50,7 @@ A variable that is set **overrides** the UI and locks the field. Booleans accept
 | `TMDB_API_KEY`, `TVDB_API_KEY` | Movie and series metadata |
 | `ANIMESCHEDULE_TOKEN` | Release dates for the calendar |
 | `PLEX_URL`, `PLEX_TOKEN` | Plex server; its libraries are matched against your series. Plain `http://` only for an address in your own network - from outside use the server's `https://…plex.direct` address |
+| `JELLYFIN_URL`, `JELLYFIN_TOKEN` | Jellyfin server, used for the same library features when no Plex server is set; the token is an API key from the Jellyfin dashboard. Easier from the UI, where Quick Connect signs in with a code. Jellyfin keeps no per-episode track choice, so the Plex audio/subtitle selection has no Jellyfin counterpart. TVDB episode order needs the TheTVDB plugin on the library |
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | OpenAI-compatible endpoint for the assistant; plain `http://` only for an address in your own network |
 | `AI_SEARCH_URL` | SearXNG instance the assistant may search |
 

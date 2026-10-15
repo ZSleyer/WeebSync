@@ -22,7 +22,7 @@
 - **Catalog** - AniList, TMDB and TVDB metadata, folders matched to titles, suggestions for what is missing
 - **Rename engine** - templates or regex, season folders, episode offsets, always previewed first
 - **Player** - watch local and remote videos in the browser, subtitles included
-- **Integrations** - Plex, Home Assistant, web push and email, an optional assistant on any OpenAI-compatible endpoint
+- **Integrations** - Plex or Jellyfin, Home Assistant, web push and email, an optional assistant on any OpenAI-compatible endpoint
 - **Accounts** - password, passkeys, TOTP and OIDC
 - **App** - installable PWA, German and English, dark and light, works down to 320 px
 
