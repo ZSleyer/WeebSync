@@ -216,6 +216,11 @@ func (c *Client) LibraryForPath(p string) (Section, bool) {
 	if err != nil {
 		return Section{}, false
 	}
+	return SectionForPath(secs, p)
+}
+
+// SectionForPath is LibraryForPath over an already fetched section list.
+func SectionForPath(secs []Section, p string) (Section, bool) {
 	var best Section
 	bestLen := -1
 	for _, s := range secs {
