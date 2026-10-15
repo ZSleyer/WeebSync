@@ -35,7 +35,9 @@ func (s *Server) plexClient() *plex.Client {
 	if u == "" || t == "" {
 		return nil
 	}
-	return plex.New(u, t)
+	c := plex.New(u, t)
+	c.ClientID = s.plexClientID() // the same id its plex.tv sign-in was issued to
+	return c
 }
 
 // plexMeResponse is the connection status shown on the settings page.

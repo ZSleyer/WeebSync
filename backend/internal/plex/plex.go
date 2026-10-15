@@ -4,6 +4,7 @@ package plex
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,6 +21,9 @@ type Client struct {
 	URL   string // e.g. https://plex.example.com
 	Token string
 	HTTP  *http.Client
+	// ClientID is the instance's stable X-Plex-Client-Identifier, the one its
+	// plex.tv sign-in was issued to; empty sends none
+	ClientID string
 
 	mu       sync.Mutex
 	sections []Section // memoised library listing, see Sections
@@ -78,67 +82,70 @@ type Show struct {
 	IMDBID int // numeric part of the "tt…" imdb id, 0 when absent
 }
 
-// get fetches path and decodes the MediaContainer payload. The token goes
-// into a header, not the query string, so it never lands in access logs.
-func (c *Client) get(path string, out any) error {
-	req, err := http.NewRequest(http.MethodGet, c.URL+path, nil)
+// Product is the app name Plex shows for this client (its sessions, the
+// authorised devices of an account).
+const Product = "WeebSync"
+
+// do sends one request with the headers the official API asks every client
+// for: JSON instead of the XML default, the token (in a header, so it never
+// lands in an access log) and who is asking.
+func (c *Client) do(method, path string) (*http.Response, error) {
+	req, err := http.NewRequest(method, c.URL+path, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("X-Plex-Token", c.Token)
-	resp, err := c.HTTP.Do(req)
+	req.Header.Set("X-Plex-Product", Product)
+	if c.ClientID != "" {
+		req.Header.Set("X-Plex-Client-Identifier", c.ClientID)
+	}
+	return c.HTTP.Do(req)
+}
+
+// errStatus is a reply other than 200, kept apart so a caller can tell a
+// missing endpoint (404) from a failure.
+type errStatus int
+
+func (e errStatus) Error() string { return fmt.Sprintf("plex: HTTP %d", int(e)) }
+
+// get fetches path and decodes the MediaContainer payload.
+func (c *Client) get(path string, out any) error {
+	resp, err := c.do(http.MethodGet, path)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
+		return errStatus(resp.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 }
 
-// put issues a parameterless-body PUT (Plex mutations carry everything in the
-// URL). Token in the header, like get.
-func (c *Client) put(path string) error {
-	req, err := http.NewRequest(http.MethodPut, c.URL+path, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Plex-Token", c.Token)
-	resp, err := c.HTTP.Do(req)
+// send issues a mutation that carries everything in the URL and answers with
+// an empty body.
+func (c *Client) send(method, path string) error {
+	resp, err := c.do(method, path)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
+		return errStatus(resp.StatusCode)
 	}
 	return nil
 }
 
+// put issues a parameterless-body PUT.
+func (c *Client) put(path string) error { return c.send(http.MethodPut, path) }
+
 // Refresh asks Plex to scan one directory of a section, so a file that was just
 // moved into place shows up now instead of whenever the server next scans by
-// itself. The path must be one Plex knows as part of that library.
-//
-// A refresh answers 200 with an empty body, so this cannot go through get,
-// which insists on decoding JSON.
+// itself. The path must be one Plex knows as part of that library. A POST, as
+// the official API documents it (librarySectionPostRefresh).
 func (c *Client) Refresh(sectionKey, dir string) error {
 	q := url.Values{"path": {dir}}
-	req, err := http.NewRequest(http.MethodGet, c.URL+"/library/sections/"+sectionKey+"/refresh?"+q.Encode(), nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("X-Plex-Token", c.Token)
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("plex: HTTP %d", resp.StatusCode)
-	}
-	return nil
+	return c.send(http.MethodPost, "/library/sections/"+sectionKey+"/refresh?"+q.Encode())
 }
 
 // Sections lists the libraries. Memoised for the lifetime of the client: one
@@ -156,7 +163,14 @@ func (c *Client) Sections() ([]Section, error) {
 			Directory []rawSection `json:"Directory"`
 		} `json:"MediaContainer"`
 	}
-	if err := c.get("/library/sections", &resp); err != nil {
+	// the documented listing (libraryGetSections); a server older than the
+	// published API answers only the old path
+	err := c.get("/library/sections/all", &resp)
+	var st errStatus
+	if errors.As(err, &st) && st == http.StatusNotFound {
+		err = c.get("/library/sections", &resp)
+	}
+	if err != nil {
 		return nil, err
 	}
 	out := make([]Section, 0, len(resp.MediaContainer.Directory))
