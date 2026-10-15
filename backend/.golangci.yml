@@ -27,6 +27,14 @@ linters:
     # English on purpose (serialise, catalogue) and AniList's own enum values
     # (CANCELLED) must stay as the API spells them
     - misspell
+    # gc may read a struct field twice when it copies the struct and checks
+    # that field (seen on amd64 and arm64 with Go 1.27): once for the copy,
+    # once for the check. That is only a TOCTOU when someone outside the
+    # goroutine can write the source memory mid-copy. With no unsafe and no
+    # mmap, the only writer like that is a data race, and `go test -race`
+    # catches those. These two keep it that way.
+    - depguard
+    - forbidigo
   # nilerr is deliberately absent: every place it reports swallows an error
   # on purpose (an unreadable entry in a WalkDir, the last admin kept) and
   # says so in a comment.
@@ -38,6 +46,16 @@ linters:
         - -QF* # refactoring suggestions (tagged switch, De Morgan)
     dupl:
       threshold: 150
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: unsafe
+              desc: memory the Go memory model does not cover; see the depguard note above
+    forbidigo:
+      forbid:
+        - pattern: ^(syscall|unix)\.Mmap$
+          msg: a shared mapping can change under a copy; read the file with os/io instead
   exclusions:
     paths:
       # generated Swagger output and the bundled Swagger UI
