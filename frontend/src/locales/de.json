@@ -2651,6 +2651,7 @@
         "ova_format": "Format {{arg}}",
         "year": "Jahr {{arg}} passt",
         "promo": "Trailer oder Werbung",
+        "music": "Musikvideo",
         "year_veto": "Lief {{arg}}"
       }
     },
@@ -2705,7 +2706,8 @@
         "movie_tv": "Film-Ordner und Serien-Eintrag",
         "ova": "OVA-Ordner und OVA-, Special- oder ONA-Eintrag",
         "year": "Jahr höchstens 1 daneben",
-        "promo": "Teaser, Trailer, PV"
+        "promo": "Teaser, Trailer, PV",
+        "music": "Musikvideo-Eintrag"
       },
       "bundle": {
         "title": "Eine Serie aus vielen Ordnern",

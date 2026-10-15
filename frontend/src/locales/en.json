@@ -2651,6 +2651,7 @@
         "ova_format": "Format {{arg}}",
         "year": "Year {{arg}} fits",
         "promo": "Trailer or promotion",
+        "music": "Music video",
         "year_veto": "Aired {{arg}}"
       }
     },
@@ -2705,7 +2706,8 @@
         "movie_tv": "Movie folder and TV entry",
         "ova": "OVA folder and OVA, special or ONA entry",
         "year": "Year at most 1 off",
-        "promo": "Teaser, trailer, PV"
+        "promo": "Teaser, trailer, PV",
+        "music": "Music video entry"
       },
       "bundle": {
         "title": "One series from many folders",

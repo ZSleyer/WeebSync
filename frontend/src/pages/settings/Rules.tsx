@@ -19,6 +19,7 @@ const POINTS: [key: string, points: string][] = [
   ['ova', '+25'],
   ['year', '+10'],
   ['promo', '−60'],
+  ['music', '−60'],
 ]
 // match.MinScore
 const MIN_SCORE = 20

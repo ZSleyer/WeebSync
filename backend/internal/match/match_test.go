@@ -179,6 +179,13 @@ func TestPickOVA(t *testing.T) {
 	}
 }
 
+func TestPickNeverAMusicVideo(t *testing.T) {
+	// the only hit is a song named after the series: no match beats it
+	if got, ok := pick(t, "Lucky (2026)", []anilist.Media{media(177688, "Lucky (feat. UMI)", "", "MUSIC", 2026)}); ok {
+		t.Errorf("Pick(Lucky (2026)) = %d %q, want no confident match", got.ID, got.Title.Romaji)
+	}
+}
+
 func TestPickNotConfident(t *testing.T) {
 	// an explicit-sequel folder must not fall back to an implausible base
 	if _, ok := pick(t, "Kingdom S3 [GerSub]", fruitsBasket); ok {

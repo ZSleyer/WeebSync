@@ -484,6 +484,12 @@ func PickExplain(info Info, list []anilist.Media) (int, bool, []Scored) {
 		if promoRe.MatchString(m.Title.Romaji) || promoRe.MatchString(m.Title.English) {
 			add("promo", -60, "")
 		}
+		// a music video shares its song's name with whatever it is a song
+		// of ("Lucky (feat. UMI)" for the series "Lucky"), and no synced
+		// folder ever holds one
+		if m.Format == "MUSIC" {
+			add("music", -60, m.Format)
+		}
 		score := 0
 		for _, x := range sig {
 			score += x.Points
