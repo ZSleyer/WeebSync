@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"path"
 	"strconv"
@@ -30,7 +29,7 @@ func (s *Server) plexSuggestTTL() time.Duration {
 	return s.ttlSetting("ttl_plex_h", 6*time.Hour)
 }
 
-func (s *Server) plexClient() *plex.Client {
+func (s *Server) plexClient() plex.Server {
 	u := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL")
 	t := secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN")
 	if u == "" || t == "" {
@@ -650,7 +649,7 @@ func (s *Server) cacheSet(key, payload string) {
 // show, and leaving the movie sections out is what let them come back as
 // suggestions. The key carries a version because the cached payload of the
 // shows-only build is indistinguishable from a complete one.
-func (s *Server) plexTitleIndex(c *plex.Client) map[string]string {
+func (s *Server) plexTitleIndex(c plex.Server) map[string]string {
 	idx := map[string]string{}
 	if p, ok := s.cacheGet("plex:titleidx:v2", time.Hour); ok {
 		json.Unmarshal([]byte(p), &idx)
@@ -736,17 +735,23 @@ func (s *Server) plexWebLink(titles ...string) string {
 	return s.plexLinkFor(c, key)
 }
 
-// plexLinkFor assembles the app.plex.tv deep link for a library ratingKey.
-func (s *Server) plexLinkFor(c *plex.Client, key string) string {
-	mid, ok := s.cacheGet("plex:machineid", 24*time.Hour)
+// plexLinkFor assembles the media server's web deep link for a library
+// ratingKey.
+func (s *Server) plexLinkFor(c plex.Server, key string) string {
+	// keyed by kind: switching servers must not hand the new one the old id
+	ck := "plex:machineid"
+	if c.Kind() != "plex" {
+		ck += ":" + c.Kind()
+	}
+	mid, ok := s.cacheGet(ck, 24*time.Hour)
 	if !ok {
 		var err error
 		if mid, err = c.MachineID(); err != nil || mid == "" {
 			return ""
 		}
-		s.cacheSet("plex:machineid", mid)
+		s.cacheSet(ck, mid)
 	}
-	return "https://app.plex.tv/desktop/#!/server/" + mid + "/details?key=" + url.QueryEscape("/library/metadata/"+key)
+	return c.DeepLink(mid, key)
 }
 
 // plexWebLinkByKey resolves the deep link from what the series knows about
@@ -916,7 +921,7 @@ func (s *Server) plexFolderNames(medias []anilist.Media) map[int]string {
 // liveTVSuggestions: a non-anime show is "incomplete" when TMDB knows more
 // episodes than Plex has - TMDB models seasons inside one entry, so there is
 // no sequel chain to walk.
-func (s *Server) liveTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show, libOf map[string]string) []plexSuggestion {
+func (s *Server) liveTVSuggestions(ctx context.Context, c plex.Server, shows []plex.Show, libOf map[string]string) []plexSuggestion {
 	var out []plexSuggestion
 	for _, sh := range shows {
 		if ctx.Err() != nil {
@@ -963,7 +968,7 @@ func airedEpisodes(eps []tvdb.Episode, now time.Time) int {
 // tvdbTVSuggestions: a show in a TVDB-sourced library is "incomplete" when
 // TVDB lists more aired episodes than Plex has. Like TMDB, TVDB models
 // seasons inside one entry, so there is no sequel chain to walk.
-func (s *Server) tvdbTVSuggestions(ctx context.Context, c *plex.Client, shows []plex.Show, libOf map[string]string) []plexSuggestion {
+func (s *Server) tvdbTVSuggestions(ctx context.Context, c plex.Server, shows []plex.Show, libOf map[string]string) []plexSuggestion {
 	var out []plexSuggestion
 	now := time.Now()
 	for _, sh := range shows {

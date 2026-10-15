@@ -798,7 +798,7 @@ func (s *Server) rememberPlexShow(w Watch, sh *plex.Show) {
 }
 
 // plexShowByKey fetches the show behind a ratingKey with its ordering settings.
-func plexShowByKey(c *plex.Client, rk string) (*plex.Show, plex.Ordering, bool) {
+func plexShowByKey(c plex.Server, rk string) (*plex.Show, plex.Ordering, bool) {
 	detail, err := c.ShowDetail(rk)
 	if err != nil {
 		return nil, plex.Ordering{}, false

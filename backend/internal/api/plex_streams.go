@@ -230,7 +230,7 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 
 // watchEpisodeParts locates the watch's show in Plex and returns its episode
 // parts keyed by the LOCAL file path (Plex paths mapped through plex_roots).
-func (s *Server) watchEpisodeParts(c *plex.Client, w Watch) (map[string]plex.EpisodePart, bool) {
+func (s *Server) watchEpisodeParts(c plex.Server, w Watch) (map[string]plex.EpisodePart, bool) {
 	sh, _, _, ok := s.plexShowForWatch(w, match.GuessTitle(path.Base(w.RemotePath)))
 	if !ok {
 		return nil, false
@@ -296,7 +296,7 @@ func planStreams(streams []plex.EpisodeStream, audioLang, subPref string) (audio
 //
 // Leaf listings often omit streams (PMS ignores includeStreams there), so they
 // are fetched per episode.
-func applyStreams(c *plex.Client, p plex.EpisodePart, audioLang, subPref string) (miss string, ok bool) {
+func applyStreams(c plex.Server, p plex.EpisodePart, audioLang, subPref string) (miss string, ok bool) {
 	streams := p.Streams
 	if len(streams) == 0 {
 		detail, err := c.PartStreams(p.RatingKey)

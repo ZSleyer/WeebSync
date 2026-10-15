@@ -84,7 +84,7 @@ func (s Series) seriesID(provider string) int {
 type Resolver struct {
 	DB   *sql.DB
 	TVDB *tvdb.Client
-	Plex *plex.Client
+	Plex plex.Server
 	TMDB *tmdb.Client
 
 	mu     sync.Mutex

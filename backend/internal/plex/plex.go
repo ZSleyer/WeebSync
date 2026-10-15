@@ -917,6 +917,49 @@ func showOrderingMap(v string) (provider, order string) {
 	return "", ""
 }
 
+// Server is what WeebSync needs from a media server. Plex is the reference
+// implementation; the Jellyfin client returns the same types, so every
+// library feature (owned skip, quality index, rename profile, suggestions,
+// rescan) works against either. RatingKey and section keys are opaque to the
+// callers, but a show's RatingKey must parse as a positive integer: it is
+// stored as a series_provider media id.
+type Server interface {
+	// Kind names the implementation: "plex" | "jellyfin".
+	Kind() string
+	Identity() (Identity, error)
+	MachineID() (string, error)
+	// DeepLink is the web-app URL of a library item, given MachineID's answer.
+	DeepLink(machineID, ratingKey string) string
+	Sections() ([]Section, error)
+	LibraryForPath(p string) (Section, bool)
+	ShowKeyForPath(p string) (string, bool)
+	Shows(sectionKey string) ([]Show, error)
+	ShowDetail(ratingKey string) (*Show, error)
+	ShowPreferences(ratingKey string) (Ordering, error)
+	SeasonMedia(ratingKey string) (map[int]ShowMedia, error)
+	Episodes(showRatingKey string) ([]Episode, error)
+	EpisodeParts(showRatingKey string) ([]EpisodePart, error)
+	PartStreams(episodeRatingKey string) ([]EpisodePart, error)
+	// SetStreams returns ErrUnsupported on a server that cannot store a
+	// per-item track choice.
+	SetStreams(partID, audioStreamID, subtitleStreamID int64) error
+	Refresh(sectionKey, dir string) error
+}
+
+// ErrUnsupported is a capability the server lacks, as opposed to a failed
+// request: callers stop asking instead of retrying.
+var ErrUnsupported = errors.New("not supported by this media server")
+
+var _ Server = (*Client)(nil)
+
+func (c *Client) Kind() string { return "plex" }
+
+// DeepLink goes through app.plex.tv, which works from anywhere (local URLs
+// often don't).
+func (c *Client) DeepLink(machineID, ratingKey string) string {
+	return "https://app.plex.tv/desktop/#!/server/" + machineID + "/details?key=" + url.QueryEscape("/library/metadata/"+ratingKey)
+}
+
 // ShowPreferences reads a show's per-title advanced settings: the episode
 // ordering (showOrdering) and the metadata language override. These drive how
 // downloaded files are renamed so they match exactly what Plex expects.

@@ -193,7 +193,7 @@ func (s *Server) watchShowKey(w Watch) string {
 
 // plexShowList is every show of the show libraries, for the picker. Cached for
 // an hour: the same round of listings the guid index already pays for.
-func (s *Server) plexShowList(c *plex.Client) []PlexShowRef {
+func (s *Server) plexShowList(c plex.Server) []PlexShowRef {
 	var out []PlexShowRef
 	if p, ok := s.cacheGet("plex:showlist:v1", time.Hour); ok {
 		json.Unmarshal([]byte(p), &out)
