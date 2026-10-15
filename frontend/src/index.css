@@ -200,6 +200,24 @@ main:has(.page-fill) {
   }
 }
 
+/* Started from the iOS home screen the app is drawn under the status bar
+   (black-translucent, viewport-fit=cover) - but iOS reports the dynamic and
+   small viewport, and innerHeight, as the screen minus that status bar: 793
+   of 852 points on an iPhone with a Dynamic Island. A shell of 100dvh then
+   stopped 59 points short and left a black band under the tab bar. A
+   standalone app has no browser bars to come and go, so the large viewport
+   is the screen. Only for iOS (-webkit-touch-callout exists in WebKit on iOS
+   alone): an installed app on Android shrinks its viewport for the keyboard,
+   which 100lvh would not follow. */
+@media (width < 64rem) and (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    .app-shell,
+    .app-shell:has(.page-fill) {
+      height: 100lvh;
+    }
+  }
+}
+
 /* The shell side of the page title and the app bar (PageScroll): a stacked
    screen hides the large title, the bar title fades in once it has gone. */
 @media (width < 64rem) {
