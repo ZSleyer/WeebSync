@@ -77,6 +77,9 @@ type seriesRecord struct {
 	} `json:"episodes"`
 }
 
+// animeCountries are the origins whose animation AniList lists as anime.
+var animeCountries = map[string]bool{"jpn": true, "chn": true, "kor": true, "twn": true}
+
 // countryZones maps TVDB's 3-letter origin country to the zone its networks
 // state air times in. Others count as UTC.
 var countryZones = map[string]string{
@@ -95,6 +98,11 @@ var countryZones = map[string]string{
 func (r seriesRecord) enrich(m *anilist.Media, now time.Time) {
 	for _, g := range r.Genres {
 		m.Genres = append(m.Genres, g.Name)
+	}
+	// TVDB files Chinese and Korean animation under "Animation" only, where
+	// AniList - and the anime shelf - counts it as anime
+	if animeCountries[r.OriginalCountry] && slices.Contains(m.Genres, "Animation") && !slices.Contains(m.Genres, "Anime") {
+		m.Genres = append(m.Genres, "Anime")
 	}
 	eps := r.Episodes
 	slices.SortStableFunc(eps, func(a, b struct {

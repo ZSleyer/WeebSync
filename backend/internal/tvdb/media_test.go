@@ -2,6 +2,7 @@ package tvdb
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 	"time"
 
@@ -35,6 +36,17 @@ func TestEnrichEndlessAnime(t *testing.T) {
 	want := time.Date(2026, 10, 17, 9, 0, 0, 0, time.UTC).Unix() // 18:00 JST
 	if m.NextAiring == nil || m.NextAiring.Episode != 2 || m.NextAiring.AiringAt != want || len(m.Schedule) != 2 || m.Schedule[1].Episode != 3 {
 		t.Fatalf("next airing %+v, want episode 2 at %d", m.NextAiring, want)
+	}
+	// Chinese animation TVDB files under "Animation" only is anime as AniList
+	// counts it; western animation is not
+	var donghua, western seriesRecord
+	json.Unmarshal([]byte(`{"originalCountry": "chn", "genres": [{"name": "Animation"}, {"name": "Fantasy"}]}`), &donghua)
+	json.Unmarshal([]byte(`{"originalCountry": "usa", "genres": [{"name": "Animation"}]}`), &western)
+	var dg, wm anilist.Media
+	donghua.enrich(&dg, time.Now())
+	western.enrich(&wm, time.Now())
+	if !slices.Contains(dg.Genres, "Anime") || slices.Contains(wm.Genres, "Anime") {
+		t.Errorf("donghua %v, western %v", dg.Genres, wm.Genres)
 	}
 	// a finished show has no next episode
 	var done seriesRecord
