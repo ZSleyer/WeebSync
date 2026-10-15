@@ -5,7 +5,7 @@ RUN npm i -g yarn@1.22.22
 # the frontend keeps its place in the tree: @weebsync/design-system resolves to
 # ../design-system/src, and index.css scans the same path for Tailwind classes
 WORKDIR /src/frontend
-COPY frontend/package.json frontend/yarn.lock ./
+COPY frontend/package.json frontend/yarn.lock frontend/.yarnrc ./
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
 COPY design-system/ /src/design-system/
 # the design system has no dependency tree of its own - it borrows the app's,

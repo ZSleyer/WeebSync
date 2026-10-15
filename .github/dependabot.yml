@@ -3,6 +3,10 @@ version: 2
 # Version updates, on top of the security updates GitHub raises on its own.
 # Everything is grouped: a lockfile bump per package is noise, one PR a week
 # per ecosystem is a review.
+#
+# A version is a week old before it is proposed: the hijacked releases of the
+# npm worm waves were pulled within days, and a week sits that out. Security
+# updates ignore the cooldown and still come at once.
 updates:
   - package-ecosystem: gomod
     directory: /backend
@@ -10,6 +14,8 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       go:
         patterns: ["*"]
@@ -21,6 +27,8 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       # react and its types move together; a lone bump of one half fails to build
       react:
@@ -37,6 +45,8 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 2
+    cooldown:
+      default-days: 7
     groups:
       audit:
         patterns: ["*"]
@@ -50,6 +60,8 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
@@ -64,6 +76,8 @@ updates:
       interval: weekly
       day: monday
     open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
     groups:
       images:
         patterns: ["*"]
