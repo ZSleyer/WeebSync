@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Copy, Smartphone } from 'lucide-react'
 import { Button } from 'fluid-lycoris'
-import qrcode from 'qrcode-generator'
+import makeQR from 'qrcode-generator'
 import { api, type Tips as TipsState } from '../api'
 import { useToast } from './toast'
 
@@ -11,7 +11,7 @@ const KEY = 'mobile-ui'
 
 /** The modules of a QR code for `text`, as one SVG path in module units. */
 export function qrPath(text: string): { size: number; d: string } {
-  const q = qrcode(0, 'M')
+  const q = makeQR(0, 'M')
   q.addData(text)
   q.make()
   const size = q.getModuleCount()
