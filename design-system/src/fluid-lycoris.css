@@ -2311,8 +2311,13 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   .t-rail-btn { transition: scale var(--dur-2) var(--spring), background-color var(--dur-1); }
   .t-rail-btn:active { scale: 0.9; }
 }
-/* a finger scrolls the shelf itself: no paging buttons on touch */
-@media (hover: none) { .t-rail-btn { display: none; } }
+/* a finger scrolls the shelf itself: no paging buttons, and no snap. Chrome
+   caps a fling at the next snap point (measured on a phone: the throw braked
+   after 60ms, then crept 400ms to the next tile instead of coasting on) */
+@media (hover: none) {
+  .t-rail-btn { display: none; }
+  .t-shelf { scroll-snap-type: none; }
+}
 
 /* ── Wipe (the opening credits reveal): .t-wipe on a text line, played by
    [data-wipe="in"|"out"] on the line or an ancestor. The block is the line's
