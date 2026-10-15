@@ -105,6 +105,14 @@
   :root:not([data-motion="off"]) .ws-sel-bar { animation: ws-bar-in 220ms var(--ease-enter); }
 }
 
+/* the list's own scroller on a phone reaches out into <main>'s padding and
+   gives it back inside: the rows stay where they were, and iOS's overlay
+   scrollbar runs in the margin instead of over the select button at the
+   row's end */
+@media (width < 64rem) {
+  .ws-list-scroll { margin-right: -1rem; padding-right: 1rem; }
+}
+
 /* the details panel beside the list on a desktop */
 .ws-fi { display: none; }
 @media (width >= 64rem) {

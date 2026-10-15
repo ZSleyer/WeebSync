@@ -202,6 +202,7 @@ export function FileBrowser({
   checked,
   onToggle,
   onContextSelect,
+  listClassName,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -232,6 +233,8 @@ export function FileBrowser({
   onToggle?: (e: Entry) => void
   /** a right click on a row (desktop): selects it */
   onContextSelect?: (e: Entry) => void
+  /** extra classes for the scrolling list, for the page that hosts it */
+  listClassName?: string
 }) {
   const { t, i18n } = useTranslation()
   // '-date' is newest first; kept across folders and visits
@@ -294,7 +297,7 @@ export function FileBrowser({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className={`min-h-0 flex-1 overflow-y-auto${listClassName ? ` ${listClassName}` : ''}`}>
         {isLoading && <SkeletonRows full={sortable} />}
         {conflict ? (
           <HostKeyPrompt
