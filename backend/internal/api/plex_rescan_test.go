@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -16,6 +17,8 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 	var got string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/System/Info/Public":
+			json.NewEncoder(w).Encode(map[string]string{"Id": "new-server"})
 		case "/Library/VirtualFolders":
 			json.NewEncoder(w).Encode([]map[string]any{{"Name": "Anime", "ItemId": "lib1",
 				"CollectionType": "tvshows", "Locations": []string{"/media/anime"}}})
@@ -40,5 +43,19 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 	s.plexRescan("/mnt/a/anime/Show/Season 01")
 	if got != "/media/anime/Show/Season 01" {
 		t.Fatalf("server was told %q", got)
+	}
+
+	// what was cached about the previous server goes once another one answers
+	db.SetSetting(d, "media_server_id", "old-server")
+	s.cacheSet("plex:machineid:jellyfin", "old-server")
+	s.cacheSet("plex:guididx:v3", "{}")
+	s.refreshPlexRoots()
+	for _, k := range []string{"plex:machineid:jellyfin", "plex:guididx:v3"} {
+		if _, ok := s.cacheGet(k, time.Hour); ok {
+			t.Errorf("%s survived the server change", k)
+		}
+	}
+	if db.Setting(d, "media_server_id") != "new-server" {
+		t.Error("new server id not remembered")
 	}
 }

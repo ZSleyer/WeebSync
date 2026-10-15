@@ -288,6 +288,19 @@ func (s *Server) refreshPlexRoots() {
 	if c == nil {
 		return
 	}
+	// another server (Plex to Jellyfin, or a reinstalled one) keys its items
+	// differently: what was cached about the old one would hand out its deep
+	// links and item keys for hours
+	if mid, err := c.MachineID(); err == nil && mid != "" {
+		if prev := db.Setting(s.DB, "media_server_id"); prev != mid {
+			s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
+				OR key IN ('plex:guididx:v3', 'plex:titleidx:v2', 'plex:showlist:v1')`)
+			db.SetSetting(s.DB, "media_server_id", mid)
+			if prev != "" {
+				slog.Info("media server changed", "kind", c.Kind())
+			}
+		}
+	}
 	if sections, err := c.Sections(); err == nil {
 		s.storePlexRoots(sections)
 	}
