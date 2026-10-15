@@ -321,6 +321,10 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     return () => v.removeEventListener('volumechange', heard)
   }, [mutedStart])
 
+  // on the server's side the wait is opening the file (direct) or cutting
+  // the next piece out of it (HLS); on ours it is the buffer filling up
+  const serverStep = !hls ? 'player.stepBuffer' : copy ? 'player.stepRepack' : 'player.stepTranscode'
+
   // source: the raw file, or the transcoded playlist through hls.js
   useEffect(() => {
     const v = videoRef.current
@@ -339,9 +343,6 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       })
     }
     v.addEventListener('loadedmetadata', onMeta, { once: true })
-    // on the server's side the wait is opening the file (direct) or cutting
-    // the next piece out of it (HLS); on ours it is the buffer filling up
-    const serverStep = !hls ? 'player.stepBuffer' : copy ? 'player.stepRepack' : 'player.stepTranscode'
     const step = (k: string) => () => setLoadStep(k)
     const steps: [string, () => void][] = [
       ['loadstart', step(hls ? serverStep : 'player.stepOpen')],
@@ -402,7 +403,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       v.removeEventListener('loadedmetadata', onMeta)
       h.destroy()
     }
-  }, [data, hls, src, audioIdx, burn, copy, acopy, videoOk])
+  }, [data, hls, src, audioIdx, burn, copy, acopy, videoOk, serverStep])
 
   // watchdog: playing, but no picture - the browser cannot decode this codec
   // after all, so the server transcodes it
@@ -989,14 +990,16 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                 </span>
               </MediaLoadingIndicator>
             )}
-            {(loadError || loadStep) && (
-              <span
-                className={`t-player-step${loadError ? ' t-player-step--err' : ''}`}
-                role={loadError ? 'alert' : 'status'}
-              >
-                {loadError ? t('player.loadError') : <Waited key={loadStep} text={t(loadStep)} />}
-              </span>
-            )}
+            {/* always words under the mark: canplay, playing or a seek clear
+                the step while the buffer can still be empty (hls.js jumps a
+                gap at the start of a transcode), and the mark alone told
+                nothing. CSS hides them once media-chrome is done loading. */}
+            <span
+              className={`t-player-step${loadError ? ' t-player-step--err' : ''}`}
+              role={loadError ? 'alert' : 'status'}
+            >
+              {loadError ? t('player.loadError') : <Waited key={loadStep} text={t(loadStep || serverStep)} />}
+            </span>
             <MediaPlayButton className="t-player-bigplay" />
             <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>
               {flash?.side === 'fwd' && `+ ${flash.secs} s`}
