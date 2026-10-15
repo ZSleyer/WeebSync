@@ -125,6 +125,32 @@ func TestQueueScopeChildren(t *testing.T) {
 	}
 }
 
+// The catalogue's correction and the auto-sync search the same source.
+func TestFolderSource(t *testing.T) {
+	s := sourceTestServer(t)
+	db.SetSetting(s.DB, "plex_lib_scopes", "/media/tv\ttvdb\n/media/anime\ttvdb")
+	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES
+		(1, 1, '/x/Ted (2024)', '/media/tv/Ted'), (1, 1, '/x/Conan', '/media/anime/Conan/Season 33')`)
+	if got := s.folderSource(1, "/x/Ted (2024)"); got != "tvdb" {
+		t.Errorf("Ted: %q, want the library's tvdb", got)
+	}
+	// Conan stays on the AniList entry Plex confirms
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season) VALUES (235, 72454, 1)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES (0, '/media/anime/Conan/Season 33', 'tvdb:72454', 33)`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id, manual) VALUES (1, '/x/Conan', 'anilist', 235, 1)`)
+	if got := s.folderSource(1, "/x/Conan"); got != "anilist" {
+		t.Errorf("Conan: %q, want anilist", got)
+	}
+	// a mark on the parent decides over everything
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/x', 'tv')`)
+	if got := s.folderSource(1, "/x/Ted (2024)"); got != "tmdb:tv" {
+		t.Errorf("marked: %q, want tmdb:tv", got)
+	}
+	if got := s.folderSource(1, "/y/Unwatched"); got != "anilist" {
+		t.Errorf("nothing known: %q", got)
+	}
+}
+
 func TestChangedRoots(t *testing.T) {
 	got := changedRoots("/a\tanime\n/b\tanime", []string{"/a\tanime", "/b\ttvdb", "/c\ttv"})
 	if len(got) != 2 || got[0] != "/b" || got[1] != "/c" {

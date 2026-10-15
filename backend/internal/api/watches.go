@@ -2061,6 +2061,34 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 	return true
 }
 
+// folderSource is the source a folder is matched on, the one answer the
+// catalogue and the auto-sync both go by: the mark on its parent, else for a
+// watched folder what matchWatch searches it in (the library it writes into,
+// books as manga) - unless its stored match already stands there - else the
+// source its match has.
+func (s *Server) folderSource(serverID int64, folder string) string {
+	name := path.Base(folder)
+	if scope := s.scopeFor(serverID, path.Dir(folder)); scope != "" {
+		return sourceForScope(scopeForItem(scope, s.itemKind(serverID, folder, name)))
+	}
+	var stored string
+	var mediaID int
+	s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&stored, &mediaID)
+	var local string
+	if s.DB.QueryRow(`SELECT local_path FROM watches WHERE server_id = ? AND remote_path = ? LIMIT 1`,
+		serverID, folder).Scan(&local) == nil {
+		if _, scope := s.watchMatchQuery(serverID, folder, local); scope != "" &&
+			stored != mangaSource && !s.anilistAgreesWithPlex(mediaID, stored, local) {
+			return sourceForScope(scope)
+		}
+	}
+	if stored != "" {
+		return stored
+	}
+	return "anilist"
+}
+
 // anilistAgreesWithPlex reports whether an AniList match names the same show
 // as the Plex library the watch writes into: the anime mapping files the entry
 // under the TVDB or TMDB id that Plex reports for the show at the local

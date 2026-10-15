@@ -1032,6 +1032,10 @@ func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
 type catalogMatchRequest struct {
 	Folder  string `json:"folder"`
 	MediaID int    `json:"mediaId"` // 0 = unmatch
+	// the provider of a pasted link or id from another source than the
+	// folder's ("anilist" for an anime in a TVDB-ordered tree); empty: the
+	// folder's own
+	Source string `json:"source,omitempty"`
 }
 
 // handleCatalogMatch sets or clears a manual folder→media match.
@@ -1075,10 +1079,18 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// the scope lives on the parent directory - the folder itself is the entry
-	// that was listed there, and its kind can narrow tv to movie
-	scope := s.scopeFor(serverID, path.Dir(in.Folder))
-	source := sourceForScope(scopeForItem(scope, s.itemKind(serverID, in.Folder, path.Base(in.Folder))))
+	// the same source the folder is matched on everywhere (the mark on its
+	// parent, else the library its auto-sync writes into); a link from
+	// another provider says so itself
+	source := s.folderSource(serverID, in.Folder)
+	switch in.Source {
+	case "":
+	case "anilist", mangaSource, "tmdb:tv", "tmdb:movie", "tvdb":
+		source = in.Source
+	default:
+		writeErr(w, http.StatusBadRequest, "invalid source")
+		return
+	}
 	if s.persistMatch(serverID, in.Folder, in.MediaID, true, source) != nil {
 		dbErr(w)
 		return

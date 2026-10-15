@@ -68,7 +68,10 @@ type catalogExplainResponse struct {
 	Parse  explainParse   `json:"parse"`
 	Scope  explainScope   `json:"scope"`
 	Chosen *explainChosen `json:"chosen"` // nil: never matched
-	// false for TMDB and TVDB: they take the first hit, there are no points
+	// the source the folder is matched on (catalogue and auto-sync alike),
+	// which a correction searches
+	Source string `json:"source"`
+	// false for TMDB and TVDB: their search is not replayed here
 	Scored     bool               `json:"scored"`
 	Tried      []searchStep       `json:"tried"`
 	Candidates []explainCandidate `json:"candidates"` // best first, at most 3
@@ -147,9 +150,10 @@ func (s *Server) explainFolder(ctx context.Context, serverID int64, folder strin
 	case !errors.Is(err, sql.ErrNoRows):
 		return out, err
 	}
-	src := sourceForScope(scopeForItem(out.Scope.Kind, s.folderKind(serverID, folder, name)))
+	src := s.folderSource(serverID, folder)
+	out.Source = src
 	if src != "anilist" && src != mangaSource {
-		return out, nil // TMDB and TVDB take their first hit: nothing to score
+		return out, nil // TMDB and TVDB are not replayed here
 	}
 	out.Scored = true
 	job := matchJob{serverID: serverID, folder: folder, name: name, manga: src == mangaSource}

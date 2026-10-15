@@ -2057,13 +2057,18 @@ export interface Schemas {
     pick: number
     scope: Schemas['api.explainScope']
     /**
-     * false for TMDB and TVDB: they take the first hit, there are no points
+     * false for TMDB and TVDB: their search is not replayed here
      */
     scored: boolean
     /**
      * set when the SEQUEL chain moved the pick to the season the folder names
      */
     sequelFrom?: number
+    /**
+     * the source the folder is matched on (catalogue and auto-sync alike),
+     * which a correction searches
+     */
+    source: string
     tried: Schemas['api.searchStep'][]
   }
   'api.catalogItem': {
@@ -2094,6 +2099,12 @@ export interface Schemas {
      * 0 = unmatch
      */
     mediaId: number
+    /**
+     * the provider of a pasted link or id from another source than the
+     * folder's ("anilist" for an anime in a TVDB-ordered tree); empty: the
+     * folder's own
+     */
+    source?: string
   }
   'api.catalogResponse': {
     /**

@@ -4759,12 +4759,16 @@
                         "$ref": "#/components/schemas/api.explainScope"
                     },
                     "scored": {
-                        "description": "false for TMDB and TVDB: they take the first hit, there are no points",
+                        "description": "false for TMDB and TVDB: their search is not replayed here",
                         "type": "boolean"
                     },
                     "sequelFrom": {
                         "description": "set when the SEQUEL chain moved the pick to the season the folder names",
                         "type": "integer"
+                    },
+                    "source": {
+                        "description": "the source the folder is matched on (catalogue and auto-sync alike),\nwhich a correction searches",
+                        "type": "string"
                     },
                     "tried": {
                         "items": {
@@ -4779,6 +4783,7 @@
                     "parse",
                     "scope",
                     "chosen",
+                    "source",
                     "scored",
                     "tried",
                     "candidates",
@@ -4827,6 +4832,10 @@
                     "mediaId": {
                         "description": "0 = unmatch",
                         "type": "integer"
+                    },
+                    "source": {
+                        "description": "the provider of a pasted link or id from another source than the\nfolder's (\"anilist\" for an anime in a TVDB-ordered tree); empty: the\nfolder's own",
+                        "type": "string"
                     }
                 },
                 "required": [
