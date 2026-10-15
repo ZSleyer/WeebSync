@@ -185,7 +185,7 @@ func main() {
 		}
 		w.Write([]byte("ok"))
 	})
-	mux.Handle("/", spaHandler(webDir))
+	mux.Handle("/", mobileDebug(mux, dataDir, webDir, spaHandler(webDir)))
 
 	httpSrv := &http.Server{
 		Addr: addr,

@@ -11,6 +11,15 @@ The frontend pins Yarn 4 in `frontend/.yarn/releases`; any `yarn` on the
 PATH, a global 1.x included, hands over to it. New package versions install
 only once they are a week old (`npmMinimalAgeGate` in `.yarnrc.yml`).
 
+### Testing on a phone
+
+`go build -tags mobiledebug .` adds two buttons to every page: **diag** shows
+the device's viewport, safe-area and layout measurements, **upload** sends
+screenshots picked from the photo library. Measurements are also posted on
+every page change; reports and screenshots land in `<data>/mobile-debug/`.
+The binary logs a warning at start. Never deploy it: images and releases
+are built without the tag, and CI checks the image for it.
+
 ## Checks
 
 CI runs the same steps; run them before you push.

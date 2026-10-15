@@ -41,7 +41,11 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l .)"
       - name: vet
-        run: go vet ./...
+        # the mobile debugging aid only exists with its build tag; vet it so
+        # it keeps compiling without ever being part of a build
+        run: |
+          go vet ./...
+          go vet -tags mobiledebug .
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
@@ -132,6 +136,10 @@ jobs:
           config --severity HIGH,CRITICAL --exit-code 1 /repo
       - name: build image
         run: docker build --pull -t weebsync-ci .
+      - name: no mobile debug build in the image
+        # the debugging aid (screenshot uploads, an injected script) must
+        # never reach a release: its startup warning is the marker
+        run: docker run --rm --entrypoint sh weebsync-ci -c '! grep -aq "MOBILE DEBUG BUILD" /weebsync'
       - name: image vulnerability scan
         run: >-
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
