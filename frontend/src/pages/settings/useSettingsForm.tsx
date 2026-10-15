@@ -44,6 +44,7 @@ export interface SettingsState {
   jellyfinUrl: string
   jellyfinTokenSet: boolean
   jellyfinToken?: string
+  mediaServer: string // plex | jellyfin, "" while none is chosen
   arrKeySet: boolean // read-only: the Sonarr/Radarr source is on
   arrCompleteDir: string
   arrRoots: string

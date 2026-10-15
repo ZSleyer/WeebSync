@@ -5,7 +5,7 @@ import { useLocation } from 'react-router'
 import { Badge, Button, Input, Select, SettingsField, Switch } from 'fluid-lycoris'
 import './integrations.css'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
-import { useAiModels, useMediaServer } from '../../hooks'
+import { useAiModels } from '../../hooks'
 import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
@@ -50,6 +50,7 @@ interface PlexMe {
   server?: string
   error?: string
   kind?: 'plex' | 'jellyfin'
+  choose?: boolean
   auth?: 'signin' | 'token' | 'env'
 }
 interface AiStatus {
@@ -98,8 +99,26 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
     ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
     ['animeschedule', 'AnimeSchedule', state(animeschedule?.connected, animeschedule?.configured)],
     // one status answers for whichever server is configured, Plex first
-    ['plex', 'Plex', plex?.kind === 'jellyfin' ? state() : state(plex?.connected, plex?.configured)],
-    ['jellyfin', 'Jellyfin', plex?.kind === 'jellyfin' ? state(plex.connected, plex.configured) : state()],
+    // one status answers for the server in use; two waiting for a choice
+    // both show as set up, the panel above them asks for the pick
+    [
+      'plex',
+      'Plex',
+      plex?.choose
+        ? state(false, false, true)
+        : plex?.kind === 'jellyfin'
+          ? state()
+          : state(plex?.connected, plex?.configured),
+    ],
+    [
+      'jellyfin',
+      'Jellyfin',
+      plex?.choose
+        ? state(false, false, true)
+        : plex?.kind === 'jellyfin'
+          ? state(plex.connected, plex.configured)
+          : state(),
+    ],
     ['arr', 'Sonarr / Radarr', state(false, false, arr)],
     ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
     ['homeassistant', t('settings.homeAssistant'), state(false, false, ha)],
@@ -149,7 +168,6 @@ export default function Integrations() {
   const { t } = useTranslation()
   useHashPanel()
   const { form, set, save, saved, locked, dirty, issue, reset, clearSecret } = useSettingsForm()
-  const jellyfinActive = useMediaServer() === 'jellyfin'
   const media = useQuery(PLEX_ME).data
   if (!form) return null
   // the sign-in is the way in; the fields by hand are the fallback and stay
@@ -158,6 +176,14 @@ export default function Integrations() {
     !!media?.configured && (media.kind ?? 'plex') === kind && media.auth === 'token'
   const plexSet = form.plexTokenSet && !!form.plexUrl
   const jellyfinSet = form.jellyfinTokenSet && !!form.jellyfinUrl
+  // the server the library features run on right now, as the backend sees it
+  const active = media?.configured ? (media.kind ?? 'plex') : ''
+  const inactive = (kind: 'plex' | 'jellyfin') =>
+    active && active !== kind ? (
+      <p className="text-ctl-sm text-t-muted">
+        {t('settings.mediaServerInactive', { active: active === 'plex' ? 'Plex' : 'Jellyfin' })}
+      </p>
+    ) : null
   // the library options belong to whichever media server is in use (Plex wins
   // when both are set), so they show under that server's panel
   const library = (
@@ -240,15 +266,46 @@ export default function Integrations() {
         />
       </SettingsPanel>
 
+      {plexSet && jellyfinSet && (
+        <SettingsPanel id="media" title={t('settings.mediaServer')}>
+          {media?.choose && (
+            <p className="text-ctl-sm text-err" role="alert">
+              {t('settings.mediaServerChoose')}
+            </p>
+          )}
+          <SettingsField
+            label={t('settings.mediaServerUse')}
+            hint={t('settings.mediaServerHint')}
+            htmlFor="media-server"
+          >
+            <Select
+              id="media-server"
+              value={form.mediaServer}
+              disabled={locked('mediaServer')}
+              onChange={(e) => set('mediaServer', e.target.value)}
+            >
+              {!form.mediaServer && (
+                <option value="" hidden>
+                  {t('settings.mediaServerPick')}
+                </option>
+              )}
+              <option value="plex">Plex</option>
+              <option value="jellyfin">Jellyfin</option>
+            </Select>
+          </SettingsField>
+        </SettingsPanel>
+      )}
+
       <SettingsPanel id="plex" title="Plex">
         <PlexAccount kind="plex" />
+        {inactive('plex')}
         {!locked('plexUrl') && !locked('plexToken') && (
           <PlexServerSignIn
             connected={form.plexTokenSet && !!form.plexUrl}
             onConnected={(res) => set('plexUrl', res.url)}
           />
         )}
-        {!jellyfinActive && <PlexWatchlistAccount />}
+        {active !== 'jellyfin' && !media?.choose && <PlexWatchlistAccount />}
         {/* the sign-in fills both; by hand for a server plex.tv does not list,
             or an address it does not know */}
         <details className="sf-disc" open={locked('plexUrl') || locked('plexToken') || manual('plex') || undefined}>
@@ -272,15 +329,12 @@ export default function Integrations() {
             onRemove={() => clearSecret('plexToken')}
           />
         </details>
-        {plexSet && library}
+        {active === 'plex' && library}
       </SettingsPanel>
 
       <SettingsPanel id="jellyfin" title="Jellyfin">
-        {plexSet ? (
-          <p className="text-ctl-sm text-t-muted">{t('settings.jellyfinPlexFirst')}</p>
-        ) : (
-          <PlexAccount kind="jellyfin" />
-        )}
+        <PlexAccount kind="jellyfin" />
+        {inactive('jellyfin')}
         <TextSetting
           label={t('settings.jellyfinUrl')}
           hint={t('settings.jellyfinUrlHint')}
@@ -298,7 +352,7 @@ export default function Integrations() {
             label={jellyfinSet ? t('settings.jellyfinSignInOther') : t('settings.jellyfinSignIn')}
           />
         )}
-        {jellyfinActive && <JellyfinFavoritesAccount />}
+        {active === 'jellyfin' && <JellyfinFavoritesAccount />}
         {/* by hand: an API key from the Jellyfin dashboard, for a server with
             Quick Connect switched off */}
         <details className="sf-disc" open={locked('jellyfinToken') || manual('jellyfin') || undefined}>
@@ -313,7 +367,7 @@ export default function Integrations() {
             onRemove={() => clearSecret('jellyfinToken')}
           />
         </details>
-        {!plexSet && jellyfinSet && library}
+        {active === 'jellyfin' && library}
       </SettingsPanel>
 
       <ArrPanel form={form} set={set} />
@@ -746,7 +800,7 @@ function JellyfinFavoritesAccount() {
 function PlexAccount({ kind }: { kind: 'plex' | 'jellyfin' }) {
   const { t } = useTranslation()
   const { data } = useQuery(PLEX_ME)
-  if (!data) return null
+  if (!data || data.choose) return null // the choice panel speaks for both
   if (data.configured && (data.kind ?? 'plex') !== kind) return null
   if (!data.configured && kind === 'jellyfin') return <span>{t('settings.jellyfinNotConfigured')}</span>
   return (

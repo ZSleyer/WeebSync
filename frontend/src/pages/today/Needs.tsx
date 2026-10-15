@@ -158,6 +158,7 @@ export function Needs({
   watches,
   hints,
   plexToken,
+  mediaChoose,
   loading,
 }: {
   downloads: Download[]
@@ -166,6 +167,8 @@ export function Needs({
   hints: ScopeHint[]
   /** an admin's Plex runs on a pasted token */
   plexToken?: boolean
+  /** Plex and Jellyfin both connected, neither chosen */
+  mediaChoose?: boolean
   loading: boolean
 }) {
   const { t } = useTranslation()
@@ -177,7 +180,7 @@ export function Needs({
   const [hidden, setHidden] = useState(hiddenNeeds)
   // rows that left and wait for their toast to run out
   const [gone, setGone] = useState<Set<string>>(new Set())
-  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken })
+  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose })
   const live = all.filter((n) => !hidden.has(n.print))
   const shown = live.filter((n) => !gone.has(n.key))
   const body = useRef<HTMLDivElement>(null)
@@ -222,8 +225,8 @@ export function Needs({
   }
   const act = (n: Need) => {
     if (n.kind === 'plex') {
-      // the sign-in lives with the rest of Plex; the row goes once it is done
-      navigate('/settings/integrations#plex')
+      // the sign-in and the choice live with the servers; the row goes once done
+      navigate(n.key === 'media-choose' ? '/settings/integrations#media' : '/settings/integrations#plex')
       return
     }
     if (n.why && n.watch) {

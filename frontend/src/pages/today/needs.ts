@@ -46,6 +46,7 @@ export function buildNeeds(
     hints,
     now,
     plexToken,
+    mediaChoose,
   }: {
     downloads: Download[]
     meta?: DownloadMeta
@@ -54,9 +55,23 @@ export function buildNeeds(
     now: number
     /** an admin's Plex runs on a pasted token: ask to sign in with Plex */
     plexToken?: boolean
+    /** Plex and Jellyfin both connected, neither chosen: nothing runs */
+    mediaChoose?: boolean
   },
 ): Need[] {
   const out: Need[] = []
+  if (mediaChoose) {
+    out.push({
+      key: 'media-choose',
+      print: 'media-choose',
+      kind: 'plex',
+      tone: 'accent',
+      title: t('today.needMediaServer'),
+      sub: t('today.needMediaServerSub'),
+      act: t('today.needMediaServerAct'),
+      why: false,
+    })
+  }
   if (plexToken) {
     out.push({
       key: 'plex-token',

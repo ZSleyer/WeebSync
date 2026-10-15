@@ -34,7 +34,7 @@ The first scan fetches metadata online and takes a while; the ids come from the
 Settings, Services, Jellyfin: URL `http://localhost:8096` (or the host's
 address when WeebSync runs in a container), then Quick Connect and enter the
 code in Jellyfin as Chisato (Settings, Quick Connect), or paste the API key.
-Plex must not be configured at the same time: it takes precedence.
+With Plex connected as well, choose the server in use under Settings, Services, Media server.
 
 ## Notes
 

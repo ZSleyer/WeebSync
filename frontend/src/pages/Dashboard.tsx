@@ -72,13 +72,14 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
   })
   const plexToken = !!plexMe?.configured && plexMe.auth === 'token' && plexMe.kind !== 'jellyfin'
+  const mediaChoose = !!plexMe?.choose
 
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
   // airs, and which background job runs or waits
   const loadingCount = downloads.filter((d) => d.status === 'running' || d.status === 'queued').length
   const hidden = hiddenNeeds()
-  const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken }).filter(
+  const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose }).filter(
     (n) => !hidden.has(n.print),
   ).length
   const next = upcomingAirings(watches, now, 7).find((a) => a.at * 1000 > now)
@@ -114,6 +115,7 @@ export default function Dashboard() {
               watches={watches}
               hints={hints}
               plexToken={plexToken}
+              mediaChoose={mediaChoose}
               loading={loading}
             />
           )}
