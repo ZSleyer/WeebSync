@@ -1171,7 +1171,6 @@ export interface Schemas {
   }
   'api.TotpSetupResponse': {
     otpauthUrl: string
-    qr?: string
     secret: string
   }
   'api.TrashEntry': {

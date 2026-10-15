@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
-	"github.com/pquerna/otp/totp"
+	"github.com/ch4d1/weebsync/internal/totp"
 )
 
 // A TOTP code opens one login: the same code on a second pending token is
 // refused while it is still inside its window.
 func TestLoginTotpRefusesReplayedCode(t *testing.T) {
 	mux, s, token, sec := totpFixture(t)
-	code, err := totp.GenerateCode(sec, time.Now())
+	code, err := totp.Code(sec, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

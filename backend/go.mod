@@ -10,7 +10,6 @@ require (
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/nwaples/rardecode/v2 v2.4.3
 	github.com/pkg/sftp v1.13.11
-	github.com/pquerna/otp v1.5.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sys v0.49.0
@@ -21,7 +20,6 @@ require (
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
-	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.4 // indirect

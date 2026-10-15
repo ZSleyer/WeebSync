@@ -10,7 +10,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/secret"
-	"github.com/pquerna/otp/totp"
+	"github.com/ch4d1/weebsync/internal/totp"
 )
 
 func TestLoginPendingIsConsumedOnce(t *testing.T) {
@@ -67,11 +67,11 @@ func totpFixture(t *testing.T) (*http.ServeMux, *Server, string, string) {
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash, email_verified) VALUES (1, 'a@example.com', 'x', 1)`); err != nil {
 		t.Fatal(err)
 	}
-	key, err := totp.Generate(totp.GenerateOpts{Issuer: "test", AccountName: "a@example.com"})
+	sec, _, err := totp.New("test", "a@example.com")
 	if err != nil {
 		t.Fatal(err)
 	}
-	enc, err := secret.Encrypt(key.Secret())
+	enc, err := secret.Encrypt(sec)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func totpFixture(t *testing.T) (*http.ServeMux, *Server, string, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return mux, s, token, key.Secret()
+	return mux, s, token, sec
 }
 
 func postTotp(mux *http.ServeMux, token, code string) *httptest.ResponseRecorder {
@@ -100,7 +100,7 @@ func TestLoginTotpLocksTokenAfterWrongCodes(t *testing.T) {
 		}
 	}
 	s.authLimiter.resetAll() // the per-IP limiter would answer 429 before the handler
-	code, err := totp.GenerateCode(sec, time.Now())
+	code, err := totp.Code(sec, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestTotpCodeNormalization(t *testing.T) {
 
 func TestLoginTotpAcceptsFormattedCodes(t *testing.T) {
 	mux, s, token, sec := totpFixture(t)
-	code, err := totp.GenerateCode(sec, time.Now())
+	code, err := totp.Code(sec, time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}

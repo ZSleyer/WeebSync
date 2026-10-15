@@ -1,9 +1,10 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Row, RowAction, Rows, SettingsField } from 'fluid-lycoris'
 import { api, type SessionInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { qrPath } from '../../components/PhoneHint'
 import { registerCredential } from '../../webauthn'
 import { useAuth } from '../../hooks'
 import { SettingsPanel } from './ui'
@@ -253,7 +254,25 @@ function PasskeySection() {
   )
 }
 
-type SetupData = { secret: string; otpauthUrl: string; qr?: string }
+type SetupData = { secret: string; otpauthUrl: string }
+
+/** The otpauth URL as a QR code for the authenticator app to scan; the secret
+ *  is spelled out beside it for typing in, so the picture is decorative. */
+function TotpQr({ uri }: { uri: string }) {
+  const qr = useMemo(() => qrPath(uri), [uri])
+  return (
+    <svg
+      viewBox={`-2 -2 ${qr.size + 4} ${qr.size + 4}`}
+      aria-hidden="true"
+      className="rounded-md bg-white"
+      width={180}
+      height={180}
+      shapeRendering="crispEdges"
+    >
+      <path d={qr.d} fill="#000" />
+    </svg>
+  )
+}
 
 function TotpSection() {
   const { t } = useTranslation()
@@ -394,7 +413,7 @@ function TotpSection() {
 
       {!recovery && setup && (
         <div className="mt-3">
-          {setup.qr && <img src={setup.qr} alt="" className="rounded-md bg-white p-2" width={180} height={180} />}
+          <TotpQr uri={setup.otpauthUrl} />
           <p className="sf-note">
             {t('account.totpManual')} <span className="font-mono break-all">{setup.secret}</span>
           </p>

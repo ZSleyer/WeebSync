@@ -1,24 +1,20 @@
 package api
 
 import (
-	"bytes"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/base64"
 	"encoding/hex"
-	"image/png"
 	"net/http"
 	"strings"
 	"time"
 	"unicode"
 
-	"github.com/pquerna/otp/totp"
-
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/secret"
+	"github.com/ch4d1/weebsync/internal/totp"
 )
 
 // totpEnabled reports whether the user has a confirmed TOTP secret.
@@ -77,18 +73,17 @@ func (s *Server) handleTotpStatus(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, TwoFactorStatusResponse{Enabled: s.totpEnabled(u.ID)})
 }
 
-// TotpSetupResponse carries the enrollment material: base32 secret, otpauth URL
-// and (best-effort) a data-URI QR image.
+// TotpSetupResponse carries the enrollment material: the base32 secret and the
+// otpauth URL, which the app shows as a QR code.
 type TotpSetupResponse struct {
 	Secret     string `json:"secret"`
 	OtpauthUrl string `json:"otpauthUrl"`
-	Qr         string `json:"qr,omitempty"`
 }
 
 // handleTotpSetup starts enrollment: generate a secret (stored unconfirmed) and
 // return the otpauth URL + base32 secret for the authenticator app.
 // @Summary  Begin TOTP enrollment
-// @Description Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL, base32 secret and a data-URI QR image for the authenticator app.
+// @Description Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL and base32 secret for the authenticator app.
 // @Tags     TwoFactor
 // @Accept   json
 // @Produce  json
@@ -110,12 +105,12 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "TOTP already enabled")
 		return
 	}
-	key, err := totp.Generate(totp.GenerateOpts{Issuer: "WeebSync", AccountName: u.Email})
+	sec, uri, err := totp.New("WeebSync", u.Email)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "totp error")
 		return
 	}
-	enc, err := secret.Encrypt(key.Secret())
+	enc, err := secret.Encrypt(sec)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "encrypt error")
 		return
@@ -127,16 +122,7 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	resp := TotpSetupResponse{Secret: key.Secret(), OtpauthUrl: key.URL()}
-	// render the QR server-side (via boombuler/barcode that pquerna already
-	// pulls in) so the frontend needs no QR dependency
-	if img, ierr := key.Image(220, 220); ierr == nil {
-		var buf bytes.Buffer
-		if png.Encode(&buf, img) == nil {
-			resp.Qr = "data:image/png;base64," + base64.StdEncoding.EncodeToString(buf.Bytes())
-		}
-	}
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, TotpSetupResponse{Secret: sec, OtpauthUrl: uri})
 }
 
 // RecoveryCodesResponse carries freshly generated one-time recovery codes.
@@ -172,7 +158,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := normalizeTotpCode(in.Code)
-	if !totp.Validate(code, sec) || !s.totpAccept(u.ID, code) {
+	if !totp.Valid(code, sec, time.Now()) || !s.totpAccept(u.ID, code) {
 		writeErr(w, http.StatusBadRequest, "invalid code")
 		return
 	}
@@ -267,7 +253,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	}
 	sec, ok := s.totpSecret(userID)
 	code := normalizeTotpCode(in.Code)
-	if !ok || (!(totp.Validate(code, sec) && s.totpAccept(userID, code)) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
+	if !ok || (!(totp.Valid(code, sec, time.Now()) && s.totpAccept(userID, code)) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
 		s.failLoginPending(in.Token)
 		s.accountFailed(r, email)
 		writeErr(w, http.StatusUnauthorized, "invalid code")

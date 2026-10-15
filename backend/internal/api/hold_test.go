@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pquerna/otp/totp"
+	"github.com/ch4d1/weebsync/internal/totp"
 )
 
 // A weak password with a second factor holds the account only once the code
@@ -33,7 +33,7 @@ func TestWeakPasswordHoldWaitsForSecondFactor(t *testing.T) {
 	if got := upgrade(); got != "" {
 		t.Fatalf("held after a wrong code: %q", got)
 	}
-	code, _ := totp.GenerateCode(sec, time.Now())
+	code, _ := totp.Code(sec, time.Now())
 	if rec := postTotp(mux, out.Token, code); rec.Code != http.StatusOK {
 		t.Fatalf("right code: %d %s", rec.Code, rec.Body)
 	}

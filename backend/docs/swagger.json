@@ -2815,9 +2815,6 @@
                     "otpauthUrl": {
                         "type": "string"
                     },
-                    "qr": {
-                        "type": "string"
-                    },
                     "secret": {
                         "type": "string"
                     }
@@ -12302,7 +12299,7 @@
         },
         "/api/auth/totp/setup": {
             "post": {
-                "description": "Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL, base32 secret and a data-URI QR image for the authenticator app.",
+                "description": "Generates a new TOTP secret (stored unconfirmed) and returns the otpauth URL and base32 secret for the authenticator app.",
                 "requestBody": {
                     "content": {
                         "application/json": {
