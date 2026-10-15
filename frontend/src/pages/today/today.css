@@ -65,7 +65,7 @@ span.td-pn { cursor: default; }
 /* the caption's panel: the dark teal duotone, so the caption always reads */
 .td-pn[data-tone="teal"] .t-art > img { filter: grayscale(1) contrast(1.1) brightness(0.55); }
 .td-pn[data-phone] { border-radius: var(--r-sheet); }
-.td-pn[data-phone] .t-art > img { object-position: 50% 30%; }
+.td-pn[data-phone] .t-art > img { object-position: var(--fx, 50%) var(--fy, 30%); }
 .td-pn:focus-visible { outline: none; }
 .td-pn:focus-visible::after {
   content: "";
@@ -206,9 +206,19 @@ span.td-pn { cursor: default; }
 @media (width >= 64rem) {
   .td-date { font-size: clamp(1.625rem, 1.9vw, 2.375rem); }
 }
+/* the day's progress: the rule between a phone's picture and its caption */
+.td-meter.td-day { display: none; }
 /* a phone: a box over the art hid most of it, so the banner stands free in
-   full and the caption becomes the card's foot, under a red rule */
+   full and the caption becomes the card's foot, under a rule that fills up
+   as the day goes by */
 @media (max-width: 719px) {
+  .td-meter.td-day {
+    display: block;
+    height: 2px;
+    border-radius: 0;
+    background: color-mix(in oklab, var(--accent) 22%, var(--card));
+  }
+  .td-meter.td-day > i { background: var(--accent); }
   .td-hero { display: block; height: auto; }
   .td-page { position: relative; inset: auto; aspect-ratio: 16 / 9; }
   .td-pn[data-phone] { border-radius: 0; }
@@ -217,7 +227,6 @@ span.td-pn { cursor: default; }
     padding: 0.625rem 0.875rem 0.75rem;
     max-width: none;
     border: 0;
-    border-top: 2px solid var(--accent);
     border-radius: 0;
     background: var(--card);
     box-shadow: none;

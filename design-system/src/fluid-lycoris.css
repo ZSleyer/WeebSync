@@ -2202,7 +2202,8 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
   height: 100%;
   max-width: none;
   object-fit: cover;
-  object-position: 50% 35%;
+  /* --fx/--fy: a slice picked from the picture's content, where known */
+  object-position: var(--fx, 50%) var(--fy, 35%);
 }
 .t-art-dots {
   position: absolute;

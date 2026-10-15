@@ -6,7 +6,9 @@ import { useMediaQuery } from 'fluid-lycoris'
 import { api } from '../../api'
 import type { Schemas } from '../../api.gen'
 import { useSeriesModal } from '../../components/SeriesModal'
+import { useNow } from '../../hooks'
 import { deal, nextPattern, PATTERNS, placed, shapes, type Panel } from './banner'
+import { focusPosition } from './focus'
 
 type Banner = Schemas['api.todayBanner']
 type Banners = Schemas['api.todayBannersResponse']
@@ -69,6 +71,9 @@ export interface HeroBannerProps {
  */
 export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   const { t } = useTranslation()
+  // how much of the day has gone, on the phone's rule under the picture
+  const now = new Date(useNow())
+  const day = (now.getHours() * 60 + now.getMinutes()) / 1440
   const phone = useMediaQuery(PHONE_HERO_MQ)
   // a new draw per visit: the key changes with every mount, except on a
   // step back in history, which returns to the page as it was
@@ -240,23 +245,30 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
     return () => clearTimeout(id)
   }, [gone])
 
-  const art = (b: Banner, p: (typeof panels)[number], onError?: () => void) => (
-    <span
-      className="t-art"
-      data-duo={p.tone === 'plain' ? undefined : p.tone === 'red' ? 'accent' : 'accent-2'}
-      style={{ '--tone-dir': p.dots } as CSSProperties}
-    >
-      <img
-        src={b.url}
-        alt=""
-        decoding="async"
-        loading="eager"
-        fetchPriority={p.k === 0 ? 'high' : undefined}
-        onError={onError}
-      />
-      {!p.phone && <i aria-hidden className="t-art-dots" />}
-    </span>
-  )
+  const art = (b: Banner, p: (typeof panels)[number], onError?: () => void) => {
+    // the slice of the banner with the most going on, for this panel's size
+    const at = p.phone
+      ? focusPosition(b.focus, box?.w ?? 0, box?.h ?? 0)
+      : focusPosition(b.focus, Number(p.style.width) || 0, Number(p.style.height) || 0)
+    return (
+      <span
+        className="t-art"
+        data-duo={p.tone === 'plain' ? undefined : p.tone === 'red' ? 'accent' : 'accent-2'}
+        style={{ '--tone-dir': p.dots } as CSSProperties}
+      >
+        <img
+          style={{ '--fx': at.x, '--fy': at.y } as CSSProperties}
+          src={b.url}
+          alt=""
+          decoding="async"
+          loading="eager"
+          fetchPriority={p.k === 0 ? 'high' : undefined}
+          onError={onError}
+        />
+        {!p.phone && <i aria-hidden className="t-art-dots" />}
+      </span>
+    )
+  }
 
   const noWatches = data?.watches === 0
   return (
@@ -302,6 +314,9 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
           </span>
         ))}
       </div>
+      <span aria-hidden className="td-meter td-day" style={{ '--p': day } as CSSProperties}>
+        <i />
+      </span>
       <div ref={caption} className="td-cap">
         <p className="td-date t-wipe" style={{ '--i': 0 } as CSSProperties}>
           {date}

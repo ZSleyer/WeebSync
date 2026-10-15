@@ -2057,6 +2057,16 @@ export interface Schemas {
      */
     url: string
   }
+  /**
+   * Focus is where the banner's detail lies, for the page to pick the
+   * slice its box shows; absent until the server has read the picture
+   */
+  'api.bannerFocus': {
+    cols: number[]
+    h: number
+    rows: number[]
+    w: number
+  }
   'api.catalogExplainResponse': {
     /**
      * other folders in the same directory with the same series: one card
@@ -3121,6 +3131,11 @@ export interface Schemas {
     watchlist: Schemas['api.tmdbSuggestion'][]
   }
   'api.todayBanner': {
+    /**
+     * Focus is where the banner's detail lies, for the page to pick the
+     * slice its box shows; absent until the server has read the picture
+     */
+    focus?: Schemas['api.bannerFocus']
     id: number
     /**
      * Source is the metadata source of the title, for opening its card

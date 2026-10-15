@@ -2507,6 +2507,7 @@
       "crawl": "Server-Index",
       "dlmeta": "Download-Infos",
       "f": "Titeldaten",
+      "focus": "Bildausschnitte der Banner",
       "m": "Titelzuordnung",
       "plex": "Plex-Bibliothek",
       "suggestions": "Vorschläge",

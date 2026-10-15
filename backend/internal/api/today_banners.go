@@ -36,6 +36,9 @@ type todayBanner struct {
 	// Tier says where the title came from: one of the caller's auto-syncs,
 	// a matched catalog folder, or the default set
 	Tier string `json:"tier" enums:"watch,match,default"`
+	// Focus is where the banner's detail lies, for the page to pick the
+	// slice its box shows; absent until the server has read the picture
+	Focus *bannerFocus `json:"focus,omitempty"`
 }
 
 // todayBannersResponse is a random draw of banners for the Today page.
@@ -155,5 +158,8 @@ func (s *Server) handleTodayBanners(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	resp.Banners = pickBanners([][]todayBanner{watches, matches, defaults}, maxBanners, rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())))
+	for i := range resp.Banners {
+		resp.Banners[i].Focus = s.cachedFocus(resp.Banners[i].URL)
+	}
 	writeJSON(w, http.StatusOK, resp)
 }

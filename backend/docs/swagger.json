@@ -4746,6 +4746,38 @@
                 ],
                 "type": "object"
             },
+            "api.bannerFocus": {
+                "description": "Focus is where the banner's detail lies, for the page to pick the\nslice its box shows; absent until the server has read the picture",
+                "properties": {
+                    "cols": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "h": {
+                        "type": "integer"
+                    },
+                    "rows": {
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "w": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "w",
+                    "h",
+                    "cols",
+                    "rows"
+                ],
+                "type": "object"
+            },
             "api.catalogExplainResponse": {
                 "properties": {
                     "bundle": {
@@ -7122,6 +7154,10 @@
             },
             "api.todayBanner": {
                 "properties": {
+                    "focus": {
+                        "$ref": "#/components/schemas/api.bannerFocus",
+                        "description": "Focus is where the banner's detail lies, for the page to pick the\nslice its box shows; absent until the server has read the picture"
+                    },
                     "id": {
                         "type": "integer"
                     },
