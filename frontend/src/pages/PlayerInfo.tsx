@@ -66,10 +66,24 @@ const clock = (s: number) => {
   const m = Math.floor((s % 3600) / 60)
   return `${h ? `${h}:${pad(m)}` : m}:${pad(Math.floor(s % 60))}`
 }
+/**
+ * A file's name as a title: without the extension and the tags in brackets
+ * and parentheses (group, resolution, codecs, languages, hash), so
+ * `Clevatess II E02 [1080p][AAC][GerJapDub].mkv` reads `Clevatess II E02`.
+ * A name that is nothing but tags stays as it was.
+ */
+export function bareTitle(name: string): string {
+  const base = name.replace(/\.[^.]+$/, '')
+  const bare = base
+    .replace(/\[[^\]]*\]|\([^)]*\)|\{[^}]*\}/g, ' ')
+    .replace(/_/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/^[\s-]+|[\s-]+$/g, '')
+  return bare || base
+}
 /** an episode's code as the files name it: S01E05 */
 export const episodeCode = (ep: WatchEpisode) => `S${pad(ep.season)}E${pad(ep.local ?? ep.episode)}`
 const CHANNELS: Record<number, string> = { 1: 'Mono', 2: '2.0', 6: '5.1', 8: '7.1' }
-const base = (name: string) => name.replace(/\.[^.]+$/, '')
 
 export type PlayMode = 'direct' | 'copy' | 'transcode'
 
@@ -292,7 +306,7 @@ export default function PlayerInfo({
         <div className="min-w-0">
           {media && <p className="t-pi-quiet">{mediaTitle(media)}</p>}
           <h2 className="t-pi-title">
-            {cur?.title ?? (cur ? episodeCode(cur) : base(name))}
+            {cur?.title ?? (cur ? episodeCode(cur) : bareTitle(name))}
             {cur?.title && <span> {episodeCode(cur)}</span>}
           </h2>
           {line && <p className="t-pi-quiet">{line}</p>}
@@ -346,10 +360,10 @@ export default function PlayerInfo({
                         {r.ep ? (
                           <>
                             <span className="t-pi-code">{episodeCode(r.ep)}</span>
-                            {r.ep.title ?? (f ? base(f.name) : '')}
+                            {r.ep.title ?? (f ? bareTitle(f.name) : '')}
                           </>
                         ) : (
-                          base(f!.name)
+                          bareTitle(f!.name)
                         )}
                       </span>
                       <span className="t-pi-st">

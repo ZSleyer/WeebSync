@@ -53,6 +53,7 @@ import { useToast } from '../components/toast'
 import { useImmersive } from '../components/useImmersive'
 import PlayerInfo, {
   CODEC_NAMES,
+  bareTitle,
   episodeCode,
   trackLabel,
   usePlayTitle,
@@ -550,6 +551,65 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     return () => clearTimeout(id)
   }, [nextIn])
 
+  // The notification shade, the lock screen and a headset: what plays (the
+  // episode and its title, the series under it, the cover) instead of the
+  // page's title, and the buttons for it. Previous and next show only where
+  // there is an episode to go to.
+  const sessionAction = useEffectEvent((action: MediaSessionAction, d: MediaSessionActionDetails) => {
+    const v = videoRef.current
+    if (!v) return
+    if (action === 'play') void v.play().catch(() => {})
+    else if (action === 'pause') v.pause()
+    else if (action === 'seekto' && d.seekTime !== undefined) v.currentTime = d.seekTime
+    else if (action === 'seekbackward') v.currentTime = Math.max(0, v.currentTime - (d.seekOffset ?? 10))
+    else if (action === 'seekforward')
+      v.currentTime = Math.min(v.duration || Infinity, v.currentTime + (d.seekOffset ?? 10))
+    else if (action === 'previoustrack' && prev) goTo(prev)
+    else if (action === 'nexttrack' && next) goTo(next)
+  })
+  const hasPrev = !!prev
+  const hasNext = !!next
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || typeof MediaMetadata === 'undefined' || !name) return
+    const ms = navigator.mediaSession
+    const cur = title.cur
+    const cover = title.media?.coverImage
+    const meta = new MediaMetadata({
+      title: cur ? [episodeCode(cur), cur.title].filter(Boolean).join(' · ') : bareTitle(name),
+      artist: title.media ? mediaTitle(title.media) : '',
+      artwork: (
+        [
+          [cover?.large, '230x345'],
+          [cover?.extraLarge, '460x690'],
+        ] as const
+      ).flatMap(([src, sizes]) => (src ? [{ src, sizes }] : [])),
+    })
+    ms.metadata = meta
+    const on: [MediaSessionAction, boolean][] = [
+      ['play', true],
+      ['pause', true],
+      ['seekto', true],
+      ['seekbackward', true],
+      ['seekforward', true],
+      ['previoustrack', hasPrev],
+      ['nexttrack', hasNext],
+    ]
+    const set = (a: MediaSessionAction, fn: MediaSessionActionHandler | null) => {
+      try {
+        ms.setActionHandler(a, fn)
+      } catch {
+        // an action this browser does not know
+      }
+    }
+    for (const [a, ok] of on) set(a, ok ? (d) => sessionAction(a, d) : null)
+    return () => {
+      // the audio player shares the session: leave it alone once it took over
+      if (ms.metadata !== meta) return
+      ms.metadata = null
+      for (const [a] of on) set(a, null)
+    }
+  }, [name, title.media, title.cur, hasPrev, hasNext])
+
   const playerRef = useRef<MediaControllerElement>(null)
   // media-chrome's keys (space, k, f, m, arrows) plus the player's own: j and
   // l skip 10 s, c turns the subtitles off and on, Shift+N and Shift+P change
@@ -865,7 +925,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               <ArrowLeft aria-hidden size={22} />
             </button>
             <span className="t-player-title">
-              <b>{name.replace(/\.[^.]+$/, '')}</b>
+              <b>{bareTitle(name)}</b>
             </span>
           </div>
           <div className="t-player-idle">{body}</div>
@@ -917,7 +977,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     ? (servers.data?.find((x) => x.id === server)?.name ?? t('player.remote'))
     : t('player.local')
   // the title row: the series, and under it which episode this is
-  const base = name.replace(/\.[^.]+$/, '')
+  const base = bareTitle(name)
   const heading = title.media ? mediaTitle(title.media) : base
   const subline = title.cur ? episodeCode(title.cur) : title.media ? base : ''
   const rateLabel = (r: number) =>
@@ -1102,7 +1162,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                 <TrackMenu
                   title={t('player.episodes')}
                   value={at >= 0 ? episodes[at].path : ''}
-                  options={episodes.map((e) => ({ value: e.path, label: e.name.replace(/\.[^.]+$/, '') }))}
+                  options={episodes.map((e) => ({ value: e.path, label: bareTitle(e.name) }))}
                   onChange={(p) => goTo({ path: p })}
                 />
               </MediaSettingsMenuItem>

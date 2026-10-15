@@ -351,6 +351,8 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
 }
 /* the time is a button (elapsed or remaining): a 24px target like the rest */
 .t-player-time {
+  /* never squeezed under its neighbours: the spacer gives way instead */
+  flex: none;
   min-height: 24px;
   min-width: 24px;
   padding-inline: 0.5rem;
@@ -509,25 +511,40 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
 
 /* as the player narrows, the controls a viewer reaches for least step out
    first; play, time, subtitles, settings and fullscreen always stay. Rules
-   here never target .t-player itself: a container cannot query its own size. */
-@container player (width < 520px) {
+   here never target .t-player itself: a container cannot query its own size.
+   The steps are in rem like the buttons (--pl-hit): with a larger system
+   font the buttons grow, and steps in px let the bar run out of the player
+   while the time was squeezed under the volume button. */
+@container player (width < 39rem) {
   .t-player-bar .t-player-pip { display: none; }
+}
+@container player (width < 32.5rem) {
   .t-player-chip:not(.t-player-mode) { display: none; }
   .t-player-card { right: 0.375rem; max-width: calc(100% - 0.75rem); font-size: 0.8125rem; }
 }
-@container player (width < 480px) {
-  .t-player-bar :is(media-seek-backward-button, media-seek-forward-button, .t-player-prev, .t-player-nextep) { display: none; }
+/* the bar holds eleven buttons of 2.75rem and the time (about 7rem, 2.5rem
+   short): each step is where the buttons left no longer fit */
+@container player (width < 34rem) {
+  .t-player-bar :is(media-seek-backward-button, media-seek-forward-button) { display: none; }
+}
+@container player (width < 28.5rem) {
+  .t-player-bar :is(.t-player-prev, .t-player-nextep) { display: none; }
   .t-player-time { font-size: 12px; }
   .t-player-bigplay { width: 3.5rem; height: 3.5rem; --media-button-icon-width: 28px; --media-button-icon-height: 28px; }
 }
-@container player (width < 440px) {
+@container player (width < 23rem) {
   /* a phone has its own volume keys */
   .t-player-bar .t-player-volume { display: none; }
   .t-player-time--full { display: none; }
   .t-player-time--short { display: inline-flex; }
   .t-player-time { padding-inline: 0.25rem; }
 }
-@container player (width < 360px) {
+/* the six that always stay no longer fit at full size (a narrow phone with a
+   large system font): smaller targets, still about 43px there */
+@container player (width < 17.5rem) {
+  .t-player-bar { --pl-hit: 2.2rem; }
+}
+@container player (width < 22.5rem) {
   .t-player-title > b {
     display: -webkit-box;
     -webkit-box-orient: vertical;
