@@ -30,7 +30,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppShell, EmptyState, enterPage, Kbd, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { bugReport } from './bugReport'
-import { updateText, useAuth, useEvents, useKeyboardUp, useUpdateHint } from './hooks'
+import { updateText, useAuth, useEvents, useKeyboardUp, useMediaServer, useUpdateHint } from './hooks'
 import Brand from './components/Brand'
 import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
@@ -187,6 +187,7 @@ function RootLayout() {
   const live = !!user && !user.upgradeRequired
   useEvents(live)
   useSpeedSampler(live)
+  useMediaServer(live)
 
   if (isLoading) return loadingScreen
   if (!user)

@@ -19,8 +19,21 @@ i18n.use(initReactI18next).init({
   resources: { de: { translation: de }, en: { translation: en } },
   lng: initial,
   fallbackLng: 'en',
-  interpolation: { escapeValue: false }, // React escapes already
+  // escapeValue: React escapes already. {{mediaServer}} is the configured media
+  // server's name in every text, see setMediaServerName.
+  interpolation: { escapeValue: false, defaultVariables: { mediaServer: 'Plex' } },
+  react: { bindI18n: 'languageChanged mediaServer' },
 })
+
+// setMediaServerName puts Plex or Jellyfin into every {{mediaServer}} and re-renders
+// the texts that use it.
+export function setMediaServerName(kind: string | undefined) {
+  const name = kind === 'jellyfin' ? 'Jellyfin' : 'Plex'
+  const vars = i18n.options.interpolation?.defaultVariables
+  if (!vars || vars.mediaServer === name) return
+  vars.mediaServer = name // in place: the translator holds this same object
+  i18n.emit('mediaServer')
+}
 
 // keep <html lang> in sync (WCAG 3.1.1)
 document.documentElement.lang = initial

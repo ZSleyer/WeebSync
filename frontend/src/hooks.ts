@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { api, ApiError, type AiModels, type AiStatus, type Download, type User } from './api'
-import i18n, { syncLocale } from './locales'
+import { api, ApiError, type AiModels, type AiStatus, type Download, type PlexAccount, type User } from './api'
+import i18n, { setMediaServerName, syncLocale } from './locales'
 
 let localeSynced = false
 
@@ -202,6 +202,22 @@ export function useUpdateHint() {
   const { data: user } = useAuth()
   const { data } = useVersion(!!user?.isAdmin)
   return data?.updateAvailable ? data : undefined
+}
+
+// useMediaServer is the configured media server ("plex" | "jellyfin", ""
+// when none), readable by every user. The account status carries it, so this
+// shares one request with the watchlist link. It also names the server in
+// every {{mediaServer}} text.
+export function useMediaServer(enabled = true): string {
+  const { data } = useQuery<PlexAccount>({
+    queryKey: ['plex-account'],
+    queryFn: () => api.get('/api/plex/account'),
+    enabled,
+    staleTime: 5 * 60 * 1000,
+  })
+  const server = data?.server ?? ''
+  useEffect(() => setMediaServerName(server), [server])
+  return server
 }
 
 // useAiStatus gates the assistant: the nav entry and the page only show when
