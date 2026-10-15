@@ -13,13 +13,18 @@ const FOCUS_GAP = 60_000 // no re-check within a minute of the last one
 const SNOOZE = 10 * 60_000 // "later" keeps the toast away this long
 const COUNTDOWN = 60 // seconds until the automatic reload
 
+// Read once, when the bundle runs, not when the toast mounts: the toast drops
+// out of the shell on a phone's full-screen player and back, and by then Vite
+// has added the lazy screens' preload and stylesheet links to <head>, which
+// the served document never lists. The snooze outlives a remount the same way
+const booted = assetRefs(document).join('\n')
+let snoozedUntil = 0
+
 export default function UpdateToast() {
   const { t } = useTranslation()
   const [stale, setStale] = useState(false)
   const [left, setLeft] = useState(COUNTDOWN)
-  const booted = useRef(assetRefs(document).join('\n'))
   const lastCheck = useRef(0)
-  const snoozedUntil = useRef(0)
   // the countdown restarts with every new alarm, not with every render
   const arm = () => {
     setLeft(COUNTDOWN)
@@ -29,7 +34,7 @@ export default function UpdateToast() {
   useEffect(() => {
     let alive = true
     const check = async () => {
-      if (Date.now() < snoozedUntil.current || document.hidden) return
+      if (Date.now() < snoozedUntil || document.hidden) return
       lastCheck.current = Date.now()
       try {
         const res = await fetch('/index.html', { cache: 'no-store', headers: { Accept: 'text/html' } })
@@ -37,7 +42,7 @@ export default function UpdateToast() {
         const html = await res.text()
         const now = assetRefs(new DOMParser().parseFromString(html, 'text/html')).join('\n')
         // an empty list is a login page or an error page, not a build
-        if (alive && now && now !== booted.current) arm()
+        if (alive && now && now !== booted) arm()
       } catch {
         /* offline or mid-restart: the next check will tell */
       }
@@ -90,7 +95,7 @@ export default function UpdateToast() {
           <Button
             size="sm"
             onClick={() => {
-              snoozedUntil.current = Date.now() + SNOOZE
+              snoozedUntil = Date.now() + SNOOZE
               setStale(false)
             }}
           >
