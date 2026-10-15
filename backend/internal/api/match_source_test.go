@@ -60,6 +60,13 @@ func TestMatchWatchFollowsTheLibrarySource(t *testing.T) {
 	if s.matchWatch(1, "/x/Silo", "/media/tv/Silo", true) {
 		t.Fatal("a match from the library's own source must stay")
 	}
+	// a manga under an anime mark the books check has not seen yet
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/x', 'anime')`)
+	s.DB.Exec(`UPDATE catalog_matches SET source = 'anilist:manga'`)
+	if s.matchWatch(1, "/x/Silo", "/elsewhere/Silo", true) {
+		t.Fatal("a manga match must not be searched again as anime")
+	}
+	s.DB.Exec(`DELETE FROM catalog_scopes`)
 	// no mark and no library: nothing says the stored source is wrong
 	s.DB.Exec(`UPDATE catalog_matches SET source = 'tmdb:tv'`)
 	if s.ensureWatchMatch(1, "/x/Silo", "/elsewhere/Silo") {

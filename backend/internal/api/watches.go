@@ -2031,6 +2031,9 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 	stored := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&mediaID, &manual, &source) == nil
 	name, scope := s.watchMatchQuery(serverID, folder, localPath)
+	if stored && source == mangaSource {
+		scope = "manga" // a manga stays a manga; its tree often carries no mark
+	}
 	// no mark and no library says nothing about the source: what is stored stays
 	foreign := stored && scope != "" && sourceForScope(scope) != source && (manual == 0 || overrule)
 	if stored && !foreign && (mediaID != 0 || manual == 1) {
