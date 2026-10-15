@@ -35,7 +35,8 @@ export function RematchDialog(props: RematchProps) {
   )
 }
 
-export const rematchTitle = (t: TFunction, item: RematchProps['item']) => t('remote.matchFor', { name: item.entry.name })
+export const rematchTitle = (t: TFunction, item: RematchProps['item']) =>
+  t('remote.matchFor', { name: item.entry.name })
 
 // The match search without a dialog, for the title card to show in place of
 // its content.
