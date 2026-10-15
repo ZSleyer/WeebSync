@@ -1280,7 +1280,7 @@ export function CatalogGrid({
             aria: `${t('remote.showFiles')}: ${it.entry.name}`,
             onClick: () => onOpenFiles(it.entry.path),
           },
-          // "Match ändern" spelled out needs 114px of a 131px
+          // "Zuordnung korrigieren" spelled out overflows a 131px
           // tile, so it travels as the Replace glyph the detail
           // dialog uses, with the name in title/aria
           ...(!g.pending && it.source && canCurate
@@ -1776,7 +1776,7 @@ export function CatalogGrid({
         )}
         {rematch &&
           (rematchInCard ? (
-            <SeriesCardView title={rematchTitle(rematch)} onClose={() => setRematch(null)}>
+            <SeriesCardView title={rematchTitle(t, rematch)} onClose={() => setRematch(null)}>
               {(v) => (
                 <RematchForm
                   {...v}

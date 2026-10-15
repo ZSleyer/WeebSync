@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import type { TFunction } from 'i18next'
 import { Search, Trash2, X } from 'lucide-react'
 import { Button, Cover, Dialog, Input } from 'fluid-lycoris'
 import { api, mediaTitle, type CatalogItem, type Media } from '../api'
@@ -34,7 +35,7 @@ export function RematchDialog(props: RematchProps) {
   )
 }
 
-export const rematchTitle = (item: RematchProps['item']) => `MATCH: ${item.entry.name}`
+export const rematchTitle = (t: TFunction, item: RematchProps['item']) => t('remote.matchFor', { name: item.entry.name })
 
 // The match search without a dialog, for the title card to show in place of
 // its content.
@@ -135,7 +136,7 @@ export function RematchForm({
   return (
     <div className={`overflow-y-auto p-5 ${className}`}>
       {/* in the series page its bar names the form */}
-      {!inPage && <h3 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(item)}</h3>}
+      {!inPage && <h3 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(t, item)}</h3>}
       {item.media && (
         <p className="mb-2 text-xs text-t-muted">
           {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
