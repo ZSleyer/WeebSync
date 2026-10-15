@@ -8,6 +8,8 @@ import HostKeyPrompt from './HostKeyPrompt'
 import { useSettingsForm, EnvBadge } from '../pages/settings/useSettingsForm'
 import LegacyImport from './LegacyImport'
 import PlexServerSignIn from './PlexServerSignIn'
+import JellyfinQuickConnect from './JellyfinQuickConnect'
+import '../pages/settings/settings.css' // .sf-disc for the folded fallback
 
 // The setup steps that need a session: import, server, storage, metadata.
 // Split out of Setup.tsx only so its settings query mounts after the account
@@ -135,6 +137,7 @@ export default function SetupSteps({
         ['tmdbApiKey', 'TMDB'],
         ['tvdbApiKey', 'TVDB'],
         ['plexUrl', 'Plex'],
+        ['jellyfinUrl', 'Jellyfin'],
       ] as const
     ).flatMap(([k, name]) =>
       form?.[k] || (k === 'tmdbApiKey' && form?.tmdbApiKeySet) || (k === 'tvdbApiKey' && form?.tvdbApiKeySet)
@@ -419,6 +422,34 @@ export default function SetupSteps({
       </section>
     )
 
+  type MetaKey =
+    | 'tmdbApiKey'
+    | 'tvdbApiKey'
+    | 'plexUrl'
+    | 'plexToken'
+    | 'jellyfinUrl'
+    | 'jellyfinToken'
+    | 'anilistClientId'
+    | 'anilistClientSecret'
+  const field = (key: MetaKey, label: string, type: 'text' | 'password') => (
+    <div key={key}>
+      <span className="ws-lbl-row">
+        <label htmlFor={`su-${key}`} className="ws-lbl">
+          {t(label)}
+        </label>
+        <EnvBadge show={locked(key)} />
+      </span>
+      <Input
+        id={`su-${key}`}
+        type={type}
+        className="font-mono"
+        autoComplete="off"
+        disabled={locked(key)}
+        value={form?.[key] ?? ''}
+        onChange={(e) => set(key, e.target.value)}
+      />
+    </div>
+  )
   if (step === 'meta' && form)
     return (
       <section className="ws-su-step" aria-labelledby="su-h">
@@ -427,8 +458,8 @@ export default function SetupSteps({
             <span id="su-h">{t('setup.metaTitle')}</span>
           </SetupHeading>
           <p className="ws-quiet">{t('setup.metaHint')}</p>
-          {/* Plex by signing in; the URL and token fields below stay for a
-              server plex.tv does not list */}
+          {/* the sign-ins come first; typing a URL and a token is the fallback
+              and stays folded unless the environment already set one */}
           {!locked('plexUrl') && !locked('plexToken') && (
             <div className="mb-4">
               <span className="ws-lbl">Plex</span>
@@ -438,35 +469,35 @@ export default function SetupSteps({
               />
             </div>
           )}
+          {/* Quick Connect asks the server for a code, so only its address is
+              needed up front */}
+          <div className="mb-4 space-y-2">
+            <span className="ws-lbl">Jellyfin</span>
+            {field('jellyfinUrl', 'settings.jellyfinUrl', 'text')}
+            {!locked('jellyfinToken') && (
+              <JellyfinQuickConnect
+                server={form.jellyfinUrl}
+                disabled={!form.jellyfinUrl}
+                label={t('settings.jellyfinSignIn')}
+              />
+            )}
+          </div>
+          <details
+            className="sf-disc mb-4"
+            open={locked('plexUrl') || locked('plexToken') || locked('jellyfinToken') || undefined}
+          >
+            <summary>{t('setup.metaManual')}</summary>
+            <div className="ws-su-2 mt-2">
+              {field('plexUrl', 'settings.plexUrl', 'text')}
+              {field('plexToken', 'settings.plexToken', 'password')}
+              {field('jellyfinToken', 'settings.jellyfinToken', 'password')}
+            </div>
+          </details>
           <div className="ws-su-2">
-            {(
-              [
-                ['tmdbApiKey', 'settings.tmdbApiKey', 'password'],
-                ['tvdbApiKey', 'settings.tvdbApiKey', 'password'],
-                ['plexUrl', 'settings.plexUrl', 'text'],
-                ['plexToken', 'settings.plexToken', 'password'],
-                ['anilistClientId', 'settings.anilistClientId', 'text'],
-                ['anilistClientSecret', 'settings.anilistClientSecret', 'password'],
-              ] as const
-            ).map(([key, label, type]) => (
-              <div key={key}>
-                <span className="ws-lbl-row">
-                  <label htmlFor={`su-${key}`} className="ws-lbl">
-                    {t(label)}
-                  </label>
-                  <EnvBadge show={locked(key)} />
-                </span>
-                <Input
-                  id={`su-${key}`}
-                  type={type}
-                  className="font-mono"
-                  autoComplete="off"
-                  disabled={locked(key)}
-                  value={form[key] ?? ''}
-                  onChange={(e) => set(key, e.target.value)}
-                />
-              </div>
-            ))}
+            {field('tmdbApiKey', 'settings.tmdbApiKey', 'password')}
+            {field('tvdbApiKey', 'settings.tvdbApiKey', 'password')}
+            {field('anilistClientId', 'settings.anilistClientId', 'text')}
+            {field('anilistClientSecret', 'settings.anilistClientSecret', 'password')}
           </div>
           <p className="ws-quiet mt-4">{t('setup.metaLater')}</p>
         </div>

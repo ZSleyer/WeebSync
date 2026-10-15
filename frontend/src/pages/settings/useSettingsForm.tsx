@@ -41,6 +41,9 @@ export interface SettingsState {
   plexSectionAnime: string // csv of key:0|1 - does this library hold anime
   plexRoots: string
   plexSkipOwned: boolean
+  jellyfinUrl: string
+  jellyfinTokenSet: boolean
+  jellyfinToken?: string
   arrKeySet: boolean // read-only: the Sonarr/Radarr source is on
   arrCompleteDir: string
   arrRoots: string
@@ -81,6 +84,7 @@ const BLANK_SECRETS = {
   animescheduleToken: '',
   aiApiKey: '',
   plexToken: '',
+  jellyfinToken: '',
   oidcClientSecret: '',
   smtpPassword: '',
 }
@@ -110,6 +114,7 @@ export function useSettingsForm() {
       'anilist-me',
       'plex-me',
       'plex-sections',
+      'plex-account',
       'email-prefs',
       'anilist-suggestions',
       'plex-suggestions',

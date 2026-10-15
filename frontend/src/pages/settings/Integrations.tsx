@@ -5,13 +5,14 @@ import { useLocation } from 'react-router'
 import { Badge, Button, Input, Select, SettingsField, Switch } from 'fluid-lycoris'
 import './integrations.css'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
-import { useAiModels } from '../../hooks'
+import { useAiModels, useMediaServer } from '../../hooks'
 import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
 import { useFailToast } from '../../components/toast'
 import PlexServerSignIn from '../../components/PlexServerSignIn'
+import JellyfinQuickConnect from '../../components/JellyfinQuickConnect'
 import { copyText } from '../../clipboard'
 import Smtp from './Smtp'
 
@@ -48,6 +49,8 @@ interface PlexMe {
   username?: string
   server?: string
   error?: string
+  kind?: 'plex' | 'jellyfin'
+  auth?: 'signin' | 'token' | 'env'
 }
 interface AiStatus {
   configured: boolean
@@ -94,7 +97,9 @@ function StatusStrip({ smtp, ha, arr }: { smtp: boolean; ha: boolean; arr: boole
     ['tmdb', 'TMDB', state(tmdb?.connected || tmdb?.keyValid, tmdb?.configured && !tmdb.keyValid)],
     ['tvdb', 'TVDB', state(tvdb?.connected, tvdb?.configured)],
     ['animeschedule', 'AnimeSchedule', state(animeschedule?.connected, animeschedule?.configured)],
-    ['plex', t('settings.plex'), state(plex?.connected, plex?.configured)],
+    // one status answers for whichever server is configured, Plex first
+    ['plex', 'Plex', plex?.kind === 'jellyfin' ? state() : state(plex?.connected, plex?.configured)],
+    ['jellyfin', 'Jellyfin', plex?.kind === 'jellyfin' ? state(plex.connected, plex.configured) : state()],
     ['arr', 'Sonarr / Radarr', state(false, false, arr)],
     ['ai', t('settings.ai'), state(ai?.connected, !!ai?.error, ai?.configured)],
     ['homeassistant', t('settings.homeAssistant'), state(false, false, ha)],
@@ -144,7 +149,45 @@ export default function Integrations() {
   const { t } = useTranslation()
   useHashPanel()
   const { form, set, save, saved, locked, dirty, issue, reset, clearSecret } = useSettingsForm()
+  const jellyfinActive = useMediaServer() === 'jellyfin'
+  const media = useQuery(PLEX_ME).data
   if (!form) return null
+  // the sign-in is the way in; the fields by hand are the fallback and stay
+  // folded unless that is how the server is connected right now
+  const manual = (kind: 'plex' | 'jellyfin') =>
+    !!media?.configured && (media.kind ?? 'plex') === kind && media.auth === 'token'
+  const plexSet = form.plexTokenSet && !!form.plexUrl
+  const jellyfinSet = form.jellyfinTokenSet && !!form.jellyfinUrl
+  // the library options belong to whichever media server is in use (Plex wins
+  // when both are set), so they show under that server's panel
+  const library = (
+    <>
+      <PlexSections
+        value={form.plexSections}
+        onChange={(v) => set('plexSections', v)}
+        sources={form.plexSectionSources}
+        onSources={(v) => set('plexSectionSources', v)}
+        anime={form.plexSectionAnime}
+        onAnime={(v) => set('plexSectionAnime', v)}
+        tvdb={form.tvdbApiKeySet}
+        libraries={form.plexLibraries}
+      />
+      <ListSetting
+        label={t('settings.plexRoots')}
+        hint={t('settings.plexRootsHint')}
+        rows={3}
+        placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
+        value={form.plexRoots}
+        onChange={(v) => set('plexRoots', v)}
+      />
+      <SwitchSetting
+        label={t('settings.plexSkipOwned')}
+        hint={t('settings.plexSkipOwnedHint')}
+        checked={form.plexSkipOwned}
+        onChange={(v) => set('plexSkipOwned', v)}
+      />
+    </>
+  )
 
   // one panel per provider, the connection status as its first line and the
   // fields below it, so the page scans as "what is set up" before "how"
@@ -197,18 +240,18 @@ export default function Integrations() {
         />
       </SettingsPanel>
 
-      <SettingsPanel id="plex" title={t('settings.plex')}>
-        <PlexAccount />
+      <SettingsPanel id="plex" title="Plex">
+        <PlexAccount kind="plex" />
         {!locked('plexUrl') && !locked('plexToken') && (
           <PlexServerSignIn
             connected={form.plexTokenSet && !!form.plexUrl}
             onConnected={(res) => set('plexUrl', res.url)}
           />
         )}
-        <PlexWatchlistAccount />
+        {!jellyfinActive && <PlexWatchlistAccount />}
         {/* the sign-in fills both; by hand for a server plex.tv does not list,
             or an address it does not know */}
-        <details className="sf-disc" open={locked('plexUrl') || locked('plexToken') || undefined}>
+        <details className="sf-disc" open={locked('plexUrl') || locked('plexToken') || manual('plex') || undefined}>
           <summary>{t('settings.plexManual')}</summary>
           <TextSetting
             label={t('settings.plexUrl')}
@@ -229,34 +272,48 @@ export default function Integrations() {
             onRemove={() => clearSecret('plexToken')}
           />
         </details>
-        {form.plexTokenSet && form.plexUrl && (
-          <>
-            <PlexSections
-              value={form.plexSections}
-              onChange={(v) => set('plexSections', v)}
-              sources={form.plexSectionSources}
-              onSources={(v) => set('plexSectionSources', v)}
-              anime={form.plexSectionAnime}
-              onAnime={(v) => set('plexSectionAnime', v)}
-              tvdb={form.tvdbApiKeySet}
-              libraries={form.plexLibraries}
-            />
-            <ListSetting
-              label={t('settings.plexRoots')}
-              hint={t('settings.plexRootsHint')}
-              rows={3}
-              placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
-              value={form.plexRoots}
-              onChange={(v) => set('plexRoots', v)}
-            />
-            <SwitchSetting
-              label={t('settings.plexSkipOwned')}
-              hint={t('settings.plexSkipOwnedHint')}
-              checked={form.plexSkipOwned}
-              onChange={(v) => set('plexSkipOwned', v)}
-            />
-          </>
+        {plexSet && library}
+      </SettingsPanel>
+
+      <SettingsPanel id="jellyfin" title="Jellyfin">
+        {plexSet ? (
+          <p className="text-ctl-sm text-t-muted">{t('settings.jellyfinPlexFirst')}</p>
+        ) : (
+          <PlexAccount kind="jellyfin" />
         )}
+        <TextSetting
+          label={t('settings.jellyfinUrl')}
+          hint={t('settings.jellyfinUrlHint')}
+          env={locked('jellyfinUrl')}
+          issue={issue('jellyfinUrl')}
+          mono
+          placeholder="https://jellyfin.example.com"
+          value={form.jellyfinUrl}
+          onChange={(v) => set('jellyfinUrl', v)}
+        />
+        {!locked('jellyfinUrl') && !locked('jellyfinToken') && (
+          <JellyfinQuickConnect
+            server={form.jellyfinUrl}
+            disabled={!form.jellyfinUrl}
+            label={jellyfinSet ? t('settings.jellyfinSignInOther') : t('settings.jellyfinSignIn')}
+          />
+        )}
+        {jellyfinActive && <JellyfinFavoritesAccount />}
+        {/* by hand: an API key from the Jellyfin dashboard, for a server with
+            Quick Connect switched off */}
+        <details className="sf-disc" open={locked('jellyfinToken') || manual('jellyfin') || undefined}>
+          <summary>{t('settings.jellyfinManual')}</summary>
+          <SecretSetting
+            label={t('settings.jellyfinToken')}
+            hint={t('settings.jellyfinTokenHint')}
+            env={locked('jellyfinToken')}
+            stored={form.jellyfinTokenSet}
+            value={form.jellyfinToken ?? ''}
+            onChange={(v) => set('jellyfinToken', v)}
+            onRemove={() => clearSecret('jellyfinToken')}
+          />
+        </details>
+        {!plexSet && jellyfinSet && library}
       </SettingsPanel>
 
       <ArrPanel form={form} set={set} />
@@ -659,10 +716,39 @@ function PlexWatchlistAccount() {
   )
 }
 
-function PlexAccount() {
+// JellyfinFavoritesAccount links the user's own Jellyfin account by Quick
+// Connect; its favourites are the watchlist a plex.tv account gives with Plex.
+function JellyfinFavoritesAccount() {
+  const { t } = useTranslation()
+  const qc = useQueryClient()
+  const { data } = useQuery<PlexAccountT>({ queryKey: ['plex-account'], queryFn: () => api.get('/api/plex/account') })
+  const unlink = async () => {
+    await api.del('/api/plex/account')
+    qc.invalidateQueries({ queryKey: ['plex-account'] })
+  }
+  if (data?.linked) {
+    return (
+      <div className="sf-acts">
+        <Ok>
+          <Trans i18nKey="settings.svc_watchlistAs" values={{ user: data.user }} components={{ b: <b /> }} />
+        </Ok>
+        <Button size="sm" onClick={unlink}>
+          {t('settings.plexWatchlistUnlink')}
+        </Button>
+      </div>
+    )
+  }
+  return <JellyfinQuickConnect label={t('settings.jellyfinFavoritesLink')} />
+}
+
+// PlexAccount is the connection status line of the server panel named by kind;
+// the other panel stays quiet while that server is the one in use.
+function PlexAccount({ kind }: { kind: 'plex' | 'jellyfin' }) {
   const { t } = useTranslation()
   const { data } = useQuery(PLEX_ME)
   if (!data) return null
+  if (data.configured && (data.kind ?? 'plex') !== kind) return null
+  if (!data.configured && kind === 'jellyfin') return <span>{t('settings.jellyfinNotConfigured')}</span>
   return (
     <div className="sf-acts">
       {data.connected ? (

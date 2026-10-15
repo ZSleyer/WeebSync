@@ -193,6 +193,8 @@ export type PlexAccount = Schemas['api.plexAccountResponse']
 
 export type PlexLinkStart = Schemas['api.plexLinkResponse']
 export type PlexServerPoll = Schemas['api.plexServerPollResponse']
+export type JellyfinLinkStart = Schemas['api.jellyfinLinkResponse']
+export type JellyfinPoll = Schemas['api.jellyfinPollResponse']
 export type PlexServerConnect = Schemas['api.plexServerConnectResponse']
 export type PlexMe = Schemas['api.plexMeResponse']
 
