@@ -1091,11 +1091,31 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid source")
 		return
 	}
+	// the record first, so the series takes its name and kind with this
+	// request rather than on a later pass; a provider that does not answer
+	// leaves that to the sweep
+	if in.MediaID > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+		s.fetchMedia(ctx, source, in.MediaID)
+		cancel()
+	}
 	if s.persistMatch(serverID, in.Folder, in.MediaID, true, source) != nil {
 		dbErr(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// fetchMedia loads one record of any source into the cache, errors ignored.
+func (s *Server) fetchMedia(ctx context.Context, source string, id int) {
+	switch {
+	case source == "anilist" || source == mangaSource:
+		s.Anilist.Media(ctx, id)
+	case source == "tvdb" && s.Tvdb != nil:
+		s.Tvdb.Media(ctx, id)
+	case strings.HasPrefix(source, "tmdb:") && s.Tmdb != nil:
+		s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), id)
+	}
 }
 
 // localCurateDenied refuses a change to the local library's catalog (matches,

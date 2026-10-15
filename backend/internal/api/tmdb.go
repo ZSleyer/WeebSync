@@ -235,6 +235,13 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	queued := 0
 	if in.Kind != "" && in.Kind != scopeNone {
 		queued = s.queueScopeChildren(serverID, in.Path, in.Kind)
+		// an empty row of another source further down - a season folder that
+		// was listed once before the mark - is no match, only a stale "none
+		// found"; a watch's folder keeps its row, matchWatch answers for it
+		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?1 AND manual = 0 AND media_id = 0 AND source != ?3
+			AND folder >= ?2 || '/' AND folder < ?2 || '0' AND instr(substr(folder, length(?2) + 2), '/') > 0
+			AND folder NOT IN (SELECT remote_path FROM watches WHERE server_id = ?1)`,
+			serverID, in.Path, sourceForScope(in.Kind))
 	}
 	writeJSON(w, http.StatusOK, scopeSetResponse{Status: "ok", Queued: queued})
 }
