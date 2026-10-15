@@ -21,6 +21,12 @@
     // no cycles in the tree today; this keeps it that way
     "import/no-cycle": "error",
 
+    // ---- XSS sinks the categories above leave open ----
+    // markup goes through React's escaping or nowhere; no string turns into code
+    "react/no-danger": "error",
+    "no-new-func": "error",
+    "no-script-url": "error",
+
     // ---- rules that ask for a different style, not a fix ----
     // vi.fn() without a type parameter is the normal mock in these tests
     "vitest/require-mock-type-parameters": "off",

@@ -251,6 +251,12 @@ func harden(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")
+		// a page we open (Plex sign-in, a provider link) gets no handle on
+		// this window, and no other site can embed our responses as an image,
+		// script or media. No COEP: it would block the external covers and
+		// the trailer embed, which do not opt in.
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Cross-Origin-Resource-Policy", "same-origin")
 		// self for scripts/styles; external cover/banner images (AniList, TMDB)
 		// need https+data; SSE/fetch stay same-origin. frame-src names what the
 		// app embeds: the trailer player, and the reader's EPUB chapters from
