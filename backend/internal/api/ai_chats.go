@@ -83,6 +83,16 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 // maxAIChats is how many saved chats an account keeps; older ones go.
 const maxAIChats = 200
 
+// maxAIChatBytes bounds an account's saved chats together; the oldest go
+// first, so one account cannot fill the disk 12 MiB at a time.
+const maxAIChatBytes = 256 << 20
+
+func (s *Server) trimAIChats(userID int64) {
+	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id IN (
+		SELECT id FROM (SELECT id, SUM(length(turns)) OVER (ORDER BY id DESC) AS running
+			FROM ai_chats WHERE user_id = ?) WHERE running > ?)`, userID, userID, maxAIChatBytes)
+}
+
 // handleAiChatCreate saves a new chat.
 //
 //	@Summary		Save a new assistant chat
@@ -113,6 +123,7 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 	// else bounds how many one account keeps
 	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id NOT IN
 		(SELECT id FROM ai_chats WHERE user_id = ? ORDER BY id DESC LIMIT ?)`, u.ID, u.ID, maxAIChats)
+	s.trimAIChats(u.ID)
 	writeJSON(w, http.StatusOK, aiChatCreated{ID: id})
 }
 
@@ -171,6 +182,7 @@ func (s *Server) handleAiChatPut(w http.ResponseWriter, r *http.Request) {
 	turns, _ := json.Marshal(in.Turns)
 	res, err := s.DB.Exec(`UPDATE ai_chats SET title = ?, turns = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?`,
 		in.Title, string(turns), pathID(r), u.ID)
+	defer s.trimAIChats(u.ID)
 	if err != nil {
 		dbErr(w)
 		return

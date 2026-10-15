@@ -130,7 +130,7 @@ func PublicFetchClient(timeout time.Duration) *http.Client {
 
 // secretHeaders are dropped when a redirect leaves the origin a request
 // started at.
-var secretHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Plex-Token", "X-Api-Key"}
+var secretHeaders = []string{"Authorization", "Proxy-Authorization", "Cookie", "X-Plex-Token", "X-Api-Key", "Api-Key"}
 
 func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http.Client {
 	dialer := &net.Dialer{Timeout: timeout}
@@ -216,9 +216,13 @@ func LocalOnly(host string) bool {
 		ips = resolved
 	}
 	for _, ip := range ips {
-		if !ip.IsLoopback() && !ip.IsPrivate() {
+		if !ip.IsLoopback() && !ip.IsPrivate() && !cgnat.Contains(ip) {
 			return false
 		}
 	}
 	return true
 }
+
+// cgnat is 100.64.0.0/10 (RFC 6598): carrier-grade NAT, and the range
+// overlay networks like Tailscale hand out inside one's own tailnet.
+var cgnat = &net.IPNet{IP: net.IPv4(100, 64, 0, 0), Mask: net.CIDRMask(10, 32)}

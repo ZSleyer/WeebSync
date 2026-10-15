@@ -144,6 +144,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	s.applyProxyConfig()
 	s.hashLegacyVerifyTokens()
 	s.ensureSetupToken()
+	warnEnvSecretURLs()
 	if s.OIDC != nil {
 		s.OIDC.OnPending = s.notifyPendingUser
 	}

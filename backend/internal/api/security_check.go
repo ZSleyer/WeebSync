@@ -94,7 +94,7 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM users u WHERE u.is_admin = 1 AND u.password_hash != ''
 		AND NOT EXISTS (SELECT 1 FROM user_totp t WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL)
 		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = u.id AND (c.passwordless = 0 OR c.uv_required = 1))`).Scan(&weakAdmins)
-	if weakAdmins > 0 && auth.AuthMode(s.DB) == "password" {
+	if weakAdmins > 0 && !s.passwordAuthBlocked() {
 		add("admin_single_factor", "warn", weakAdmins, "")
 	} else {
 		pass("admin_single_factor")

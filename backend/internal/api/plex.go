@@ -228,7 +228,8 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, plexSuggestionsResponse{Configured: false, Building: false, Suggestions: []plexSuggestion{}})
 		return
 	}
-	force := r.URL.Query().Get("force") == "1"
+	// a forced rebuild walks the admin's whole Plex library: an admin's
+	force := r.URL.Query().Get("force") == "1" && u.IsAdmin
 	var payload, fetched string
 	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
 	fresh := false

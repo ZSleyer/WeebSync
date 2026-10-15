@@ -123,13 +123,21 @@ func TestDeviceCookieBeatsLockout(t *testing.T) {
 	if rec := loginFrom(mux, "203.0.113.72", "a@example.com", "longenough123", forged); rec.Code != http.StatusTooManyRequests {
 		t.Errorf("a forged device cookie got through: %d", rec.Code)
 	}
-	if knownDevice(httptest.NewRequest("GET", "/", nil), "b@example.com") {
+	if s.knownDevice(httptest.NewRequest("GET", "/", nil), "b@example.com") {
 		t.Error("no cookie counts as a known device")
 	}
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(device)
-	if knownDevice(req, "b@example.com") {
+	if s.knownDevice(req, "b@example.com") {
 		t.Error("a device cookie counted for another account")
+	}
+	if !s.knownDevice(req, "a@example.com") {
+		t.Fatal("the device cookie did not count for its account")
+	}
+	// a new password ends what the old one vouched for
+	setPassword(t, s, 1, "a completely new phrase")
+	if s.knownDevice(req, "a@example.com") {
+		t.Error("the device cookie outlived the password change")
 	}
 }
 

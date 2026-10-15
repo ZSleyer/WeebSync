@@ -43,6 +43,19 @@ func validateTrustedNetworks(csv string) error {
 // which resolves the client IP and the cookie's Secure flag from it. Called at
 // startup and after every settings save, so both configuration paths - env for
 // a container, the UI for a bare install - end up in the same place.
+// warnEnvSecretURLs logs the env-provided URLs that carry a credential in
+// clear text across the internet. Env values are the operator's and never
+// refused, but this says so where they look.
+func warnEnvSecretURLs() {
+	for _, env := range []string{"OIDC_ISSUER", "AI_BASE_URL", "PLEX_URL"} {
+		if v := strings.TrimSpace(os.Getenv(env)); v != "" {
+			if err := checkSecretURL(v); err != nil {
+				slog.Warn("credential URL from the environment is not safe", "env", env, "err", err)
+			}
+		}
+	}
+}
+
 func (s *Server) applyProxyConfig() {
 	auth.SetProxyConfig(db.Setting(s.DB, "trusted_proxies"), truthySetting(db.Setting(s.DB, "force_https")))
 	// the public origin is ours even when a proxy hands the request a

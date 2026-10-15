@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"math"
@@ -53,6 +54,34 @@ func (l *ipLimiter) reset(ip string) {
 	l.mu.Lock()
 	delete(l.ips, ip)
 	l.mu.Unlock()
+}
+
+// resetPrefix clears every key that starts with prefix.
+func (l *ipLimiter) resetPrefix(prefix string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for k := range l.ips {
+		if strings.HasPrefix(k, prefix) {
+			delete(l.ips, k)
+		}
+	}
+}
+
+// accountKeyNames maps account bucket keys back to the accounts' addresses.
+func (s *Server) accountKeyNames() map[string]string {
+	out := map[string]string{}
+	rows, err := s.DB.Query(`SELECT email FROM users`)
+	if err != nil {
+		return out
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var e string
+		if rows.Scan(&e) == nil {
+			out[accountKey(e)] = e
+		}
+	}
+	return out
 }
 
 // resetAll clears every tracked IP.
@@ -187,14 +216,20 @@ func (s *Server) handleRateLimitList(w http.ResponseWriter, r *http.Request) {
 	if s.authLimiter != nil {
 		out = append(out, s.authLimiter.status("ip")...)
 	}
-	// accounts only while blocked: the keys are whatever was typed into
-	// the email field, now and then a password, and none of that is the
-	// admin's to read once it is harmless again
+	// accounts only while blocked, and by name only when the hash belongs
+	// to an account: what else was typed is nobody's to read
 	if s.accountLimiter != nil {
+		names := s.accountKeyNames()
 		for _, st := range s.accountLimiter.status("account") {
-			if st.Blocked {
-				out = append(out, st)
+			if !st.Blocked {
+				continue
 			}
+			if name, ok := names[st.IP]; ok {
+				st.IP = name
+			} else {
+				st.IP = "?" + st.IP[2:10]
+			}
+			out = append(out, st)
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -231,7 +266,11 @@ func (s *Server) handleRateLimitReset(w http.ResponseWriter, r *http.Request) {
 			l.resetAll()
 		} else if in.IP != "" {
 			l.reset(resetKey(in.IP))
-			l.reset(strings.ToLower(strings.TrimSpace(in.IP)))
+			l.reset(accountKey(strings.ToLower(strings.TrimSpace(in.IP))))
+			// an unknown address shows as "?" and the start of its hash
+			if strings.HasPrefix(in.IP, "?") {
+				l.resetPrefix("a:" + in.IP[1:])
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -279,16 +318,16 @@ func tooMany(w http.ResponseWriter, wait time.Duration) {
 
 // accountWait is how long the account behind email must wait; 0 lets it in.
 func (s *Server) accountWait(r *http.Request, email string) time.Duration {
-	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) || knownDevice(r, email) {
+	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) || s.knownDevice(r, email) {
 		return 0
 	}
-	return s.accountLimiter.blockedFor(email)
+	return s.accountLimiter.blockedFor(accountKey(email))
 }
 
 // accountFailed counts a wrong password or second factor against email.
 func (s *Server) accountFailed(r *http.Request, email string) {
-	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) && !knownDevice(r, email) {
-		s.accountLimiter.take(email)
+	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) && !s.knownDevice(r, email) {
+		s.accountLimiter.take(accountKey(email))
 	}
 }
 
@@ -296,45 +335,71 @@ func (s *Server) accountFailed(r *http.Request, email string) {
 // marks the browser as one of the account's devices.
 func (s *Server) accountSignedIn(w http.ResponseWriter, r *http.Request, email string) {
 	if s.accountLimiter != nil {
-		s.accountLimiter.reset(email)
+		s.accountLimiter.reset(accountKey(email))
 	}
-	if v, ok := deviceValue(email); ok {
-		auth.SetCookie(w, r, &http.Cookie{Name: deviceCookie, Value: v, Path: "/api/auth", MaxAge: 365 * 24 * 3600})
+	if v, ok := s.deviceValue(email, time.Now()); ok {
+		auth.SetCookie(w, r, &http.Cookie{Name: deviceCookie, Value: v, Path: "/api/auth", MaxAge: int(deviceMaxAge / time.Second)})
 	}
 }
 
-const deviceCookie = "weebsync_device"
+const (
+	deviceCookie = "weebsync_device"
+	deviceMaxAge = 365 * 24 * time.Hour
+)
 
-// deviceValue is a device cookie for email: the address, a nonce and a MAC
-// over both. false without a key to sign with.
-func deviceValue(email string) (string, bool) {
+// passwordGeneration changes whenever the account's password does, so a
+// device cookie signed under the old one stops counting with it.
+func (s *Server) passwordGeneration(email string) string {
+	var hash string
+	s.DB.QueryRow(`SELECT password_hash FROM users WHERE email = ?`, email).Scan(&hash)
+	sum := sha256.Sum256([]byte(hash))
+	return hex.EncodeToString(sum[:8])
+}
+
+// deviceValue is a device cookie for email: the address, when it was issued,
+// a nonce, and a MAC over those and the password generation. false without
+// a key to sign with.
+func (s *Server) deviceValue(email string, issued time.Time) (string, bool) {
 	nonce := randToken()[:32]
-	mac, err := secret.MAC("device|" + email + "|" + nonce)
+	at := strconv.FormatInt(issued.Unix(), 10)
+	mac, err := secret.MAC("device|" + email + "|" + at + "|" + nonce + "|" + s.passwordGeneration(email))
 	if err != nil {
 		return "", false
 	}
-	return base64.RawURLEncoding.EncodeToString([]byte(email)) + "." + nonce + "." + hex.EncodeToString(mac), true
+	return base64.RawURLEncoding.EncodeToString([]byte(email)) + "." + at + "." + nonce + "." + hex.EncodeToString(mac), true
 }
 
-// knownDevice reports whether the request carries a valid device cookie for
-// email.
-func knownDevice(r *http.Request, email string) bool {
+// knownDevice reports whether the request carries a device cookie for email
+// that the server signed, within its year, since the last password change.
+func (s *Server) knownDevice(r *http.Request, email string) bool {
 	c, err := r.Cookie(deviceCookie)
 	if err != nil {
 		return false
 	}
 	parts := strings.Split(c.Value, ".")
-	if len(parts) != 3 {
+	if len(parts) != 4 {
 		return false
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil || string(raw) != email {
 		return false
 	}
-	want, err := secret.MAC("device|" + email + "|" + parts[1])
+	at, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || time.Since(time.Unix(at, 0)) > deviceMaxAge {
+		return false
+	}
+	want, err := secret.MAC("device|" + email + "|" + parts[1] + "|" + parts[2] + "|" + s.passwordGeneration(email))
 	if err != nil {
 		return false
 	}
-	got, err := hex.DecodeString(parts[2])
+	got, err := hex.DecodeString(parts[3])
 	return err == nil && hmac.Equal(got, want)
+}
+
+// accountKey is the account bucket's key: a hash of the address as typed, so
+// what someone typed into the email field (now and then a password) is not
+// kept in memory in the clear.
+func accountKey(email string) string {
+	sum := sha256.Sum256([]byte("account|" + email))
+	return "a:" + hex.EncodeToString(sum[:16])
 }

@@ -222,7 +222,7 @@ func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request, email stri
 	if s.authLimiter != nil {
 		if n, pause, ok := s.authLimiter.left(auth.ClientIP(r)); ok {
 			if s.accountLimiter != nil {
-				if an, apause, _ := s.accountLimiter.left(email); an < n {
+				if an, apause, _ := s.accountLimiter.left(accountKey(email)); an < n {
 					n, pause = an, apause
 				}
 			}

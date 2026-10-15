@@ -528,6 +528,14 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "model too long")
 		return
 	}
+	// only a model the endpoint lists for the instance's key, or its default
+	if model != "" && model != s.AI.Model() {
+		models, err := s.AI.Models(r.Context())
+		if err != nil || !slices.ContainsFunc(models, func(m ai.ModelInfo) bool { return m.ID == model }) {
+			writeErr(w, http.StatusBadRequest, "unknown model")
+			return
+		}
+	}
 	// the web tools join when the user switched them on and a search is set;
 	// research mode implies them and gets the longer leash
 	research := in.Mode == "research"

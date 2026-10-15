@@ -101,6 +101,21 @@ func (m *Manager) Reload(ctx context.Context) error {
 		Methods []string `json:"code_challenge_methods_supported"`
 	}
 	provider.Claims(&disc)
+	// an issuer reached over https hands out https endpoints: a token or key
+	// endpoint over http would carry the client secret and the signing keys
+	// in clear text even though the issuer looked safe
+	if strings.HasPrefix(issuer, "https://") {
+		ep := provider.Endpoint()
+		var keys struct {
+			JWKS string `json:"jwks_uri"`
+		}
+		provider.Claims(&keys)
+		for _, u := range []string{ep.TokenURL, ep.AuthURL, keys.JWKS} {
+			if strings.HasPrefix(u, "http://") {
+				return fmt.Errorf("oidc discovery: endpoint %s is not https", u)
+			}
+		}
+	}
 	claim := db.SettingOrEnv(m.DB, "oidc_claim", "OIDC_CLAIM")
 	scopes := []string{oidc.ScopeOpenID, "email", "profile"}
 	if claim != "" && claim != "email" && claim != "profile" {
