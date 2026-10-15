@@ -46,8 +46,9 @@ func New(d *sql.DB) (*Service, error) {
 func (s *Service) PublicKey() string { return s.public }
 
 // subscriber is the VAPID "sub" claim: a way to reach whoever runs this
-// instance. Some push services (Apple's in particular) reject a token whose
-// address is not a real one, so prefer the configured SMTP sender.
+// instance. Apple's push service answers 403 BadJwtToken to an address that
+// is not a real one, so: the configured contact, else the SMTP sender, else
+// the instance's own https address (RFC 8292 takes an https URL as well).
 func (s *Service) subscriber() string {
 	for _, key := range []string{"push_subscriber", "smtp_from"} {
 		if v := strings.TrimSpace(db.Setting(s.DB, key)); v != "" {
@@ -57,6 +58,12 @@ func (s *Service) subscriber() string {
 			return v
 		}
 	}
+	if base := strings.TrimSpace(db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL")); strings.HasPrefix(base, "https://") {
+		return strings.TrimRight(base, "/")
+	}
+	// ponytail: only Apple refuses this, and only an instance with neither
+	// SMTP nor an https base URL sends it - one reached over plain http,
+	// where browsers offer push on localhost alone
 	return "mailto:weebsync@localhost"
 }
 
