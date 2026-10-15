@@ -50,7 +50,7 @@ var (
 	// over "En"-style short codes when both could match a substring.
 	codeRe  = regexp.MustCompile(`(?i)Ger|Eng|Jap|Chi|Kor|Fre|Spa|Ita|Por|Rus|Tur|Ara|Hin|De|En|Ja`)
 	resRe   = regexp.MustCompile(`(?i)^(?:\d{3,4}p|[48]k)$`)
-	techRe  = regexp.MustCompile(`(?i)^(?:aac|e?ac3|dts|flac|opus|mp3|x\.?26[45]|h\.?26[45]|hevc|av1|avc|web-?(?:dl|rip)?|bd(?:rip)?|blu-?ray|dvd(?:rip)?|hdtv|vhs|hdr(?:10)?|10bit|8bit|remux|uncensored)$`)
+	techRe  = regexp.MustCompile(`(?i)^(?:aac|e?ac3|dts|flac|opus|mp3|x\.?26[45]|h\.?26[45]|hevc|av1|avc|web-?(?:dl|rip)?|dl|bd(?:rip)?|blu-?ray|dvd(?:rip)?|hdtv|vhs|hdr(?:10)?|10bit|8bit|remux|uncensored)$`)
 	tokenRe = regexp.MustCompile(`[\[\(]([^\]\)]*)[\]\)]`)
 )
 
@@ -196,6 +196,20 @@ func cleanGroup(group string) string {
 	}
 	return strings.Join(kept, ",")
 }
+
+// Group is the release group a file name names, "" when none is
+// recognisable.
+func Group(name string) string {
+	g := anitogo.Parse(name, anitogo.DefaultOptions).ReleaseGroup
+	if g == "" { // scene names end in "-GROUP", which anitogo misses
+		if m := sceneGroupRe.FindStringSubmatch(strings.TrimSuffix(name, path.Ext(name))); m != nil {
+			g = m[1]
+		}
+	}
+	return cleanGroup(g)
+}
+
+var sceneGroupRe = regexp.MustCompile(`\S-([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)$`)
 
 // New returns the new filename for name, or "" when the name cannot be
 // processed (e.g. no episode parsed and the template needs one).

@@ -30,7 +30,7 @@ func TestArrReleaseNames(t *testing.T) {
 			"Frieren: Beyond Journey's End S02E02 German DL GerEngSub 1080p WEB-DL-WeebSync"},
 		{arrFile{path: "/seed/Frieren/[Grp] Frieren - 05 [JapDub][GerSub].mkv", folder: "/seed/Frieren", season: 1, resRank: 720,
 			showKey: "tvdb:424536", seriesID: 1},
-			"Frieren: Beyond Journey's End S01E05 Japanese GerSub 720p WEB-DL-WeebSync"},
+			"Frieren: Beyond Journey's End S01E05 Japanese GerSub 720p WEB-DL-Grp"},
 		{arrFile{path: "/seed/Detective Conan/Detective Conan - 1187 [1080p][GerSub].mkv", folder: "/seed/Detective Conan", season: 1,
 			showKey: "tvdb:72071", seriesID: 2},
 			"Detective Conan - 1187 GerSub 1080p WEB-DL-WeebSync"},
@@ -230,4 +230,21 @@ func TestSabConfigWithoutFolder(t *testing.T) {
 func setArrKey(s *Server, key string) {
 	sum := sha256.Sum256([]byte(key))
 	db.SetSetting(s.DB, "arr_key_hash", hex.EncodeToString(sum[:]))
+}
+
+// The file's own group survives into the release name, so the apps keep it
+// for {Release Group}; one they would not read back falls back to WeebSync.
+func TestArrReleaseGroup(t *testing.T) {
+	for name, want := range map[string]string{
+		"[SubsPlease] Frieren - 05 (1080p) [ABCD1234].mkv":         "SubsPlease",
+		"Show.S01E02.German.DL.1080p.WEB.h264-SCENE.mkv":           "SCENE",
+		"[Some Group] Frieren - 05 [1080p].mkv":                    "WeebSync",
+		"Sousou no Frieren S2 - 02 [1080p][GerJapDub][Web-DL].mkv": "WeebSync",
+		"Show S01E01 German WEB-DL.mkv":                            "WeebSync",
+		"Frieren - 05.mkv":                                         "WeebSync",
+	} {
+		if got := releaseGroup(name); got != want {
+			t.Errorf("%s: got %q, want %q", name, got, want)
+		}
+	}
 }

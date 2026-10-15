@@ -158,6 +158,18 @@ func sourceWord(p string) string {
 	return "WEB-DL"
 }
 
+var arrGroupRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._&]*$`)
+
+// releaseGroup is the file's own group, which the apps keep for
+// {Release Group}; WeebSync when the name has none, or one they would not
+// read back as a group after the dash (spaces, dashes, several groups).
+func releaseGroup(name string) string {
+	if g := rename.Group(name); arrGroupRe.MatchString(g) {
+		return g
+	}
+	return "WeebSync"
+}
+
 // arrReleaseOf names one remote file the way Sonarr/Radarr parse release
 // titles: "<Show> S02E02 German DL GerEngSub 1080p WEB-DL-WeebSync", or for a
 // movie "<Title> (2001) German DL 1080p WEB-DL-WeebSync". ok=false for a file
@@ -233,7 +245,7 @@ func (s *Server) arrReleaseOf(f arrFile) (arrRelease, bool) {
 	if res > 0 {
 		parts = append(parts, strconv.Itoa(res)+"p")
 	}
-	parts = append(parts, sourceWord(f.path)+"-WeebSync")
+	parts = append(parts, sourceWord(f.path)+"-"+releaseGroup(name))
 	var b strings.Builder
 	for _, p := range parts {
 		if p = strings.TrimSpace(p); p != "" {
