@@ -20,7 +20,10 @@ export default function AccountUpgrade({ kind }: { kind: 'password' | 'passkey' 
   return (
     <main className="ws-login">
       <div className="ws-login-hero">
-        <Brand variant="hero" slogan={t('login.tagline')} />
+        {/* the same frame as the login page: the wordmark takes its font from the h1 */}
+        <h1 className="font-display text-3xl font-bold tracking-[0.25em]">
+          <Brand variant="hero" slogan={t('login.tagline')} />
+        </h1>
       </div>
       <div className="ws-login-side">
         <div className="ws-login-form ws-stage">{kind === 'password' ? <PasswordUpgrade /> : <PasskeyUpgrade />}</div>
