@@ -11701,6 +11701,37 @@
                 ]
             }
         },
+        "/api/auth/setup/oidc-start": {
+            "post": {
+                "description": "While no account exists: checks the setup code (X-Setup-Token) and sets a short-lived signed cookie that lets the provider's callback create the first account. Afterwards refused.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "summary": "Start the first OIDC sign-in",
+                "tags": [
+                    "Auth"
+                ]
+            }
+        },
         "/api/auth/tips": {
             "get": {
                 "responses": {

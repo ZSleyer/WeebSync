@@ -285,6 +285,7 @@
     "passwordAgain": "Password again",
     "loggedOut": "You are signed out.",
     "oidcError": {
+      "setup_token": "The first sign-in of a new instance needs the setup code. Start it from the setup wizard.",
       "not_approved": "Your account is still waiting for an admin to approve it. You will get a mail once it is.",
       "generic": "Signing in through the provider did not work. Try again.",
       "not_configured": "Sign-in through a provider is not set up.",

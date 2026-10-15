@@ -125,7 +125,8 @@ export default function Login() {
   // (e.g. admin needs the password form while the provider is down)
   const noRedirect = landing.has('noredirect')
   useEffect(() => {
-    if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect) {
+    // not while setting up: the wizard sends the first sign-in itself, with the setup code
+    if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect && !cfg.setupNeeded) {
       window.location.href = oidcHref(readRemember())
     }
   }, [cfg])

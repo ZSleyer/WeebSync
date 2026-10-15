@@ -285,6 +285,7 @@
     "passwordAgain": "Passwort wiederholen",
     "loggedOut": "Du bist abgemeldet.",
     "oidcError": {
+      "setup_token": "Die erste Anmeldung einer neuen Instanz braucht den Setup-Code. Starte sie aus der Ersteinrichtung.",
       "not_approved": "Dein Konto wartet noch auf die Freigabe durch einen Admin. Du bekommst eine Mail, sobald es freigeschaltet ist.",
       "generic": "Die Anmeldung über den Anbieter hat nicht geklappt. Versuch es noch einmal.",
       "not_configured": "Die Anmeldung über einen Anbieter ist nicht eingerichtet.",

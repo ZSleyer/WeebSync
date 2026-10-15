@@ -146,7 +146,7 @@ export default function Setup({
     if (password !== again) return setError(t('account.passwordMismatch'))
     run(async () => {
       // locale rides along so server-delivered texts match the ui language
-      await api.post('/api/auth/register', { email, password, locale: i18n.language }, setupHeader())
+      await api.post('/api/auth/register', { email, password, locale: i18n.language, remember: true }, setupHeader())
       setStep('oidc')
     })
   }
@@ -376,7 +376,16 @@ export default function Setup({
               <ButtonLink
                 variant="primary"
                 href="/api/auth/oidc/login?remember=1"
-                onClick={() => sessionStorage.setItem(STEP_KEY, 'import')}
+                onClick={(e) => {
+                  // the first identity the provider sends back becomes the
+                  // admin: the server lets it only with the setup code
+                  e.preventDefault()
+                  sessionStorage.setItem(STEP_KEY, 'import')
+                  void run(async () => {
+                    await api.post('/api/auth/setup/oidc-start', undefined, setupHeader())
+                    window.location.href = '/api/auth/oidc/login?remember=1'
+                  })
+                }}
               >
                 {oidc.oidcProviderName ? t('login.oidcNamed', { name: oidc.oidcProviderName }) : t('login.oidc')}
               </ButtonLink>

@@ -197,6 +197,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/auth/password", authed(s.authLimiter.limit(s.handlePasswordChange)))
 	mux.HandleFunc("GET /api/auth/config", s.handleAuthConfig)
 	mux.HandleFunc("POST /api/auth/setup/oidc", s.authLimiter.limit(s.handleSetupOIDC))
+	mux.HandleFunc("POST /api/auth/setup/oidc-start", s.authLimiter.limit(s.handleSetupOIDCStart))
 	// optional session: guarded inside (open during first-run, admin afterwards)
 	mux.Handle("POST /api/auth/oidc/discover", auth.Middleware(s.DB, false)(http.HandlerFunc(s.handleOIDCDiscover)))
 	mux.HandleFunc("GET /api/auth/oidc/login", s.OIDC.LoginHandler)

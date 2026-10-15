@@ -14,7 +14,7 @@ import (
 
 // testSetupToken is the first-run token every test server gets; doReq sends
 // it, so tests that start from an empty database can register as before.
-const testSetupToken = "test-setup-token"
+const testSetupToken = "test-setup-token-for-tests"
 
 func TestMain(m *testing.M) {
 	os.Setenv("WEEBSYNC_SETUP_TOKEN", testSetupToken)
@@ -53,7 +53,7 @@ func TestFirstRunNeedsSetupToken(t *testing.T) {
 	}
 	s.authLimiter.resetAll() // the per-address limit counts the refusals above
 	// typed as people copy it: other case, dashes, spaces
-	if rec := post("/api/auth/register", reg, " TEST-SETUP-TOKEN "); rec.Code != http.StatusCreated {
+	if rec := post("/api/auth/register", reg, " TEST-SETUP-TOKEN-FOR-TESTS "); rec.Code != http.StatusCreated {
 		t.Fatalf("first account with the token: %d %s", rec.Code, rec.Body)
 	}
 	s.authLimiter.resetAll()

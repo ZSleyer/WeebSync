@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/ch4d1/weebsync/internal/auth"
 )
 
 // The first-run setup token. A fresh instance (no account yet) makes its
@@ -32,6 +34,11 @@ func (s *Server) ensureSetupToken() string {
 		return ""
 	}
 	tok := strings.TrimSpace(os.Getenv("WEEBSYNC_SETUP_TOKEN"))
+	// a short or empty code (a lone "-" normalises to nothing) guards nothing
+	if tok != "" && len(normSetupToken(tok)) < 16 {
+		slog.Warn("WEEBSYNC_SETUP_TOKEN is shorter than 16 characters and is ignored; a random code is logged instead")
+		tok = ""
+	}
 	if tok == "" {
 		tok = newSetupToken()
 		slog.Warn("first-run setup: no account exists yet; enter this token in the setup wizard",
@@ -48,10 +55,43 @@ func (s *Server) setupTokenOK(r *http.Request) bool {
 	if want == "" {
 		return false
 	}
-	norm := func(v string) string {
-		return strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(strings.TrimSpace(v)))
+	got := normSetupToken(r.Header.Get(setupTokenHeader))
+	return got != "" && subtle.ConstantTimeCompare([]byte(got), []byte(normSetupToken(want))) == 1
+}
+
+func normSetupToken(v string) string {
+	return strings.ToLower(strings.NewReplacer("-", "", " ", "").Replace(strings.TrimSpace(v)))
+}
+
+// handleSetupOIDCStart trades the setup code for the proof the provider's
+// callback needs before it makes the first identity the admin.
+//
+// @Summary      Start the first OIDC sign-in
+// @Description  While no account exists: checks the setup code (X-Setup-Token) and sets a short-lived signed cookie that lets the provider's callback create the first account. Afterwards refused.
+// @Tags         Auth
+// @Produce      json
+// @Success      200  {object}  OkResponse
+// @Failure      403  {object}  ErrorResponse
+// @Router       /api/auth/setup/oidc-start [post]
+func (s *Server) handleSetupOIDCStart(w http.ResponseWriter, r *http.Request) {
+	var users int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+		dbErr(w)
+		return
 	}
-	return subtle.ConstantTimeCompare([]byte(norm(r.Header.Get(setupTokenHeader))), []byte(norm(want))) == 1
+	if users > 0 {
+		writeErr(w, http.StatusForbidden, "setup already completed")
+		return
+	}
+	if !s.setupTokenOK(r) {
+		writeErr(w, http.StatusForbidden, "setup token required")
+		return
+	}
+	if err := auth.SetSetupProof(w, r); err != nil {
+		writeErr(w, http.StatusInternalServerError, "setup error")
+		return
+	}
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // newSetupToken is 20 characters from an alphabet without look-alikes, in

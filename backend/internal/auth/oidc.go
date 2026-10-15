@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/hmac"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -288,6 +289,14 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 			admin = &isAdmin
 		}
 	}
+	// no account yet: the identity coming back becomes the admin, so only
+	// for the browser that proved it holds the setup code
+	var users int
+	if err := m.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil || (users == 0 && !validSetupProof(r)) {
+		callbackFail(w, r, "setup_token")
+		return
+	}
+	SetCookie(w, r, &http.Cookie{Name: setupProofCookie, Value: "", Path: "/api/auth/oidc", MaxAge: -1})
 	userID, created, err := findOrCreateOIDCUserNew(m.DB, email, admin, len(o.userValues) > 0)
 	if errors.Is(err, errNotProvisioned) {
 		callbackFail(w, r, "not_provisioned")
@@ -432,4 +441,42 @@ func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (
 // set "false" to open it. The very first account is exempt - see handleRegister.
 func RegistrationDisabled(d *sql.DB) bool {
 	return db.Setting(d, "registration_disabled") != "false"
+}
+
+// The first-run proof for the provider's round trip. With no account yet the
+// first identity the provider sends back becomes the admin, so that sign-in
+// has to come from whoever holds the setup code: the api package checks the
+// code and calls SetSetupProof, and the callback creates the first account
+// only with the proof. Signed with a key derived from the instance secret.
+const setupProofCookie = "weebsync_oidc_setup"
+
+// SetSetupProof hands the browser the proof, good for ten minutes.
+func SetSetupProof(w http.ResponseWriter, r *http.Request) error {
+	nonce, err := randHex()
+	if err != nil {
+		return err
+	}
+	mac, err := secret.MAC("oidc-setup|" + nonce)
+	if err != nil {
+		return err
+	}
+	SetCookie(w, r, &http.Cookie{Name: setupProofCookie, Value: nonce + "." + hex.EncodeToString(mac), Path: "/api/auth/oidc", MaxAge: 600})
+	return nil
+}
+
+func validSetupProof(r *http.Request) bool {
+	c, err := r.Cookie(setupProofCookie)
+	if err != nil {
+		return false
+	}
+	nonce, sig, ok := strings.Cut(c.Value, ".")
+	if !ok {
+		return false
+	}
+	want, err := secret.MAC("oidc-setup|" + nonce)
+	if err != nil {
+		return false
+	}
+	got, err := hex.DecodeString(sig)
+	return err == nil && hmac.Equal(got, want)
 }
