@@ -179,6 +179,22 @@ func TestPickOVA(t *testing.T) {
 	}
 }
 
+func TestPlainKeyKeepsLongVowels(t *testing.T) {
+	for in, want := range map[string]string{
+		"House of the Dragon": "house of the dragon",
+		"The Rookie":          "the rookie",
+		"Rooster":             "rooster",
+		"South Park":          "south park",
+	} {
+		if got := PlainKey(in); got != want {
+			t.Errorf("PlainKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if FoldKey("Youjo Senki") != "yojo senki" {
+		t.Error("FoldKey must still fold romaji")
+	}
+}
+
 func TestPickNeverAMusicVideo(t *testing.T) {
 	// the only hit is a song named after the series: no match beats it
 	if got, ok := pick(t, "Lucky (2026)", []anilist.Media{media(177688, "Lucky (feat. UMI)", "", "MUSIC", 2026)}); ok {

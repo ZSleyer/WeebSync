@@ -92,7 +92,7 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	if title == "" {
 		return false, ""
 	}
-	key := match.FoldKey(match.StripMarkers(title))
+	key := seriesKey(source, title)
 	if key == "" {
 		return false, ""
 	}
@@ -123,9 +123,17 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	}
 	if seriesID == 0 {
 		var err error
-		if seriesID, err = s.findSeries(key, year); err != nil {
+		if seriesID, err = s.findSeries(key, year, false); err != nil {
 			slog.Warn("series lookup failed", "title", logSafe(title), "err", err)
 			return false, title
+		}
+		// an anime matched on TVDB or TMDB still joins its AniList bundle,
+		// which is keyed by the romaji fold; only anime are looked up so,
+		// or "Rooster" would find "Roster"
+		if fk := match.FoldKey(match.StripMarkers(title)); seriesID == 0 && source != "anilist" && fk != key {
+			if seriesID, err = s.findSeries(fk, year, true); err != nil {
+				return false, title
+			}
 		}
 	}
 	if seriesID == 0 {
@@ -255,7 +263,7 @@ func (s *Server) retitleSeries(seriesID int64, source string, mediaID int) {
 	if title == "" {
 		title = media.Title.English
 	}
-	key := match.FoldKey(match.StripMarkers(title))
+	key := seriesKey(source, title)
 	if key == "" {
 		return
 	}
@@ -297,15 +305,62 @@ func (s *Server) settleSeries(source string, mediaID int) {
 			return
 		}
 	}
+	// an anime matched on TVDB keeps every id the mapping knows: they are
+	// its own; only live action sheds what an AniList guess left behind
+	if !s.inAnimeIDs(source, mediaID) {
+		refs = s.dropAnimeLeftovers(seriesID, refs)
+	}
 	s.retitleSeries(seriesID, source, mediaID)
 	if kind := deriveSeriesKind(refs, s.seriesInFribb(refs)); kind != "" {
 		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID)
 	}
 }
 
-// seriesRules names how series are named; bumping it settles every series a
-// TVDB or TMDB match sits on once, at startup.
-const seriesRules = "2026-10-named-by-match"
+// dropAnimeLeftovers takes the show ids off a series that the anime mapping
+// hung there for an AniList entry no longer on it: House of the Dragon kept
+// the TVDB id of "Dragon, Ie wo Kau." and with it the anime kind. An id stays
+// when a folder matches it or someone put it there by hand. Returns what is
+// left of refs.
+func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []providerRef {
+	out := refs[:0:0]
+	for _, r := range refs {
+		var matched, manual int
+		mapped := s.inAnimeIDs(r.Source, r.MediaID)
+		if mapped {
+			s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&matched)
+			s.DB.QueryRow(`SELECT manual FROM series_provider WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&manual)
+		}
+		if mapped && matched == 0 && manual == 0 {
+			if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE source = ? AND media_id = ? AND series_id = ?`,
+				r.Source, r.MediaID, seriesID); err == nil {
+				slog.Info("anime leftover dropped from series", "series", seriesID, "source", logSafe(r.Source), "media", r.MediaID)
+				continue
+			}
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// inAnimeIDs reports whether the anime mapping knows a TVDB or TMDB id.
+func (s *Server) inAnimeIDs(source string, id int) bool {
+	col := ""
+	switch source {
+	case "tvdb":
+		col = "tvdb_id"
+	case "tmdb:tv", "tmdb:movie":
+		col = "tmdb_id"
+	default:
+		return false
+	}
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids WHERE `+col+` = ?`, id).Scan(&n)
+	return n > 0
+}
+
+// seriesRules names how series are named and keyed; bumping it settles every
+// series a TVDB or TMDB match sits on once, at startup.
+const seriesRules = "2026-10-plain-key"
 
 // SettleMatchedSeries runs settleSeries over every stored TVDB and TMDB match
 // once per rule set: series bundled before it carried the name of an AniList
@@ -337,11 +392,25 @@ func (s *Server) SettleMatchedSeries() {
 	db.SetSetting(s.DB, "series_rules", seriesRules)
 }
 
+// seriesKey is the bundling key of a title: the romaji fold for AniList, the
+// plain form for TVDB and TMDB, whose titles are English, German or native.
+func seriesKey(source, title string) string {
+	if source == "anilist" {
+		return match.FoldKey(match.StripMarkers(title))
+	}
+	return match.PlainKey(match.StripMarkers(title))
+}
+
 // findSeries returns the id of an existing series matching key under the year
 // gate (year within 1, or either side unknown), or 0 for none. Caller holds
-// seriesMu. A read that failed is an error, not a "none".
-func (s *Server) findSeries(key string, year int) (int64, error) {
-	rows, err := s.DB.Query(`SELECT id, year FROM series WHERE key = ?`, key)
+// seriesMu. A read that failed is an error, not a "none". anime limits it to
+// series an AniList entry is on.
+func (s *Server) findSeries(key string, year int, anime bool) (int64, error) {
+	q := `SELECT id, year FROM series WHERE key = ?`
+	if anime {
+		q += ` AND id IN (SELECT series_id FROM series_provider WHERE source = 'anilist')`
+	}
+	rows, err := s.DB.Query(q, key)
 	if err != nil {
 		return 0, err
 	}

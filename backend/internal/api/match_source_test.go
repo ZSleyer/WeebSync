@@ -238,6 +238,60 @@ func TestBackToAnilistKeepsTheMappedShow(t *testing.T) {
 	}
 }
 
+// A TVDB series is keyed by its plain title: "Rooster" never meets "Roster",
+// while an anime matched on TVDB still joins its AniList bundle.
+func TestSeriesKeyBySource(t *testing.T) {
+	s := sourceTestServer(t)
+	cacheMedia(t, s, "tvdb:media:1", 1, "Rooster", "")
+	cacheMedia(t, s, "tvdb:media:2", 2, "Haikyuu!!", "")
+	s.DB.Exec(`INSERT INTO series (id, key, title) VALUES (10, 'roster', 'Roster'), (11, 'haikyu', 'Haikyuu!!')`)
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 99, 10), ('anilist', 20464, 11)`)
+	s.linkSeries("tvdb", 1)
+	s.linkSeries("tvdb", 2)
+	var rooster, haikyu int64
+	s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = 'tvdb' AND media_id = 1`).Scan(&rooster)
+	s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = 'tvdb' AND media_id = 2`).Scan(&haikyu)
+	if rooster == 10 || rooster == 0 {
+		t.Errorf("Rooster joined series %d", rooster)
+	}
+	var key string
+	s.DB.QueryRow(`SELECT key FROM series WHERE id = ?`, rooster).Scan(&key)
+	if key != "rooster" {
+		t.Errorf("Rooster keyed %q", key)
+	}
+	if haikyu != 11 {
+		t.Errorf("Haikyuu on TVDB joined %d, want its AniList bundle 11", haikyu)
+	}
+}
+
+// House of the Dragon kept the TVDB id the anime mapping had hung on it for
+// "Dragon, Ie wo Kau." and with it the anime kind and a folded key.
+func TestSettleDropsAnimeLeftovers(t *testing.T) {
+	s := sourceTestServer(t)
+	cacheMedia(t, s, "tvdb:media:371572", 371572, "House of the Dragon", "")
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season) VALUES (112376, 398083, 1)`)
+	s.DB.Exec(`INSERT INTO series (id, key, title, kind) VALUES (1, 'hose of the dragon', 'House of the Dragon', 'anime')`)
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 371572, 1), ('tvdb', 398083, 1), ('plex', 7, 1)`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/House of the Dragon (2022)', 'tvdb', 371572)`)
+	s.SettleMatchedSeries()
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE media_id = 398083`).Scan(&n)
+	var key, kind string
+	s.DB.QueryRow(`SELECT key, kind FROM series WHERE id = 1`).Scan(&key, &kind)
+	if n != 0 || key != "house of the dragon" || kind != kindLive {
+		t.Fatalf("leftover %d, key %q, kind %q", n, key, kind)
+	}
+	// an anime matched on TVDB keeps what the mapping knows of it
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind) VALUES (235, 72454, 1, 30983, 'tv')`)
+	s.DB.Exec(`INSERT INTO series (id, key, title, kind) VALUES (2, 'detective conan', 'Detective Conan', 'anime')`)
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 72454, 2), ('tmdb:tv', 30983, 2)`)
+	s.settleSeries("tvdb", 72454)
+	s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE series_id = 2`).Scan(&n)
+	if n != 2 {
+		t.Fatalf("Conan lost an id: %d left", n)
+	}
+}
+
 // An entry another folder still matches, or one put on the series by hand,
 // stays where it is.
 func TestDetachProviderKeepsWhatIsStillUsed(t *testing.T) {

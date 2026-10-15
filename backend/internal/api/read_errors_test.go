@@ -23,7 +23,7 @@ func TestDecidingReadsFailLoudly(t *testing.T) {
 	if _, err := s.automaticMatches("1 = 1"); err == nil {
 		t.Error("automaticMatches: no error")
 	}
-	if _, err := s.findSeries("key", 2020); err == nil {
+	if _, err := s.findSeries("key", 2020, false); err == nil {
 		t.Error("findSeries: no error")
 	}
 	if _, _, err := s.seriesProviderMaps(); err == nil {

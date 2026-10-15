@@ -299,7 +299,19 @@ var vowelFold = strings.NewReplacer("aa", "a", "ee", "e", "oo", "o", "ou", "o", 
 // equal. Not a search query - Normalize is the query-safe form. Exported so the
 // series bundler can key a canonical series by the same fold the matcher uses.
 func FoldKey(s string) string {
-	s = vowelFold.Replace(Normalize(s))
+	return keep(vowelFold.Replace(Normalize(s)))
+}
+
+// PlainKey is FoldKey without the long-vowel fold: the comparison form of a
+// title that is not romaji. Folding "ou" and "oo" is right for "Youjo Senki",
+// wrong for "House of the Dragon" or "The Rookie", and makes "Rooster" and
+// "Roster" one.
+func PlainKey(s string) string {
+	return keep(Normalize(s))
+}
+
+// keep drops everything but letters, digits and single spaces.
+func keep(s string) string {
 	var b strings.Builder
 	b.Grow(len(s))
 	for _, r := range s {
