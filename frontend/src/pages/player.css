@@ -462,8 +462,9 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
   line-height: 1.3;
 }
 .t-player-step--err { color: #ff9a5c; }
-/* the words follow media-chrome's own spinner, so they never outstay it */
-.t-player:not([medialoading]) .t-player-step:not(.t-player-step--err) { display: none; }
+/* the words follow media-chrome's own spinner, so they never outstay it;
+   the idle frame (file still being read) is a plain div that never loads */
+.t-player:not([medialoading]):not(.t-player--idle) .t-player-step:not(.t-player-step--err) { display: none; }
 .t-player--idle .t-player-step { display: block; margin: 0; }
 .t-player-flash {
   justify-self: center;
