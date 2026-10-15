@@ -49,6 +49,13 @@ var shelfRe = regexp.MustCompile(`^(?:[A-Za-z]|0-9|#|[0-9]|-)$`)
 // isShelf reports whether a folder name is an alphabet shelf, not a title.
 func isShelf(name string) bool { return shelfRe.MatchString(name) }
 
+// isHelperDir reports whether a folder is one a tool keeps next to the titles
+// (Plex's optimized versions, a NAS thumbnail cache, a hidden folder such as
+// the upgrade trash) rather than a title to match.
+func isHelperDir(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.HasPrefix(name, "@") || strings.EqualFold(name, "Plex Versions")
+}
+
 // scopeResponse reports the metadata scope of a catalog path.
 type scopeResponse struct {
 	Scope string `json:"scope"` // "" | anime | manga | tv | movie | tvdb

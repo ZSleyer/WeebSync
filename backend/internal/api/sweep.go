@@ -173,6 +173,9 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 		}
 		rows.Close()
 		for _, c := range kids {
+			if isHelperDir(c.name) {
+				continue
+			}
 			s.queueScopedMatch(serverID, c.path, c.name, m.kind, false)
 			queued++
 		}

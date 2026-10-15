@@ -675,7 +675,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		if scope == "" || isShelf(e.Name) {
+		if scope == "" || isShelf(e.Name) || isHelperDir(e.Name) {
 			// no metadata source chosen for this path yet: show the plain
 			// structure and wait for the user to pick one (persisted mark).
 			// An alphabet shelf is structure too, its titles are one deeper.
