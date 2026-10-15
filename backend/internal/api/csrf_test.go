@@ -64,3 +64,59 @@ func TestCrossOriginGuard(t *testing.T) {
 		t.Error("back-channel logout refused")
 	}
 }
+
+// A changed public origin replaces the old one: the guard is rebuilt on every
+// settings save, so the previous base URL is no longer trusted.
+func TestCrossOriginGuardForgetsOldOrigin(t *testing.T) {
+	d := dbtest.Open(t)
+	db.SetSetting(d, "base_url", "https://old.example.com")
+	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	h := s.CrossOrigin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	post := func(origin string) int {
+		req := httptest.NewRequest("POST", "/api/auth/logout", nil)
+		req.Host = "weebsync:8080"
+		req.Header.Set("Origin", origin)
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	if c := post("https://old.example.com"); c == http.StatusForbidden {
+		t.Fatal("configured origin refused")
+	}
+	db.SetSetting(d, "base_url", "https://new.example.com")
+	s.applyProxyConfig()
+	if c := post("https://old.example.com"); c != http.StatusForbidden {
+		t.Errorf("old origin still trusted after the change: %d", c)
+	}
+	if c := post("https://new.example.com"); c == http.StatusForbidden {
+		t.Error("new origin refused")
+	}
+}
+
+// Only a write that went through drops the unwatched listings; a refused one
+// (no session) and the auth routes leave them alone.
+func TestForgetLocalOnWriteOnlyAfterSuccess(t *testing.T) {
+	s := &Server{}
+	flushedAfter := func(method, path string, status int) bool {
+		s.localCache.mu.Lock()
+		before := s.localCache.gen
+		s.localCache.mu.Unlock()
+		h := s.ForgetLocalOnWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(status) }))
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(method, path, nil))
+		s.localCache.mu.Lock()
+		defer s.localCache.mu.Unlock()
+		return s.localCache.gen != before
+	}
+	if !flushedAfter("POST", "/api/rename/apply", http.StatusOK) {
+		t.Error("successful write did not flush")
+	}
+	if flushedAfter("POST", "/api/rename/apply", http.StatusUnauthorized) {
+		t.Error("refused write flushed")
+	}
+	if flushedAfter("POST", "/api/auth/login", http.StatusOK) {
+		t.Error("auth route flushed")
+	}
+	if flushedAfter("GET", "/api/browse/local", http.StatusOK) {
+		t.Error("read flushed")
+	}
+}

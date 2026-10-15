@@ -151,12 +151,42 @@ func (s *Server) forgetUnwatched() {
 
 // ForgetLocalOnWrite drops the unwatched listings after every request that
 // may have changed files - a rename, a delete, the trash, a replacement: they
-// are rare, and listing every such route would miss the next one.
+// are rare, and listing every such route would miss the next one. Only a write
+// that went through counts: a refused one (no session, wrong origin, rate
+// limit) changed nothing, and anyone could otherwise send those to keep the
+// cache empty. The auth routes never touch files.
 func (s *Server) ForgetLocalOnWrite(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h.ServeHTTP(w, r)
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		if r.Method == http.MethodGet || r.Method == http.MethodHead || strings.HasPrefix(r.URL.Path, "/api/auth/") {
+			h.ServeHTTP(w, r)
+			return
+		}
+		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
+		h.ServeHTTP(sw, r)
+		if sw.status < 400 {
 			s.forgetUnwatched()
 		}
 	})
 }
+
+// statusWriter remembers the status a handler answered with.
+type statusWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (w *statusWriter) WriteHeader(code int) {
+	w.status = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// Flush passes through: the assistant streams its answer to a POST and
+// asserts http.Flusher on the writer it gets.
+func (w *statusWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap lets http.ResponseController reach the deadlines below.
+func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
