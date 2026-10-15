@@ -942,6 +942,9 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 			in.Path = rootPath
 		}
 	}
+	if len(in.Path) > 1 {
+		in.Path = strings.TrimSuffix(in.Path, "/") // "/plex/Serien/" names the same folder
+	}
 	if in.Path == "" || path.Clean(in.Path) != in.Path {
 		writeErr(w, http.StatusBadRequest, "invalid path")
 		return
@@ -980,7 +983,49 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		// forced search runs (poll picks the fresh result up)
 		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
 	}
-	writeJSON(w, http.StatusOK, rematchResponse{Queued: len(folders)})
+	// plus what the source has not matched at all yet: a folder never
+	// listed, or one still on the source the mark replaced
+	queued := len(folders) + s.queueScopeChildren(serverID, in.Path, scope)
+	writeJSON(w, http.StatusOK, rematchResponse{Queued: queued})
+}
+
+// queueScopeChildren queues a match for every folder directly under a marked
+// one that the mark's source has not matched yet: no row, or a row of another
+// source - a manual one included, since a changed mark is a choice against
+// it. Reads the remote index, so a folder nobody has listed in the catalog is
+// matched now rather than on the next sweep. Reports how many were queued.
+func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
+	if scope == "" || serverID == localServerID {
+		return 0 // the local library has no index; its listing matches
+	}
+	rows, err := s.DB.Query(`SELECT ri.path, ri.name, COALESCE(cm.source, '') FROM remote_index ri
+		LEFT JOIN catalog_matches cm ON cm.server_id = ri.server_id AND cm.folder = ri.path
+		WHERE ri.server_id = ? AND ri.is_dir = 1 AND ri.parent = ?`, serverID, dir)
+	if err != nil {
+		return 0
+	}
+	type child struct{ path, name, source string }
+	var kids []child
+	for rows.Next() {
+		var c child
+		if rows.Scan(&c.path, &c.name, &c.source) == nil {
+			kids = append(kids, c)
+		}
+	}
+	rows.Close()
+	queued := 0
+	for _, c := range kids {
+		if isShelf(c.name) || isHelperDir(c.name) {
+			continue
+		}
+		itemScope := scopeForItem(scope, s.itemKind(serverID, c.path, c.name))
+		if c.source == sourceForScope(itemScope) {
+			continue
+		}
+		s.queueScopedMatch(serverID, c.path, c.name, itemScope, c.source != "")
+		queued++
+	}
+	return queued
 }
 
 // catalogMatchRequest is the body of handleCatalogMatch.

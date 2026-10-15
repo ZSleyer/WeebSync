@@ -109,6 +109,22 @@ func TestWatchCategoryOfTvdb(t *testing.T) {
 	}
 }
 
+// A new mark matches its folders at once: the unmatched and those on another
+// source (a manual pick included), never one already on the mark's source or
+// a helper folder.
+func TestQueueScopeChildren(t *testing.T) {
+	s := sourceTestServer(t)
+	for _, n := range []string{"Silo (2023)", "Ted (2024)", "Severance (2022)", "Plex Versions"} {
+		s.DB.Exec(`INSERT INTO remote_index (server_id, path, name, parent, is_dir) VALUES (1, ?, ?, '/plex/Serien', 1)`,
+			"/plex/Serien/"+n, n)
+	}
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id, manual) VALUES
+		(1, '/plex/Serien/Ted (2024)', 'anilist', 177406, 1), (1, '/plex/Serien/Severance (2022)', 'tvdb', 371980, 0)`)
+	if n := s.queueScopeChildren(1, "/plex/Serien", "tvdb"); n != 2 {
+		t.Fatalf("queued %d, want Silo and Ted", n)
+	}
+}
+
 func TestChangedRoots(t *testing.T) {
 	got := changedRoots("/a\tanime\n/b\tanime", []string{"/a\tanime", "/b\ttvdb", "/c\ttv"})
 	if len(got) != 2 || got[0] != "/b" || got[1] != "/c" {

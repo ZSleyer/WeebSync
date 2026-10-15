@@ -149,7 +149,7 @@ type scopeRequest struct {
 //	@Produce		json
 //	@Param			id		path		int				true	"Server id"
 //	@Param			body	body		scopeRequest	true	"Path and scope kind"
-//	@Success		200		{object}	OkResponse
+//	@Success		200		{object}	scopeSetResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
 //	@Failure		415		{object}	ErrorResponse
@@ -197,6 +197,9 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 			in.Path = rootPath
 		}
 	}
+	if len(in.Path) > 1 {
+		in.Path = strings.TrimSuffix(in.Path, "/") // "/plex/Serien/" names the same folder
+	}
 	if in.Path == "" || path.Clean(in.Path) != in.Path {
 		writeErr(w, http.StatusBadRequest, "invalid path")
 		return
@@ -229,7 +232,19 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+	// the folders under a new mark are matched now, not on the next sweep
+	queued := 0
+	if in.Kind != "" && in.Kind != scopeNone {
+		queued = s.queueScopeChildren(serverID, in.Path, in.Kind)
+	}
+	writeJSON(w, http.StatusOK, scopeSetResponse{Status: "ok", Queued: queued})
+}
+
+// scopeSetResponse confirms a mark; Queued counts the folders under it sent
+// to be matched on the mark's source.
+type scopeSetResponse struct {
+	Status string `json:"status" example:"ok"`
+	Queued int    `json:"queued"`
 }
 
 // handleTmdbSearch backs the match dialog for tmdb-scoped folders.

@@ -2696,6 +2696,10 @@ export interface Schemas {
      */
     shape: string
   }
+  'api.scopeSetResponse': {
+    queued: number
+    status: string
+  }
   'api.searchStep': {
     hits: number
     query: string

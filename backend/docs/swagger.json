@@ -6197,6 +6197,22 @@
                 ],
                 "type": "object"
             },
+            "api.scopeSetResponse": {
+                "properties": {
+                    "queued": {
+                        "type": "integer"
+                    },
+                    "status": {
+                        "example": "ok",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "status",
+                    "queued"
+                ],
+                "type": "object"
+            },
             "api.searchStep": {
                 "properties": {
                     "hits": {
@@ -17450,7 +17466,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.OkResponse"
+                                    "$ref": "#/components/schemas/api.scopeSetResponse"
                                 }
                             }
                         },
