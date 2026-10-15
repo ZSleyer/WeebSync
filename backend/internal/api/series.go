@@ -174,6 +174,23 @@ func (s *Server) detachProvider(source string, mediaID int) int64 {
 		source, mediaID).Scan(&still) != nil || still > 0 {
 		return 0
 	}
+	// the show an AniList entry on the series is filed under by the anime
+	// mapping is the series' own identity, not a match that left: Detective
+	// Conan taken back from TVDB to AniList keeps its TVDB id, which is what
+	// bridges it to Plex
+	if source == "tvdb" || source == "tmdb:tv" {
+		col := "tvdb_id"
+		if source == "tmdb:tv" {
+			col = "tmdb_id"
+		}
+		var mapped int
+		s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids a JOIN series_provider sp
+			ON sp.source = 'anilist' AND sp.media_id = a.anilist_id
+			WHERE sp.series_id = ? AND a.`+col+` = ?`, seriesID, mediaID).Scan(&mapped)
+		if mapped > 0 {
+			return 0
+		}
+	}
 	// series_titles names the provider without the tmdb kind
 	titleSource, _, _ := strings.Cut(source, ":")
 	tx, err := s.DB.Begin()

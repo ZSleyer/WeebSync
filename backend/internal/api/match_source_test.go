@@ -220,6 +220,24 @@ func TestTvdbMatchNamesItsSeries(t *testing.T) {
 	}
 }
 
+// Conan taken back from TVDB to AniList keeps the TVDB id its AniList entry is
+// filed under: it is the series' identity and Plex's bridge.
+func TestBackToAnilistKeepsTheMappedShow(t *testing.T) {
+	s := sourceTestServer(t)
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season) VALUES (235, 72454, 1)`)
+	s.DB.Exec(`INSERT INTO series (id, key, title, kind) VALUES (1, 'meitantei conan', 'Meitantei Conan', 'anime')`)
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist', 235, 1), ('tvdb', 72454, 1)`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/Conan', 'tvdb', 72454)`)
+	if err := s.persistMatch(1, "/x/Conan", 235, true, "anilist"); err != nil {
+		t.Fatal(err)
+	}
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = 'tvdb' AND media_id = 72454 AND series_id = 1`).Scan(&n)
+	if n != 1 {
+		t.Fatal("the TVDB id the anime mapping files Conan under left the series")
+	}
+}
+
 // An entry another folder still matches, or one put on the series by hand,
 // stays where it is.
 func TestDetachProviderKeepsWhatIsStillUsed(t *testing.T) {

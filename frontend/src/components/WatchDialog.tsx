@@ -155,7 +155,7 @@ export function WatchForm({
   // knows the mark and the library the folder answers to
   const qc = useQueryClient()
   const [matching, setMatching] = useState(false)
-  const { data: explained } = useQuery({
+  const { data: explained, isError: unexplained } = useQuery({
     queryKey: ['catalog-explain', serverId, initial.remotePath],
     queryFn: () =>
       api.get<CatalogExplain>(
@@ -455,12 +455,14 @@ export function WatchForm({
           ) : (
             <p className="text-ctl-sm text-t-muted">{t('watch.matchFollows')}</p>
           )}
-          {matching && explained && (
+          {/* an explanation that failed (provider down) still opens it, on the
+              source the match has: the button is the only way to correct */}
+          {matching && (explained || unexplained) && (
             <RematchDialog
               serverId={serverId}
               item={{
                 entry: { name: initial.remotePath.split('/').pop() ?? '', path: initial.remotePath } as Entry,
-                source: explained.source || initial.mediaSource,
+                source: explained?.source || initial.mediaSource,
               }}
               onClose={() => setMatching(false)}
               onPicked={() => {
