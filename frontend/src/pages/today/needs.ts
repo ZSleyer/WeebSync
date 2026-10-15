@@ -8,7 +8,7 @@ type T = (key: string, opts?: Record<string, unknown>) => string
 // downloads, auto-syncs that wait on something, new folders that look like
 // marked ones. Each row says what, why in one line, and offers one action.
 
-export type NeedKind = 'failed' | 'watch' | 'hint'
+export type NeedKind = 'failed' | 'watch' | 'hint' | 'plex'
 
 export interface Need {
   /** stable per thing: the row's React key and its place in the list */
@@ -45,9 +45,30 @@ export function buildNeeds(
     watches,
     hints,
     now,
-  }: { downloads: Download[]; meta?: DownloadMeta; watches: Watch[]; hints: ScopeHint[]; now: number },
+    plexToken,
+  }: {
+    downloads: Download[]
+    meta?: DownloadMeta
+    watches: Watch[]
+    hints: ScopeHint[]
+    now: number
+    /** an admin's Plex runs on a pasted token: ask to sign in with Plex */
+    plexToken?: boolean
+  },
 ): Need[] {
   const out: Need[] = []
+  if (plexToken) {
+    out.push({
+      key: 'plex-token',
+      print: 'plex-token',
+      kind: 'plex',
+      tone: 'accent',
+      title: t('today.needPlex'),
+      sub: t('today.needPlexSub'),
+      act: t('settings.plexSignIn'),
+      why: false,
+    })
+  }
   for (const d of downloads) {
     if (d.status !== 'error') continue
     const at = ended(d)

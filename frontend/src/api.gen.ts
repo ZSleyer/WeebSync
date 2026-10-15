@@ -2373,6 +2373,12 @@ export interface Schemas {
     url: string
   }
   'api.plexMeResponse': {
+    /**
+     * how the server was connected: "signin" (plex.tv sign-in, the server's
+     * own token), "token" (pasted by hand) or "env" (PLEX_TOKEN, not
+     * changeable from the UI); empty when not configured
+     */
+    auth?: string
     configured: boolean
     connected: boolean
     error?: string

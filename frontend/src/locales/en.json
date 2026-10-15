@@ -545,6 +545,8 @@
     "needFailed": "{{what}} failed",
     "needFailedSub": "The download stopped.",
     "needFolder": "New folder {{name}}",
+    "needPlex": "Connect Plex by signing in",
+    "needPlexSub": "Plex still runs on a pasted token. Signing in with Plex gives WeebSync an access of its own, to your server only, that you can revoke on its own at Plex.",
     "needMark": "Mark",
     "retried": "{{what}}: back in the queue",
     "marked": "{{name}} marked",

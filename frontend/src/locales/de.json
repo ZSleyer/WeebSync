@@ -545,6 +545,8 @@
     "needFailed": "{{what}} fehlgeschlagen",
     "needFailedSub": "Der Download ist abgebrochen.",
     "needFolder": "Neuer Ordner {{name}}",
+    "needPlex": "Plex mit Anmeldung verbinden",
+    "needPlexSub": "Plex läuft noch über einen eingefügten Token. Mit der Plex-Anmeldung bekommt WeebSync einen eigenen Zugang nur für deinen Server, den du bei Plex einzeln widerrufen kannst.",
     "needMark": "Markieren",
     "retried": "{{what}}: wieder in der Warteschlange",
     "marked": "{{name}} markiert",

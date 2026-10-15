@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -48,6 +49,22 @@ type plexMeResponse struct {
 	Server     string `json:"server,omitempty"`   // friendly name of the server
 	Version    string `json:"version,omitempty"`
 	Error      string `json:"error,omitempty"`
+	// how the server was connected: "signin" (plex.tv sign-in, the server's
+	// own token), "token" (pasted by hand) or "env" (PLEX_TOKEN, not
+	// changeable from the UI); empty when not configured
+	Auth string `json:"auth,omitempty"`
+}
+
+// plexAuth says how the configured server was connected, see plexMeResponse.
+// An install from before the sign-in has no mark and counts as "token".
+func (s *Server) plexAuth() string {
+	switch {
+	case db.Setting(s.DB, "plex_token") == "" && os.Getenv("PLEX_TOKEN") != "":
+		return "env"
+	case db.Setting(s.DB, "plex_auth") == "signin":
+		return "signin"
+	}
+	return "token"
 }
 
 // handlePlexMe reports whether the stored URL/token reach a Plex server, and
@@ -66,13 +83,14 @@ func (s *Server) handlePlexMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, plexMeResponse{})
 		return
 	}
+	auth := s.plexAuth()
 	id, err := c.Identity()
 	if err != nil {
-		writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Error: err.Error()})
+		writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Error: err.Error(), Auth: auth})
 		return
 	}
 	writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Connected: true,
-		Username: id.MyPlexUsername, Server: id.FriendlyName, Version: id.Version})
+		Username: id.MyPlexUsername, Server: id.FriendlyName, Version: id.Version, Auth: auth})
 }
 
 // handlePlexSections lists the show sections for the settings checkboxes.

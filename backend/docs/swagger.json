@@ -5546,6 +5546,10 @@
             },
             "api.plexMeResponse": {
                 "properties": {
+                    "auth": {
+                        "description": "how the server was connected: \"signin\" (plex.tv sign-in, the server's\nown token), \"token\" (pasted by hand) or \"env\" (PLEX_TOKEN, not\nchangeable from the UI); empty when not configured",
+                        "type": "string"
+                    },
                     "configured": {
                         "type": "boolean"
                     },

@@ -176,6 +176,7 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 	db.SetSetting(s.DB, "plex_url", addr)
 	db.SetSetting(s.DB, "plex_token", enc)
 	db.SetSetting(s.DB, "plex_server_name", server.Name)
+	db.SetSetting(s.DB, "plex_auth", "signin") // no prompt to sign in any more
 	plexServerSignins.Lock()
 	delete(plexServerSignins.m, in.ID)
 	plexServerSignins.Unlock()

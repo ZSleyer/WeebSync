@@ -10,6 +10,7 @@ import {
   type Download,
   type DownloadMeta,
   type JobsStatus,
+  type PlexMe,
   type ScopeHint,
   type SystemStatus,
   type Watch,
@@ -61,12 +62,25 @@ export default function Dashboard() {
     staleTime: 5 * 60_000,
   })
 
+  // an admin whose Plex runs on a pasted token is asked to sign in with Plex
+  // instead; a token from the environment cannot be changed here, so no ask
+  const { data: me } = useAuth()
+  const { data: plexMe } = useQuery<PlexMe>({
+    queryKey: ['plex-me'],
+    queryFn: () => api.get('/api/plex/me'),
+    enabled: !!me?.isAdmin,
+    staleTime: 5 * 60_000,
+  })
+  const plexToken = !!plexMe?.configured && plexMe.auth === 'token'
+
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
   // airs, and which background job runs or waits
   const loadingCount = downloads.filter((d) => d.status === 'running' || d.status === 'queued').length
   const hidden = hiddenNeeds()
-  const needCount = buildNeeds(t, { downloads, meta, watches, hints, now }).filter((n) => !hidden.has(n.print)).length
+  const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken }).filter(
+    (n) => !hidden.has(n.print),
+  ).length
   const next = upcomingAirings(watches, now, 7).find((a) => a.at * 1000 > now)
   const nextAt = next
     ? new Date(next.at * 1000).toLocaleString(i18n.language, {
@@ -93,7 +107,16 @@ export default function Dashboard() {
       <div className="td-cols">
         <div className="td-main">
           <NewShelf downloads={downloads} meta={meta} watches={watches} loading={isLoading} />
-          {late && <Needs downloads={downloads} meta={meta} watches={watches} hints={hints} loading={loading} />}
+          {late && (
+            <Needs
+              downloads={downloads}
+              meta={meta}
+              watches={watches}
+              hints={hints}
+              plexToken={plexToken}
+              loading={loading}
+            />
+          )}
           {late && wide && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
         </div>
         <div className="td-aside">

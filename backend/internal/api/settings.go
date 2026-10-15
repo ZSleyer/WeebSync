@@ -657,6 +657,10 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writes.set(sec.key, enc)
+		if sec.key == "plex_token" {
+			// a token typed in is no plex.tv sign-in: the prompt to sign in comes back
+			writes.set("plex_auth", "")
+		}
 	}
 	if err := writes.commit(s.DB); err != nil {
 		slog.Error("settings save failed", "err", err)

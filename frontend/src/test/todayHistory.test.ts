@@ -96,3 +96,10 @@ test('needs: recent failures, watches that wait, new folders', () => {
   expect(needs[1].why).toBe(true)
   expect(needs[2].sub).toContain('remote.scopeAnime')
 })
+
+test('needs: a Plex on a pasted token asks to sign in, first', () => {
+  const needs = buildNeeds(t, { downloads: [], watches: [], hints: [], now, plexToken: true })
+  expect(needs.map((n) => n.key)).toEqual(['plex-token'])
+  expect(needs[0].kind).toBe('plex')
+  expect(buildNeeds(t, { downloads: [], watches: [], hints: [], now })).toEqual([])
+})

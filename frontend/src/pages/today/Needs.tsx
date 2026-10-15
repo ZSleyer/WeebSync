@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
-import { CircleAlert, FolderPlus, Info } from 'lucide-react'
+import { CircleAlert, FolderPlus, Info, KeyRound } from 'lucide-react'
 import { haptic, SectionHeading } from 'fluid-lycoris'
 import { api, type Download, type DownloadMeta, type ScopeHint, type Watch } from '../../api'
 import { filesLink } from '../../components/playLinks'
@@ -114,7 +114,7 @@ function useCommitSwipe(onCommit: (side: 'act' | 'hide') => void) {
   return { onPointerDown, onClickCapture }
 }
 
-const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus }
+const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus, plex: KeyRound }
 
 function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: () => void; onHide: () => void }) {
   const { t } = useTranslation()
@@ -157,12 +157,15 @@ export function Needs({
   meta,
   watches,
   hints,
+  plexToken,
   loading,
 }: {
   downloads: Download[]
   meta?: DownloadMeta
   watches: Watch[]
   hints: ScopeHint[]
+  /** an admin's Plex runs on a pasted token */
+  plexToken?: boolean
   loading: boolean
 }) {
   const { t } = useTranslation()
@@ -174,7 +177,7 @@ export function Needs({
   const [hidden, setHidden] = useState(hiddenNeeds)
   // rows that left and wait for their toast to run out
   const [gone, setGone] = useState<Set<string>>(new Set())
-  const all = buildNeeds(t, { downloads, meta, watches, hints, now })
+  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken })
   const live = all.filter((n) => !hidden.has(n.print))
   const shown = live.filter((n) => !gone.has(n.key))
   const body = useRef<HTMLDivElement>(null)
@@ -218,6 +221,11 @@ export function Needs({
     })
   }
   const act = (n: Need) => {
+    if (n.kind === 'plex') {
+      // the sign-in lives with the rest of Plex; the row goes once it is done
+      navigate('/settings/integrations#plex')
+      return
+    }
     if (n.why && n.watch) {
       const w = n.watch
       if (w.attention?.[0] === 'unsorted' && w.localPath) navigate(filesLink(0, w.localPath))
