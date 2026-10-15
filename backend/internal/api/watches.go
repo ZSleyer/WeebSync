@@ -156,20 +156,32 @@ type WatchCheckResponse struct {
 }
 
 // watchCategory buckets a watch for the calendar's Animeserie/Animefilm/Serie/Film
-// split, from the metadata provider plus the AniList format.
-func watchCategory(source string, m *anilist.Media) string {
+// split, from the metadata provider plus the AniList format. TVDB catalogues
+// both: a show the anime mapping files under its TVDB id is anime, anything
+// else from there live action.
+func watchCategory(source string, m *anilist.Media, tvdbAnime bool) string {
 	switch {
 	case source == mangaSource:
 		return "manga" // light novels too: same shelf, same reader
 	case source == "tmdb:movie":
 		return "movie"
-	case source == "tmdb:tv":
+	case source == "tmdb:tv", source == "tvdb" && !tvdbAnime:
 		return "series"
 	case m != nil && m.Format == "MOVIE":
 		return "anime-movie"
 	default:
 		return "anime-series" // anilist / unset
 	}
+}
+
+// tvdbAnime reports whether a TVDB match is a show the anime mapping knows.
+func (s *Server) tvdbAnime(source string, id int) bool {
+	if source != "tvdb" || id == 0 {
+		return false
+	}
+	var n int
+	s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, id).Scan(&n)
+	return n == 1
 }
 
 // videoExt: files counted as episodes for the completeness check.
@@ -1256,7 +1268,7 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		it.Waiting = !smartDue(true, it.Media, it.LocalFiles, offset, it.FromEpisode, it.LangWaiting, it.AiredMapping, watchComplete(it.Media, it.LocalFiles), now)
 		it.NextCheck = nextCheckAt(it.LastCheck, time.Duration(interval)*time.Minute, it.Waiting, it.NextAiringAt, retryAt, now)
 		if it.Media != nil {
-			it.Category = watchCategory(it.MediaSource, it.Media)
+			it.Category = watchCategory(it.MediaSource, it.Media, s.tvdbAnime(it.MediaSource, it.MediaID))
 			start := it.FromEpisode
 			// The week just gone comes from the recorder - the providers drop a
 			// slot the moment it airs - and the rest from whatever they have

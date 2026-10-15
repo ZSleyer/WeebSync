@@ -79,7 +79,7 @@ func TestMangaNames(t *testing.T) {
 	if got := match.GuessTitle("One Piece [Deutsch]"); got != "One Piece" {
 		t.Errorf("GuessTitle = %q", got)
 	}
-	if got := watchCategory(mangaSource, &anilist.Media{Format: "NOVEL"}); got != "manga" {
+	if got := watchCategory(mangaSource, &anilist.Media{Format: "NOVEL"}, false); got != "manga" {
 		t.Errorf("watchCategory = %q", got)
 	}
 }

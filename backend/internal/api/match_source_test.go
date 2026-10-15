@@ -97,6 +97,18 @@ func TestMatchWatchKeepsAnAnimeThePlexShowConfirms(t *testing.T) {
 	}
 }
 
+// TVDB holds anime and live action: the anime mapping decides the shelf.
+func TestWatchCategoryOfTvdb(t *testing.T) {
+	s := sourceTestServer(t)
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season) VALUES (235, 72454, 1)`)
+	if got := watchCategory("tvdb", nil, s.tvdbAnime("tvdb", 72454)); got != "anime-series" {
+		t.Errorf("Conan on TVDB: %q", got)
+	}
+	if got := watchCategory("tvdb", nil, s.tvdbAnime("tvdb", 404604)); got != "series" {
+		t.Errorf("Ted on TVDB: %q", got)
+	}
+}
+
 func TestChangedRoots(t *testing.T) {
 	got := changedRoots("/a\tanime\n/b\tanime", []string{"/a\tanime", "/b\ttvdb", "/c\ttv"})
 	if len(got) != 2 || got[0] != "/b" || got[1] != "/c" {

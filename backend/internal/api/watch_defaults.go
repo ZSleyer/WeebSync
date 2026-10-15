@@ -345,7 +345,11 @@ func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title st
 	if title == "" {
 		title = match.GuessTitle(path.Base(folder))
 	}
-	return watchCategory(source, m), title
+	id := 0
+	if m != nil {
+		id = m.ID
+	}
+	return watchCategory(source, m, s.tvdbAnime(source, id)), title
 }
 
 // handleWatchDefaultsGet returns the caller's defaults; with serverId and
