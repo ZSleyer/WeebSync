@@ -30,24 +30,68 @@ func (s *Server) plexSuggestTTL() time.Duration {
 	return s.ttlSetting("ttl_plex_h", 6*time.Hour)
 }
 
-// plexClient is the configured media server: Plex when it is set up, else
-// Jellyfin, else nil. Every "plex" feature runs against whichever it is.
+// plexClient is the media server in use, nil when none is set up. Every
+// "plex" feature runs against whichever it is. With both connected the
+// media_server setting picks ("plex" | "jellyfin"), which syncMediaServer
+// fills with the one connected first.
 func (s *Server) plexClient() plex.Server {
-	u := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL")
-	t := secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN")
-	if u != "" && t != "" {
+	px, jf := s.mediaServers()
+	switch {
+	case px == nil:
+		return jf // nil when neither is set
+	case jf == nil:
+		return px
+	}
+	switch db.SettingOrEnv(s.DB, "media_server", "MEDIA_SERVER") {
+	case "plex":
+		return px
+	case "jellyfin":
+		return jf
+	}
+	return nil // both arrived together and nobody chose yet, see mediaServerUnchosen
+}
+
+// mediaServerUnchosen reports two connected servers with no choice between
+// them: neither runs until an admin picks one.
+func (s *Server) mediaServerUnchosen() bool {
+	px, jf := s.mediaServers()
+	return px != nil && jf != nil && s.plexClient() == nil
+}
+
+// syncMediaServer keeps media_server naming a connected server: the only one
+// while there is one (so the first connected stays the choice once the second
+// joins), the remaining one when the chosen server goes. Two that arrive
+// together get no choice made for them.
+func (s *Server) syncMediaServer() {
+	px, jf := s.mediaServers()
+	pref := db.Setting(s.DB, "media_server")
+	want := pref
+	switch {
+	case px == nil && jf == nil:
+		want = ""
+	case jf == nil:
+		want = "plex"
+	case px == nil:
+		want = "jellyfin"
+	}
+	if want != pref {
+		db.SetSetting(s.DB, "media_server", want)
+	}
+}
+
+// mediaServers builds a client for each configured server, nil where not set.
+func (s *Server) mediaServers() (px, jf plex.Server) {
+	if u, t := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL"), secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN"); u != "" && t != "" {
 		c := plex.New(u, t)
 		c.ClientID = s.plexClientID() // the same id its plex.tv sign-in was issued to
-		return c
+		px = c
 	}
-	u = db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL")
-	t = secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN")
-	if u != "" && t != "" {
+	if u, t := db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL"), secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN"); u != "" && t != "" {
 		c := jellyfin.New(u, t)
 		c.DeviceID = s.jellyfinDevice(jellyfinServerFlow, 0)
-		return c
+		jf = c
 	}
-	return nil
+	return px, jf
 }
 
 // mediaServerName is the configured server's product name for texts the
@@ -77,6 +121,9 @@ type plexMeResponse struct {
 	// Streams says whether the server can store a per-episode track choice
 	// (Plex can, Jellyfin cannot)
 	Streams bool `json:"streams"`
+	// Choose: Plex and Jellyfin are both connected and none is picked yet,
+	// so neither runs until an admin chooses
+	Choose bool `json:"choose"`
 }
 
 // plexAuth says how the configured server was connected, see plexMeResponse.
@@ -113,7 +160,7 @@ func (s *Server) plexAuth(kind string) string {
 func (s *Server) handlePlexMe(w http.ResponseWriter, r *http.Request) {
 	c := s.plexClient()
 	if c == nil {
-		writeJSON(w, http.StatusOK, plexMeResponse{})
+		writeJSON(w, http.StatusOK, plexMeResponse{Choose: s.mediaServerUnchosen()})
 		return
 	}
 	kind := c.Kind()

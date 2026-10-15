@@ -50,7 +50,8 @@ A variable that is set **overrides** the UI and locks the field. Booleans accept
 | `TMDB_API_KEY`, `TVDB_API_KEY` | Movie and series metadata |
 | `ANIMESCHEDULE_TOKEN` | Release dates for the calendar |
 | `PLEX_URL`, `PLEX_TOKEN` | Plex server; its libraries are matched against your series. Plain `http://` only for an address in your own network - from outside use the server's `https://…plex.direct` address |
-| `JELLYFIN_URL`, `JELLYFIN_TOKEN` | Jellyfin server, used for the same library features when no Plex server is set; the token is an API key from the Jellyfin dashboard. Easier from the UI, where Quick Connect signs in with a code. Jellyfin keeps no per-episode track choice, so the Plex audio/subtitle selection has no Jellyfin counterpart. TVDB episode order needs the TheTVDB plugin on the library |
+| `JELLYFIN_URL`, `JELLYFIN_TOKEN` | Jellyfin server, used for the same library features as Plex; the token is an API key from the Jellyfin dashboard. Easier from the UI, where Quick Connect signs in with a code. Jellyfin keeps no per-episode track choice, so the Plex audio/subtitle selection has no Jellyfin counterpart. TVDB episode order needs the TheTVDB plugin on the library |
+| `MEDIA_SERVER` | `plex` or `jellyfin`: which one runs the library features when both are connected. Unset, the server connected first stays in use; two connected at once wait until one is chosen (Settings, Services) |
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | OpenAI-compatible endpoint for the assistant; plain `http://` only for an address in your own network |
 | `AI_SEARCH_URL` | SearXNG instance the assistant may search |
 

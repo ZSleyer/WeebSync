@@ -284,6 +284,7 @@ func (s *Server) RefreshPlexRoots() { s.refreshPlexRoots() }
 // refreshPlexRoots re-detects the Plex library mounts on demand (startup, and
 // after the Plex connection settings change), independent of the hourly index.
 func (s *Server) refreshPlexRoots() {
+	s.syncMediaServer()
 	c := s.plexClient()
 	if c == nil {
 		return
@@ -297,8 +298,20 @@ func (s *Server) refreshPlexRoots() {
 				OR key IN ('plex:guididx:v3', 'plex:titleidx:v2', 'plex:showlist:v1')`)
 			db.SetSetting(s.DB, "media_server_id", mid)
 			if prev != "" {
+				// the local quality index and the folder bridge describe the
+				// old library: rebuild both against this one on the next sweep
+				s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0`)
+				s.DB.Exec(`DELETE FROM plex_reconciled`)
+				db.SetSetting(s.DB, "plex_indexed_at", "")
+				// a linked watchlist account belongs to the server kind it was
+				// made for: a plex.tv account serves any Plex server, a
+				// Jellyfin user token only the server that issued it
+				if prevKind := db.Setting(s.DB, "media_server_kind"); prevKind != c.Kind() || c.Kind() == "jellyfin" {
+					s.DB.Exec(`DELETE FROM plex_accounts`)
+				}
 				slog.Info("media server changed", "kind", c.Kind())
 			}
+			db.SetSetting(s.DB, "media_server_kind", c.Kind())
 		}
 	}
 	if sections, err := c.Sections(); err == nil {

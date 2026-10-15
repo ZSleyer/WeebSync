@@ -2428,6 +2428,11 @@ export interface Schemas {
      * changeable from the UI); empty when not configured
      */
     auth?: string
+    /**
+     * Choose: Plex and Jellyfin are both connected and none is picked yet,
+     * so neither runs until an admin chooses
+     */
+    choose: boolean
     configured: boolean
     connected: boolean
     error?: string
@@ -2964,6 +2969,7 @@ export interface Schemas {
     jellyfinTokenSet: boolean
     jellyfinUrl: string
     maxConcurrent: number
+    mediaServer: "plex" | "jellyfin"
     /**
      * csv, any match = admin
      */

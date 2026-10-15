@@ -124,6 +124,7 @@ var envSettings = []struct{ key, env, field string }{
 	{"plex_token", "PLEX_TOKEN", "plexToken"},
 	{"jellyfin_url", "JELLYFIN_URL", "jellyfinUrl"},
 	{"jellyfin_token", "JELLYFIN_TOKEN", "jellyfinToken"},
+	{"media_server", "MEDIA_SERVER", "mediaServer"},
 	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
 	{"oidc_issuer", "OIDC_ISSUER", "oidcIssuer"},
 	{"oidc_client_id", "OIDC_CLIENT_ID", "oidcClientId"},
@@ -221,6 +222,7 @@ type settingsPayload struct {
 	JellyfinURL           string         `json:"jellyfinUrl"`
 	JellyfinTokenSet      bool           `json:"jellyfinTokenSet"`
 	JellyfinToken         string         `json:"jellyfinToken,omitempty"`
+	MediaServer           string         `json:"mediaServer" enums:"plex,jellyfin"`
 	OidcIssuer            string         `json:"oidcIssuer"`
 	OidcClientID          string         `json:"oidcClientId"`
 	OidcRedirectURL       string         `json:"oidcRedirectUrl"`
@@ -330,6 +332,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexSkipOwned:         truthySetting(db.Setting(s.DB, "plex_skip_owned")),
 		JellyfinURL:           db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL"),
 		JellyfinTokenSet:      secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN") != "",
+		MediaServer:           db.SettingOrEnv(s.DB, "media_server", "MEDIA_SERVER"),
 		ArrKeySet:             db.Setting(s.DB, "arr_key_hash") != "",
 		ArrCompleteDir:        db.Setting(s.DB, "arr_complete_dir"),
 		ArrRoots:              db.Setting(s.DB, "arr_roots"),
@@ -513,6 +516,12 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	haURL := strings.TrimSpace(in.HaWebhookURL)
 	plexURL := strings.TrimRight(strings.TrimSpace(in.PlexURL), "/")
 	jellyfinURL := strings.TrimRight(strings.TrimSpace(in.JellyfinURL), "/")
+	// which server runs the library features when both are connected; empty
+	// only while none is, refreshPlexRoots fills it with the first one
+	if in.MediaServer != cur.MediaServer && in.MediaServer != "plex" && in.MediaServer != "jellyfin" {
+		writeErr(w, http.StatusBadRequest, "mediaServer must be plex or jellyfin")
+		return
+	}
 	for _, f := range []struct {
 		field, value, stored string
 		check                func(string) error
@@ -621,6 +630,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	writes.set("oidc_user_values", in.OidcUserValues)
 	writes.set("plex_url", strings.TrimSpace(in.PlexURL))
 	writes.set("jellyfin_url", jellyfinURL)
+	writes.set("media_server", in.MediaServer)
 	writes.set("plex_sections", in.PlexSections)
 	writes.set("plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
 	// both of these decide what indexPlexLibrary writes onto every local row, so

@@ -5666,6 +5666,10 @@
                         "description": "how the server was connected: \"signin\" (plex.tv sign-in, the server's\nown token), \"token\" (pasted by hand) or \"env\" (PLEX_TOKEN, not\nchangeable from the UI); empty when not configured",
                         "type": "string"
                     },
+                    "choose": {
+                        "description": "Choose: Plex and Jellyfin are both connected and none is picked yet,\nso neither runs until an admin chooses",
+                        "type": "boolean"
+                    },
                     "configured": {
                         "type": "boolean"
                     },
@@ -5698,7 +5702,8 @@
                 "required": [
                     "configured",
                     "connected",
-                    "streams"
+                    "streams",
+                    "choose"
                 ],
                 "type": "object"
             },
@@ -6754,6 +6759,13 @@
                     "maxConcurrent": {
                         "type": "integer"
                     },
+                    "mediaServer": {
+                        "enum": [
+                            "plex",
+                            "jellyfin"
+                        ],
+                        "type": "string"
+                    },
                     "oidcAdminValues": {
                         "description": "csv, any match = admin",
                         "type": "string"
@@ -6927,6 +6939,7 @@
                     "oidcProviderName",
                     "jellyfinUrl",
                     "jellyfinTokenSet",
+                    "mediaServer",
                     "oidcIssuer",
                     "oidcClientId",
                     "oidcRedirectUrl",

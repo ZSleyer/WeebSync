@@ -47,6 +47,9 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 
 	// what was cached about the previous server goes once another one answers
 	db.SetSetting(d, "media_server_id", "old-server")
+	db.SetSetting(d, "media_server_kind", "plex")
+	d.Exec(`INSERT INTO users (id, email) VALUES (1, 'chisato@da.jp')`)
+	d.Exec(`INSERT INTO plex_accounts (user_id, token_enc) VALUES (1, 'x')`)
 	s.cacheSet("plex:machineid:jellyfin", "old-server")
 	s.cacheSet("plex:guididx:v3", "{}")
 	s.refreshPlexRoots()
@@ -55,7 +58,12 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 			t.Errorf("%s survived the server change", k)
 		}
 	}
-	if db.Setting(d, "media_server_id") != "new-server" {
-		t.Error("new server id not remembered")
+	if db.Setting(d, "media_server_id") != "new-server" || db.Setting(d, "media_server_kind") != "jellyfin" {
+		t.Error("new server not remembered")
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM plex_accounts`).Scan(&n)
+	if n != 0 {
+		t.Error("a plex.tv watchlist link must not carry over to Jellyfin")
 	}
 }
