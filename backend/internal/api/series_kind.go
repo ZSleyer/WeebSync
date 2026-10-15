@@ -43,15 +43,27 @@ func deriveSeriesKind(refs []providerRef, fribb bool) string {
 	return kindLive
 }
 
-// decideSeriesKind is deriveSeriesKind with TVDB's word on it: TVDB files anime
-// under the genre "Anime", which decides for a show the anime mapping does not
-// know (new ones, Chinese and Korean animation). Until a TVDB record is cached
-// the kind stays undecided ("" - its fetch is queued), or the series would be
-// stamped live action for good before TVDB had a say.
+// decideSeriesKind is deriveSeriesKind with TVDB's word on it. In order:
+//
+//  1. an AniList entry on the series: anime, AniList lists nothing else
+//  2. a TVDB record: its genre decides - "Anime" (or Asian animation, see
+//     the TVDB adapter) or not. It goes before the anime mapping, which has
+//     wrong rows (Adventure Time: Fionna and Cake filed under an AniList id)
+//     where TVDB describes the show itself
+//  3. the anime mapping knows one of its ids: anime
+//  4. live action
+//
+// A TVDB record not cached yet, or one from before TVDB's genres were read,
+// leaves the kind undecided ("" - its fetch is queued), or the series would
+// be stamped for good before TVDB had a say.
 func (s *Server) decideSeriesKind(refs []providerRef) string {
-	kind := deriveSeriesKind(refs, s.seriesInFribb(refs))
-	if kind != kindLive {
-		return kind
+	if len(refs) == 0 {
+		return ""
+	}
+	for _, r := range refs {
+		if r.Source == "anilist" {
+			return kindAnime
+		}
 	}
 	for _, r := range refs {
 		if r.Source != "tvdb" && r.Source != tvdbMovieSource {
@@ -67,8 +79,9 @@ func (s *Server) decideSeriesKind(refs []providerRef) string {
 		if slices.Contains(m.Genres, "Anime") {
 			return kindAnime
 		}
+		return kindLive
 	}
-	return kindLive
+	return deriveSeriesKind(refs, s.seriesInFribb(refs))
 }
 
 // refreshSeriesKinds fills in the kind of series that do not have one, a budget

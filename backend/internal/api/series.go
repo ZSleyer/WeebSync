@@ -311,9 +311,15 @@ func (s *Server) settleSeries(source string, mediaID int) {
 		refs = s.dropAnimeLeftovers(seriesID, refs)
 	}
 	s.retitleSeries(seriesID, source, mediaID)
-	// undecided ("", TVDB not cached yet) is written too: the sweep decides
-	// every series without a kind once its record is in
-	s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, s.decideSeriesKind(refs), seriesID)
+	// undecided (TVDB not cached yet) keeps what was decided before - it was
+	// reset wholesale once and a library went back to the old guesses for
+	// half an hour - except "anime": dropping the leftovers above is what
+	// can change it, so the sweep decides that one again
+	if kind := s.decideSeriesKind(refs); kind != "" {
+		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID)
+	} else {
+		s.DB.Exec(`UPDATE series SET kind = '' WHERE id = ? AND kind = ?`, seriesID, kindAnime)
+	}
 }
 
 // dropAnimeLeftovers takes the show ids off a series that the anime mapping
@@ -323,9 +329,13 @@ func (s *Server) settleSeries(source string, mediaID int) {
 // left of refs.
 func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []providerRef {
 	out := refs[:0:0]
+	plexIDs := s.plexIDs()
 	for _, r := range refs {
 		var matched, manual int
-		mapped := s.inAnimeIDs(r.Source, r.MediaID)
+		// an id Plex holds came from Plex, not from an AniList guess: the
+		// anime mapping has wrong rows (Adventure Time: Fionna and Cake under
+		// an AniList id), Plex names the show in the library
+		mapped := s.inAnimeIDs(r.Source, r.MediaID) && !plexIDs[plexIDKey(r.Source, r.MediaID)]
 		if mapped {
 			s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&matched)
 			s.DB.QueryRow(`SELECT manual FROM series_provider WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&manual)
@@ -340,6 +350,30 @@ func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []provid
 		out = append(out, r)
 	}
 	return out
+}
+
+// plexIDs is every TVDB and TMDB id the Plex library holds, keyed as
+// plexIDKey does; empty without Plex.
+func (s *Server) plexIDs() map[string]bool {
+	out := map[string]bool{}
+	for _, g := range s.plexGuidIndex() {
+		if g.TVDB != 0 {
+			out[plexIDKey("tvdb", g.TVDB)] = true
+		}
+		if g.TMDB != 0 {
+			out[plexIDKey("tmdb:", g.TMDB)] = true
+		}
+	}
+	return out
+}
+
+// plexIDKey names an id by its catalogue; TMDB's tv and movie tags count as
+// one, as Plex's guid does not say which.
+func plexIDKey(source string, id int) string {
+	if strings.HasPrefix(source, "tmdb") {
+		source = "tmdb"
+	}
+	return source + ":" + strconv.Itoa(id)
 }
 
 // inAnimeIDs reports whether the anime mapping knows a TVDB or TMDB id.

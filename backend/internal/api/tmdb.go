@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"path"
 	"regexp"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 // Folder scopes: a folder marked 'tv' or 'movie' switches catalog matching
@@ -235,15 +237,70 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	queued := 0
 	if in.Kind != "" && in.Kind != scopeNone {
 		queued = s.queueScopeChildren(serverID, in.Path, in.Kind)
-		// an empty row of another source further down - a season folder that
-		// was listed once before the mark - is no match, only a stale "none
-		// found"; a watch's folder keeps its row, matchWatch answers for it
-		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?1 AND manual = 0 AND media_id = 0 AND source != ?3
-			AND folder >= ?2 || '/' AND folder < ?2 || '0' AND instr(substr(folder, length(?2) + 2), '/') > 0
-			AND folder NOT IN (SELECT remote_path FROM watches WHERE server_id = ?1)`,
-			serverID, in.Path, sourceForScope(in.Kind))
+		s.clearStaleSubRows(serverID, in.Path, in.Kind)
 	}
 	writeJSON(w, http.StatusOK, scopeSetResponse{Status: "ok", Queued: queued})
+}
+
+// clearStaleSubRows drops the empty rows of another source further down a
+// marked folder - a season folder listed once before the mark is no match,
+// only a stale "none found". A watch's folder keeps its row, matchWatch
+// answers for it. Reports how many went.
+func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) int64 {
+	res, err := s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?1 AND manual = 0 AND media_id = 0 AND source != ?3
+		AND folder >= ?2 || '/' AND folder < ?2 || '0' AND instr(substr(folder, length(?2) + 2), '/') > 0
+		AND folder NOT IN (SELECT remote_path FROM watches WHERE server_id = ?1)`,
+		serverID, dir, sourceForScope(kind))
+	if err != nil {
+		return 0
+	}
+	n, _ := res.RowsAffected()
+	return n
+}
+
+// catalogRepairs names the one-time fixes of stored state below; bumping it
+// runs them once more.
+const catalogRepairs = "2026-10-stale-rows-plex-ids"
+
+// RepairCatalog runs once per catalogRepairs, at startup:
+//
+//   - the stale rows under every mark set before marks cleared them
+//     (clearStaleSubRows ran only on setting a mark)
+//   - Plex's ids hung on the series again: the leftover rule dropped ids Plex
+//     had attached where the anime mapping is wrong, and the reconcile pass
+//     only revisits folders it has not checked yet
+func (s *Server) RepairCatalog() {
+	if db.Setting(s.DB, "catalog_repairs") == catalogRepairs {
+		return
+	}
+	rows, err := s.DB.Query(`SELECT server_id, path, kind FROM catalog_scopes WHERE kind != ?`, scopeNone)
+	if err != nil {
+		return
+	}
+	type mark struct {
+		server     int64
+		path, kind string
+	}
+	var marks []mark
+	for rows.Next() {
+		var m mark
+		if rows.Scan(&m.server, &m.path, &m.kind) == nil {
+			marks = append(marks, m)
+		}
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
+	var cleared int64
+	for _, m := range marks {
+		cleared += s.clearStaleSubRows(m.server, m.path, m.kind)
+	}
+	if _, err := s.DB.Exec(`DELETE FROM plex_reconciled`); err != nil {
+		return
+	}
+	slog.Info("catalog repaired", "staleRows", cleared, "marks", len(marks))
+	db.SetSetting(s.DB, "catalog_repairs", catalogRepairs)
 }
 
 // scopeSetResponse confirms a mark; Queued counts the folders under it sent
