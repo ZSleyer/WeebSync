@@ -231,10 +231,22 @@ func (c *Client) Media(ctx context.Context, id int) (*anilist.Media, error) {
 	// the localized (German, the instance content language TMDB also uses) title
 	// as the primary; when it's missing, keep the native name but add the English
 	// translation so displayTitle still has a latinized title to fall back to.
-	if de := c.translatedName(ctx, id, "deu"); de != "" {
-		m.Title.Romaji = de
-	} else if en := c.translatedName(ctx, id, "eng"); en != "" {
-		m.Title.English = en
+	// The overview the same way: the record's own is in the original language,
+	// Japanese for an anime, so German first and English after it.
+	deName, deOverview := c.translation(ctx, id, "deu")
+	var enName, enOverview string
+	if deName == "" || deOverview == "" {
+		enName, enOverview = c.translation(ctx, id, "eng")
+	}
+	if deName != "" {
+		m.Title.Romaji = deName
+	} else if enName != "" {
+		m.Title.English = enName
+	}
+	if deOverview != "" {
+		m.Description = deOverview
+	} else if enOverview != "" {
+		m.Description = enOverview
 	}
 	payload, _ := json.Marshal(m)
 	c.store(fmt.Sprintf("tvdb:media:%d", id), string(payload))

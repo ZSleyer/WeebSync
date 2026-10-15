@@ -164,6 +164,7 @@ func main() {
 		srv.BackfillSeries()
 		srv.SettleMatchedSeries() // once per rule set: name series after the match their folder holds
 		srv.RepairCatalog()       // once: stale rows under old marks, Plex ids dropped as leftovers
+		srv.RefreshTvdbRecords()  // once: TVDB records cached with the overview in the original language
 	}()
 	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
 	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows

@@ -1,13 +1,52 @@
 package tvdb
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"slices"
 	"testing"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
+
+// The record's own overview is in the show's language - Japanese for an
+// anime. The German translation takes its place, English where there is none.
+func TestMediaOverviewIsLocalized(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"token":"tok"}}`))
+	})
+	mux.HandleFunc("/series/1/extended", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"id":1,"name":"名探偵コナン","overview":"日本語のあらすじ","year":"1996"}}`))
+	})
+	mux.HandleFunc("/series/1/translations/deu", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"name":"Detektiv Conan","overview":"Deutsche Beschreibung"}}`))
+	})
+	mux.HandleFunc("/series/2/extended", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"id":2,"name":"ワンピース","overview":"日本語"}}`))
+	})
+	mux.HandleFunc("/series/2/translations/eng", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"data":{"name":"One Piece","overview":"English overview"}}`))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	t.Setenv("TVDB_BASE_URL", srv.URL)
+	t.Setenv("TVDB_API_KEY", "dev-key")
+	c := New(dbtest.Open(t))
+
+	m, err := c.Media(context.Background(), 1)
+	if err != nil || m.Title.Romaji != "Detektiv Conan" || m.Description != "Deutsche Beschreibung" {
+		t.Fatalf("german: %+v %v", m, err)
+	}
+	m, err = c.Media(context.Background(), 2)
+	if err != nil || m.Title.English != "One Piece" || m.Description != "English overview" {
+		t.Fatalf("english fallback: title %q desc %q %v", m.Title.English, m.Description, err)
+	}
+}
 
 // An endless anime on TVDB carries what its AniList entry did: the genres, and
 // the next episode by its absolute number at the Japanese air time, counted

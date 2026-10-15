@@ -303,6 +303,27 @@ func (s *Server) RepairCatalog() {
 	db.SetSetting(s.DB, "catalog_repairs", catalogRepairs)
 }
 
+// tvdbRecords names how TVDB series records are cached; bumping it drops the
+// cached ones once so they are fetched again in the new shape.
+const tvdbRecords = "2026-10-localized-overview"
+
+// RefreshTvdbRecords drops the cached TVDB series records once per
+// tvdbRecords. Those cached before carry the overview in the show's own
+// language - Japanese for an anime - and a finished show is never fetched
+// again by itself. They come back as they are needed.
+func (s *Server) RefreshTvdbRecords() {
+	if db.Setting(s.DB, "tvdb_records") == tvdbRecords {
+		return
+	}
+	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%'`)
+	if err != nil {
+		return
+	}
+	n, _ := res.RowsAffected()
+	slog.Info("tvdb records dropped for a fresh fetch", "records", n)
+	db.SetSetting(s.DB, "tvdb_records", tvdbRecords)
+}
+
 // scopeSetResponse confirms a mark; Queued counts the folders under it sent
 // to be matched on the mark's source.
 type scopeSetResponse struct {
