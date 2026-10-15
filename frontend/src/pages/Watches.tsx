@@ -73,6 +73,16 @@ import './watches.css'
 
 type CalCategory = 'anime-series' | 'anime-movie' | 'series' | 'movie'
 const CAL_CATEGORIES: readonly CalCategory[] = ['anime-series', 'anime-movie', 'series', 'movie']
+// the shelves the list splits into, like the catalogue's sources
+const SHELVES = ['anime', 'live', 'manga'] as const
+type Shelf = (typeof SHELVES)[number]
+const SHELF_LABEL: Record<Shelf, string> = {
+  anime: 'watch.kindAnime',
+  live: 'watch.kindLive',
+  manga: 'watch.kindManga',
+}
+const shelfOf = (w: Watch): Shelf =>
+  w.category === 'manga' ? 'manga' : w.category === 'series' || w.category === 'movie' ? 'live' : 'anime'
 // case and accents folded, so "chaos" finds "Chäos"
 const fold = (s: string) =>
   s
@@ -145,7 +155,7 @@ export default function Watches() {
     'cal',
   )
   const [calCat, setCalCat] = useState<'all' | CalCategory>('all')
-  const [kind, setKind] = usePersistedView('weebsync.watches.kind', ['video', 'manga'] as const, 'video', 'kind')
+  const [kindPick, setKind] = usePersistedView('weebsync.watches.kind', SHELVES, 'anime', 'kind')
   // the order, and with it the sections the tiles fall under; remembered,
   // with its direction (a second pick of the same sort turns it around)
   const [sort, setSort] = usePersistedView('weebsync.watches.sort', WATCH_SORTS, 'next', 'sort')
@@ -211,9 +221,12 @@ export default function Watches() {
   }
   useEffect(() => () => clearTimeout(morphTimer.current), [])
 
-  const hasManga = watches.some((w) => w.category === 'manga')
-  const manga = hasManga && kind === 'manga'
-  const ofKind = hasManga ? watches.filter((w) => (w.category === 'manga') === manga) : watches
+  // the shelves there is something on; a remembered one that emptied falls
+  // back to the first
+  const shelves = SHELVES.filter((k) => watches.some((w) => shelfOf(w) === k))
+  const kind = shelves.includes(kindPick) ? kindPick : (shelves[0] ?? 'anime')
+  const manga = kind === 'manga'
+  const ofKind = shelves.length > 1 ? watches.filter((w) => shelfOf(w) === kind) : watches
   const navigate = useNavigate()
   // nextVolume treats an unreachable folder as empty, so the toast covers
   // both: a click always answers, even when there is nothing to open
@@ -503,17 +516,14 @@ export default function Watches() {
 
       {watches.length > 0 && (
         <div className="w-tools">
-          {/* video or manga: only once there is a manga to tell apart */}
-          {view === 'tiles' && hasManga && (
+          {/* anime, series and films, manga: only once there are two to tell apart */}
+          {view === 'tiles' && shelves.length > 1 && (
             <Segmented
               aria-label={t('watch.kind')}
               className="w-kind"
               value={kind}
               onChange={(k) => reorder(() => setKind(k))}
-              options={[
-                { value: 'video', label: t('watch.kindVideo') },
-                { value: 'manga', label: t('watch.kindManga') },
-              ]}
+              options={shelves.map((k) => ({ value: k, label: t(SHELF_LABEL[k]) }))}
             />
           )}
           {view === 'tiles' && !manga && (
