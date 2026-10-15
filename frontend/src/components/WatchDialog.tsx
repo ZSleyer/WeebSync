@@ -9,6 +9,7 @@ import {
   ApiError,
   plexStreamLabel,
   plexStreamOptions,
+  providerName,
   type CatalogExplain,
   type Entry,
   type SubfolderMode,
@@ -82,8 +83,6 @@ export interface WatchFormProps {
 // body in five sections (source&target / display metadata / download filter /
 // Plex playback / rename+preview), sticky footer. The dry-run preview loads
 // automatically.
-// the provider a match comes from, as the dialog names it
-const sourceLabel = (source: string) => (source === 'tvdb' ? 'TVDB' : source.startsWith('tmdb') ? 'TMDB' : 'AniList')
 
 export default function WatchDialog(props: WatchFormProps) {
   const guard = useRef<() => Promise<boolean>>(async () => true)
@@ -443,7 +442,7 @@ export function WatchForm({
                 {initial.mediaId
                   ? t('watch.matchNow', {
                       title: folder?.title || initial.remotePath.split('/').pop(),
-                      src: sourceLabel(initial.mediaSource),
+                      src: providerName(initial.mediaSource),
                       id: initial.mediaId,
                     })
                   : t('watch.matchNone')}

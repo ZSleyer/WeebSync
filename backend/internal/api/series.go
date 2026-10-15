@@ -277,7 +277,7 @@ func (s *Server) retitleSeries(seriesID int64, source string, mediaID int) {
 // left in an earlier step, or the first title the bundle was made from - and
 // its kind waited for the next sweep.
 func (s *Server) settleSeries(source string, mediaID int) {
-	if source != "tvdb" && !strings.HasPrefix(source, "tmdb:") {
+	if source != "tvdb" && source != tvdbMovieSource && !strings.HasPrefix(source, "tmdb:") {
 		return
 	}
 	var seriesID int64
@@ -374,7 +374,7 @@ func (s *Server) SettleMatchedSeries() {
 	// a kind waits undecided till then (decideSeriesKind)
 	s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'tvdb:media:%'`)
 	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches
-		WHERE media_id != 0 AND (source = 'tvdb' OR source LIKE 'tmdb:%')`)
+		WHERE media_id != 0 AND (source IN ('tvdb', 'tvdb:movie') OR source LIKE 'tmdb:%')`)
 	if err != nil {
 		return
 	}
@@ -642,6 +642,9 @@ func (s *Server) folderUnit(serverID int64, folder string) (showKey string, seas
 		return "", 0, false
 	case source == "tmdb:movie":
 		return "tmdb:" + strconv.Itoa(mediaID), 0, true
+	case source == tvdbMovieSource:
+		// keyed as Plex keys a film it knows by its TVDB id
+		return "tvdb:" + strconv.Itoa(mediaID), 0, true
 	case source == "tmdb:tv":
 		return "tmdb:" + strconv.Itoa(mediaID), match.ParseName(base, "", "").Season, false
 	case source == "tvdb":

@@ -383,6 +383,7 @@ type searchHit struct {
 	Overview           string            `json:"overview"`
 	Overviews          map[string]string `json:"overviews"` // lang -> overview
 	OverviewTranslated string            `json:"overview_translated"`
+	Genres             []string          `json:"genres"`
 }
 
 // Hit is one search result plus every title it is known by (primary,
@@ -397,21 +398,31 @@ type Hit struct {
 // title: the localized name becomes Romaji, the native name English, so the UI
 // can show "Localized (Original)". Empty lang keeps the native name.
 func (c *Client) SearchHits(ctx context.Context, query, lang string) ([]Hit, error) {
-	return c.searchHits(ctx, query, lang, 0)
+	return c.searchHits(ctx, query, lang, 0, false)
 }
 
 // SearchYear is SearchHits narrowed to the year a series first aired. TVDB
 // ranks by its own popularity, and a bare "Squid Game" brings the reality
 // spin-off and strangers but not the 2021 drama itself; the year does.
 func (c *Client) SearchYear(ctx context.Context, query string, year int) ([]Hit, error) {
-	return c.searchHits(ctx, query, "", year)
+	return c.searchHits(ctx, query, "", year, false)
 }
 
-func (c *Client) searchHits(ctx context.Context, query, lang string, year int) ([]Hit, error) {
+// SearchMovies is SearchHits over TVDB's films, narrowed to a year when one
+// is given (0: any).
+func (c *Client) SearchMovies(ctx context.Context, query, lang string, year int) ([]Hit, error) {
+	return c.searchHits(ctx, query, lang, year, true)
+}
+
+func (c *Client) searchHits(ctx context.Context, query, lang string, year int, movies bool) ([]Hit, error) {
 	var resp struct {
 		Data []searchHit `json:"data"`
 	}
-	q := url.Values{"query": {query}, "type": {"series"}}
+	kind := "series"
+	if movies {
+		kind = "movie"
+	}
+	q := url.Values{"query": {query}, "type": {kind}}
 	if year > 0 {
 		q.Set("year", strconv.Itoa(year))
 	}
@@ -445,6 +456,10 @@ func (c *Client) searchHits(ctx context.Context, query, lang string, year int) (
 		}
 		m.CoverImage.Large = h.ImageURL
 		m.Format = "TV"
+		if movies {
+			m.Format = "MOVIE"
+		}
+		m.Genres = h.Genres // films carry them in the hit, series do not
 		m.Description = h.Overview
 		if want != "" {
 			if o := h.Overviews[want]; o != "" {
@@ -455,6 +470,9 @@ func (c *Client) searchHits(ctx context.Context, query, lang string, year int) (
 		}
 		m.SeasonYear, _ = strconv.Atoi(h.Year)
 		m.SiteURL = seriesURL(id)
+		if movies {
+			m.SiteURL = movieURL(id)
+		}
 
 		titles := []string{h.Name, h.NameTranslated}
 		titles = append(titles, h.Aliases...)

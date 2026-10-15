@@ -120,8 +120,8 @@ func sourceForScope(kind string) string {
 		return "anilist"
 	case "manga":
 		return mangaSource
-	case "tvdb":
-		return "tvdb"
+	case "tvdb", tvdbMovieSource:
+		return kind
 	default:
 		return "tmdb:" + kind // tv | movie
 	}
@@ -422,6 +422,18 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 		// fetched again even when finished: it lacks the airing data
 		if outdated(m) || (!fresh && m.Genres == nil) {
 			s.queueTvdbFetch(id)
+		}
+	case source == tvdbMovieSource:
+		if s.Tvdb == nil {
+			return nil, false
+		}
+		m, fresh = s.Tvdb.CachedMovie(id)
+		if m == nil {
+			s.queueTvdbMovieFetch(id)
+			return nil, true
+		}
+		if outdated(m) {
+			s.queueTvdbMovieFetch(id)
 		}
 	}
 	if m != nil {

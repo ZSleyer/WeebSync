@@ -104,6 +104,9 @@ func (s *Server) cachedMedia(source string, id int) *anilist.Media {
 	case source == "tvdb" && s.Tvdb != nil:
 		m, _ := s.Tvdb.CachedMedia(id)
 		return m
+	case source == tvdbMovieSource && s.Tvdb != nil:
+		m, _ := s.Tvdb.CachedMovie(id)
+		return m
 	}
 	return nil
 }

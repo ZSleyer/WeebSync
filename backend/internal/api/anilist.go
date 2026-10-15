@@ -181,11 +181,18 @@ func (s *Server) itemKind(serverID int64, folder, name string) string {
 // the stored match carries a foreign source tag and is dropped on the next
 // listing - which is how manual matches on films used to disappear.
 func scopeForItem(scope, kind string) string {
-	if scope == "tv" && kind == "movie" {
+	switch {
+	case scope == "tv" && kind == "movie":
 		return "movie"
+	case scope == "tvdb" && kind == "movie":
+		return tvdbMovieSource // TVDB keeps its films apart from its series
 	}
 	return scope
 }
+
+// tvdbMovieSource tags a film matched on TVDB, as scope and as source: TVDB
+// numbers films apart from series, so a film id under "tvdb" names a series.
+const tvdbMovieSource = "tvdb:movie"
 
 // runJob runs fn in the background at most once per key at a time; duplicate
 // keys are dropped while the first run is still in flight. Five minutes is the
@@ -882,6 +889,10 @@ func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, fo
 		s.queueTvdbMatch(serverID, folder, name, force)
 		return
 	}
+	if scope == tvdbMovieSource {
+		s.queueTvdbMovieMatch(serverID, folder, name)
+		return
+	}
 	s.queueTmdbMatch(serverID, folder, name, scope, force)
 }
 
@@ -1085,7 +1096,7 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	source := s.folderSource(serverID, in.Folder)
 	switch in.Source {
 	case "":
-	case "anilist", mangaSource, "tmdb:tv", "tmdb:movie", "tvdb":
+	case "anilist", mangaSource, "tmdb:tv", "tmdb:movie", "tvdb", tvdbMovieSource:
 		source = in.Source
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid source")
@@ -1113,6 +1124,8 @@ func (s *Server) fetchMedia(ctx context.Context, source string, id int) {
 		s.Anilist.Media(ctx, id)
 	case source == "tvdb" && s.Tvdb != nil:
 		s.Tvdb.Media(ctx, id)
+	case source == tvdbMovieSource && s.Tvdb != nil:
+		s.Tvdb.Movie(ctx, id)
 	case strings.HasPrefix(source, "tmdb:") && s.Tmdb != nil:
 		s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), id)
 	}

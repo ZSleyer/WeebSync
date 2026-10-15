@@ -61,12 +61,15 @@ export function RematchForm({
   // thetvdb.com link; the metadata source follows the folder's scope, a link
   // brings its own
   const tmdbKind = item.source?.startsWith('tmdb:') ? item.source.slice(5) : ''
-  const isTvdb = item.source === 'tvdb'
+  const isTvdb = !!item.source?.startsWith('tvdb')
+  // TVDB numbers films apart from series
+  const tvdbKind = item.source === 'tvdb:movie' ? 'movie' : 'series'
   const seq = useRef(0) // drop out-of-order responses
   const search = async () => {
     const mySeq = ++seq.current
     const tmdbLink = q.match(/themoviedb\.org\/(tv|movie)\/(\d+)/)
-    const tvdbLink = q.match(/thetvdb\.com\/series\/(\d+)/)
+    // only the by-id address carries the number; TVDB's own pages are slugs
+    const tvdbLink = q.match(/thetvdb\.com\/(?:dereferrer\/)?(series|movie)s?\/(\d+)/)
     const anilistLink = q.match(/anilist\.co\/(anime|manga)\/(\d+)/)
     const bare = q.match(/^\s*(\d+)\s*$/)
     try {
@@ -76,8 +79,8 @@ export function RematchForm({
         source = `tmdb:${tmdbLink[1]}`
         next = [await api.get<Media>(`/api/tmdb/media?kind=${tmdbLink[1]}&id=${tmdbLink[2]}`)]
       } else if (tvdbLink) {
-        source = 'tvdb'
-        next = [await api.get<Media>(`/api/tvdb/media?id=${tvdbLink[1]}`)]
+        source = tvdbLink[1] === 'movie' ? 'tvdb:movie' : 'tvdb'
+        next = [await api.get<Media>(`/api/tvdb/media?kind=${tvdbLink[1]}&id=${tvdbLink[2]}`)]
       } else if (anilistLink) {
         source = anilistLink[1] === 'manga' ? 'anilist:manga' : 'anilist'
         next = [await api.get<Media>(`/api/anilist/media/${anilistLink[2]}`)]
@@ -85,7 +88,7 @@ export function RematchForm({
         next = [
           await api.get<Media>(
             isTvdb
-              ? `/api/tvdb/media?id=${bare[1]}`
+              ? `/api/tvdb/media?kind=${tvdbKind}&id=${bare[1]}`
               : tmdbKind
                 ? `/api/tmdb/media?kind=${tmdbKind}&id=${bare[1]}`
                 : `/api/anilist/media/${bare[1]}`,
@@ -94,7 +97,7 @@ export function RematchForm({
       } else {
         next = await api.get<Media[]>(
           isTvdb
-            ? `/api/tvdb/search?q=${encodeURIComponent(q)}`
+            ? `/api/tvdb/search?kind=${tvdbKind}&q=${encodeURIComponent(q)}`
             : tmdbKind
               ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
               : `/api/anilist/search?q=${encodeURIComponent(q)}${item.source === 'anilist:manga' ? '&type=manga' : ''}`,

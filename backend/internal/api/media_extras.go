@@ -100,6 +100,15 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 			out.Recommendations = append(out.Recommendations, recommendedMedia{Media: m})
 		}
 		out.Characters = cast
+	case (source == "tvdb" || source == tvdbMovieSource) && s.Tvdb != nil:
+		// TVDB has the cast, the links and the other names; no relations
+		// and no recommendations to offer
+		x, err := s.Tvdb.Extras(r.Context(), id, source == tvdbMovieSource)
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, err.Error())
+			return
+		}
+		out.Characters, out.Links, out.Synonyms = x.Characters, x.Links, x.Synonyms
 	default:
 		writeErr(w, http.StatusBadRequest, "unknown source")
 		return

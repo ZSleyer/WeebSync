@@ -163,7 +163,7 @@ func watchCategory(source string, m *anilist.Media, tvdbAnime bool) string {
 	switch {
 	case source == mangaSource:
 		return "manga" // light novels too: same shelf, same reader
-	case source == "tmdb:movie":
+	case source == "tmdb:movie", source == tvdbMovieSource && !tvdbAnime:
 		return "movie"
 	case source == "tmdb:tv", source == "tvdb" && !tvdbAnime:
 		return "series"
@@ -176,7 +176,15 @@ func watchCategory(source string, m *anilist.Media, tvdbAnime bool) string {
 
 // tvdbAnime reports whether a TVDB match is a show the anime mapping knows.
 func (s *Server) tvdbAnime(source string, id int) bool {
-	if source != "tvdb" || id == 0 {
+	if id == 0 {
+		return false
+	}
+	if source == tvdbMovieSource {
+		// the anime mapping knows no TVDB film: the genre alone tells
+		m := s.cachedMedia(source, id)
+		return m != nil && slices.Contains(m.Genres, "Anime")
+	}
+	if source != "tvdb" {
 		return false
 	}
 	var n int
@@ -2005,7 +2013,7 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 	if mediaID <= 0 {
 		return
 	}
-	if source != "tmdb:tv" && source != "tmdb:movie" && source != "tvdb" && source != mangaSource {
+	if source != "tmdb:tv" && source != "tmdb:movie" && source != "tvdb" && source != tvdbMovieSource && source != mangaSource {
 		source = "anilist"
 	}
 	var have int

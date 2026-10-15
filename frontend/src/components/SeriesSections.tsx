@@ -6,6 +6,7 @@ import { Badge, Button, Rows, SectionHeading } from 'fluid-lycoris'
 import {
   api,
   mediaTitle,
+  providerName,
   watchTitle,
   type CatalogExplain,
   type Media,
@@ -28,7 +29,7 @@ export function Unavailable({ when, source }: { when: boolean; source: string })
   if (!when) return null
   return (
     <p className="ws-d-err" role="status">
-      {t('series.unavailable', { source: source.startsWith('tmdb') ? 'TMDB' : 'AniList' })}
+      {t('series.unavailable', { source: providerName(source) })}
     </p>
   )
 }
@@ -199,7 +200,7 @@ export function Community({
     staleTime: 5 * 60_000,
     retry: false,
   })
-  const src = source.startsWith('tmdb') ? 'TMDB' : 'AniList'
+  const src = providerName(source)
   const day = (ts?: number) =>
     ts ? new Date(ts * 1000).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }) : ''
   const shown = all ? rev?.reviews : rev?.reviews.slice(0, 5)
@@ -236,7 +237,8 @@ export function Community({
           {t('remote.moreReviews', { count: rev.reviews.length - 5 })}
         </Button>
       )}
-      {!source.startsWith('tmdb') && (
+      {/* forum threads are AniList's; another source's id would find a stranger's */}
+      {source === 'anilist' && (
         <>
           <h3 className="ws-d-h3">{t('series.threads')}</h3>
           <Unavailable when={failed && !threads} source={source} />
@@ -313,11 +315,7 @@ export function MatchSection({ watch: w }: { watch: Watch }) {
     staleTime: 60_000,
     retry: false,
   })
-  const src = (q.data?.chosen?.source ?? w.mediaSource ?? 'anilist').startsWith('tmdb')
-    ? 'TMDB'
-    : (q.data?.chosen?.source ?? '').startsWith('tvdb')
-      ? 'TVDB'
-      : 'AniList'
+  const src = providerName(q.data?.chosen?.source ?? w.mediaSource)
   return (
     <section className="ws-d-match" aria-labelledby={`ws-match-${w.id}`}>
       <SectionHeading id={`ws-match-${w.id}`} tone="accent-2" title={t('series.match.title')} />

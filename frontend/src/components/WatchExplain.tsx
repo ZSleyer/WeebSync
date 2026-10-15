@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Skeleton } from 'fluid-lycoris'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { api, fmtEps, netErrorText, type Watch, type WatchExplain as Explain } from '../api'
+import { api, fmtEps, netErrorText, providerName, type Watch, type WatchExplain as Explain } from '../api'
 import { behindLabel, dubOverdueLabel, dubProgressLabel, dubWaitingLabel, langWaitingLabel } from '../attention'
 import { dayWord } from './MediaDetail'
 import { NameTrace } from './NameTrace'
@@ -124,7 +124,7 @@ export function WatchExplain({ watch: w, now }: { watch: Watch; now: number }) {
                         time: hm(aired.at * 1000),
                       })}
                     </b>
-                    <span>{w.mediaSource?.startsWith('tmdb') ? 'TMDB' : 'AniList'}</span>
+                    <span>{providerName(w.mediaSource)}</span>
                   </li>
                 )}
                 <li data-st="ok">

@@ -19314,7 +19314,7 @@
         },
         "/api/tvdb/media": {
             "get": {
-                "description": "Resolve a single TheTVDB series entry by id.",
+                "description": "Resolve a single TheTVDB series entry, or film with kind=movie, by id.",
                 "parameters": [
                     {
                         "description": "TVDB id",
@@ -19323,6 +19323,14 @@
                         "required": true,
                         "schema": {
                             "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "series (default) | movie",
+                        "in": "query",
+                        "name": "kind",
+                        "schema": {
+                            "type": "string"
                         }
                     }
                 ],
@@ -19371,13 +19379,21 @@
         },
         "/api/tvdb/search": {
             "get": {
-                "description": "Search TheTVDB series by title for the match dialog.",
+                "description": "Search TheTVDB series, or films with kind=movie, by title for the match dialog.",
                 "parameters": [
                     {
                         "description": "Search query",
                         "in": "query",
                         "name": "q",
                         "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "series (default) | movie",
+                        "in": "query",
+                        "name": "kind",
                         "schema": {
                             "type": "string"
                         }

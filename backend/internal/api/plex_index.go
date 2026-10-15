@@ -252,7 +252,7 @@ func (s *Server) libraryEntry(key, folder string) string {
 
 // libraryScope turns a library's metadata source (the user's choice, else the
 // default for the library) into the catalog scope its folders are matched in.
-// TVDB has no films here, so a film library set to it searches TMDB.
+// A film library set to TVDB searches TVDB's films.
 func libraryScope(sec plex.Section, src string) string {
 	if src == "" {
 		src = DefaultSectionSource(sec)
@@ -260,6 +260,8 @@ func libraryScope(sec plex.Section, src string) string {
 	switch {
 	case strings.HasPrefix(src, "anilist"):
 		return "anime"
+	case sec.Type == "movie" && src == "tvdb":
+		return tvdbMovieSource
 	case sec.Type == "movie":
 		return "movie"
 	case src == "tvdb":

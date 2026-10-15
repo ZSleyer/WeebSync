@@ -43,6 +43,8 @@ func (s *Server) handleMediaReviews(w http.ResponseWriter, r *http.Request) {
 		reviews, err = s.Anilist.Reviews(r.Context(), id)
 	case strings.HasPrefix(source, "tmdb:"):
 		reviews, err = s.Tmdb.Reviews(r.Context(), source[5:], id)
+	case source == "tvdb" || source == tvdbMovieSource:
+		// TVDB keeps no reviews: none, rather than a failure to show
 	default:
 		writeErr(w, http.StatusBadRequest, "unknown source")
 		return

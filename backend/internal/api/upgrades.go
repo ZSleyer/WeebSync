@@ -1583,6 +1583,9 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 		case "tmdb:movie":
 			showKey, movie = "tmdb:"+strconv.Itoa(mediaID), true
 			media, _ = s.sourceMedia(source, mediaID)
+		case tvdbMovieSource:
+			showKey, movie = "tvdb:"+strconv.Itoa(mediaID), true
+			media, _ = s.sourceMedia(source, mediaID)
 		case "tmdb:tv":
 			showKey = "tmdb:" + strconv.Itoa(mediaID)
 			media, _ = s.sourceMedia(source, mediaID)

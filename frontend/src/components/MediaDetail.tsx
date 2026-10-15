@@ -1,14 +1,20 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import type { Airing, Media, MediaExtras } from '../api'
+import { providerName, type Airing, type Media, type MediaExtras } from '../api'
 import { countdown } from '../countdown'
 
-// source-dependent external link (AniList for anime, TMDB for marked folders)
+// source-dependent external link: the provider the match came from
 export const mediaLink = (source: string | undefined, id: number) =>
   source?.startsWith('tmdb:')
     ? { href: `https://www.themoviedb.org/${source.slice(5)}/${id}`, label: 'TMDB' }
-    : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
+    : source?.startsWith('tvdb')
+      ? {
+          // TVDB's own pages are slugs; the by-id address redirects there
+          href: `https://thetvdb.com/dereferrer/${source === 'tvdb:movie' ? 'movie' : 'series'}/${id}`,
+          label: 'TVDB',
+        }
+      : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
 
 // AniList's YYYYMMDD as "12. Oktober 2026"; a month or a bare year stay short
 export const fuzzyDate = (d?: number) => {
@@ -67,7 +73,7 @@ export default function MediaDetail({
 }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const src = source?.startsWith('tmdb') ? 'TMDB' : 'AniList'
+  const src = providerName(source)
   const desc = m.description ? plainText(m.description) : ''
   const long = desc.length > LONG
   // the title's own schedule: the dub slots a watch adds belong to the calendar

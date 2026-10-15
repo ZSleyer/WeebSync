@@ -59,6 +59,10 @@ export type Media = Schemas['anilist.Media']
 // eslint-disable-next-line no-control-regex
 const CJK_RE = /[぀-ヿ㐀-鿿豈-﫿＀-￯]/
 
+/** The provider a match source names, as the UI calls it. */
+export const providerName = (source?: string | null) =>
+  source?.startsWith('tvdb') ? 'TVDB' : source?.startsWith('tmdb') ? 'TMDB' : 'AniList'
+
 // mediaTitle picks a displayable, non-Japanese title: romaji (romanized name, or
 // the localized name for TMDB media) first, then english, skipping any candidate
 // that is native kana/kanji. Falls back to whatever exists, then to `fallback`.

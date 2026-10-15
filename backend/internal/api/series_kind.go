@@ -54,14 +54,14 @@ func (s *Server) decideSeriesKind(refs []providerRef) string {
 		return kind
 	}
 	for _, r := range refs {
-		if r.Source != "tvdb" {
+		if r.Source != "tvdb" && r.Source != tvdbMovieSource {
 			continue
 		}
 		m, _ := s.sourceMedia(r.Source, r.MediaID) // queues the fetch it lacks
 		if m == nil {
 			return ""
 		}
-		if _, fresh := s.Tvdb.CachedMedia(r.MediaID); !fresh && m.Genres == nil {
+		if _, fresh := s.Tvdb.CachedMedia(r.MediaID); r.Source == "tvdb" && !fresh && m.Genres == nil {
 			return "" // a record from before TVDB's genres were read
 		}
 		if slices.Contains(m.Genres, "Anime") {

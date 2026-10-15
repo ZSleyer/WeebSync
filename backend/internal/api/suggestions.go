@@ -321,6 +321,9 @@ func providerLinks(refs []providerRef) (map[string]bool, ProviderLinks) {
 		case r.Source == "tvdb":
 			set["tvdb"] = true
 			l.Tvdb = fmt.Sprintf("https://thetvdb.com/dereferrer/series/%d", r.MediaID)
+		case r.Source == tvdbMovieSource:
+			set["tvdb"] = true
+			l.Tvdb = fmt.Sprintf("https://thetvdb.com/dereferrer/movie/%d", r.MediaID)
 		case r.Source == "imdb":
 			set["imdb"] = true
 			l.Imdb = fmt.Sprintf("https://www.imdb.com/title/tt%d", r.MediaID)

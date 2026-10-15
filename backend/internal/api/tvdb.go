@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -54,6 +55,52 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 	})
 }
 
+// queueTvdbMovieMatch resolves a film folder against TVDB's films, the way
+// queueTvdbMatch does a series: Plex's id first, then a search whose hit must
+// carry one of the folder's names, the year as a veto beyond two.
+func (s *Server) queueTvdbMovieMatch(serverID int64, folder, name string) {
+	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
+		mediaID, _ := s.matchLocalByPlexID(folder, tvdbMovieSource)
+		year, _ := strconv.Atoi(yearRe.FindString(name))
+		for _, q := range s.liveQueries(serverID, folder, name) {
+			if mediaID != 0 {
+				break
+			}
+			var hits []tvdb.Hit
+			if year != 0 {
+				h, err := s.Tvdb.SearchMovies(ctx, q.q, "", year)
+				if err != nil {
+					return // retried by the next catalog poll
+				}
+				hits = h
+			}
+			h, err := s.Tvdb.SearchMovies(ctx, q.q, "", 0)
+			if err != nil {
+				return
+			}
+			hits = append(hits, h...)
+			cands := make([]liveCand, 0, len(hits))
+			for _, h := range hits {
+				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles,
+					anime: slices.Contains(h.Media.Genres, "Anime")})
+			}
+			mediaID = pickLive(name, q.accept, cands)
+		}
+		if mediaID != 0 {
+			s.Tvdb.Movie(ctx, mediaID) // full details into the cache first
+		}
+		s.persistMatch(serverID, folder, mediaID, false, tvdbMovieSource)
+	})
+}
+
+// queueTvdbMovieFetch refreshes a missing or stale TVDB film in the background.
+func (s *Server) queueTvdbMovieFetch(id int) {
+	s.runJob(fmt.Sprintf("tvmf:%d", id), func(ctx context.Context) {
+		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:movie:media:%d", id))
+		s.Tvdb.Movie(ctx, id)
+	})
+}
+
 // queueTvdbFetch refreshes missing/stale TVDB media in the background.
 func (s *Server) queueTvdbFetch(id int) {
 	s.runJob(fmt.Sprintf("tvf:%d", id), func(ctx context.Context) {
@@ -100,13 +147,14 @@ func (s *Server) handleTvdbMe(w http.ResponseWriter, r *http.Request) {
 // GET /api/tvdb/search?q=
 //
 //	@Summary		Search TVDB
-//	@Description	Search TheTVDB series by title for the match dialog.
+//	@Description	Search TheTVDB series, or films with kind=movie, by title for the match dialog.
 //	@Tags			Suggestions
 //	@Produce		json
-//	@Param			q	query		string	true	"Search query"
-//	@Success		200	{array}		anilist.Media
-//	@Failure		400	{object}	ErrorResponse
-//	@Failure		502	{object}	ErrorResponse
+//	@Param			q		query		string	true	"Search query"
+//	@Param			kind	query		string	false	"series (default) | movie"
+//	@Success		200		{array}		anilist.Media
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/tvdb/search [get]
 func (s *Server) handleTvdbSearch(w http.ResponseWriter, r *http.Request) {
@@ -117,7 +165,13 @@ func (s *Server) handleTvdbSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// localize the displayed titles to the user's language (native in parens)
-	hits, err := s.Tvdb.SearchHits(r.Context(), q, s.userLocale(u.ID))
+	search := s.Tvdb.SearchHits
+	if r.URL.Query().Get("kind") == "movie" {
+		search = func(ctx context.Context, q, lang string) ([]tvdb.Hit, error) {
+			return s.Tvdb.SearchMovies(ctx, q, lang, 0)
+		}
+	}
+	hits, err := search(r.Context(), q, s.userLocale(u.ID))
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
@@ -133,13 +187,14 @@ func (s *Server) handleTvdbSearch(w http.ResponseWriter, r *http.Request) {
 // GET /api/tvdb/media?id=123
 //
 //	@Summary		TVDB media
-//	@Description	Resolve a single TheTVDB series entry by id.
+//	@Description	Resolve a single TheTVDB series entry, or film with kind=movie, by id.
 //	@Tags			Suggestions
 //	@Produce		json
-//	@Param			id	query		int	true	"TVDB id"
-//	@Success		200	{object}	anilist.Media
-//	@Failure		400	{object}	ErrorResponse
-//	@Failure		502	{object}	ErrorResponse
+//	@Param			id		query		int		true	"TVDB id"
+//	@Param			kind	query		string	false	"series (default) | movie"
+//	@Success		200		{object}	anilist.Media
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/tvdb/media [get]
 func (s *Server) handleTvdbMedia(w http.ResponseWriter, r *http.Request) {
@@ -148,7 +203,11 @@ func (s *Server) handleTvdbMedia(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "id required")
 		return
 	}
-	m, err := s.Tvdb.Media(r.Context(), id)
+	get := s.Tvdb.Media
+	if r.URL.Query().Get("kind") == "movie" {
+		get = s.Tvdb.Movie // films are numbered apart from series
+	}
+	m, err := get(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return

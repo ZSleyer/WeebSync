@@ -36,7 +36,7 @@ func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
 	}
 
 	switch itemSource {
-	case "tvdb":
+	case "tvdb", tvdbMovieSource: // Plex keys a film by TVDB's film id
 		if g.TVDB != 0 {
 			s.logLocalIDMatch(folder, "tvdb-direct", g.TVDB)
 			return g.TVDB, true

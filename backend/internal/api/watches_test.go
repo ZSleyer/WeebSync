@@ -299,7 +299,7 @@ func TestLibraryScope(t *testing.T) {
 		{plex.Section{Type: "show", Title: "Series"}, "tmdb", "tv"},
 		{plex.Section{Type: "show", Title: "Series"}, "tvdb", "tvdb"},
 		{plex.Section{Type: "show", Title: "Series"}, "anilist+tvdb", "anime"},
-		{plex.Section{Type: "movie", Title: "Films"}, "tvdb", "movie"},
+		{plex.Section{Type: "movie", Title: "Films"}, "tvdb", tvdbMovieSource}, // TVDB has films too
 		{plex.Section{Type: "movie", Title: "Anime Films"}, "", "anime"},
 		{plex.Section{Type: "show", Title: "Series", Provider: "tvdb"}, "", "tvdb"},
 		{plex.Section{Type: "show", Title: "Series"}, "", "tv"},
