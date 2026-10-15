@@ -23,7 +23,8 @@ type Release struct {
 	// HasSeason tells a named season 0 (specials, "S00E04") from none.
 	HasSeason bool
 	// Episodes holds the episode number as written, leading zeros kept and
-	// without any "E" or version suffix: "01", "1165.5". A range ("01-12",
+	// without any "E", version or part suffix: "01", "1165.5" (a decimal
+	// comma becomes a dot). A range ("01-12",
 	// "S01E01E02") gives its first and last number.
 	Episodes []string
 	Year     int
@@ -60,12 +61,12 @@ var (
 	resRe     = regexp.MustCompile(`(?i)^(?:\d{3,4}[pi]\+?|\d{3,4}x\d{3,4}p?|[48]k)$`)
 	sizeRe    = regexp.MustCompile(`(?i)^(\d{3,4}x\d{3,4})p$`)
 	yearRe    = regexp.MustCompile(`^(?:19|20)\d{2}$`)
-	numRe     = regexp.MustCompile(`^(\d{1,4}(?:\.\d)?)(?:v\d{1,2})?$`)
+	numRe     = regexp.MustCompile(`^(\d{1,4}(?:[.,]\d)?)(?:v\d{1,2}(?:\.\d)?)?$`)
 	rangeRe   = regexp.MustCompile(`^(\d{1,4})(?:v\d)?[-~&](\d{1,4})(?:v\d)?$`)
-	sxeRe     = regexp.MustCompile(`(?i)^S(\d{1,2})[ ._-]?E(\d{1,4}(?:\.\d)?)(?:v\d{1,2})?(?:-?E?(\d{1,4}))?$`)
+	sxeRe     = regexp.MustCompile(`(?i)^S(\d{1,2})[ ._-]?Ep?(\d{1,4}(?:[.,]\d)?)(?:v\d{1,2}|P\d)?(?:-?E?(\d{1,4}))?$`)
 	xRe       = regexp.MustCompile(`^(\d{1,2})x(\d{1,3})(?:v\d)?$`)
 	seasonRe  = regexp.MustCompile(`(?i)^S(\d{1,2})$`)
-	prefEpRe  = regexp.MustCompile(`(?i)^(?:E|EP|EP\.|Episode|Folge)(\d{1,4}(?:[.,]\d)?)(?:v\d{1,2})?$`)
+	prefEpRe  = regexp.MustCompile(`(?i)^(?:E|EP|EP\.|Episode|Folge)(\d{1,4}(?:[.,]\d)?)(?:v\d{1,2}|P\d)?$`)
 	prefRngRe = regexp.MustCompile(`(?i)^(?:E|EP)(\d{1,4})-E?(\d{1,4})$`)
 	ordRe     = regexp.MustCompile(`(?i)^(\d{1,2})(?:st|nd|rd|th|\.)?$`)
 	crcRe     = regexp.MustCompile(`^[0-9A-Fa-f]{8}$`)
@@ -347,6 +348,9 @@ func Read(name string) Release {
 	for _, c := range [][]string{dashEp, preDash, r.bracketEp} {
 		episode(c)
 	}
+	for i, e := range r.Episodes {
+		r.Episodes[i] = strings.Replace(e, ",", ".", 1)
+	}
 	r.Title = title(toks[start:], titleEnd-start)
 	r.bracketEp = nil
 	return r
@@ -357,10 +361,10 @@ func (r *Release) setSeason(s string) {
 	r.HasSeason = true
 }
 
-// bracketNum keeps a bracket that holds only a number ("[01]", "[07v2]")
-// as the weakest episode guess.
+// bracketNum keeps a bracket that holds only a number ("[01]", "[07v2]",
+// "(10.5)") as the weakest episode guess.
 func (r *Release) bracketNum(s string) {
-	if m := numRe.FindStringSubmatch(s); m != nil && !isYear(s) && !strings.Contains(m[1], ".") && r.bracketEp == nil {
+	if m := numRe.FindStringSubmatch(s); m != nil && !isYear(s) && (!strings.ContainsAny(m[1], ".,") || strings.HasSuffix(m[1], "5")) && r.bracketEp == nil {
 		r.bracketEp = []string{m[1]}
 	}
 }
