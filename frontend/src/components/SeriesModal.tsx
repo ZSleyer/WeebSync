@@ -29,7 +29,7 @@ import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../ap
 import type { Schemas } from '../api.gen'
 import { focusPosition } from './bannerFocus'
 import { coverSet } from '../images'
-import { useAuth, useNow } from '../hooks'
+import { useAuth, useMediaServer, useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { mediaLink } from './MediaDetail'
@@ -700,8 +700,9 @@ function SeriesCard({
   // the menu of a watch: everything but check now and edit, which are buttons
   // Plex track choices act on the admin's Plex account: an admin's
   const isAdmin = !!useAuth().data?.isAdmin
+  const tracks = useMediaServer() !== 'jellyfin' // only Plex keeps a track choice
   const watchMenu = (w: Watch): SheetAction[] => [
-    ...(isAdmin && (w.plexAudioLang || w.plexSubLang)
+    ...(isAdmin && tracks && (w.plexAudioLang || w.plexSubLang)
       ? [
           {
             key: 'plex',

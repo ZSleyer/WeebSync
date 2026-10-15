@@ -1,7 +1,7 @@
 import { Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth, useProviders } from '../hooks'
+import { useAuth, useMediaServer, useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog, Field, Input, Select } from 'fluid-lycoris'
 import {
@@ -126,6 +126,8 @@ export function WatchForm({
   // refuses or drops them for anyone else)
   const { data: me } = useAuth()
   const isAdmin = !!me?.isAdmin
+  // only Plex keeps a per-episode track choice; Jellyfin picks at play time
+  const tracks = useMediaServer() !== 'jellyfin'
   // TVDB is only offered as a source when a key is set
   const caps = useProviders()
   // the rename profile + resolved series match Plex/the provider report
@@ -533,7 +535,7 @@ export function WatchForm({
               </div>
             </section>
 
-            {isAdmin && (
+            {isAdmin && (tracks || (watchId && plexShow)) && (
               <section className="ws-form-sec space-y-3" aria-label={t('watch.sectionPlex')}>
                 <h3 className="ws-form-h">{t('watch.sectionPlex')}</h3>
                 {/* which show the track selection acts on. Only on an existing
@@ -542,41 +544,43 @@ export function WatchForm({
                 {watchId && plexShow && (
                   <PlexShowField watchId={watchId} state={plexShow} onDone={() => void refetchPlexShow()} />
                 )}
-                <div className={ROW_GRID}>
-                  {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
-                    // Subtitles carry a second dimension the language cannot express:
-                    // the forced track holds signs and foreign dialogue only. Both
-                    // variants are offered per language and neither is derived from
-                    // the audio - watching a dub with full subtitles and watching the
-                    // original with signs only are both things people do on purpose.
-                    const opts = plexStreamOptions(
-                      key === 'plexAudioLang' ? langs.dub : langs.sub,
-                      key === 'plexSubLang',
-                    )
-                    const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
-                    return (
-                      <Field
-                        key={key}
-                        label={
-                          <>
-                            {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                            {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                          </>
-                        }
-                      >
-                        <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
-                          <option value="">{t('watch.plexNoChange')}</option>
-                          {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
-                          {all.map((c) => (
-                            <option key={c} value={c}>
-                              {plexStreamLabel(c, t)}
-                            </option>
-                          ))}
-                        </Select>
-                      </Field>
-                    )
-                  })}
-                </div>
+                {tracks && (
+                  <div className={ROW_GRID}>
+                    {(['plexAudioLang', 'plexSubLang'] as const).map((key) => {
+                      // Subtitles carry a second dimension the language cannot express:
+                      // the forced track holds signs and foreign dialogue only. Both
+                      // variants are offered per language and neither is derived from
+                      // the audio - watching a dub with full subtitles and watching the
+                      // original with signs only are both things people do on purpose.
+                      const opts = plexStreamOptions(
+                        key === 'plexAudioLang' ? langs.dub : langs.sub,
+                        key === 'plexSubLang',
+                      )
+                      const all = f[key] && !opts.includes(f[key]) ? [f[key], ...opts] : opts
+                      return (
+                        <Field
+                          key={key}
+                          label={
+                            <>
+                              {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                              {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
+                            </>
+                          }
+                        >
+                          <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
+                            <option value="">{t('watch.plexNoChange')}</option>
+                            {key === 'plexSubLang' && <option value="off">{t('watch.plexSubOff')}</option>}
+                            {all.map((c) => (
+                              <option key={c} value={c}>
+                                {plexStreamLabel(c, t)}
+                              </option>
+                            ))}
+                          </Select>
+                        </Field>
+                      )
+                    })}
+                  </div>
+                )}
               </section>
             )}
 

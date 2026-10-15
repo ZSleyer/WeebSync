@@ -71,7 +71,7 @@ export default function Dashboard() {
     enabled: !!me?.isAdmin,
     staleTime: 5 * 60_000,
   })
-  const plexToken = !!plexMe?.configured && plexMe.auth === 'token'
+  const plexToken = !!plexMe?.configured && plexMe.auth === 'token' && plexMe.kind !== 'jellyfin'
 
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
