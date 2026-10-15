@@ -6,6 +6,11 @@ services:
     # `./data` must belong to that user too (docs/configuration.md, "File ownership")
     # user: "1000:1000"
     # group_add: ["990"]
+    # GPU for the player's transcodes (Intel/AMD through VA-API, amd64 image):
+    # hand over the render nodes and add the id of the host group that owns
+    # them (`getent group render`) to group_add above - the nonroot user has
+    # no other way in. The log names the encoder it picked.
+    # devices: ["/dev/dri:/dev/dri"]
     ports:
       # plain HTTP - bind to loopback and put a TLS proxy in front. Use
       # "8080:8080" only on a trusted host you fully control.

@@ -28,7 +28,7 @@ A fresh instance takes its first account only with the setup code it writes to t
 | `WEEBSYNC_SECRET` | auto-generated | Key for stored credentials. Without it, `$WEEBSYNC_DATA/secret.key` is created on first start. **Back it up** - a lost key makes stored passwords unreadable |
 | `WEEBSYNC_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error` |
 | `WEEBSYNC_SETUP_TOKEN` | random, logged | The code the setup wizard asks for while no account exists |
-| `WEEBSYNC_HWACCEL` | `auto` | GPU encoder for the player's transcodes: `auto` tries NVENC, then VA-API on each `/dev/dri/renderD*`, and falls back to software; `nvenc`, `vaapi` or `none` pick one. A GPU writes 1080p, software 720p. The log says which one is used (`player transcodes on the GPU`) |
+| `WEEBSYNC_HWACCEL` | `auto` | GPU encoder for the player's transcodes: `auto` tries NVENC, then VA-API on each `/dev/dri/renderD*`, and falls back to software; `nvenc`, `vaapi` or `none` pick one. A GPU writes 1080p, software 720p. The log says which one is used (`player transcodes on the GPU`). See [Hardware transcoding](#hardware-transcoding) |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR` | system roots | A CA bundle file or directory to trust for outgoing TLS (mail, FTPS, OIDC, Plex, the AI endpoint) - for services with a certificate from your own CA. Certificates are always verified; there is no switch to skip that |
 
 ### Also settable in the UI
@@ -52,6 +52,20 @@ A variable that is set **overrides** the UI and locks the field. Booleans accept
 | `PLEX_URL`, `PLEX_TOKEN` | Plex server; its libraries are matched against your series. Plain `http://` only for an address in your own network - from outside use the server's `https://…plex.direct` address |
 | `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | OpenAI-compatible endpoint for the assistant; plain `http://` only for an address in your own network |
 | `AI_SEARCH_URL` | SearXNG instance the assistant may search |
+
+## Hardware transcoding
+
+What the browser cannot play, the player transcodes. With a GPU that writes 1080p and leaves the CPU alone; in software it is 720p. `WEEBSYNC_HWACCEL` (default `auto`) picks the encoder, and the log says which one is used (`player transcodes on the GPU`).
+
+- **Intel and AMD** (VA-API): the amd64 image carries the drivers. Pass the render nodes and the id of the host group that owns them (`getent group render`):
+
+  ```yaml
+  devices: ["/dev/dri:/dev/dri"]
+  group_add: ["989"] # your render group id
+  ```
+
+- **NVIDIA** (NVENC): only where WeebSync runs outside the container with an ffmpeg built with NVENC. The image is Alpine (musl) and cannot load NVIDIA's driver libraries.
+- **arm64** (Raspberry Pi): no hardware encoder; transcodes run in software.
 
 ## File ownership
 

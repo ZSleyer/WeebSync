@@ -39,9 +39,16 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # resolution / audio / subtitle tracks of local files, whose names often lack
 # those tokens. ca-certificates for provider HTTPS; nonroot uid matches the
 # distroless one we used before.
+#
+# On amd64 the VA-API drivers come along so the player can transcode on an
+# Intel or AMD GPU (see WEEBSYNC_HWACCEL): intel-media-driver for Intel,
+# mesa's radeonsi for AMD (the larger of the two, it pulls in LLVM). arm64
+# images stay without: a Raspberry Pi 5 has no H.264 encoder to drive.
 FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+ARG TARGETARCH
 RUN apk upgrade --no-cache \
     && apk add --no-cache ffmpeg ca-certificates \
+    && if [ "$TARGETARCH" = amd64 ]; then apk add --no-cache intel-media-driver mesa-va-gallium; fi \
     && adduser -D -H -u 65532 nonroot
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
