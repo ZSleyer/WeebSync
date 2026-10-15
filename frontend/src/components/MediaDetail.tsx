@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { providerName, type Airing, type Media, type MediaExtras } from '../api'
+import { mediaDescription, providerName, type Airing, type Media, type MediaExtras } from '../api'
 import { countdown } from '../countdown'
 
 // source-dependent external link: the provider the match came from
@@ -71,10 +71,11 @@ export default function MediaDetail({
   now: number
   children?: ReactNode
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const src = providerName(source)
-  const desc = m.description ? plainText(m.description) : ''
+  const text = mediaDescription(m, i18n.language)
+  const desc = text ? plainText(text) : ''
   const long = desc.length > LONG
   // the title's own schedule: the dub slots a watch adds belong to the calendar
   const upcoming = (airings ?? []).filter((a) => a.at * 1000 > now && !a.dub).slice(0, 3)

@@ -156,7 +156,12 @@ type Media struct {
 	AverageScore int          `json:"averageScore"`
 	Genres       []string     `json:"genres,omitempty"`
 	Description  string       `json:"description"`
-	SiteURL      string       `json:"siteUrl,omitempty"` // provider page for cross-checking
+	// Descriptions is the overview per UI language ("de", "en") where the
+	// provider has more than one: TVDB and TMDB translate theirs, the
+	// cached record serves every user, and the page picks the one its
+	// reader speaks. Description stays the instance's default.
+	Descriptions map[string]string `json:"descriptions,omitempty"`
+	SiteURL      string            `json:"siteUrl,omitempty"` // provider page for cross-checking
 	// Popularity is the audience size (AniList: users on their lists, TMDB:
 	// vote count). Comparable within one source, which is all the catalog
 	// sorts across: the metadata source is picked per folder.

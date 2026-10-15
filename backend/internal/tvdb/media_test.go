@@ -39,11 +39,11 @@ func TestMediaOverviewIsLocalized(t *testing.T) {
 	c := New(dbtest.Open(t))
 
 	m, err := c.Media(context.Background(), 1)
-	if err != nil || m.Title.Romaji != "Detektiv Conan" || m.Description != "Deutsche Beschreibung" {
+	if err != nil || m.Title.Romaji != "Detektiv Conan" || m.Description != "Deutsche Beschreibung" || m.Descriptions["de"] != "Deutsche Beschreibung" {
 		t.Fatalf("german: %+v %v", m, err)
 	}
 	m, err = c.Media(context.Background(), 2)
-	if err != nil || m.Title.English != "One Piece" || m.Description != "English overview" {
+	if err != nil || m.Title.English != "One Piece" || m.Description != "English overview" || m.Descriptions["en"] != "English overview" || m.Descriptions["de"] != "" {
 		t.Fatalf("english fallback: title %q desc %q %v", m.Title.English, m.Description, err)
 	}
 }

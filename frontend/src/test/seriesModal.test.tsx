@@ -15,7 +15,11 @@ import { api, type Media, type Watch } from '../api'
 // keys instead of strings, with the name interpolated where a label carries one
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
-  useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o?.name ? `${k}:${o.name}` : k) }) as never,
+  useTranslation: () =>
+    ({
+      t: (k: string, o?: Record<string, unknown>) => (o?.name ? `${k}:${o.name}` : k),
+      i18n: { language: 'de' },
+    }) as never,
 }))
 
 const media = {

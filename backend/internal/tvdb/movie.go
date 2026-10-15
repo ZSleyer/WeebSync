@@ -104,10 +104,8 @@ func (c *Client) Movie(ctx context.Context, id int) (*anilist.Media, error) {
 	case en != "":
 		m.Title.English = en
 	}
-	m.Description = deOverview
-	if m.Description == "" {
-		m.Description = enOverview
-	}
+	m.Description = firstNonEmpty(deOverview, enOverview)
+	m.Descriptions = overviews(deOverview, enOverview)
 	payload, _ := json.Marshal(m)
 	c.store(fmt.Sprintf("tvdb:movie:media:%d", id), string(payload))
 	return &m, nil

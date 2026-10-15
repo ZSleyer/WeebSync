@@ -65,6 +65,16 @@ const CJK_RE = /[぀-ヿ㐀-鿿豈-﫿＀-￯]/
 export const providerName = (source?: string | null) =>
   source?.startsWith('tvdb') ? 'TVDB' : source?.startsWith('tmdb') ? 'TMDB' : 'AniList'
 
+/**
+ * The overview in the reader's language: the cached record serves every user,
+ * so TVDB and TMDB carry German and English side by side; AniList has only
+ * its one. lang is the UI language ("de", "en-US").
+ */
+export const mediaDescription = (
+  m: { description?: string; descriptions?: Partial<Record<string, string>> } | null | undefined,
+  lang: string | undefined,
+) => (lang && m?.descriptions?.[lang.slice(0, 2)]) || m?.description || ''
+
 // mediaTitle picks a displayable, non-Japanese title: romaji (romanized name, or
 // the localized name for TMDB media) first, then english, skipping any candidate
 // that is native kana/kanji. Falls back to whatever exists, then to `fallback`.

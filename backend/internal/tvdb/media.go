@@ -159,6 +159,31 @@ func (r seriesRecord) enrich(m *anilist.Media, now time.Time) {
 	}
 }
 
+// firstNonEmpty is the first of its arguments that is set.
+func firstNonEmpty(s ...string) string {
+	for _, v := range s {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// overviews is the per-language overview map, nil when neither is known.
+func overviews(de, en string) map[string]string {
+	out := map[string]string{}
+	if de != "" {
+		out["de"] = de
+	}
+	if en != "" {
+		out["en"] = en
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
 // airsTimeOr is the stated air time, midnight when TVDB has none.
 func airsTimeOr(t string) string {
 	if len(t) == 5 && t[2] == ':' {
@@ -233,21 +258,17 @@ func (c *Client) Media(ctx context.Context, id int) (*anilist.Media, error) {
 	// translation so displayTitle still has a latinized title to fall back to.
 	// The overview the same way: the record's own is in the original language,
 	// Japanese for an anime, so German first and English after it.
+	// Both languages are kept: the record serves every user, and the page shows
+	// the one its reader speaks (Descriptions).
 	deName, deOverview := c.translation(ctx, id, "deu")
-	var enName, enOverview string
-	if deName == "" || deOverview == "" {
-		enName, enOverview = c.translation(ctx, id, "eng")
-	}
+	enName, enOverview := c.translation(ctx, id, "eng")
 	if deName != "" {
 		m.Title.Romaji = deName
 	} else if enName != "" {
 		m.Title.English = enName
 	}
-	if deOverview != "" {
-		m.Description = deOverview
-	} else if enOverview != "" {
-		m.Description = enOverview
-	}
+	m.Description = firstNonEmpty(deOverview, enOverview, m.Description)
+	m.Descriptions = overviews(deOverview, enOverview)
 	payload, _ := json.Marshal(m)
 	c.store(fmt.Sprintf("tvdb:media:%d", id), string(payload))
 	return &m, nil

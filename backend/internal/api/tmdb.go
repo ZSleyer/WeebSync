@@ -303,25 +303,26 @@ func (s *Server) RepairCatalog() {
 	db.SetSetting(s.DB, "catalog_repairs", catalogRepairs)
 }
 
-// tvdbRecords names how TVDB series records are cached; bumping it drops the
-// cached ones once so they are fetched again in the new shape.
-const tvdbRecords = "2026-10-localized-overview"
+// providerRecords names how TVDB and TMDB records are cached; bumping it
+// drops the cached ones once so they are fetched again in the new shape.
+const providerRecords = "2026-10-overviews-de-en"
 
-// RefreshTvdbRecords drops the cached TVDB series records once per
-// tvdbRecords. Those cached before carry the overview in the show's own
-// language - Japanese for an anime - and a finished show is never fetched
-// again by itself. They come back as they are needed.
-func (s *Server) RefreshTvdbRecords() {
-	if db.Setting(s.DB, "tvdb_records") == tvdbRecords {
+// RefreshProviderRecords drops the cached TVDB and TMDB records once per
+// providerRecords. Those cached before carry one overview - TVDB's in the
+// show's own language, Japanese for an anime, TMDB's in German for every
+// reader - where they now carry German and English, and a finished show is
+// never fetched again by itself. They come back as they are needed.
+func (s *Server) RefreshProviderRecords() {
+	if db.Setting(s.DB, "provider_records") == providerRecords {
 		return
 	}
-	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%'`)
+	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%' OR key LIKE 'tvdb:movie:media:%' OR key LIKE 'tmdb:media:%'`)
 	if err != nil {
 		return
 	}
 	n, _ := res.RowsAffected()
-	slog.Info("tvdb records dropped for a fresh fetch", "records", n)
-	db.SetSetting(s.DB, "tvdb_records", tvdbRecords)
+	slog.Info("provider records dropped for a fresh fetch", "records", n)
+	db.SetSetting(s.DB, "provider_records", providerRecords)
 }
 
 // scopeSetResponse confirms a mark; Queued counts the folders under it sent

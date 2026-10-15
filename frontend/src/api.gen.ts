@@ -90,6 +90,13 @@ export interface Schemas {
       medium?: string
     }
     description: string
+    /**
+     * Descriptions is the overview per UI language ("de", "en") where the
+     * provider has more than one: TVDB and TMDB translate theirs, the
+     * cached record serves every user, and the page picks the one its
+     * reader speaks. Description stays the instance's default.
+     */
+    descriptions?: Partial<Record<string, string>>
     endDate?: number
     episodes: number
     /**
@@ -2539,6 +2546,13 @@ export interface Schemas {
       medium?: string
     }
     description: string
+    /**
+     * Descriptions is the overview per UI language ("de", "en") where the
+     * provider has more than one: TVDB and TMDB translate theirs, the
+     * cached record serves every user, and the page picks the one its
+     * reader speaks. Description stays the instance's default.
+     */
+    descriptions?: Partial<Record<string, string>>
     endDate?: number
     episodes: number
     /**

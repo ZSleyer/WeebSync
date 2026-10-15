@@ -2,6 +2,7 @@ package tmdb
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,21 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
 )
+
+// The details call carries the overview per language: German and English are
+// kept for the page to pick from, the rest is not.
+func TestRawResultOverviews(t *testing.T) {
+	var r rawResult
+	if err := json.Unmarshal([]byte(`{"translations":{"translations":[
+		{"iso_639_1":"de","data":{"overview":"Deutsch"}},
+		{"iso_639_1":"en","data":{"overview":""}},
+		{"iso_639_1":"fr","data":{"overview":"Français"}}]}}`), &r); err != nil {
+		t.Fatal(err)
+	}
+	if got := r.overviews(); len(got) != 1 || got["de"] != "Deutsch" {
+		t.Fatalf("overviews %v", got)
+	}
+}
 
 // synthetic fixtures only
 func testServer(t *testing.T) *httptest.Server {

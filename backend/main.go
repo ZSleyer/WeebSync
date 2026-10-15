@@ -162,9 +162,9 @@ func main() {
 	go srv.IndexLoop(rootCtx)
 	go func() {
 		srv.BackfillSeries()
-		srv.SettleMatchedSeries() // once per rule set: name series after the match their folder holds
-		srv.RepairCatalog()       // once: stale rows under old marks, Plex ids dropped as leftovers
-		srv.RefreshTvdbRecords()  // once: TVDB records cached with the overview in the original language
+		srv.SettleMatchedSeries()    // once per rule set: name series after the match their folder holds
+		srv.RepairCatalog()          // once: stale rows under old marks, Plex ids dropped as leftovers
+		srv.RefreshProviderRecords() // once: TVDB/TMDB records cached with one overview, now German and English
 	}()
 	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
 	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows

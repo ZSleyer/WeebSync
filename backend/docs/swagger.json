@@ -190,6 +190,13 @@
                     "description": {
                         "type": "string"
                     },
+                    "descriptions": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Descriptions is the overview per UI language (\"de\", \"en\") where the\nprovider has more than one: TVDB and TMDB translate theirs, the\ncached record serves every user, and the page picks the one its\nreader speaks. Description stays the instance's default.",
+                        "type": "object"
+                    },
                     "endDate": {
                         "type": "integer"
                     },
@@ -5892,6 +5899,13 @@
                     },
                     "description": {
                         "type": "string"
+                    },
+                    "descriptions": {
+                        "additionalProperties": {
+                            "type": "string"
+                        },
+                        "description": "Descriptions is the overview per UI language (\"de\", \"en\") where the\nprovider has more than one: TVDB and TMDB translate theirs, the\ncached record serves every user, and the page picks the one its\nreader speaks. Description stays the instance's default.",
+                        "type": "object"
                     },
                     "endDate": {
                         "type": "integer"

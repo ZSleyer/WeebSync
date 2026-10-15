@@ -218,6 +218,30 @@ type rawResult struct {
 			Type string `json:"type"`
 		} `json:"results"`
 	} `json:"videos"`
+	// the overview per language, appended to the details call
+	Translations struct {
+		Translations []struct {
+			Lang string `json:"iso_639_1"`
+			Data struct {
+				Overview string `json:"overview"`
+			} `json:"data"`
+		} `json:"translations"`
+	} `json:"translations"`
+}
+
+// overviews is the German and English overview a details call carried with
+// its translations, nil when it had none.
+func (r rawResult) overviews() map[string]string {
+	out := map[string]string{}
+	for _, t := range r.Translations.Translations {
+		if (t.Lang == "de" || t.Lang == "en") && t.Data.Overview != "" {
+			out[t.Lang] = t.Data.Overview
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // absoluteEpisode turns TMDB's per-season next_episode_to_air into an absolute
@@ -569,13 +593,15 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	var r rawResult
 	params := url.Values{
 		"language":               {"de-DE"},
-		"append_to_response":     {"videos"},
+		"append_to_response":     {"videos,translations"},
 		"include_video_language": {"de,en"},
 	}
 	if err := c.get(ctx, fmt.Sprintf("/%s/%d", kind, id), params, &r); err != nil {
 		return nil, err
 	}
 	m := c.toMedia(kind, r)
+	// the record serves every user; the page shows the overview its reader speaks
+	m.Descriptions = r.overviews()
 	if kind == "tv" {
 		m.Schedule = c.tvSchedule(ctx, id, r)
 	}

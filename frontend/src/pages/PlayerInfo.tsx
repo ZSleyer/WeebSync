@@ -6,6 +6,7 @@ import { Button, Cover, SectionHeading } from 'fluid-lycoris'
 import {
   api,
   fmtBytes,
+  mediaDescription,
   mediaTitle,
   type Entry,
   type Media,
@@ -270,10 +271,11 @@ export default function PlayerInfo({
     .filter(Boolean)
     .join(' · ')
 
+  const overview = mediaDescription(media, i18n.language)
   const description =
-    media?.description &&
+    overview &&
     new DOMParser()
-      .parseFromString(media.description.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
+      .parseFromString(overview.replace(/<br\s*\/?>/gi, '\n'), 'text/html')
       .body.textContent?.replace(/\s+/g, ' ')
       .trim()
 
