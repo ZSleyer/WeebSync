@@ -219,10 +219,21 @@
 
 /* ── the sections: a heading per group the sort makes, with its count. It
    stays at the top while its tiles scroll under it, until the next pushes it
-   off. Grid and list share them. ── */
+   off. Grid and list share them. On a phone <main> scrolls and sticky stops
+   at its padding edge, which left a strip above the heading for the covers
+   to show through: the heading sticks that padding higher and fills it with
+   its own ground, the negative margin keeps it where it was at rest. ── */
 .w-groups { display: grid; gap: 1.25rem; }
 .w-group { display: grid; gap: 0.625rem; min-width: 0; }
-.w-group-h { position: sticky; top: 0; z-index: 2; margin: 0; padding-block: 0.375rem; background: var(--bg); }
+.w-group-h {
+  --pad: 1rem; /* <main>'s p-4 */
+  position: sticky;
+  top: calc(-1 * var(--pad));
+  z-index: 2;
+  margin: calc(-1 * var(--pad)) 0 0;
+  padding-block: calc(var(--pad) + 0.375rem) 0.375rem;
+  background: var(--bg);
+}
 .w-group-h .t-sec-title { font-size: 1rem; }
 .w-group-n { font-size: 0.8125rem; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 
