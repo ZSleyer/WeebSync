@@ -207,11 +207,19 @@ func (s *Server) plexRescan(dir string) {
 		slog.Debug("plex rescan", "dir", logSafe(dir), "err", err)
 		return
 	}
+	// the server scans its own path: a folder mounted here under another
+	// prefix (plex_roots "server => local") is named back the server's way
+	_, maps := s.plexRootConfig()
+	back := make([][2]string, len(maps))
+	for i, m := range maps {
+		back[i] = [2]string{m[1], m[0]}
+	}
+	serverDir := applyPathMap(dir, back)
 	for _, sec := range secs {
 		if sec.Title != title {
 			continue
 		}
-		if err := c.Refresh(sec.Key, dir); err != nil {
+		if err := c.Refresh(sec.Key, serverDir); err != nil {
 			slog.Debug("plex rescan", "dir", logSafe(dir), "section", logSafe(sec.Key), "err", err)
 			return
 		}
