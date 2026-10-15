@@ -1,12 +1,14 @@
 # ── frontend build ── (arch-independent JS, always native)
 FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:143494b1da2945f061539253adc65e4f1569ddf07da2d384c022c791a9d90a4a AS web
-# node images stopped shipping yarn and corepack with node 25
-RUN npm i -g yarn@1.22.22
 # the frontend keeps its place in the tree: @weebsync/design-system resolves to
 # ../design-system/src, and index.css scans the same path for Tailwind classes
 WORKDIR /src/frontend
-COPY frontend/package.json frontend/yarn.lock frontend/.yarnrc ./
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn yarn install --frozen-lockfile
+COPY frontend/package.json frontend/yarn.lock frontend/.yarnrc.yml ./
+COPY frontend/.yarn/releases/ .yarn/releases/
+# node images stopped shipping yarn and corepack with node 25; the release
+# checked in beside the lockfile is the one that runs
+RUN ln -s /src/frontend/.yarn/releases/yarn-*.cjs /usr/local/bin/yarn
+RUN --mount=type=cache,target=/root/.yarn/berry/cache yarn install --immutable
 COPY design-system/ /src/design-system/
 # the design system has no dependency tree of its own - it borrows the app's,
 # the same symlink design-system/build.sh makes locally. Without it tsc cannot

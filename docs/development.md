@@ -7,6 +7,10 @@ cd backend && go run .            # API on :8080, key auto-generated at ./data/s
 cd frontend && yarn && yarn dev   # Vite dev server, proxies /api to the backend
 ```
 
+The frontend pins Yarn 4 in `frontend/.yarn/releases`; any `yarn` on the
+PATH, a global 1.x included, hands over to it. New package versions install
+only once they are a week old (`npmMinimalAgeGate` in `.yarnrc.yml`).
+
 ## Checks
 
 CI runs the same steps; run them before you push.

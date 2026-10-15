@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# yarn 4: only the checked-in release is source
+.yarn/*
+!.yarn/releases
+.pnp.*
