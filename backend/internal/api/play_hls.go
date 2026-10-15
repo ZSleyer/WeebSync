@@ -367,11 +367,16 @@ func (sess *hlsSession) runLocked(s *Server, n int) error {
 		cancel()
 		return err
 	}
-	start, out := strconv.Itoa(n*hlsSegSec), hlsArgs(sess.key, n, sess.dir)
+	before := []string{"-nostdin", "-progress", "pipe:1"}
+	start, out := strconv.Itoa(n*hlsSegSec), []string(nil)
 	if sess.key.copy {
 		start, out = strconv.FormatFloat(sess.cuts[n], 'f', 3, 64), copyArgs(sess.key, sess.cuts, n, sess.dir)
+	} else {
+		enc := playEncoder()
+		before = append(before, enc.pre...)
+		out = hlsArgs(sess.key, enc, n, sess.dir)
 	}
-	cmd := ffCommand(ctx, "ffmpeg", in, []string{"-nostdin", "-progress", "pipe:1", "-ss", start}, out)
+	cmd := ffCommand(ctx, "ffmpeg", in, append(before, "-ss", start), out)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	run := &hlsRun{start: n, cancel: cancel, exited: make(chan struct{})}
@@ -402,20 +407,17 @@ func (sess *hlsSession) written(start int) int {
 	return start
 }
 
-// hlsArgs is the output side of a run starting at segment n: H.264 at most
-// 720 lines high in 8 bit (what every browser decodes), stereo AAC, keyframes
+// hlsArgs is the output side of a run starting at segment n: H.264 in 8 bit
+// (what every browser decodes) from the host's encoder, stereo AAC, keyframes
 // on the segment grid, timestamps offset to the run's start.
 //
-// 720, not 1080: this path is what is left when the picture cannot be copied
-// (Hi10P, HEVC on a device without a decoder, a burned-in picture subtitle),
-// and a host without a hardware encoder - a Raspberry Pi 5 has none - keeps
-// up with 720p in software where 1080p falls behind playback.
-//
-// ponytail: software x264 only; a picture the browser can show is copied
-// instead (play_copy.go). Hardware encoders are the upgrade path where a host
-// has one.
-func hlsArgs(k hlsKey, n int, dir string) []string {
-	scale := "scale=-2:'min(720,ih)',format=yuv420p"
+// This path is what is left when the picture cannot be copied (Hi10P, HEVC on
+// a device without a decoder, a burned-in picture subtitle; see
+// play_copy.go). In software it writes at most 720 lines: a host without a
+// hardware encoder - a Raspberry Pi 5 has none - keeps up with 720p where
+// 1080p falls behind playback. A GPU encoder writes 1080p (play_hwenc.go).
+func hlsArgs(k hlsKey, enc videoEncoder, n int, dir string) []string {
+	scale := enc.filter()
 	var args []string
 	if k.burn >= 0 {
 		args = append(args, "-filter_complex",
@@ -429,8 +431,8 @@ func hlsArgs(k hlsKey, n int, dir string) []string {
 		args = append(args, "-map", "0:a:0?")
 	}
 	off := strconv.Itoa(n * hlsSegSec)
+	args = append(args, enc.args...)
 	return append(args,
-		"-c:v", "libx264", "-preset", "veryfast", "-crf", "21",
 		"-force_key_frames", fmt.Sprintf("expr:gte(t,n_forced*%d)", hlsSegSec),
 		"-c:a", "aac", "-ac", "2", "-b:a", "192k",
 		"-f", "hls", "-hls_time", strconv.Itoa(hlsSegSec), "-hls_list_size", "0",
