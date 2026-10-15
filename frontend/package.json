@@ -28,7 +28,7 @@
     "lucide-react": "^1.54.0",
     "media-chrome": "^4.19.3",
     "pdfjs-dist": "^6.4.299",
-    "qrcode-generator": "1.4.4",
+    "qrcode-generator": "2.0.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-i18next": "^17.0.16",
