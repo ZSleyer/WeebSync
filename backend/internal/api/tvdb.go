@@ -30,22 +30,22 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 			var hits []tvdb.Hit
 			if year != 0 {
 				// the year finds what popularity buries ("Squid Game" 2021)
-				h, err := s.Tvdb.SearchYear(ctx, q, year)
+				h, err := s.Tvdb.SearchYear(ctx, q.q, year)
 				if err != nil {
 					return // retried by the next catalog poll
 				}
 				hits = h
 			}
-			h, err := s.Tvdb.SearchHits(ctx, q, "")
+			h, err := s.Tvdb.SearchHits(ctx, q.q, "")
 			if err != nil {
 				return
 			}
 			hits = append(hits, h...)
 			cands := make([]liveCand, 0, len(hits))
 			for _, h := range hits {
-				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles})
+				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles, anime: s.inAnimeIDs("tvdb", h.Media.ID)})
 			}
-			mediaID = pickLive(name, q, cands)
+			mediaID = pickLive(name, q.accept, cands)
 		}
 		if mediaID != 0 {
 			s.Tvdb.Media(ctx, mediaID) // full details into the cache first

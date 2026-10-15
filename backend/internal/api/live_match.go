@@ -20,7 +20,21 @@ import (
 type liveCand struct {
 	id, year int
 	titles   []string
+	anime    bool // the anime mapping knows it: breaks a tie for a Japanese folder
 }
+
+// liveQuery is one search for a folder: q is sent to the provider, accept is
+// the name a hit may carry besides the folder's own ("" for none).
+type liveQuery struct{ q, accept string }
+
+// innerSubtitle finds where a subtitle starts that lost its colon in the
+// folder name ("The Walking Dead The Ones Who Live", "Tomb Raider The Legend
+// of Lara Croft"): an article after the first word.
+var innerSubtitle = regexp.MustCompile(`\S (?:The|A|An|Der|Die|Das) `)
+
+// japAudio tells a release of a Japanese show by its audio tag ("[JapDub,
+// GerSub]", "[GerJapDub]"), which no live-action release carries.
+var japAudio = regexp.MustCompile(`(?i)\[[^\]]*jap`)
 
 // subtitleDash splits a German distribution subtitle off the title ("Slow
 // Horses - Ein Fall für Jackson Lamb", "Band of Brothers – Wir waren wie
@@ -34,21 +48,37 @@ var releaseTitleRe = regexp.MustCompile(`(?i)^(.+?)[ ._-]+S\d{1,2}E\d{1,3}`)
 // liveQueries lists the names a live-action folder is searched under, best
 // first: the guessed title, the title without a German subtitle, the
 // alternative in parens, dots read as spaces, and the title its files carry.
-func (s *Server) liveQueries(serverID int64, folder, name string) []string {
-	var qs []string
-	add := func(q string) {
-		if q = strings.Join(strings.Fields(q), " "); q != "" && !slices.Contains(qs, q) {
-			qs = append(qs, q)
+func (s *Server) liveQueries(serverID int64, folder, name string) []liveQuery {
+	var qs []liveQuery
+	seen := []string{}
+	addAs := func(q string, accept bool) {
+		if q = strings.Join(strings.Fields(q), " "); q != "" && !slices.Contains(seen, q) {
+			seen = append(seen, q)
+			lq := liveQuery{q: q}
+			if accept {
+				lq.accept = q
+			}
+			qs = append(qs, lq)
 		}
 	}
-	title := GuessTitle(name)
+	add := func(q string) { addAs(q, true) }
+	title, alt := GuessTitle(name), GuessAltTitle(name)
 	add(title)
 	if loc := subtitleDash.FindStringIndex(title); loc != nil {
 		add(title[:loc[0]])
 	}
-	add(GuessAltTitle(name))
+	add(alt)
 	add(strings.ReplaceAll(title, ".", " "))
+	// TVDB and TMDB keep one entry per show: "… 3th Season" is a season of it
+	add(match.StripMarkers(title))
+	add(match.StripMarkers(alt))
 	add(s.releaseTitle(serverID, folder))
+	// last, and only to search: it finds the show the subtitle belongs to as
+	// well, which the folder does not name - the folder's full name, colon
+	// or not, picks the subtitled one among the hits
+	if loc := innerSubtitle.FindStringIndex(title); loc != nil {
+		addAs(title[:loc[0]+1], false)
+	}
 	return qs
 }
 
@@ -77,9 +107,13 @@ func (s *Server) releaseTitle(serverID int64, folder string) string {
 // pickLive returns the id of the hit a folder names under query, 0 when none
 // carries one of the folder's names exactly. The year in the folder is a
 // strong hint and a veto beyond two years, as for anime.
-func pickLive(name, query string, cands []liveCand) int {
-	info := match.ParseName(name, query, query)
+func pickLive(name, accept string, cands []liveCand) int {
+	info := match.ParseName(name, accept, accept)
+	// one entry per show here: "3th Season" names a season of it, not a
+	// sequel entry the search should find instead of the show
+	info.Season = 0
 	var list []anilist.Media
+	var anime []bool
 	for _, c := range cands {
 		for _, t := range c.titles {
 			if t == "" {
@@ -89,28 +123,43 @@ func pickLive(name, query string, cands []liveCand) int {
 			m.ID, m.SeasonYear, m.Format = c.id, c.year, "TV"
 			m.Title.Romaji = t
 			list = append(list, m)
+			anime = append(anime, c.anime)
 		}
 	}
 	idx, ok, scored := match.PickExplain(info, list)
-	if !ok {
+	if !ok || !exactTitle(scored[idx]) {
 		return 0
 	}
-	exact := false
+	// two shows the folder names equally well ("One Piece" the anime and the
+	// 2023 series, no year to tell them apart): a guess between them is worse
+	// than none, unless the release is Japanese and one of them is the anime
+	tied, tiedAnime := map[int]bool{}, map[int]bool{}
 	for _, sc := range scored {
-		// two shows the folder names equally well ("One Piece" the anime and
-		// the 2023 series, no year to tell them apart): a guess between them
-		// is worse than none
-		if sc.Index != idx && !sc.Vetoed && sc.Score == scored[idx].Score && list[sc.Index].ID != list[idx].ID {
-			return 0
+		if sc.Vetoed || sc.Score != scored[idx].Score {
+			continue
 		}
-		if sc.Index == idx {
-			for _, sg := range sc.Signals {
-				exact = exact || sg.Code == "title_fold"
-			}
+		tied[list[sc.Index].ID] = true
+		if anime[sc.Index] {
+			tiedAnime[list[sc.Index].ID] = true
 		}
 	}
-	if !exact {
-		return 0
+	if len(tied) == 1 {
+		return list[idx].ID
 	}
-	return list[idx].ID
+	if japAudio.MatchString(name) && len(tiedAnime) == 1 {
+		for id := range tiedAnime {
+			return id
+		}
+	}
+	return 0
+}
+
+// exactTitle reports whether a candidate carries one of the folder's names.
+func exactTitle(sc match.Scored) bool {
+	for _, sg := range sc.Signals {
+		if sg.Code == "title_fold" {
+			return true
+		}
+	}
+	return false
 }

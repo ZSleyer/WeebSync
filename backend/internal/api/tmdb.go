@@ -324,7 +324,7 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 		// what Plex identified under this name and year wins over a search
 		mediaID, _ := s.matchLocalByPlexID(folder, "tmdb:"+kind)
 		year, _ := strconv.Atoi(yearRe.FindString(name))
-		for _, query := range s.liveQueries(serverID, folder, name) {
+		for _, lq := range s.liveQueries(serverID, folder, name) {
 			if mediaID != 0 {
 				break
 			}
@@ -335,9 +335,9 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 				}
 				if force {
 					s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
-						fmt.Sprintf("tmdb:search:%s:%s|%d", kind, query, y))
+						fmt.Sprintf("tmdb:search:%s:%s|%d", kind, lq.q, y))
 				}
-				l, err := s.Tmdb.Search(ctx, kind, query, y)
+				l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
 				if err != nil {
 					return // retried by the next catalog poll
 				}
@@ -349,9 +349,9 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 			// the localized name and the original, as the adapter maps them
 			cands := make([]liveCand, 0, len(list))
 			for _, m := range list {
-				cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}})
+				cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID)})
 			}
-			mediaID = pickLive(name, query, cands)
+			mediaID = pickLive(name, lq.accept, cands)
 		}
 		if mediaID != 0 {
 			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
