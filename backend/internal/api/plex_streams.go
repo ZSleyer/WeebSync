@@ -409,6 +409,15 @@ func (s *Server) processPlexStreamQueue() {
 	if c == nil {
 		return // Plex unconfigured: keep entries, the give-up window bounds them
 	}
+	if c.Kind() != "plex" {
+		// Jellyfin keeps no per-item track choice: these can never apply
+		for _, items := range pending {
+			for _, it := range items {
+				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+			}
+		}
+		return
+	}
 	for g, items := range pending {
 		w, ok := g.watch(s)
 		if !ok {
@@ -520,7 +529,7 @@ func (s *Server) handleWatchPlexStreams(w http.ResponseWriter, r *http.Request) 
 func (s *Server) applyPlexStreamsJob(wt Watch) {
 	s.runJob(fmt.Sprintf("plex:streams:%d", wt.ID), func(context.Context) {
 		c := s.plexClient()
-		if c == nil {
+		if c == nil || c.Kind() != "plex" { // only Plex stores a track choice
 			return
 		}
 		// the watch's own episodes, not every episode Plex has under the folder:

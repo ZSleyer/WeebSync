@@ -14,6 +14,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/jellyfin"
 	"github.com/ch4d1/weebsync/internal/plex"
 	"github.com/ch4d1/weebsync/internal/secret"
 	"github.com/ch4d1/weebsync/internal/tvdb"
@@ -29,15 +30,24 @@ func (s *Server) plexSuggestTTL() time.Duration {
 	return s.ttlSetting("ttl_plex_h", 6*time.Hour)
 }
 
+// plexClient is the configured media server: Plex when it is set up, else
+// Jellyfin, else nil. Every "plex" feature runs against whichever it is.
 func (s *Server) plexClient() plex.Server {
 	u := db.SettingOrEnv(s.DB, "plex_url", "PLEX_URL")
 	t := secret.SettingOrEnv(s.DB, "plex_token", "PLEX_TOKEN")
-	if u == "" || t == "" {
-		return nil
+	if u != "" && t != "" {
+		c := plex.New(u, t)
+		c.ClientID = s.plexClientID() // the same id its plex.tv sign-in was issued to
+		return c
 	}
-	c := plex.New(u, t)
-	c.ClientID = s.plexClientID() // the same id its plex.tv sign-in was issued to
-	return c
+	u = db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL")
+	t = secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN")
+	if u != "" && t != "" {
+		c := jellyfin.New(u, t)
+		c.DeviceID = s.plexClientID()
+		return c
+	}
+	return nil
 }
 
 // plexMeResponse is the connection status shown on the settings page.
@@ -52,11 +62,26 @@ type plexMeResponse struct {
 	// own token), "token" (pasted by hand) or "env" (PLEX_TOKEN, not
 	// changeable from the UI); empty when not configured
 	Auth string `json:"auth,omitempty"`
+	// Kind is the media server type: "plex" | "jellyfin"; empty when not
+	// configured
+	Kind string `json:"kind,omitempty"`
+	// Streams says whether the server can store a per-episode track choice
+	// (Plex can, Jellyfin cannot)
+	Streams bool `json:"streams"`
 }
 
 // plexAuth says how the configured server was connected, see plexMeResponse.
 // An install from before the sign-in has no mark and counts as "token".
-func (s *Server) plexAuth() string {
+func (s *Server) plexAuth(kind string) string {
+	if kind == "jellyfin" {
+		switch {
+		case db.Setting(s.DB, "jellyfin_token") == "" && os.Getenv("JELLYFIN_TOKEN") != "":
+			return "env"
+		case db.Setting(s.DB, "jellyfin_auth") == "signin":
+			return "signin" // Quick Connect
+		}
+		return "token"
+	}
 	switch {
 	case db.Setting(s.DB, "plex_token") == "" && os.Getenv("PLEX_TOKEN") != "":
 		return "env"
@@ -82,14 +107,16 @@ func (s *Server) handlePlexMe(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, plexMeResponse{})
 		return
 	}
-	auth := s.plexAuth()
+	kind := c.Kind()
+	auth := s.plexAuth(kind)
+	streams := kind == "plex"
 	id, err := c.Identity()
 	if err != nil {
-		writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Error: err.Error(), Auth: auth})
+		writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Error: err.Error(), Auth: auth, Kind: kind, Streams: streams})
 		return
 	}
 	writeJSON(w, http.StatusOK, plexMeResponse{Configured: true, Connected: true,
-		Username: id.MyPlexUsername, Server: id.FriendlyName, Version: id.Version, Auth: auth})
+		Username: id.MyPlexUsername, Server: id.FriendlyName, Version: id.Version, Auth: auth, Kind: kind, Streams: streams})
 }
 
 // handlePlexSections lists the show sections for the settings checkboxes.

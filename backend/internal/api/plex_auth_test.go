@@ -14,16 +14,16 @@ func TestPlexAuth(t *testing.T) {
 	d := dbtest.Open(t)
 	s := &Server{DB: d}
 	db.SetSetting(d, "plex_token", "enc:v1:x")
-	if got := s.plexAuth(); got != "token" {
+	if got := s.plexAuth("plex"); got != "token" {
 		t.Errorf("pasted: %q", got)
 	}
 	db.SetSetting(d, "plex_auth", "signin")
-	if got := s.plexAuth(); got != "signin" {
+	if got := s.plexAuth("plex"); got != "signin" {
 		t.Errorf("signed in: %q", got)
 	}
 	db.SetSetting(d, "plex_token", "")
 	t.Setenv("PLEX_TOKEN", "from-env")
-	if got := s.plexAuth(); got != "env" {
+	if got := s.plexAuth("plex"); got != "env" {
 		t.Errorf("env: %q", got)
 	}
 }

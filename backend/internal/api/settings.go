@@ -47,7 +47,7 @@ func validateTrustedNetworks(csv string) error {
 // clear text across the internet. Env values are the operator's and never
 // refused, but this says so where they look.
 func warnEnvSecretURLs() {
-	for _, env := range []string{"OIDC_ISSUER", "AI_BASE_URL", "PLEX_URL"} {
+	for _, env := range []string{"OIDC_ISSUER", "AI_BASE_URL", "PLEX_URL", "JELLYFIN_URL"} {
 		if v := strings.TrimSpace(os.Getenv(env)); v != "" {
 			if err := checkSecretURL(v); err != nil {
 				slog.Warn("credential URL from the environment is not safe", "env", env, "err", err)
@@ -122,6 +122,8 @@ var envSettings = []struct{ key, env, field string }{
 	{"ai_search_url", "AI_SEARCH_URL", "aiSearchUrl"},
 	{"plex_url", "PLEX_URL", "plexUrl"},
 	{"plex_token", "PLEX_TOKEN", "plexToken"},
+	{"jellyfin_url", "JELLYFIN_URL", "jellyfinUrl"},
+	{"jellyfin_token", "JELLYFIN_TOKEN", "jellyfinToken"},
 	{"oidc_provider_name", "OIDC_PROVIDER_NAME", "oidcProviderName"},
 	{"oidc_issuer", "OIDC_ISSUER", "oidcIssuer"},
 	{"oidc_client_id", "OIDC_CLIENT_ID", "oidcClientId"},
@@ -216,6 +218,9 @@ type settingsPayload struct {
 	ArrCompleteDir        string         `json:"arrCompleteDir"`      // local folder grabs from Sonarr/Radarr land in; must be under a download root
 	ArrRoots              string         `json:"arrRoots"`            // newline-separated "appPath => localPath" mappings for apps that see the media under another path
 	OidcProviderName      string         `json:"oidcProviderName"`    // login button label ("Sign in with X")
+	JellyfinURL           string         `json:"jellyfinUrl"`
+	JellyfinTokenSet      bool           `json:"jellyfinTokenSet"`
+	JellyfinToken         string         `json:"jellyfinToken,omitempty"`
 	OidcIssuer            string         `json:"oidcIssuer"`
 	OidcClientID          string         `json:"oidcClientId"`
 	OidcRedirectURL       string         `json:"oidcRedirectUrl"`
@@ -278,7 +283,7 @@ func fieldIssues(p settingsPayload) map[string]string {
 	if err := checkOutboundURL(p.AiSearchURL); err != nil {
 		out["aiSearchUrl"] = err.Error()
 	}
-	for field, v := range map[string]string{"aiBaseUrl": p.AiBaseURL, "haWebhookUrl": p.HaWebhookURL, "plexUrl": p.PlexURL, "oidcIssuer": p.OidcIssuer} {
+	for field, v := range map[string]string{"aiBaseUrl": p.AiBaseURL, "haWebhookUrl": p.HaWebhookURL, "plexUrl": p.PlexURL, "jellyfinUrl": p.JellyfinURL, "oidcIssuer": p.OidcIssuer} {
 		if err := checkSecretURL(v); err != nil {
 			out[field] = err.Error()
 		}
@@ -323,6 +328,8 @@ func (s *Server) settingsState() settingsPayload {
 		PlexLibRoots:          db.Setting(s.DB, "plex_lib_roots"),
 		PlexLibraries:         plexLibraries(db.Setting(s.DB, "plex_lib_map")),
 		PlexSkipOwned:         truthySetting(db.Setting(s.DB, "plex_skip_owned")),
+		JellyfinURL:           db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL"),
+		JellyfinTokenSet:      secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN") != "",
 		ArrKeySet:             db.Setting(s.DB, "arr_key_hash") != "",
 		ArrCompleteDir:        db.Setting(s.DB, "arr_complete_dir"),
 		ArrRoots:              db.Setting(s.DB, "arr_roots"),
@@ -505,6 +512,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// own model
 	haURL := strings.TrimSpace(in.HaWebhookURL)
 	plexURL := strings.TrimRight(strings.TrimSpace(in.PlexURL), "/")
+	jellyfinURL := strings.TrimRight(strings.TrimSpace(in.JellyfinURL), "/")
 	for _, f := range []struct {
 		field, value, stored string
 		check                func(string) error
@@ -513,6 +521,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		{"aiSearchUrl", searchURL, cur.AiSearchURL, checkOutboundURL},
 		{"haWebhookUrl", haURL, cur.HaWebhookURL, checkSecretURL},
 		{"plexUrl", plexURL, cur.PlexURL, checkSecretURL},
+		{"jellyfinUrl", jellyfinURL, cur.JellyfinURL, checkSecretURL},
 		// the issuer signs the ID tokens that carry the admin group: a
 		// forged one over plain HTTP would hand out the instance
 		{"oidcIssuer", in.OidcIssuer, cur.OidcIssuer, checkSecretURL},
@@ -611,6 +620,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	writes.set("oidc_admin_values", in.OidcAdminValues)
 	writes.set("oidc_user_values", in.OidcUserValues)
 	writes.set("plex_url", strings.TrimSpace(in.PlexURL))
+	writes.set("jellyfin_url", jellyfinURL)
 	writes.set("plex_sections", in.PlexSections)
 	writes.set("plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
 	// both of these decide what indexPlexLibrary writes onto every local row, so
@@ -642,6 +652,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		{"animeschedule_token", strings.TrimSpace(in.AnimescheduleToken)},
 		{"ai_api_key", strings.TrimSpace(in.AiApiKey)},
 		{"plex_token", strings.TrimSpace(in.PlexToken)},
+		{"jellyfin_token", strings.TrimSpace(in.JellyfinToken)},
 		{"oidc_client_secret", strings.TrimSpace(in.OidcClientSecret)},
 		{"smtp_password", in.SmtpPassword},
 	} {
@@ -660,6 +671,9 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		if sec.key == "plex_token" {
 			// a token typed in is no plex.tv sign-in: the prompt to sign in comes back
 			writes.set("plex_auth", "")
+		}
+		if sec.key == "jellyfin_token" {
+			writes.set("jellyfin_auth", "") // same for a pasted API key
 		}
 	}
 	if err := writes.commit(s.DB); err != nil {

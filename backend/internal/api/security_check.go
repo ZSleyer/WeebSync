@@ -125,6 +125,7 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		{"oidc_http", "oidc_issuer", "OIDC_ISSUER", "oidc_client_secret", "OIDC_CLIENT_SECRET"},
 		{"ai_http", "ai_base_url", "AI_BASE_URL", "ai_api_key", "AI_API_KEY"},
 		{"plex_http", "plex_url", "PLEX_URL", "plex_token", "PLEX_TOKEN"},
+		{"jellyfin_http", "jellyfin_url", "JELLYFIN_URL", "jellyfin_token", "JELLYFIN_TOKEN"},
 	} {
 		u := db.SettingOrEnv(s.DB, c.key, c.env)
 		if strings.HasPrefix(u, "http://") && !isLoopbackURL(u) && secret.SettingOrEnv(s.DB, c.secretKey, c.secretEnv) != "" {

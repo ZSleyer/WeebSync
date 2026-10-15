@@ -365,7 +365,7 @@ func (s *Server) backfillPlexStreams() {
 	if db.Setting(s.DB, "plex_streams_backfilled") == "1" {
 		return
 	}
-	if s.plexClient() == nil {
+	if c := s.plexClient(); c == nil || c.Kind() != "plex" {
 		return // no Plex yet: try again next tick, the flag stays unset
 	}
 	rows, err := s.DB.Query(`SELECT id FROM watches WHERE plex_audio_lang != '' OR plex_sub_lang != ''`)
