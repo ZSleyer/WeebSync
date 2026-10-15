@@ -418,7 +418,9 @@ func (s *Server) sourceMedia(source string, id int) (m *anilist.Media, pending b
 			s.queueTvdbFetch(id)
 			return nil, true
 		}
-		if outdated(m) {
+		// a stale record from before the extended fetch (no genres) is
+		// fetched again even when finished: it lacks the airing data
+		if outdated(m) || (!fresh && m.Genres == nil) {
 			s.queueTvdbFetch(id)
 		}
 	}

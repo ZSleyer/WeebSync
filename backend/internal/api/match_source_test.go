@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -207,8 +208,16 @@ func TestTvdbMatchNamesItsSeries(t *testing.T) {
 	s.DB.Exec(`UPDATE series SET title = 'Gif ni Ted', kind = ''`)
 	s.SettleMatchedSeries()
 	s.DB.QueryRow(`SELECT title, kind FROM series WHERE id = 1`).Scan(&title, &kind)
-	if title != "Ted" || kind != kindLive {
+	// the pass names it from the record it has, which it marks stale: the
+	// kind waits for TVDB's genres
+	if title != "Ted" || kind != "" {
 		t.Fatalf("after the pass: title %q kind %q", title, kind)
+	}
+	cacheMedia(t, s, "tvdb:media:404604", 404604, "Ted", "")
+	s.refreshSeriesKinds(10)
+	s.DB.QueryRow(`SELECT kind FROM series WHERE id = 1`).Scan(&kind)
+	if kind != kindLive {
+		t.Fatalf("after the fresh record: kind %q", kind)
 	}
 	// an anime series keeps its AniList name whatever else matches it
 	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist', 5, 1)`)
@@ -278,8 +287,14 @@ func TestSettleDropsAnimeLeftovers(t *testing.T) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE media_id = 398083`).Scan(&n)
 	var key, kind string
 	s.DB.QueryRow(`SELECT key, kind FROM series WHERE id = 1`).Scan(&key, &kind)
-	if n != 0 || key != "house of the dragon" || kind != kindLive {
+	if n != 0 || key != "house of the dragon" || kind != "" {
 		t.Fatalf("leftover %d, key %q, kind %q", n, key, kind)
+	}
+	cacheMedia(t, s, "tvdb:media:371572", 371572, "House of the Dragon", "")
+	s.refreshSeriesKinds(10)
+	s.DB.QueryRow(`SELECT kind FROM series WHERE id = 1`).Scan(&kind)
+	if kind != kindLive {
+		t.Fatalf("after the fresh record: kind %q", kind)
 	}
 	// an anime matched on TVDB keeps what the mapping knows of it
 	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind) VALUES (235, 72454, 1, 30983, 'tv')`)
@@ -289,6 +304,22 @@ func TestSettleDropsAnimeLeftovers(t *testing.T) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE series_id = 2`).Scan(&n)
 	if n != 2 {
 		t.Fatalf("Conan lost an id: %d left", n)
+	}
+}
+
+// A show the anime mapping does not know is anime when TVDB files it so.
+func TestTvdbGenreDecidesAnime(t *testing.T) {
+	s := sourceTestServer(t)
+	m := anilist.Media{ID: 460809, Status: "FINISHED", Schema: anilist.MediaSchema, Genres: []string{"Fantasy", "Anime"}}
+	m.Title.Romaji = "Tsukimonogatari"
+	b, _ := json.Marshal(m)
+	s.cacheSet("tvdb:media:460809", string(b))
+	refs := []providerRef{{Source: "tvdb", MediaID: 460809}}
+	if got := s.decideSeriesKind(refs); got != kindAnime {
+		t.Fatalf("kind %q, want anime", got)
+	}
+	if !s.tvdbAnime("tvdb", 460809) {
+		t.Fatal("the auto-sync shelf does not see it as anime")
 	}
 }
 

@@ -311,9 +311,9 @@ func (s *Server) settleSeries(source string, mediaID int) {
 		refs = s.dropAnimeLeftovers(seriesID, refs)
 	}
 	s.retitleSeries(seriesID, source, mediaID)
-	if kind := deriveSeriesKind(refs, s.seriesInFribb(refs)); kind != "" {
-		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID)
-	}
+	// undecided ("", TVDB not cached yet) is written too: the sweep decides
+	// every series without a kind once its record is in
+	s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, s.decideSeriesKind(refs), seriesID)
 }
 
 // dropAnimeLeftovers takes the show ids off a series that the anime mapping
@@ -360,7 +360,7 @@ func (s *Server) inAnimeIDs(source string, id int) bool {
 
 // seriesRules names how series are named and keyed; bumping it settles every
 // series a TVDB or TMDB match sits on once, at startup.
-const seriesRules = "2026-10-plain-key"
+const seriesRules = "2026-10-tvdb-extended"
 
 // SettleMatchedSeries runs settleSeries over every stored TVDB and TMDB match
 // once per rule set: series bundled before it carried the name of an AniList
@@ -369,6 +369,10 @@ func (s *Server) SettleMatchedSeries() {
 	if db.Setting(s.DB, "series_rules") == seriesRules {
 		return
 	}
+	// TVDB records cached before they carried genres and the next episode
+	// turn stale: still good for a name, fetched again as they are needed, and
+	// a kind waits undecided till then (decideSeriesKind)
+	s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'tvdb:media:%'`)
 	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches
 		WHERE media_id != 0 AND (source = 'tvdb' OR source LIKE 'tmdb:%')`)
 	if err != nil {

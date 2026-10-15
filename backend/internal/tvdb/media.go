@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +58,105 @@ type seriesRecord struct {
 	Status     *struct {
 		Name string `json:"name"`
 	} `json:"status"`
+	// the extended record only (meta=episodes): what makes a TVDB match carry
+	// the airing data and genres an AniList one has
+	Genres []struct {
+		Name string `json:"name"`
+	} `json:"genres"`
+	AirsTime        string `json:"airsTime"` // "18:00", the network's local time
+	OriginalCountry string `json:"originalCountry"`
+	// the network airsTime is stated in; TVDB has no zone, only its country
+	OriginalNetwork *struct {
+		Country string `json:"country"`
+	} `json:"originalNetwork"`
+	Episodes []struct {
+		AbsoluteNumber int    `json:"absoluteNumber"`
+		SeasonNumber   int    `json:"seasonNumber"`
+		Number         int    `json:"number"`
+		Aired          string `json:"aired"`
+	} `json:"episodes"`
+}
+
+// countryZones maps TVDB's 3-letter origin country to the zone its networks
+// state air times in. Others count as UTC.
+var countryZones = map[string]string{
+	"jpn": "Asia/Tokyo", "kor": "Asia/Seoul", "chn": "Asia/Shanghai", "twn": "Asia/Taipei",
+	"usa": "America/New_York", "can": "America/Toronto", "gbr": "Europe/London",
+	"deu": "Europe/Berlin", "fra": "Europe/Paris", "esp": "Europe/Madrid", "ita": "Europe/Rome",
+	"aus": "Australia/Sydney",
+}
+
+// enrich adds what the extended record holds: genres, the count of regular
+// episodes and the next one to air. The next episode is numbered as AniList
+// numbers a long-running show - absolutely - so a watch's offset and its
+// "behind" count read the same whichever source matched: TVDB's own absolute
+// number, else the running count of regular episodes (a fresh one often has
+// no absolute number yet).
+func (r seriesRecord) enrich(m *anilist.Media, now time.Time) {
+	for _, g := range r.Genres {
+		m.Genres = append(m.Genres, g.Name)
+	}
+	eps := r.Episodes
+	slices.SortStableFunc(eps, func(a, b struct {
+		AbsoluteNumber int    `json:"absoluteNumber"`
+		SeasonNumber   int    `json:"seasonNumber"`
+		Number         int    `json:"number"`
+		Aired          string `json:"aired"`
+	}) int {
+		if a.SeasonNumber != b.SeasonNumber {
+			return a.SeasonNumber - b.SeasonNumber
+		}
+		return a.Number - b.Number
+	})
+	zone := time.UTC
+	country := r.OriginalCountry
+	if r.OriginalNetwork != nil && r.OriginalNetwork.Country != "" {
+		country = r.OriginalNetwork.Country // a US network airing a Japanese co-production
+	}
+	if name, ok := countryZones[country]; ok {
+		if z, err := time.LoadLocation(name); err == nil {
+			zone = z
+		}
+	}
+	today := now.In(zone).Format("2006-01-02")
+	regular := 0
+	for _, e := range eps {
+		if e.SeasonNumber < 1 {
+			continue // specials count apart, as AniList keeps them in entries of their own
+		}
+		regular++
+		// every dated episode still ahead goes into the schedule the calendar
+		// reads, as AniList's airingSchedule does; the first is the next one
+		if e.Aired == "" || e.Aired < today || len(m.Schedule) >= 25 {
+			continue
+		}
+		at, err := time.ParseInLocation("2006-01-02 15:04", e.Aired+" "+airsTimeOr(r.AirsTime), zone)
+		if err != nil {
+			continue
+		}
+		num := e.AbsoluteNumber
+		if num <= 0 {
+			num = regular
+		}
+		m.Schedule = append(m.Schedule, anilist.AiringSlot{AiringAt: at.Unix(), Episode: num})
+		if m.NextAiring == nil {
+			m.NextAiring = &struct {
+				AiringAt int64 `json:"airingAt"`
+				Episode  int   `json:"episode"`
+			}{AiringAt: at.Unix(), Episode: num}
+		}
+	}
+	if regular > 0 {
+		m.Episodes = regular
+	}
+}
+
+// airsTimeOr is the stated air time, midnight when TVDB has none.
+func airsTimeOr(t string) string {
+	if len(t) == 5 && t[2] == ':' {
+		return t
+	}
+	return "00:00"
 }
 
 // statusMap translates TVDB status names into the AniList vocabulary the UI
@@ -113,10 +213,12 @@ func (c *Client) Media(ctx context.Context, id int) (*anilist.Media, error) {
 	var resp struct {
 		Data seriesRecord `json:"data"`
 	}
-	if err := c.get(ctx, fmt.Sprintf("/series/%d", id), &resp); err != nil {
+	// one call for the record, its genres and every episode with its air date
+	if err := c.get(ctx, fmt.Sprintf("/series/%d/extended?meta=episodes&short=true", id), &resp); err != nil {
 		return nil, err
 	}
 	m := resp.Data.toMedia()
+	resp.Data.enrich(&m, time.Now())
 	// TVDB's default `name` is often the native (Japanese) title for anime. Pull
 	// the localized (German, the instance content language TMDB also uses) title
 	// as the primary; when it's missing, keep the native name but add the English

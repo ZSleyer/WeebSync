@@ -2,6 +2,7 @@ package api
 
 import (
 	"log/slog"
+	"slices"
 )
 
 // Series kinds. Not the same question as film or series - that is is_movie on
@@ -42,6 +43,34 @@ func deriveSeriesKind(refs []providerRef, fribb bool) string {
 	return kindLive
 }
 
+// decideSeriesKind is deriveSeriesKind with TVDB's word on it: TVDB files anime
+// under the genre "Anime", which decides for a show the anime mapping does not
+// know (new ones, Chinese and Korean animation). Until a TVDB record is cached
+// the kind stays undecided ("" - its fetch is queued), or the series would be
+// stamped live action for good before TVDB had a say.
+func (s *Server) decideSeriesKind(refs []providerRef) string {
+	kind := deriveSeriesKind(refs, s.seriesInFribb(refs))
+	if kind != kindLive {
+		return kind
+	}
+	for _, r := range refs {
+		if r.Source != "tvdb" {
+			continue
+		}
+		m, _ := s.sourceMedia(r.Source, r.MediaID) // queues the fetch it lacks
+		if m == nil {
+			return ""
+		}
+		if _, fresh := s.Tvdb.CachedMedia(r.MediaID); !fresh && m.Genres == nil {
+			return "" // a record from before TVDB's genres were read
+		}
+		if slices.Contains(m.Genres, "Anime") {
+			return kindAnime
+		}
+	}
+	return kindLive
+}
+
 // refreshSeriesKinds fills in the kind of series that do not have one, a budget
 // at a time from the sweep. Cheap: everything it reads is already cached.
 func (s *Server) refreshSeriesKinds(budget int) {
@@ -68,7 +97,7 @@ func (s *Server) refreshSeriesKinds(budget int) {
 	decided := 0
 	for _, id := range ids {
 		refs := bySeries[id]
-		kind := deriveSeriesKind(refs, s.seriesInFribb(refs))
+		kind := s.decideSeriesKind(refs)
 		if kind == "" {
 			continue
 		}

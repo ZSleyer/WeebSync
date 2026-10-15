@@ -181,7 +181,12 @@ func (s *Server) tvdbAnime(source string, id int) bool {
 	}
 	var n int
 	s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, id).Scan(&n)
-	return n == 1
+	if n == 1 {
+		return true
+	}
+	// a show the mapping does not know yet: TVDB's own genre
+	m := s.cachedMedia(source, id)
+	return m != nil && slices.Contains(m.Genres, "Anime")
 }
 
 // videoExt: files counted as episodes for the completeness check.

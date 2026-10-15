@@ -418,7 +418,7 @@ export default function Watches() {
           />
           <time
             dateTime={new Date(e.at * 1000).toISOString()}
-            title={w.mediaSource?.startsWith('tmdb') ? undefined : `${jst(e.at)} JST`}
+            title={w.category?.startsWith('anime') ? `${jst(e.at)} JST` : undefined}
           >
             {hm(e.at)}
           </time>
