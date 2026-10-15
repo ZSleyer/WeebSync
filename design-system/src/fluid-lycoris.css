@@ -1146,7 +1146,7 @@ input[type='radio']:disabled { opacity: 0.45; cursor: not-allowed; }
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -1px;
+  bottom: 0; /* inside the bar: a sticky heading in <main> stops right under it */
   height: 2px;
   background: var(--accent);
   transform-origin: left;
