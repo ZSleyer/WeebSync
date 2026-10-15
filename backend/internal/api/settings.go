@@ -60,10 +60,17 @@ func (s *Server) applyProxyConfig() {
 	auth.SetProxyConfig(db.Setting(s.DB, "trusted_proxies"), truthySetting(db.Setting(s.DB, "force_https")))
 	// the public origin is ours even when a proxy hands the request a
 	// different Host: an older browser without Sec-Fetch-Site is judged by
-	// Origin against Host, and must not lose every POST behind such a proxy
-	if o := s.baseURL(); o != "" && s.crossOrigin != nil {
-		s.crossOrigin.AddTrustedOrigin(o)
+	// Origin against Host, and must not lose every POST behind such a proxy.
+	// Rebuilt from scratch on every save: the protection can only add origins,
+	// so a changed base URL would otherwise leave the old one trusted until a
+	// restart.
+	c := http.NewCrossOriginProtection()
+	if o := s.baseURL(); o != "" {
+		if err := c.AddTrustedOrigin(o); err != nil {
+			slog.Warn("trusted origin refused", "origin", o, "err", err)
+		}
 	}
+	s.crossOrigin.Store(c)
 }
 
 // CrossOrigin refuses state-changing requests a browser sends on behalf of
@@ -75,14 +82,16 @@ func (s *Server) applyProxyConfig() {
 // the *arr apps, webhooks. GET, HEAD and OPTIONS always pass, so nothing may
 // change state on those.
 func (s *Server) CrossOrigin(next http.Handler) http.Handler {
-	if s.crossOrigin == nil {
-		s.crossOrigin = http.NewCrossOriginProtection()
-		s.crossOrigin.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			writeErr(w, http.StatusForbidden, "cross-origin request refused")
-		}))
+	if s.crossOrigin.Load() == nil {
 		s.applyProxyConfig()
 	}
-	return s.crossOrigin.Handler(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := s.crossOrigin.Load().Check(r); err != nil {
+			writeErr(w, http.StatusForbidden, "cross-origin request refused")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // truthySetting reads a boolean setting. The env form of these is a string, so

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/ai"
@@ -97,8 +98,9 @@ type Server struct {
 	authLimiter *ipLimiter
 	// failed sign-ins per account (see accountWait), admin-inspectable too
 	accountLimiter *ipLimiter
-	// the cross-site request guard (see CrossOrigin)
-	crossOrigin *http.CrossOriginProtection
+	// the cross-site request guard (see CrossOrigin), swapped whole on every
+	// settings save so a trusted origin can also go away
+	crossOrigin atomic.Pointer[http.CrossOriginProtection]
 	// connection tests per user: each one dials a host the user names, and
 	// their different failures would otherwise map a network
 	testLimiter *ipLimiter
