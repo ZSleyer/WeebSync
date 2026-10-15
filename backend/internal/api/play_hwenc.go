@@ -70,7 +70,11 @@ func encoderWorks(e videoEncoder) bool {
 		"-vf", e.filter(), "-force_key_frames", "expr:gte(t,n_forced*0.25)")
 	args = append(args, e.args...)
 	args = append(args, "-f", "null", "-")
-	return exec.CommandContext(ctx, "ffmpeg", args...).Run() == nil
+	out, err := exec.CommandContext(ctx, "ffmpeg", args...).CombinedOutput()
+	if err != nil {
+		slog.Debug("player: encoder unavailable", "encoder", e.name, "device", e.device, "ffmpeg", logSafe(string(out)))
+	}
+	return err == nil
 }
 
 // filter scales to the encoder's height and hands the frames over.
@@ -78,6 +82,11 @@ func (e videoEncoder) filter() string {
 	return "scale=-2:'min(" + strconv.Itoa(e.height) + ",ih)'," + e.upload
 }
 
+// playEncoder is picked once per process.
+//
+// ponytail: a GPU that fails later (driver reset, NVENC session cap) fails
+// that transcode instead of falling back to x264; retry in software per run
+// if that shows up.
 var playEncoder = sync.OnceValue(func() videoEncoder {
 	mode := strings.ToLower(strings.TrimSpace(os.Getenv("WEEBSYNC_HWACCEL")))
 	for _, e := range encoderCandidates(mode) {

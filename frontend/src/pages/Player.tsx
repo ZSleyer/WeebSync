@@ -316,16 +316,18 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // the server's side of the wait in numbers, asked every second while the
   // words show: a share and the time left for a segment being converted,
   // else what was read from a remote file so far
+  const polling = !!path && (info.isPending || loadStep !== '')
   const status = useQuery({
     queryKey: ['play-status', server, path],
     queryFn: () => api.get<PlayStatus>(`/api/play/status?${src}`),
-    enabled: !!path && (info.isPending || loadStep !== ''),
+    enabled: polling,
     refetchInterval: 1000,
     gcTime: 0,
   })
   const statusDetail = (() => {
+    // a stall after playing shows the words without polling: no stale numbers
     const s = status.data
-    if (!s) return ''
+    if (!s || !polling) return ''
     const num = (x: number, digits = 0) => x.toLocaleString(i18n.language, { maximumFractionDigits: digits })
     // a share once ffmpeg reported a time; before that the bytes say more
     if (s.done > 0 || s.left > 0) {
