@@ -184,8 +184,8 @@ var catalog = map[string]map[string]string{
 		"de": "Dashboard öffnen",
 	},
 	"email.openPlex": {
-		"en": "Open in Plex ↗",
-		"de": "In Plex öffnen ↗",
+		"en": "Open in %s ↗",
+		"de": "In %s öffnen ↗",
 	},
 	"email.newUserSubject": {
 		"en": "New registration",
@@ -231,7 +231,7 @@ var catalog = map[string]map[string]string{
 	"why.season":    {"en": "Season %d is on %s; you own season %s of this show.", "de": "Staffel %d liegt auf %s, lokal hast du Staffel %s."},
 	"why.movie":     {"en": "The film is on %s; the series is in your library.", "de": "Der Film liegt auf %s, die Serie ist lokal vorhanden."},
 	"why.episodes":  {"en": "%d of %d episodes are here; %s also has episode %s.", "de": "Lokal %d von %d Folgen, auf %s gibt es auch Folge %s."},
-	"why.sequel":    {"en": "Plex holds the earlier part of this show (%d of %d episodes); this continuation is not in the library.", "de": "Plex hat den früheren Teil dieser Serie (%d von %d Folgen), diese Fortsetzung fehlt."},
+	"why.sequel":    {"en": "%s holds the earlier part of this show (%d of %d episodes); this continuation is not in the library.", "de": "%s hat den früheren Teil dieser Serie (%d von %d Folgen), diese Fortsetzung fehlt."},
 	"why.upgrade":   {"en": "%s has %s.", "de": "%s bietet %s."},
 	"why.res":       {"en": "%dp instead of %dp", "de": "%dp statt %dp"},
 	"why.dub":       {"en": "dub %s", "de": "Dub %s"},

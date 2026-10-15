@@ -179,6 +179,9 @@ func (s *Server) plexTVUser(token string) string {
 type plexAccountResponse struct {
 	Linked bool   `json:"linked"`
 	User   string `json:"user,omitempty"`
+	// Server is the configured media server, so every user's UI can name it;
+	// empty when none is set up
+	Server string `json:"server,omitempty" enums:"plex,jellyfin"`
 }
 
 // handlePlexAccount reports whether the user has a linked plex.tv account.
@@ -193,7 +196,11 @@ func (s *Server) handlePlexAccount(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var name string
 	err := s.DB.QueryRow(`SELECT plex_user FROM plex_accounts WHERE user_id = ?`, u.ID).Scan(&name)
-	writeJSON(w, http.StatusOK, plexAccountResponse{Linked: err == nil, User: name})
+	out := plexAccountResponse{Linked: err == nil, User: name}
+	if c := s.plexClient(); c != nil {
+		out.Server = c.Kind()
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handlePlexAccountDisconnect drops the stored plex.tv token.

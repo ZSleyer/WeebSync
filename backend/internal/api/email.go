@@ -510,8 +510,8 @@ func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, c
 		t.WriteString(strings.Join(g.names, "\r\n  "))
 		body := `<p style="margin:0 0 6px;color:#e6edf3;font-size:14px;font-weight:600">` + html.EscapeString(g.title) + `</p>` + emailLines(g.names)
 		if g.plexLink != "" {
-			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">` + html.EscapeString(tr(locale, "email.openPlex")) + `</a></p>`
-			t.WriteString("\r\n  Plex: ")
+			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">` + html.EscapeString(tr(locale, "email.openPlex", s.mediaServerName())) + `</a></p>`
+			t.WriteString("\r\n  " + s.mediaServerName() + ": ")
 			t.WriteString(g.plexLink)
 		}
 		if g.cover != "" {

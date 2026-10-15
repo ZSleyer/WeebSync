@@ -5604,6 +5604,14 @@
                     "linked": {
                         "type": "boolean"
                     },
+                    "server": {
+                        "description": "Server is the configured media server, so every user's UI can name it;\nempty when none is set up",
+                        "enum": [
+                            "plex",
+                            "jellyfin"
+                        ],
+                        "type": "string"
+                    },
                     "user": {
                         "type": "string"
                     }

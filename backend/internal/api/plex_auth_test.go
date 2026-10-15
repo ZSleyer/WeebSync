@@ -27,3 +27,22 @@ func TestPlexAuth(t *testing.T) {
 		t.Errorf("env: %q", got)
 	}
 }
+
+// Plex wins when both servers are set up; Jellyfin stands in only without it.
+func TestMediaServerPrecedence(t *testing.T) {
+	d := dbtest.Open(t)
+	s := &Server{DB: d}
+	if s.plexClient() != nil {
+		t.Fatal("nothing configured must give no server")
+	}
+	db.SetSetting(d, "jellyfin_url", "http://jellyfin.example.com")
+	db.SetSetting(d, "jellyfin_token", "key")
+	if c := s.plexClient(); c == nil || c.Kind() != "jellyfin" || s.mediaServerName() != "Jellyfin" {
+		t.Fatalf("only Jellyfin set: %v", c)
+	}
+	db.SetSetting(d, "plex_url", "http://plex.example.com")
+	db.SetSetting(d, "plex_token", "tok")
+	if c := s.plexClient(); c == nil || c.Kind() != "plex" || s.mediaServerName() != "Plex" {
+		t.Fatalf("both set must give Plex: %v", c)
+	}
+}

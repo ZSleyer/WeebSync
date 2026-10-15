@@ -50,6 +50,15 @@ func (s *Server) plexClient() plex.Server {
 	return nil
 }
 
+// mediaServerName is the configured server's product name for texts the
+// backend writes itself (mail, suggestion reasons); "Plex" when none is set.
+func (s *Server) mediaServerName() string {
+	if c := s.plexClient(); c != nil && c.Kind() == "jellyfin" {
+		return "Jellyfin"
+	}
+	return "Plex"
+}
+
 // plexMeResponse is the connection status shown on the settings page.
 type plexMeResponse struct {
 	Configured bool   `json:"configured"`

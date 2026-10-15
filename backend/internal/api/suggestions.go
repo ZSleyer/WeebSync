@@ -905,7 +905,7 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		// the missing-unit half carries one
 		it.Library = ps.Library
 		it.Kind = "sequel"
-		it.Why = tr(acc.locale, "why.sequel", ps.LeafCount, ps.ChainNeed)
+		it.Why = tr(acc.locale, "why.sequel", s.mediaServerName(), ps.LeafCount, ps.ChainNeed)
 		seq := ps.Sequel
 		seq.Title.Preferred = displayTitle(seq, source) // same localized title as the card
 		it.Sequel = &seq

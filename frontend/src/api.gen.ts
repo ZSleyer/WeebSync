@@ -2401,6 +2401,11 @@ export interface Schemas {
   }
   'api.plexAccountResponse': {
     linked: boolean
+    /**
+     * Server is the configured media server, so every user's UI can name it;
+     * empty when none is set up
+     */
+    server?: "plex" | "jellyfin"
     user?: string
   }
   'api.plexCandidate': {
