@@ -123,11 +123,69 @@ func (s *Server) storePlexRoots(sections []plex.Section) {
 			scopeLines = append(scopeLines, local+"\t"+libraryScope(sec, srcOf[sec.Key]))
 		}
 	}
+	before := db.Setting(s.DB, "plex_lib_scopes")
 	db.SetSetting(s.DB, "plex_lib_roots", strings.Join(roots, "\n"))
 	db.SetSetting(s.DB, "plex_lib_map", strings.Join(mapLines, "\n"))
 	db.SetSetting(s.DB, "plex_lib_scopes", strings.Join(scopeLines, "\n"))
 	if s.Transfers != nil {
 		s.Transfers.Roots = s.localRoots()
+	}
+	if changed := changedRoots(before, scopeLines); len(changed) > 0 {
+		s.rematchLibraryWatches(changed)
+	}
+}
+
+// changedRoots lists the library roots whose match scope differs from the
+// "root\tscope" lines stored before. A root seen for the first time counts:
+// its watches were matched without any library at all.
+func changedRoots(before string, after []string) []string {
+	old := map[string]string{}
+	for _, ln := range splitLines(before) {
+		if root, v, ok := strings.Cut(ln, "\t"); ok {
+			old[root] = v
+		}
+	}
+	var out []string
+	for _, ln := range after {
+		if root, v, ok := strings.Cut(ln, "\t"); ok && old[root] != v {
+			out = append(out, root)
+		}
+	}
+	return out
+}
+
+// rematchLibraryWatches sends the watches writing into these library roots
+// through the matcher again, manual matches included: the library's source
+// was just changed, and a match from the old one is what the change was for.
+func (s *Server) rematchLibraryWatches(roots []string) {
+	rows, err := s.DB.Query(`SELECT server_id, remote_path, local_path FROM watches`)
+	if err != nil {
+		return
+	}
+	type watchFolder struct {
+		serverID      int64
+		remote, local string
+	}
+	var all []watchFolder
+	for rows.Next() {
+		var w watchFolder
+		if rows.Scan(&w.serverID, &w.remote, &w.local) == nil {
+			all = append(all, w)
+		}
+	}
+	rows.Close()
+	queued := 0
+	for _, w := range all {
+		target := s.localAbs(w.local)
+		if !slices.ContainsFunc(roots, func(r string) bool { return target == r || strings.HasPrefix(target, r+"/") }) {
+			continue
+		}
+		if s.matchWatch(w.serverID, w.remote, w.local, true) {
+			queued++
+		}
+	}
+	if queued > 0 {
+		slog.Info("library source changed, watch folders matched again", "roots", len(roots), "queued", queued)
 	}
 }
 

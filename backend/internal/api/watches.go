@@ -1977,19 +1977,29 @@ type watchUpdateResponse struct {
 // linkMedia records a manual folder→media match so the overview shows real
 // metadata (cover, episodes, airing) for a watch whose folder the catalog
 // couldn't auto-match (e.g. an arc subfolder). id 0 leaves any match as-is.
-// source is the metadata provider: "anilist" (anime) or "tmdb:tv"/"tmdb:movie"
-// (live action); anything else falls back to anilist.
+// source is the metadata provider: "anilist" (anime), "tmdb:tv"/"tmdb:movie"
+// or "tvdb" (live action); anything else falls back to anilist.
+//
+// The edit dialog sends back whatever match the folder already has, so the
+// same pair is no decision: it leaves an automatic match automatic. Taking
+// it as one froze every wrong guess of the matcher the first time someone
+// saved the watch, and nothing re-matches a manual row.
 func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source string) {
 	if mediaID <= 0 {
 		return
 	}
-	if source != "tmdb:tv" && source != "tmdb:movie" && source != mangaSource {
+	if source != "tmdb:tv" && source != "tmdb:movie" && source != "tvdb" && source != mangaSource {
 		source = "anilist"
 	}
-	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
-		VALUES (?, ?, ?, 1, ?)
-		ON CONFLICT(server_id, folder) DO UPDATE SET media_id = excluded.media_id, manual = 1, source = excluded.source`,
-		serverID, folder, mediaID, source)
+	var have int
+	var haveSource string
+	if s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&have, &haveSource) == nil && have == mediaID && haveSource == source {
+		return
+	}
+	if err := s.persistMatch(serverID, folder, mediaID, true, source); err != nil {
+		slog.Warn("watch media not linked", "folder", logSafe(folder), "err", err)
+	}
 }
 
 // ensureWatchMatch queues a metadata match for a watch folder the catalog has
@@ -2002,15 +2012,35 @@ func (s *Server) linkMedia(serverID int64, folder string, mediaID int, source st
 //
 // The source follows the catalog mark on the remote side, else the Plex
 // library the watch writes into: an unscoped folder would otherwise always be
-// searched on AniList, which knows no western shows.
+// searched on AniList, which knows no western shows. A match from another
+// source than that is searched again, so switching a library to TVDB moves
+// its folders over instead of leaving them on the AniList guess.
 func (s *Server) ensureWatchMatch(serverID int64, folder, localPath string) bool {
+	return s.matchWatch(serverID, folder, localPath, false)
+}
+
+// matchWatch is ensureWatchMatch; overrule also searches a manual match again
+// when it comes from another source than the folder's scope. Only for passes
+// that follow a change of that source: whoever switches a library to TVDB
+// wants rid of the AniList pick, and the edit dialog used to stamp every
+// automatic match as manual on save, so the flag says little about a match
+// from before.
+func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule bool) bool {
 	var mediaID, manual int
-	stored := s.DB.QueryRow(`SELECT media_id, manual FROM catalog_matches WHERE server_id = ? AND folder = ?`,
-		serverID, folder).Scan(&mediaID, &manual) == nil
-	if stored && (mediaID != 0 || manual == 1) {
+	var source string
+	stored := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&mediaID, &manual, &source) == nil
+	name, scope := s.watchMatchQuery(serverID, folder, localPath)
+	// no mark and no library says nothing about the source: what is stored stays
+	foreign := stored && scope != "" && sourceForScope(scope) != source && (manual == 0 || overrule)
+	if stored && !foreign && (mediaID != 0 || manual == 1) {
 		return false
 	}
-	name, scope := s.watchMatchQuery(serverID, folder, localPath)
+	if foreign {
+		slog.Info("watch folder matched again", "folder", logSafe(folder), "from", source, "to", sourceForScope(scope), "manual", manual == 1)
+		// the index row carries the show key of the old match
+		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, serverID, folder)
+	}
 	s.queueScopedMatch(serverID, folder, name, scope, stored)
 	return true
 }
@@ -2027,18 +2057,21 @@ func (s *Server) watchMatchQuery(serverID int64, folder, localPath string) (name
 	}
 	scope = s.scopeFor(serverID, titleDir)
 	if scope == "" {
-		// Plex roots are absolute; a relative local path lives under the
-		// download root
-		target := localPath
-		if abs, err := s.safeLocal(localPath); err == nil && !path.IsAbs(localPath) {
-			target = abs
-		}
-		scope = s.plexLibraryScope(target)
+		scope = s.plexLibraryScope(s.localAbs(localPath))
 	}
 	if (scope == "" || scope == "anime") && s.holdsBooks(serverID, folder) {
 		scope = "manga"
 	}
 	return name, scopeForItem(scope, s.itemKind(serverID, folder, name))
+}
+
+// localAbs is a watch's local path made absolute, the form Plex
+// library roots are in: a relative local path lives under the download root.
+func (s *Server) localAbs(localPath string) string {
+	if abs, err := s.safeLocal(localPath); err == nil && !path.IsAbs(localPath) {
+		return abs
+	}
+	return localPath
 }
 
 // holdsBooks reports whether a remote folder holds manga or novel volumes and

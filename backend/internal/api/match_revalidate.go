@@ -109,14 +109,15 @@ func (s *Server) cachedMedia(source string, id int) *anilist.Media {
 }
 
 // watchMatchRules names how watch folders are matched; bumping it searches every
-// watch's stored miss (media_id 0) once more.
-const watchMatchRules = "2026-10-library-scope"
+// watch's stored miss (media_id 0) once more, and every match from another
+// source than the folder's scope, manual or not.
+const watchMatchRules = "2026-10-source-follows-scope"
 
 // BackfillWatchMatches queues a match for every watch folder that has none.
 // Watches older than ensureWatchMatch never got one, and a queued search that
 // was dropped (full queue, timeout, search error) leaves no row that a catalog
 // poll would ever revisit for a folder outside every catalog view. Stored
-// misses are retried once per rule set. Run after the Plex roots are known:
+// misses and matches from a foreign source are retried once per rule set. Run after the Plex roots are known:
 // the library scope decides where a folder is searched.
 //
 // ponytail: a dropped search waits for the next start; re-queue from the watch
@@ -146,7 +147,7 @@ func (s *Server) BackfillWatchMatches() int {
 	}
 	queued := 0
 	for _, w := range all {
-		if (w.missing || retryMisses) && s.ensureWatchMatch(w.serverID, w.remote, w.local) {
+		if (w.missing || retryMisses) && s.matchWatch(w.serverID, w.remote, w.local, retryMisses) {
 			queued++
 		}
 	}
