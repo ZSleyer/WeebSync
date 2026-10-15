@@ -160,7 +160,10 @@ func main() {
 	api.ClearBookCache() // the reader's unpacked books: their tokens died with the last run
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
-	go srv.BackfillSeries()
+	go func() {
+		srv.BackfillSeries()
+		srv.SettleMatchedSeries() // once per rule set: name series after the match their folder holds
+	}()
 	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
 	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows
 	go srv.ClearStaleSuggestionCache() // drop cached suggestion blobs once when their format changed

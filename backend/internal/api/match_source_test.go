@@ -129,8 +129,40 @@ func TestReplacedMatchLeavesTheSeries(t *testing.T) {
 	}
 	var title, kind string
 	s.DB.QueryRow(`SELECT title, kind FROM series WHERE id = 1`).Scan(&title, &kind)
-	if title != "House of the Dragon" || kind != "" {
-		t.Fatalf("series: title %q kind %q, want the TVDB name and the kind decided again", title, kind)
+	if title != "House of the Dragon" || kind != kindLive {
+		t.Fatalf("series: title %q kind %q, want the TVDB name and live action", title, kind)
+	}
+}
+
+// The AniList guess left in an earlier step and took no name with it: a TVDB
+// match on a series without AniList names it and decides its kind, at once
+// and in the one-time pass over what is stored.
+func TestTvdbMatchNamesItsSeries(t *testing.T) {
+	s := sourceTestServer(t)
+	cacheMedia(t, s, "tvdb:media:404604", 404604, "Ted", "")
+	s.DB.Exec(`INSERT INTO series (id, key, title, kind) VALUES (1, 'gif ni ted', 'Gif ni Ted', '')`)
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 404604, 1), ('plex', 9, 1)`)
+	if err := s.persistMatch(1, "/x/Ted (2024)", 404604, true, "tvdb"); err != nil {
+		t.Fatal(err)
+	}
+	var title, kind string
+	s.DB.QueryRow(`SELECT title, kind FROM series WHERE id = 1`).Scan(&title, &kind)
+	if title != "Ted" || kind != kindLive {
+		t.Fatalf("after the match: title %q kind %q", title, kind)
+	}
+	s.DB.Exec(`UPDATE series SET title = 'Gif ni Ted', kind = ''`)
+	s.SettleMatchedSeries()
+	s.DB.QueryRow(`SELECT title, kind FROM series WHERE id = 1`).Scan(&title, &kind)
+	if title != "Ted" || kind != kindLive {
+		t.Fatalf("after the pass: title %q kind %q", title, kind)
+	}
+	// an anime series keeps its AniList name whatever else matches it
+	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist', 5, 1)`)
+	s.DB.Exec(`UPDATE series SET title = 'Anime Name'`)
+	s.settleSeries("tvdb", 404604)
+	s.DB.QueryRow(`SELECT title FROM series WHERE id = 1`).Scan(&title)
+	if title != "Anime Name" {
+		t.Fatalf("anime renamed to %q", title)
 	}
 }
 

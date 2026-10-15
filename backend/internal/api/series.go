@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
 )
@@ -43,6 +44,7 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 	if left != 0 {
 		s.retitleSeries(left, source, mediaID)
 	}
+	s.settleSeries(source, mediaID)
 	s.refreshVariant(serverID, folder)
 	// a brand-new series (first time this show is seen anywhere) is a
 	// suggestion worth telling the server's owner about. Backfill calls
@@ -241,6 +243,81 @@ func (s *Server) retitleSeries(seriesID int64, source string, mediaID int) {
 		return
 	}
 	s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, title, media.SeasonYear, seriesID)
+}
+
+// settleSeries gives a series a folder matched on TVDB or TMDB the name and kind
+// of that match, when no AniList entry is on it: AniList names what it lists,
+// everything else is named by what the folder matched. Without this a series
+// kept the name of whatever was on it before - an AniList guess the folder
+// left in an earlier step, or the first title the bundle was made from - and
+// its kind waited for the next sweep.
+func (s *Server) settleSeries(source string, mediaID int) {
+	if source != "tvdb" && !strings.HasPrefix(source, "tmdb:") {
+		return
+	}
+	var seriesID int64
+	if s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&seriesID) != nil {
+		return
+	}
+	rows, err := s.DB.Query(`SELECT source, media_id FROM series_provider WHERE series_id = ?`, seriesID)
+	if err != nil {
+		return
+	}
+	var refs []providerRef
+	for rows.Next() {
+		var r providerRef
+		if rows.Scan(&r.Source, &r.MediaID) == nil {
+			refs = append(refs, r)
+		}
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
+	for _, r := range refs {
+		if r.Source == "anilist" {
+			return
+		}
+	}
+	s.retitleSeries(seriesID, source, mediaID)
+	if kind := deriveSeriesKind(refs, s.seriesInFribb(refs)); kind != "" {
+		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID)
+	}
+}
+
+// seriesRules names how series are named; bumping it settles every series a
+// TVDB or TMDB match sits on once, at startup.
+const seriesRules = "2026-10-named-by-match"
+
+// SettleMatchedSeries runs settleSeries over every stored TVDB and TMDB match
+// once per rule set: series bundled before it carried the name of an AniList
+// guess their folder has since left.
+func (s *Server) SettleMatchedSeries() {
+	if db.Setting(s.DB, "series_rules") == seriesRules {
+		return
+	}
+	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches
+		WHERE media_id != 0 AND (source = 'tvdb' OR source LIKE 'tmdb:%')`)
+	if err != nil {
+		return
+	}
+	var refs []providerRef
+	for rows.Next() {
+		var r providerRef
+		if rows.Scan(&r.Source, &r.MediaID) == nil {
+			refs = append(refs, r)
+		}
+	}
+	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
+	for _, r := range refs {
+		s.settleSeries(r.Source, r.MediaID)
+	}
+	slog.Info("matched series settled", "matches", len(refs))
+	db.SetSetting(s.DB, "series_rules", seriesRules)
 }
 
 // findSeries returns the id of an existing series matching key under the year
