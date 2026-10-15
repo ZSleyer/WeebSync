@@ -414,6 +414,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/plex/account", authed(http.HandlerFunc(s.handlePlexAccount)))
 	mux.Handle("DELETE /api/plex/account", authed(http.HandlerFunc(s.handlePlexAccountDisconnect)))
 	mux.Handle("GET /api/plex/watchlist", authed(http.HandlerFunc(s.handlePlexWatchlist)))
+	mux.Handle("POST /api/jellyfin/server/link/start", authed(adminOnly(http.HandlerFunc(s.handleJellyfinServerLinkStart))))
+	mux.Handle("GET /api/jellyfin/server/link/poll", authed(adminOnly(http.HandlerFunc(s.handleJellyfinServerLinkPoll))))
+	mux.Handle("POST /api/jellyfin/link/start", authed(http.HandlerFunc(s.handleJellyfinLinkStart)))
+	mux.Handle("GET /api/jellyfin/link/poll", authed(http.HandlerFunc(s.handleJellyfinLinkPoll)))
 
 	// rename
 	mux.Handle("POST /api/rename/preview", authed(http.HandlerFunc(s.handleRenamePreview)))

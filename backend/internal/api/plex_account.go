@@ -247,6 +247,22 @@ type PlexWatchItem struct {
 //	@Router			/api/plex/watchlist [get]
 func (s *Server) handlePlexWatchlist(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	if c := s.plexClient(); c != nil && c.Kind() == "jellyfin" {
+		favs, err := s.jellyfinFavorites(u.ID)
+		if err != nil {
+			writeErr(w, http.StatusBadGateway, "Jellyfin unreachable")
+			return
+		}
+		ignored := s.dismissedKeys(u.ID, "suggestion")
+		out := []PlexWatchItem{}
+		for _, f := range favs {
+			if !ignored[fmt.Sprintf("plexwatch:%s:%d", strings.ToLower(f.Title), f.Year)] {
+				out = append(out, f)
+			}
+		}
+		writeJSON(w, http.StatusOK, out)
+		return
+	}
 	token := s.plexAccountToken(u.ID)
 	if token == "" {
 		writeJSON(w, http.StatusOK, []PlexWatchItem{})

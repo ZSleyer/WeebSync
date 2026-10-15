@@ -164,6 +164,62 @@ func TestClientSpeaksPlexTypes(t *testing.T) {
 	}
 }
 
+func TestQuickConnectAndFavorites(t *testing.T) {
+	authed := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.Contains(r.Header.Get("Authorization"), `DeviceId="dev1"`) {
+			w.WriteHeader(http.StatusBadRequest) // Initiate refuses a missing DeviceId
+			return
+		}
+		var body any
+		switch r.URL.Path {
+		case "/QuickConnect/Enabled":
+			body = true
+		case "/QuickConnect/Initiate":
+			body = map[string]any{"Secret": "s3cret", "Code": "123456"}
+		case "/QuickConnect/Connect":
+			body = map[string]any{"Secret": r.URL.Query().Get("secret"), "Authenticated": authed}
+		case "/Users/AuthenticateWithQuickConnect":
+			body = map[string]any{"AccessToken": "usertok", "User": map[string]any{"Id": "u9", "Name": "Takina"}}
+		case "/Users/Me":
+			body = map[string]any{"Id": "u9", "Name": "Takina"}
+		case "/Items":
+			if r.URL.Query().Get("isFavorite") != "true" || r.URL.Query().Get("userId") != "u9" {
+				t.Errorf("favourites query %s", r.URL)
+			}
+			body = map[string]any{"Items": []any{
+				map[string]any{"Type": "Series", "Name": "Lycoris Recoil", "ProductionYear": 2022, "ProviderIds": map[string]string{"Tvdb": "414057"}},
+				map[string]any{"Type": "Movie", "Name": "Film", "ProviderIds": map[string]string{"Tmdb": "5"}},
+			}}
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		json.NewEncoder(w).Encode(body)
+	}))
+	defer srv.Close()
+	c := New(srv.URL, "")
+	c.DeviceID = "dev1"
+	qc, err := c.QuickConnectStart()
+	if err != nil || qc.Code != "123456" {
+		t.Fatalf("start %+v %v", qc, err)
+	}
+	if tok, _, err := c.QuickConnectToken(qc.Secret); err != nil || tok != "" {
+		t.Fatalf("not entered yet must give no token: %q %v", tok, err)
+	}
+	authed = true
+	tok, u, err := c.QuickConnectToken(qc.Secret)
+	if err != nil || tok != "usertok" || u.Name != "Takina" {
+		t.Fatalf("token %q %+v %v", tok, u, err)
+	}
+	uc := New(srv.URL, tok)
+	uc.DeviceID = "dev1"
+	favs, err := uc.Favorites()
+	if err != nil || len(favs) != 2 || favs[0].TVDB != 414057 || favs[1].Type != "movie" || favs[1].TMDB != 5 {
+		t.Fatalf("favourites %+v %v", favs, err)
+	}
+}
+
 func TestShortKey(t *testing.T) {
 	if ShortKey(idMv) != "1" {
 		t.Errorf("got %q", ShortKey(idMv))

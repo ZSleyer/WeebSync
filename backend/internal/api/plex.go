@@ -44,7 +44,7 @@ func (s *Server) plexClient() plex.Server {
 	t = secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN")
 	if u != "" && t != "" {
 		c := jellyfin.New(u, t)
-		c.DeviceID = s.plexClientID()
+		c.DeviceID = s.jellyfinDevice(jellyfinServerFlow, 0)
 		return c
 	}
 	return nil

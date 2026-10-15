@@ -800,6 +800,26 @@ func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string
 // plexWatchlistItems converts the linked plex.tv watchlist into SugItems.
 func (s *Server) plexWatchlistItems(userID int64, bySrc map[string]int64, bySeries map[int64][]providerRef) []SugItem {
 	out := []SugItem{}
+	if c := s.plexClient(); c != nil && c.Kind() == "jellyfin" {
+		favs, _ := s.jellyfinFavorites(userID)
+		for _, f := range favs {
+			media := anilist.Media{SeasonYear: f.Year, Format: "TV"}
+			media.Title.Romaji = f.Title
+			source := "tmdb:tv"
+			switch {
+			case f.TMDB != 0 && f.Type == "movie":
+				source, media.Format, media.ID = "tmdb:movie", "MOVIE", f.TMDB
+			case f.TMDB != 0:
+				media.ID = f.TMDB
+			case f.TVDB != 0:
+				source, media.ID = "tvdb", f.TVDB
+			default:
+				continue // nothing to key on
+			}
+			out = append(out, s.buildItem(media, source, nil, "", bySrc, bySeries, ""))
+		}
+		return out
+	}
 	token := s.plexAccountToken(userID)
 	if token == "" {
 		return out
