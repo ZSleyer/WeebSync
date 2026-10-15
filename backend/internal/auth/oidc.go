@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -104,15 +105,19 @@ func (m *Manager) Reload(ctx context.Context) error {
 	// an issuer reached over https hands out https endpoints: a token or key
 	// endpoint over http would carry the client secret and the signing keys
 	// in clear text even though the issuer looked safe
-	if strings.HasPrefix(issuer, "https://") {
+	if iu, err := url.Parse(issuer); err == nil && strings.EqualFold(iu.Scheme, "https") {
 		ep := provider.Endpoint()
-		var keys struct {
-			JWKS string `json:"jwks_uri"`
+		var more struct {
+			JWKS     string `json:"jwks_uri"`
+			UserInfo string `json:"userinfo_endpoint"`
 		}
-		provider.Claims(&keys)
-		for _, u := range []string{ep.TokenURL, ep.AuthURL, keys.JWKS} {
-			if strings.HasPrefix(u, "http://") {
-				return fmt.Errorf("oidc discovery: endpoint %s is not https", u)
+		provider.Claims(&more)
+		for _, raw := range []string{ep.TokenURL, ep.AuthURL, more.JWKS, more.UserInfo} {
+			if raw == "" {
+				continue
+			}
+			if eu, err := url.Parse(raw); err != nil || !strings.EqualFold(eu.Scheme, "https") {
+				return fmt.Errorf("oidc discovery: endpoint %s is not https", raw)
 			}
 		}
 	}
@@ -420,6 +425,11 @@ func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (
 				}
 			}
 			d.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, *admin, id)
+			// the provider's groups make it an admin: nobody else could
+			// approve it more surely
+			if *admin {
+				d.Exec(`UPDATE users SET approved = 1 WHERE id = ?`, id)
+			}
 		}
 		return id, false, nil
 	}
@@ -471,11 +481,12 @@ func SetSetupProof(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	mac, err := secret.MAC("oidc-setup|" + nonce)
+	at := strconv.FormatInt(time.Now().Unix(), 10)
+	mac, err := secret.MAC("oidc-setup|" + at + "|" + nonce)
 	if err != nil {
 		return err
 	}
-	SetCookie(w, r, &http.Cookie{Name: setupProofCookie, Value: nonce + "." + hex.EncodeToString(mac), Path: "/api/auth/oidc", MaxAge: 600})
+	SetCookie(w, r, &http.Cookie{Name: setupProofCookie, Value: at + "." + nonce + "." + hex.EncodeToString(mac), Path: "/api/auth/oidc", MaxAge: 600})
 	return nil
 }
 
@@ -484,11 +495,16 @@ func validSetupProof(r *http.Request) bool {
 	if err != nil {
 		return false
 	}
-	nonce, sig, ok := strings.Cut(c.Value, ".")
-	if !ok {
+	parts := strings.Split(c.Value, ".")
+	if len(parts) != 3 {
 		return false
 	}
-	want, err := secret.MAC("oidc-setup|" + nonce)
+	at, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || time.Since(time.Unix(at, 0)) > 10*time.Minute {
+		return false
+	}
+	sig := parts[2]
+	want, err := secret.MAC("oidc-setup|" + parts[0] + "|" + parts[1])
 	if err != nil {
 		return false
 	}

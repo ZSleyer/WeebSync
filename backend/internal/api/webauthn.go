@@ -197,13 +197,27 @@ func (s *Server) reauth(w http.ResponseWriter, r *http.Request, userID int64, pa
 	if hash == "" {
 		return true
 	}
-	if wait := s.accountWait(r, email); wait > 0 {
-		tooMany(w, wait)
-		return false
+	return s.checkPassword(w, r, email, password, hash, "invalid password")
+}
+
+// checkPassword verifies password for a request that already has a session,
+// counting a miss against the account's bucket. Unlike a sign-in it does not
+// trust the device cookie: the session may stem from a passkey that verified
+// nobody, and its browser must not guess the password unbounded. Only a
+// trusted network is exempt.
+func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, email, password, hash, refusal string) bool {
+	trusted := s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r))
+	if !trusted {
+		if wait := s.accountLimiter.blockedFor(accountKey(email)); wait > 0 {
+			tooMany(w, wait)
+			return false
+		}
 	}
 	if !auth.VerifyPassword(password, hash) {
-		s.accountFailed(r, email)
-		writeErr(w, http.StatusForbidden, "invalid password")
+		if !trusted {
+			s.accountLimiter.take(accountKey(email))
+		}
+		writeErr(w, http.StatusForbidden, refusal)
 		return false
 	}
 	return true
@@ -443,6 +457,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	// what this ceremony did, not the credential's latched flag
+	unverified := false
 	if parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
 		s.DB.Exec(`UPDATE webauthn_credentials SET uv_required = 1 WHERE credential_id = ?`, cred.ID)
 	} else {
@@ -456,6 +471,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		// for a passkey that verifies (auth.Middleware holds the account)
 		s.DB.Exec(`UPDATE webauthn_credentials SET replace_due = 1 WHERE credential_id = ?`, cred.ID)
 		s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ? AND auth_upgrade = ''`, matched.id)
+		unverified = true
 	}
 	s.updateCredential(cred)
 	// the body is the assertion, so the "stay signed in" box rides in a header
@@ -463,7 +479,11 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(w, r, matched.email)
+	// a passkey that verified nobody proves no owner: no reset of the
+	// account's failures, no device cookie
+	if !unverified {
+		s.accountSignedIn(w, r, matched.email)
+	}
 	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
 }
 

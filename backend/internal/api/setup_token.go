@@ -35,8 +35,8 @@ func (s *Server) ensureSetupToken() string {
 	}
 	tok := strings.TrimSpace(os.Getenv("WEEBSYNC_SETUP_TOKEN"))
 	// a short or empty code (a lone "-" normalises to nothing) guards nothing
-	if tok != "" && len(normSetupToken(tok)) < 16 {
-		slog.Warn("WEEBSYNC_SETUP_TOKEN is shorter than 16 characters and is ignored; a random code is logged instead")
+	if tok != "" && (len(normSetupToken(tok)) < 16 || distinctRunes(normSetupToken(tok)) < 8) {
+		slog.Warn("WEEBSYNC_SETUP_TOKEN needs at least 16 characters, 8 of them different; it is ignored and a random code is logged instead")
 		tok = ""
 	}
 	if tok == "" {
@@ -108,4 +108,12 @@ func newSetupToken() string {
 		out.WriteByte(alphabet[int(v)%len(alphabet)])
 	}
 	return out.String()
+}
+
+func distinctRunes(v string) int {
+	seen := map[rune]bool{}
+	for _, r := range v {
+		seen[r] = true
+	}
+	return len(seen)
 }

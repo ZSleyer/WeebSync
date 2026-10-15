@@ -1,9 +1,12 @@
 package auth
 
 import (
+	"encoding/hex"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/secret"
 )
@@ -34,5 +37,11 @@ func TestSetupProof(t *testing.T) {
 	}
 	if with("deadbeef.00") || with("") {
 		t.Error("a forged or missing proof passed")
+	}
+	// rightly signed, but older than ten minutes
+	at := strconv.FormatInt(time.Now().Add(-11*time.Minute).Unix(), 10)
+	mac, _ := secret.MAC("oidc-setup|" + at + "|abc")
+	if with(at + ".abc." + hex.EncodeToString(mac)) {
+		t.Error("an expired proof passed")
 	}
 }

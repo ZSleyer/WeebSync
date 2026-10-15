@@ -284,6 +284,21 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "account awaits approval")
 		return
 	}
+	// Without a mail server there is no inbox to check and no link could come:
+	// the account was registered while one was set up, which is gone since.
+	// Verification is only asked for when mail can deliver it, the same rule
+	// registration follows. Like approval, the answer does not depend on the
+	// password; only the right one gets a fresh link (the old one expires
+	// after a day, so an expired link is never a lockout).
+	if verified == 0 && s.Mail != nil && s.Mail.Configured() {
+		if auth.VerifyPassword(c.Password, hash) {
+			s.reissueVerify(id, c.Email)
+		} else {
+			s.accountFailed(r, c.Email)
+		}
+		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
+		return
+	}
 	ok, legacy := auth.VerifyPasswordLegacy(c.Password, hash)
 	if !ok {
 		s.loginRefused(w, r, c.Email)
@@ -301,17 +316,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// The hold waits for the whole sign-in: a stranger who knows the old
 	// password and fails the second factor must not hold the owner's sessions.
 	weak := auth.ValidatePassword(c.Password, c.Email) != nil
-	// Without a mail server there is no inbox to check and no link could come:
-	// the account was registered while one was set up, which is gone since.
-	// Verification is only asked for when mail can deliver it, the same rule
-	// registration follows.
-	if verified == 0 && s.Mail != nil && s.Mail.Configured() {
-		// the link expires after a day; a login attempt past that gets a
-		// fresh one, so an expired link is never a lockout
-		s.reissueVerify(id, c.Email)
-		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
-		return
-	}
 	// second factor: if TOTP or a security key is enrolled, hand back a
 	// short-lived pending token instead of a session; the client completes at
 	// /api/auth/login/totp or /api/auth/webauthn/2fa/*.

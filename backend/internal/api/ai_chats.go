@@ -89,7 +89,7 @@ const maxAIChatBytes = 256 << 20
 
 func (s *Server) trimAIChats(userID int64) {
 	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id IN (
-		SELECT id FROM (SELECT id, SUM(length(turns)) OVER (ORDER BY id DESC) AS running
+		SELECT id FROM (SELECT id, SUM(length(CAST(turns AS BLOB))) OVER (ORDER BY id DESC) AS running
 			FROM ai_chats WHERE user_id = ?) WHERE running > ?)`, userID, userID, maxAIChatBytes)
 }
 

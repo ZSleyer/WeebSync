@@ -68,8 +68,7 @@ func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// 403, not 401: the session is fine, and a 401 would sign the client out
-	if !auth.VerifyPassword(in.Current, hash) {
-		writeErr(w, http.StatusForbidden, "current password is wrong")
+	if !s.checkPassword(w, r, u.Email, in.Current, hash, "current password is wrong") {
 		return
 	}
 	if err := auth.SetPassword(s.DB, u.ID, in.New, auth.SessionToken(r)); err != nil {
