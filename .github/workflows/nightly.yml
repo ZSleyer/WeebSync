@@ -21,6 +21,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # Sigstore certificate for the attestation
+      attestations: write
     steps:
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -52,10 +54,14 @@ jobs:
             type=raw,value=nightly-{{sha}}
       - if: steps.fresh.outputs.skip != 'true'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        id: build
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
+          # an SPDX list of every package in the image, beside the provenance
+          # a public repo gets by default
+          sbom: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
@@ -65,6 +71,16 @@ jobs:
             REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      # signed SLSA provenance in GitHub's attestation store, checkable with
+      # `gh attestation verify oci://ghcr.io/zsleyer/weebsync@<digest> -R ZSleyer/WeebSync`.
+      # Not pushed to ghcr: the nightly prune would sweep the referrers, and
+      # storage records exist for organisation repos only
+      - if: steps.fresh.outputs.skip != 'true'
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ghcr.io/zsleyer/weebsync
+          subject-digest: ${{ steps.build.outputs.digest }}
+          create-storage-record: false
       # Poke the HA add-on so it picks the new digest up right away instead of
       # waiting for its own poll. No-op on the add-on side if the digest is
       # unchanged, so a spurious dispatch costs nothing.
