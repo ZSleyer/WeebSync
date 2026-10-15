@@ -5234,6 +5234,46 @@
                 ],
                 "type": "object"
             },
+            "api.jellyfinLinkRequest": {
+                "properties": {
+                    "url": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "url"
+                ],
+                "type": "object"
+            },
+            "api.jellyfinLinkResponse": {
+                "properties": {
+                    "code": {
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "code"
+                ],
+                "type": "object"
+            },
+            "api.jellyfinPollResponse": {
+                "properties": {
+                    "linked": {
+                        "type": "boolean"
+                    },
+                    "user": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "linked"
+                ],
+                "type": "object"
+            },
             "api.jobStartedResponse": {
                 "properties": {
                     "status": {
@@ -5627,9 +5667,17 @@
                     "error": {
                         "type": "string"
                     },
+                    "kind": {
+                        "description": "Kind is the media server type: \"plex\" | \"jellyfin\"; empty when not\nconfigured",
+                        "type": "string"
+                    },
                     "server": {
                         "description": "friendly name of the server",
                         "type": "string"
+                    },
+                    "streams": {
+                        "description": "Streams says whether the server can store a per-episode track choice\n(Plex can, Jellyfin cannot)",
+                        "type": "boolean"
                     },
                     "username": {
                         "description": "linked plex.tv account",
@@ -5641,7 +5689,8 @@
                 },
                 "required": [
                     "configured",
-                    "connected"
+                    "connected",
+                    "streams"
                 ],
                 "type": "object"
             },
@@ -6685,6 +6734,15 @@
                         "description": "Home Assistant webhook the backend POSTs events to; empty = off",
                         "type": "string"
                     },
+                    "jellyfinToken": {
+                        "type": "string"
+                    },
+                    "jellyfinTokenSet": {
+                        "type": "boolean"
+                    },
+                    "jellyfinUrl": {
+                        "type": "string"
+                    },
                     "maxConcurrent": {
                         "type": "integer"
                     },
@@ -6859,6 +6917,8 @@
                     "arrCompleteDir",
                     "arrRoots",
                     "oidcProviderName",
+                    "jellyfinUrl",
+                    "jellyfinTokenSet",
                     "oidcIssuer",
                     "oidcClientId",
                     "oidcRedirectUrl",
@@ -14945,6 +15005,250 @@
                 "summary": "Import a legacy weebsync config",
                 "tags": [
                     "Import"
+                ]
+            }
+        },
+        "/api/jellyfin/link/poll": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "id from link/start",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.jellyfinPollResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Poll Jellyfin account link",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/jellyfin/link/start": {
+            "post": {
+                "description": "Ask the configured Jellyfin server for a Quick Connect code, to read the user's favourites as their watchlist.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.jellyfinLinkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Start Jellyfin account link",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/jellyfin/server/link/poll": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "id from link/start",
+                        "in": "query",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.jellyfinPollResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Poll Jellyfin server sign-in",
+                "tags": [
+                    "Settings"
+                ]
+            }
+        },
+        "/api/jellyfin/server/link/start": {
+            "post": {
+                "description": "Ask the Jellyfin server for a Quick Connect code; an administrator enters it in Jellyfin to connect the server without an API key.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.jellyfinLinkRequest",
+                                        "description": "Server address",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Server address",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.jellyfinLinkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Start Jellyfin server sign-in",
+                "tags": [
+                    "Settings"
                 ]
             }
         },

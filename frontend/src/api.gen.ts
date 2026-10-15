@@ -2305,6 +2305,17 @@ export interface Schemas {
      */
     tokens: number
   }
+  'api.jellyfinLinkRequest': {
+    url: string
+  }
+  'api.jellyfinLinkResponse': {
+    code: string
+    id: string
+  }
+  'api.jellyfinPollResponse': {
+    linked: boolean
+    user?: string
+  }
   'api.jobStartedResponse': {
     status: string
   }
@@ -2416,9 +2427,19 @@ export interface Schemas {
     connected: boolean
     error?: string
     /**
+     * Kind is the media server type: "plex" | "jellyfin"; empty when not
+     * configured
+     */
+    kind?: string
+    /**
      * friendly name of the server
      */
     server?: string
+    /**
+     * Streams says whether the server can store a per-episode track choice
+     * (Plex can, Jellyfin cannot)
+     */
+    streams: boolean
     /**
      * linked plex.tv account
      */
@@ -2934,6 +2955,9 @@ export interface Schemas {
      * Home Assistant webhook the backend POSTs events to; empty = off
      */
     haWebhookUrl: string
+    jellyfinToken?: string
+    jellyfinTokenSet: boolean
+    jellyfinUrl: string
     maxConcurrent: number
     /**
      * csv, any match = admin
