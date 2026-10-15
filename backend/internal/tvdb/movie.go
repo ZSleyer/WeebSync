@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
 	"strconv"
 	"time"
@@ -204,6 +205,44 @@ func (c *Client) Extras(ctx context.Context, id int, movie bool) (Extras, error)
 		c.store(key, string(b))
 	}
 	return x, nil
+}
+
+// RemoteID translates another catalogue's id (an IMDb "tt…" or a TMDB number)
+// into TVDB's: the series and the film that carry it, 0 for none. A TMDB
+// number can name a series and an unrelated film at once - TMDB numbers its
+// tv and movies apart - so the caller picks the one it is looking for.
+// Cached, as the answer only changes when TVDB's editors relink.
+func (c *Client) RemoteID(ctx context.Context, remoteID string) (series, movie int, err error) {
+	key := "tvdb:remoteid:" + remoteID
+	var hit struct{ Series, Movie int }
+	if p, ok := c.cached(key); ok && json.Unmarshal([]byte(p), &hit) == nil {
+		return hit.Series, hit.Movie, nil
+	}
+	var resp struct {
+		Data []struct {
+			Series *struct {
+				ID int `json:"id"`
+			} `json:"series"`
+			Movie *struct {
+				ID int `json:"id"`
+			} `json:"movie"`
+		} `json:"data"`
+	}
+	if err := c.get(ctx, "/search/remoteid/"+url.PathEscape(remoteID), &resp); err != nil {
+		return 0, 0, err
+	}
+	for _, d := range resp.Data {
+		if d.Series != nil && hit.Series == 0 {
+			hit.Series = d.Series.ID
+		}
+		if d.Movie != nil && hit.Movie == 0 {
+			hit.Movie = d.Movie.ID
+		}
+	}
+	if b, err := json.Marshal(hit); err == nil {
+		c.store(key, string(b))
+	}
+	return hit.Series, hit.Movie, nil
 }
 
 // movieTranslation is a film's name and overview in one language, empty when

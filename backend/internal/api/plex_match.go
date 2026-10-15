@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"path"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/match"
 )
@@ -37,9 +41,17 @@ func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
 
 	switch itemSource {
 	case "tvdb", tvdbMovieSource: // Plex keys a film by TVDB's film id
+		movie := itemSource == tvdbMovieSource
+		if g.Movie != movie {
+			return 0, false // a film of the same name is not this show, nor the reverse
+		}
 		if g.TVDB != 0 {
 			s.logLocalIDMatch(folder, "tvdb-direct", g.TVDB)
 			return g.TVDB, true
+		}
+		if id := s.tvdbFromRemote(g, movie); id != 0 {
+			s.logLocalIDMatch(folder, "tvdb-remote", id)
+			return id, true
 		}
 	case "tmdb:tv", "tmdb:movie":
 		if g.TMDB != 0 {
@@ -57,6 +69,38 @@ func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
 		}
 	}
 	return 0, false
+}
+
+// tvdbFromRemote translates the IMDb or TMDB id Plex holds for a title into
+// TVDB's, for a library whose agent carries no TVDB id (films nearly always,
+// series under the TMDB agent). IMDb first: its ids are unique, where a TMDB
+// number names a series and an unrelated film alike. 0 when TVDB knows none.
+func (s *Server) tvdbFromRemote(g plexGuid, movie bool) int {
+	if s.Tvdb == nil || !s.Tvdb.Enabled() {
+		return 0
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var ids []string
+	if g.IMDB != 0 {
+		ids = append(ids, fmt.Sprintf("tt%07d", g.IMDB))
+	}
+	if g.TMDB != 0 {
+		ids = append(ids, strconv.Itoa(g.TMDB))
+	}
+	for _, rid := range ids {
+		series, film, err := s.Tvdb.RemoteID(ctx, rid)
+		if err != nil {
+			return 0
+		}
+		if movie && film != 0 {
+			return film
+		}
+		if !movie && series != 0 {
+			return series
+		}
+	}
+	return 0
 }
 
 func (s *Server) logLocalIDMatch(folder, route string, id int) {
