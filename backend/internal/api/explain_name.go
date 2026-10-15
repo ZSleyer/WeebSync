@@ -10,8 +10,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/relname"
 	"github.com/ch4d1/weebsync/internal/rename"
-	"github.com/nssteinbrenner/anitogo"
 )
 
 // namePiece is one part of a release name and what it means. Start and End
@@ -131,14 +131,13 @@ func explainName(name string) nameExplainResponse {
 	for _, m := range match.Marks(name) {
 		put(m.Kind, m.Value, m.Start, m.End)
 	}
-	p := anitogo.Parse(name, anitogo.DefaultOptions)
-	if m := extRe.FindStringSubmatchIndex(name); m != nil && p.FileExtension != "" {
+	p := relname.Read(name)
+	if m := extRe.FindStringSubmatchIndex(name); m != nil && p.Ext != "" {
 		put("extension", name[m[2]:m[3]], m[2], m[3])
 	}
-	if p.ReleaseGroup != "" {
-		if i := strings.Index(name, "["+p.ReleaseGroup+"]"); i >= 0 {
-			// the group's bracket was read as a plain tag above; a language
-			// or resolution tag anitogo took for a group stays what it is
+	if p.Group != "" {
+		if i := strings.Index(name, "["+p.Group+"]"); i >= 0 {
+			// the group's bracket was read as a plain tag above
 			for k := range spans {
 				if spans[k].start == i+1 && spans[k].kind == "tag" {
 					spans[k].kind = "group"
@@ -154,8 +153,7 @@ func explainName(name string) nameExplainResponse {
 		if m[6] >= 0 {
 			put("version", name[m[6]+1:m[7]], m[6], m[7])
 		}
-	} else if len(p.EpisodeNumber) > 0 {
-		ep := p.EpisodeNumber[0]
+	} else if ep := p.Episode(); ep != "" {
 		re := regexp.MustCompile(`(?i)(?:\bE|\bEP|\bEpisode\s?|\s-\s)0*` + regexp.QuoteMeta(strings.TrimLeft(ep, "0")) + `(v\d+)?\b`)
 		if loc := re.FindStringSubmatchIndex(name); loc != nil {
 			end := loc[1]

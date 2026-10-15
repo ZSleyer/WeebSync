@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nssteinbrenner/anitogo"
+	"github.com/ch4d1/weebsync/internal/relname"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -259,21 +259,17 @@ func episodeNumbers(localBase, remoteBase string) (season, episode int) {
 		if name == "" {
 			continue
 		}
-		p := anitogo.Parse(name, anitogo.DefaultOptions)
-		if len(p.EpisodeNumber) == 0 {
+		p := relname.Read(name)
+		if len(p.Episodes) == 0 {
 			continue
 		}
 		// fractional numbers (the ".5" recap convention) have no integer
 		// episode; they keep showing their file name instead
-		ep, err := strconv.Atoi(p.EpisodeNumber[0])
+		ep, err := strconv.Atoi(p.Episodes[0])
 		if err != nil {
 			continue
 		}
-		se := 0
-		if len(p.AnimeSeason) > 0 {
-			se, _ = strconv.Atoi(p.AnimeSeason[0])
-		}
-		return se, ep
+		return p.Season, ep
 	}
 	return 0, 0
 }

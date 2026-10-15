@@ -1,4 +1,4 @@
-// Package rename builds new file names from anitogo-parsed metadata via
+// Package rename builds new file names from relname-parsed metadata via
 // templates, or from user regexes.
 package rename
 
@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/nssteinbrenner/anitogo"
+	"github.com/ch4d1/weebsync/internal/relname"
 )
 
 // Options for one rename run.
@@ -86,7 +86,7 @@ func Codes(tag string) []string {
 // forms that show up in release names: "1080p", "1920x1080", "4K", "8k".
 var resHeightRe = regexp.MustCompile(`(?i)^(?:(\d{3,4})p|\d{3,4}x(\d{3,4})|([48])k)$`)
 
-// Resolution scans a name (anitogo's guess plus every bracket/paren token) and
+// Resolution scans a name (the parsed resolution plus every bracket/paren token) and
 // returns the highest video height it can read, or 0 when none is present.
 // "4K" folds to 2160, "8K" to 4320. Used to rank quality variants of a folder.
 func Resolution(name string) int {
@@ -112,7 +112,7 @@ func Resolution(name string) int {
 			best = h
 		}
 	}
-	consider(anitogo.Parse(name, anitogo.DefaultOptions).VideoResolution)
+	consider(relname.Read(name).Resolution)
 	for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
 		for _, tok := range strings.Split(g[1], ",") {
 			consider(tok)
@@ -181,10 +181,9 @@ func hasCode(tag, want string) bool {
 	return false
 }
 
-// cleanGroup strips language/resolution/tech tokens from anitogo's
-// ReleaseGroup guess. Names like "Show E01 [JapDub][GerEngSub]" make
-// anitogo report the language tag as the release group; after cleaning
-// only real group-ish tokens survive (possibly none).
+// cleanGroup strips language/resolution/tech tokens from a release group:
+// a comma list ("SubCrew, GerSub") keeps only its group-ish parts (possibly
+// none).
 func cleanGroup(group string) string {
 	var kept []string
 	for _, tok := range strings.Split(group, ",") {
@@ -200,16 +199,8 @@ func cleanGroup(group string) string {
 // Group is the release group a file name names, "" when none is
 // recognisable.
 func Group(name string) string {
-	g := anitogo.Parse(name, anitogo.DefaultOptions).ReleaseGroup
-	if g == "" { // scene names end in "-GROUP", which anitogo misses
-		if m := sceneGroupRe.FindStringSubmatch(strings.TrimSuffix(name, path.Ext(name))); m != nil {
-			g = m[1]
-		}
-	}
-	return cleanGroup(g)
+	return cleanGroup(relname.Read(name).Group)
 }
-
-var sceneGroupRe = regexp.MustCompile(`\S-([A-Za-z0-9]*[A-Za-z][A-Za-z0-9]*)$`)
 
 // New returns the new filename for name, or "" when the name cannot be
 // processed (e.g. no episode parsed and the template needs one).
@@ -229,23 +220,23 @@ func New(name string, o Options) (string, error) {
 }
 
 func templateName(name string, o Options) (string, error) {
-	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
+	parsed := relname.Read(name)
 	dub, sub := LangTags(name)
 	vars := map[string]string{
-		"title":      parsed.AnimeTitle,
-		"season":     first(parsed.AnimeSeason),
-		"episode":    EpisodeNumber(first(parsed.EpisodeNumber)),
-		"year":       parsed.AnimeYear,
-		"group":      cleanGroup(parsed.ReleaseGroup),
-		"resolution": parsed.VideoResolution,
+		"title":      parsed.Title,
+		"season":     "1", // no season marker in the name → season 1
+		"episode":    parsed.Episode(),
+		"year":       num(parsed.Year),
+		"group":      cleanGroup(parsed.Group),
+		"resolution": parsed.Resolution,
 		"dub":        dub,
 		"sub":        sub,
-		"ext":        parsed.FileExtension,
+		"ext":        parsed.Ext,
 	}
-	if vars["season"] == "" {
-		vars["season"] = "1" // no season marker in the name → season 1
+	if parsed.HasSeason { // "S00E04" keeps its specials season
+		vars["season"] = strconv.Itoa(parsed.Season)
 	}
-	if vars["resolution"] == "" { // anitogo missed it, e.g. resolution inside a tag list
+	if vars["resolution"] == "" { // none parsed: a resolution further inside a tag list
 		for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
 			for _, tok := range strings.Split(g[1], ",") {
 				if tok = strings.TrimSpace(tok); resRe.MatchString(tok) {
@@ -321,32 +312,12 @@ func templateName(name string, o Options) (string, error) {
 	return sanitize(out), nil
 }
 
-func first(s []string) string {
-	if len(s) > 0 {
-		return s[0]
+// num renders a parsed number, "" for the zero that means "not in the name".
+func num(n int) string {
+	if n == 0 {
+		return ""
 	}
-	return ""
-}
-
-// epPrefixRe matches an episode token that still carries its own "E".
-var epPrefixRe = regexp.MustCompile(`^[Ee](\d+(?:\.\d+)?)$`)
-
-// EpisodeNumber strips the "E" anitogo sometimes leaves on an episode token.
-//
-// It usually hands back a bare number - "1208" for "Meitantei Conan E1208" -
-// but a title ending in a word it reads as a marker changes that: for
-// "... Mini Episodes E01 [1080p]" it returns "E01", letter and all. Substituted
-// into a "S{season:02}E{episode:02}" template that becomes "S01EE01", which is
-// not a name anything can parse back - not Plex, and not the episode-number
-// match that decides which episodes a watch covers.
-//
-// The fractional form of a special ("1165.5") has to survive, so the number is
-// matched rather than the letter merely trimmed.
-func EpisodeNumber(tok string) string {
-	if m := epPrefixRe.FindStringSubmatch(tok); m != nil {
-		return m[1]
-	}
-	return tok
+	return strconv.Itoa(n)
 }
 
 // sanitize cleans a name that may carry a "/"-separated folder structure

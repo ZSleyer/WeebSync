@@ -10,7 +10,7 @@ import (
 	"unicode"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
-	"github.com/nssteinbrenner/anitogo"
+	"github.com/ch4d1/weebsync/internal/relname"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -32,7 +32,7 @@ var (
 )
 
 // GuessTitle extracts a searchable series title from a release folder/file
-// name. anitogo handles release-style filenames; folder names in the wild
+// name. relname handles release-style filenames; folder names in the wild
 // look like "Romaji Titel (English Title) [GerDub,CR]", where the bracket
 // tags and the alternative title in parens ruin the search, so both are
 // stripped afterwards.
@@ -40,8 +40,7 @@ func GuessTitle(name string) string {
 	// Plex libraries spell spaces as underscores; as one token the title
 	// shares nothing with the entry ("7th_Time_Loop")
 	name = strings.ReplaceAll(name, "_", " ")
-	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
-	t := parsed.AnimeTitle
+	t := relname.Read(name).Title
 	if t == "" {
 		t = name
 	}
@@ -152,12 +151,10 @@ func ParseName(name, title, alt string) Info {
 	}
 	info.Full = full
 
-	parsed := anitogo.Parse(name, anitogo.DefaultOptions)
-	if len(parsed.AnimeSeason) > 0 {
-		info.Season, _ = strconv.Atoi(parsed.AnimeSeason[0])
-	}
+	parsed := relname.Read(name)
+	info.Season = parsed.Season
 	typeOVA := false
-	for _, t := range parsed.AnimeType {
+	for _, t := range parsed.Kinds {
 		if movieRe.MatchString(t) {
 			info.Movie = true
 		}
@@ -165,8 +162,8 @@ func ParseName(name, title, alt string) Info {
 			typeOVA = true
 		}
 	}
-	if y, err := strconv.Atoi(parsed.AnimeYear); err == nil {
-		info.Year = y
+	if parsed.Year != 0 {
+		info.Year = parsed.Year
 	} else if m := yearRe.FindString(name); m != "" {
 		info.Year, _ = strconv.Atoi(m)
 	}
@@ -177,7 +174,7 @@ func ParseName(name, title, alt string) Info {
 		info.Season = seasonMarker(alt)
 	}
 	info.Movie = info.Movie || movieRe.MatchString(full) || movieRe.MatchString(alt)
-	// OVA from the folder itself, or from anitogo's type when no season
+	// OVA from the folder itself, or from the name's kind when no season
 	// marker contradicts it: "Toriko (Season 1 + Special)" is a season with
 	// extras, not an OVA release
 	info.OVA = ovaRe.MatchString(full) || (typeOVA && info.Season == 0)

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/nssteinbrenner/anitogo"
+	"github.com/ch4d1/weebsync/internal/relname"
 
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -122,20 +122,14 @@ func sameEpisode(name string, se, ep int) bool {
 	if extraRe.MatchString(name) {
 		return false
 	}
-	p := anitogo.Parse(name, anitogo.DefaultOptions)
-	if len(p.EpisodeNumber) != 1 || len(p.AnimeType) > 0 {
+	p := relname.Read(name)
+	if len(p.Episodes) != 1 || len(p.Kinds) > 0 {
 		return false
 	}
-	n, err := strconv.Atoi(p.EpisodeNumber[0])
-	if err != nil || n != ep {
+	if n, err := strconv.Atoi(p.Episodes[0]); err != nil || n != ep {
 		return false
 	}
-	if len(p.AnimeSeason) > 0 {
-		if s, _ := strconv.Atoi(p.AnimeSeason[0]); s != 0 && s != se {
-			return false
-		}
-	}
-	return true
+	return p.Season == 0 || p.Season == se
 }
 
 // extraRe spots the files a release ships beside its episodes (creditless

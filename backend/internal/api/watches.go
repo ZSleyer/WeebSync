@@ -24,9 +24,9 @@ import (
 	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/plex"
+	"github.com/ch4d1/weebsync/internal/relname"
 	"github.com/ch4d1/weebsync/internal/rename"
 	"github.com/ch4d1/weebsync/internal/transfer"
-	"github.com/nssteinbrenner/anitogo"
 )
 
 // Watch is a persistent remote-folder subscription: the folder is re-checked
@@ -1093,13 +1093,7 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 // It keeps the raw value so a fractional special ("1165.5") stays intact for
 // the aired-order lookup; regular episodes are the plain number ("1187").
 func parseEpisodeToken(name string) string {
-	p := anitogo.Parse(name, anitogo.DefaultOptions)
-	if len(p.EpisodeNumber) == 0 {
-		return ""
-	}
-	// same normalisation the template path uses: anitogo hands back "E01" for
-	// some names, and the aired-order map is keyed by the bare number
-	return rename.EpisodeNumber(p.EpisodeNumber[0])
+	return relname.Read(name).Episode()
 }
 
 // watchLangFilter returns a predicate that keeps only remote files whose

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/nssteinbrenner/anitogo"
+	"github.com/ch4d1/weebsync/internal/relname"
 )
 
 // PlayAnilist ties a playing file to the user's AniList list: the title its
@@ -20,18 +20,14 @@ type PlayAnilist struct {
 var sxeEpisodeRe = regexp.MustCompile(`(?i)\bS\d{1,3}E(\d{1,4})`)
 
 // episodeOf reads the episode number from a file name: SxxEyy first, else
-// anitogo's guess. 0 when there is none.
+// the name's own episode token. 0 when there is none.
 func episodeOf(name string) int {
 	if m := sxeEpisodeRe.FindStringSubmatch(name); m != nil {
 		n, _ := strconv.Atoi(m[1])
 		return n
 	}
-	p := anitogo.Parse(name, anitogo.DefaultOptions)
-	if len(p.EpisodeNumber) > 0 {
-		n, _ := strconv.Atoi(p.EpisodeNumber[0])
-		return n
-	}
-	return 0
+	n, _ := strconv.Atoi(relname.Read(name).Episode())
+	return n
 }
 
 // playAnilist finds the AniList entry behind a file, nil when the account is

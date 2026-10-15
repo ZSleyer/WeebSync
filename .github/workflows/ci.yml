@@ -57,6 +57,9 @@ jobs:
           for t in FuzzRead FuzzKeyframes FuzzAttachments; do
             go test -run '^$' -fuzz "^$t\$" -fuzztime 20s ./internal/mkvsubs || exit 1
           done
+      - name: fuzz the release-name parser
+        # every remote file and folder name goes through it
+        run: go test -run '^$' -fuzz '^FuzzRead$' -fuzztime 20s ./internal/relname
       - name: reachable vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./...
       - name: openapi spec in sync
