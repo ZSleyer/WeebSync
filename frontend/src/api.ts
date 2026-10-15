@@ -8,6 +8,8 @@ export type User = Schemas['api.MeResponse']
 export type UserAccount = Schemas['api.userInfo']
 
 export type ServerInfo = Schemas['api.serverInfo']
+// what the player waits for, polled while it loads
+export type PlayStatus = Schemas['api.PlayStatus']
 
 // A folder's catalog mark and the scope rule around it.
 export type ScopeInfo = Schemas['api.scopeResponse']

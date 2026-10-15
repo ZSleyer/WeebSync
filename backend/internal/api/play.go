@@ -275,6 +275,8 @@ func (s *Server) servePlayFileTracked(w http.ResponseWriter, r *http.Request, sr
 	var body io.ReadSeeker = f.ReadSeeker
 	if tok != nil {
 		tok.size.Store(f.size)
+		// counted before the holes: only bytes that came over the wire
+		body = countReader{body, &tok.read}
 		if len(tok.holes) > 0 {
 			body = &holeReader{rs: body, holes: tok.holes}
 		}
@@ -290,6 +292,18 @@ func (s *Server) servePlayFileTracked(w http.ResponseWriter, r *http.Request, sr
 	// one day get; streaming must not be cut off by it
 	http.NewResponseController(w).SetWriteDeadline(time.Time{})
 	http.ServeContent(w, r, "", f.modTime, body)
+}
+
+// countReader adds what it reads to n.
+type countReader struct {
+	io.ReadSeeker
+	n *atomic.Int64
+}
+
+func (c countReader) Read(p []byte) (int, error) {
+	n, err := c.ReadSeeker.Read(p)
+	c.n.Add(int64(n))
+	return n, err
 }
 
 // trackedReader extends its token's coverage as bytes are read.
@@ -416,6 +430,9 @@ type loopToken struct {
 	size    atomic.Int64
 	mu      sync.Mutex
 	covered int64
+	// read is every byte served, for the player's status line
+	read atomic.Int64
+	born time.Time
 }
 
 // cover records that [from, to) was read; it counts when it joins on to what
@@ -462,7 +479,7 @@ func (s *Server) loopbackURL(src playSource) (string, *loopToken, func(), error)
 	b := make([]byte, 16)
 	rand.Read(b)
 	key := hex.EncodeToString(b)
-	tok := &loopToken{src: src}
+	tok := &loopToken{src: src, born: time.Now()}
 	l.mu.Lock()
 	l.tokens[key] = tok
 	l.mu.Unlock()

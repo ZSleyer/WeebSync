@@ -51,6 +51,8 @@ type hlsSession struct {
 	run  *hlsRun // the current ffmpeg run, nil before the first
 	// the copy mode's segment starts, in seconds
 	cuts []float64
+	// waiting counts the requests held per segment, for the status line
+	waiting map[int]int
 }
 
 // hlsRun is one ffmpeg process. err is written before exited closes and read
@@ -60,6 +62,7 @@ type hlsRun struct {
 	cancel context.CancelFunc
 	exited chan struct{}
 	err    error
+	prog   ffProgress
 }
 
 func (r *hlsRun) running() bool {
@@ -307,7 +310,18 @@ func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, 
 			}
 		}
 	}
+	if sess.waiting == nil {
+		sess.waiting = map[int]int{}
+	}
+	sess.waiting[n]++
 	sess.mu.Unlock()
+	defer func() {
+		sess.mu.Lock()
+		if sess.waiting[n]--; sess.waiting[n] <= 0 {
+			delete(sess.waiting, n)
+		}
+		sess.mu.Unlock()
+	}()
 
 	// a slow host or a remote source can take a while for the first segment
 	deadline := time.After(90 * time.Second)
@@ -357,15 +371,16 @@ func (sess *hlsSession) runLocked(s *Server, n int) error {
 	if sess.key.copy {
 		start, out = strconv.FormatFloat(sess.cuts[n], 'f', 3, 64), copyArgs(sess.key, sess.cuts, n, sess.dir)
 	}
-	cmd := ffCommand(ctx, "ffmpeg", in, []string{"-nostdin", "-ss", start}, out)
+	cmd := ffCommand(ctx, "ffmpeg", in, []string{"-nostdin", "-progress", "pipe:1", "-ss", start}, out)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
+	run := &hlsRun{start: n, cancel: cancel, exited: make(chan struct{})}
+	cmd.Stdout = &run.prog
 	if err := cmd.Start(); err != nil {
 		in.done()
 		cancel()
 		return errors.New("ffmpeg could not be started")
 	}
-	run := &hlsRun{start: n, cancel: cancel, exited: make(chan struct{})}
 	sess.run = run
 	go func() {
 		err := cmd.Wait()

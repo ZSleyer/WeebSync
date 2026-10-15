@@ -836,6 +836,22 @@ export interface Schemas {
     subs: Schemas['api.PlayTrack'][]
     video?: Schemas['api.PlayVideo']
   }
+  'api.PlayStatus': {
+    /**
+     * Bytes read from the remote source by the runs open on it, and their
+     * rate in bytes per second; 0 for a local file
+     */
+    bytes: number
+    /**
+     * Done is the share of the awaited segment written (0-1), Left the
+     * seconds still to go at the run's Speed (1 = as fast as playback); -1
+     * when no segment is awaited or the number is not known yet
+     */
+    done: number
+    left: number
+    rate: number
+    speed: number
+  }
   'api.PlayTrack': {
     channels?: number
     codec: string

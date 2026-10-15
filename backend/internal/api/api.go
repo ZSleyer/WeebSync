@@ -244,6 +244,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/play/font", authed(http.HandlerFunc(s.handlePlayFont)))
 	mux.Handle("GET /api/play/webfonts", authed(http.HandlerFunc(s.handlePlayWebFonts)))
 	mux.Handle("GET /api/play/webfont", authed(http.HandlerFunc(s.handlePlayWebFont)))
+	mux.Handle("GET /api/play/status", authed(http.HandlerFunc(s.handlePlayStatus)))
 	mux.Handle("GET /api/play/hls/index.m3u8", authed(http.HandlerFunc(s.handlePlayHLSIndex)))
 	mux.Handle("GET /api/play/hls/seg.ts", authed(http.HandlerFunc(s.handlePlayHLSSegment)))
 	// reader: opening a book is as open as listing it; its pieces are served

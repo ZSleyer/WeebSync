@@ -45,7 +45,7 @@ import type { MediaChromeMenu as ChromeMenuElement } from 'media-chrome/menu'
 import type { MediaController as MediaControllerElement } from 'media-chrome'
 import { addTranslation, setLanguage } from 'media-chrome/dist/utils/i18n.js'
 import { De } from 'media-chrome/dist/lang/de.js'
-import { api, keyConflictOf, mediaTitle, type ServerInfo } from '../api'
+import { api, keyConflictOf, mediaTitle, type PlayStatus, type ServerInfo } from '../api'
 import HostKeyPrompt from '../components/HostKeyPrompt'
 import { filesLink, listFolder, playHref, useBack, videosIn } from '../components/playLinks'
 import Logo from '../components/Logo'
@@ -146,13 +146,15 @@ async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
 }
 
 // a wait in words, with the seconds it has taken once they add up: a number
-// that keeps counting shows the player is still at it
-function Waited({ text }: { text: string }) {
+// that keeps counting shows the player is still at it. The server's own
+// numbers (a share, bytes read) take the counter's place once there are any.
+function Waited({ text, detail }: { text: string; detail?: string }) {
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => setSecs((x) => x + 1), 1000)
     return () => clearInterval(id)
   }, [])
+  if (detail) return `${text} · ${detail}`
   return secs < 3 ? text : `${text} · ${secs} s`
 }
 
@@ -311,6 +313,28 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // the first picture and a bare spinner looked like it would never end
   const [loadStep, setLoadStep] = useState('')
   const [loadError, setLoadError] = useState(false)
+  // the server's side of the wait in numbers, asked every second while the
+  // words show: a share and the time left for a segment being converted,
+  // else what was read from a remote file so far
+  const status = useQuery({
+    queryKey: ['play-status', server, path],
+    queryFn: () => api.get<PlayStatus>(`/api/play/status?${src}`),
+    enabled: !!path && (info.isPending || loadStep !== ''),
+    refetchInterval: 1000,
+    gcTime: 0,
+  })
+  const statusDetail = (() => {
+    const s = status.data
+    if (!s) return ''
+    const num = (x: number, digits = 0) => x.toLocaleString(i18n.language, { maximumFractionDigits: digits })
+    // a share once ffmpeg reported a time; before that the bytes say more
+    if (s.done > 0 || s.left > 0) {
+      const pct = t('player.statusDone', { pct: num(s.done * 100) })
+      return s.left >= 1 ? `${pct} · ${t('player.statusLeft', { secs: num(Math.ceil(s.left)) })}` : pct
+    }
+    if (s.bytes > 0) return t('player.statusRead', { mb: num(s.bytes / 1e6, 1), rate: num(s.rate / 1e6, 1) })
+    return ''
+  })()
   const [mutedStart, setMutedStart] = useState(false)
   // the muted start ends with the first unmute, whichever control did it
   useEffect(() => {
@@ -855,7 +879,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <Logo play={false} active />
         </span>
         <span className="t-player-step" role="status">
-          <Waited text={t('player.stepInfo')} />
+          <Waited text={t('player.stepInfo')} detail={statusDetail} />
         </span>
       </>,
     )
@@ -998,7 +1022,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               className={`t-player-step${loadError ? ' t-player-step--err' : ''}`}
               role={loadError ? 'alert' : 'status'}
             >
-              {loadError ? t('player.loadError') : <Waited key={loadStep} text={t(loadStep || serverStep)} />}
+              {loadError ? (
+                t('player.loadError')
+              ) : (
+                <Waited key={loadStep} text={t(loadStep || serverStep)} detail={statusDetail} />
+              )}
             </span>
             <MediaPlayButton className="t-player-bigplay" />
             <span className="t-player-flash" data-side="fwd" data-on={flash?.side === 'fwd' || undefined} aria-hidden>

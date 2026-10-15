@@ -1979,6 +1979,35 @@
                 ],
                 "type": "object"
             },
+            "api.PlayStatus": {
+                "properties": {
+                    "bytes": {
+                        "description": "Bytes read from the remote source by the runs open on it, and their\nrate in bytes per second; 0 for a local file",
+                        "type": "integer"
+                    },
+                    "done": {
+                        "description": "Done is the share of the awaited segment written (0-1), Left the\nseconds still to go at the run's Speed (1 = as fast as playback); -1\nwhen no segment is awaited or the number is not known yet",
+                        "type": "number"
+                    },
+                    "left": {
+                        "type": "number"
+                    },
+                    "rate": {
+                        "type": "number"
+                    },
+                    "speed": {
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "bytes",
+                    "rate",
+                    "done",
+                    "left",
+                    "speed"
+                ],
+                "type": "object"
+            },
             "api.PlayTrack": {
                 "properties": {
                     "channels": {
@@ -15497,6 +15526,71 @@
                     }
                 ],
                 "summary": "Inspect a video for playback",
+                "tags": [
+                    "Player"
+                ]
+            }
+        },
+        "/api/play/status": {
+            "get": {
+                "description": "How far the server has got with a file the player is opening: the bytes read from a remote source so far, and how much of the segment a transcode or repackaging is on is written. Polled while the player shows its loading state.",
+                "parameters": [
+                    {
+                        "description": "Server ID, 0 or omitted for a local file",
+                        "in": "query",
+                        "name": "server",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "Video path",
+                        "in": "query",
+                        "name": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.PlayStatus"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "What the player waits for",
                 "tags": [
                     "Player"
                 ]
