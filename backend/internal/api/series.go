@@ -23,15 +23,26 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 	if manual {
 		m = 1
 	}
+	var oldID int
+	var oldSource string
+	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&oldID, &oldSource)
 	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, ?, ?)`,
 		serverID, folder, mediaID, m, source); err != nil {
 		slog.Warn("match not stored", "server", serverID, "folder", logSafe(folder), "err", err)
 		return err
 	}
+	var left int64
+	if oldID != 0 && (oldID != mediaID || oldSource != source) {
+		left = s.detachProvider(oldSource, oldID)
+	}
 	if mediaID == 0 {
 		return nil
 	}
 	created, title := s.linkSeries(source, mediaID)
+	if left != 0 {
+		s.retitleSeries(left, source, mediaID)
+	}
 	s.refreshVariant(serverID, folder)
 	// a brand-new series (first time this show is seen anywhere) is a
 	// suggestion worth telling the server's owner about. Backfill calls
@@ -137,6 +148,99 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 		slog.Debug("series joined", "seriesId", seriesID, "title", logSafe(title), "source", logSafe(source), "media", mediaID)
 	}
 	return created, title
+}
+
+// detachProvider takes a provider off its series once no folder is matched to
+// it any more, and returns the series it left (0 when it stayed). Without
+// this a replaced match lived on as the series' identity: Plex had hung the
+// show's TVDB id on the series of a wrong AniList guess, the folder's TVDB
+// match then joined that series as "already bundled", and title and kind kept
+// coming from the AniList entry nobody matched any more. A provider put on a
+// series by hand stays. What the provider brought goes with it - its titles,
+// the seasons it named, the kind read from it - and a series left with no
+// provider at all is dropped.
+func (s *Server) detachProvider(source string, mediaID int) int64 {
+	s.seriesMu.Lock()
+	defer s.seriesMu.Unlock()
+	var seriesID int64
+	var manual, still int
+	if s.DB.QueryRow(`SELECT series_id, manual FROM series_provider WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&seriesID, &manual) != nil || manual == 1 {
+		return 0
+	}
+	if s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&still) != nil || still > 0 {
+		return 0
+	}
+	// series_titles names the provider without the tmdb kind
+	titleSource, _, _ := strings.Cut(source, ":")
+	tx, err := s.DB.Begin()
+	if err != nil {
+		return 0
+	}
+	defer tx.Rollback()
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`DELETE FROM series_provider WHERE source = ? AND media_id = ?`, []any{source, mediaID}},
+		{`DELETE FROM series_titles WHERE series_id = ? AND source = ?`, []any{seriesID, titleSource}},
+		{`DELETE FROM series_seasons WHERE series_id = ? AND source = ?`, []any{seriesID, titleSource}},
+		{`UPDATE series SET kind = '', titles_fetched_at = '' WHERE id = ?`, []any{seriesID}},
+	} {
+		if _, err := tx.Exec(q.sql, q.args...); err != nil {
+			slog.Warn("provider not detached", "source", logSafe(source), "media", mediaID, "err", err)
+			return 0
+		}
+	}
+	var left int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE series_id = ?`, seriesID).Scan(&left); err != nil {
+		return 0
+	}
+	if left == 0 {
+		for _, q := range []string{
+			`DELETE FROM series_titles WHERE series_id = ?`,
+			`DELETE FROM series_seasons WHERE series_id = ?`,
+			`UPDATE catalog_variants SET series_id = 0 WHERE series_id = ?`,
+			`DELETE FROM series WHERE id = ?`,
+		} {
+			if _, err := tx.Exec(q, seriesID); err != nil {
+				return 0
+			}
+		}
+	}
+	if tx.Commit() != nil {
+		return 0
+	}
+	slog.Info("provider detached from series", "series", seriesID, "source", logSafe(source), "media", mediaID, "dropped", left == 0)
+	if left == 0 {
+		return 0
+	}
+	return seriesID
+}
+
+// retitleSeries names a series after the provider a folder now matches, when
+// that provider sits on the series another one just left: the name was the
+// leaver's.
+func (s *Server) retitleSeries(seriesID int64, source string, mediaID int) {
+	var on int64
+	if s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&on) != nil || on != seriesID {
+		return
+	}
+	media, _ := s.sourceMedia(source, mediaID)
+	if media == nil {
+		return
+	}
+	title := media.Title.Romaji
+	if title == "" {
+		title = media.Title.English
+	}
+	key := match.FoldKey(match.StripMarkers(title))
+	if key == "" {
+		return
+	}
+	s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, title, media.SeasonYear, seriesID)
 }
 
 // findSeries returns the id of an existing series matching key under the year
