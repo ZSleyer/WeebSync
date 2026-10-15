@@ -860,7 +860,7 @@ func (m *Manager) Reorder(userID int64, ids []int64) error {
 		delete(queued, id) // a duplicate id is then missing on its second turn
 	}
 	for i, id := range ids {
-		if _, err := tx.Exec(`UPDATE downloads SET queue_pos = ? WHERE id = ?`, slots[i], id); err != nil {
+		if _, err := tx.Exec(`UPDATE downloads SET queue_pos = ? WHERE id = ? AND user_id = ?`, slots[i], id, userID); err != nil {
 			return err
 		}
 	}
