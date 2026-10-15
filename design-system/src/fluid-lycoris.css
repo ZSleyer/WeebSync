@@ -828,7 +828,9 @@ summary::-webkit-details-marker { display: none; }
 }
 .t-input:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  /* the full accent: a half-strength edge fell to 2.4:1, below the 3:1 a
+     focused field needs and below its own resting border (WCAG 1.4.11) */
+  border-color: var(--accent);
 }
 .t-input::placeholder { color: var(--fg-3); }
 /* every other field too (a search box inside its own label): the browser's
@@ -873,7 +875,7 @@ summary::-webkit-details-marker { display: none; }
 }
 .t-select:focus {
   outline: none;
-  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  border-color: var(--accent); /* full strength, see .t-input:focus */
 }
 option { background-color: var(--bg-2); color: var(--fg); }
 
@@ -2397,6 +2399,9 @@ button.t-select { display: flex; align-items: center; text-align: start; cursor:
   cursor: pointer;
 }
 .t-option[data-active] { background: var(--hover); color: var(--fg); }
+/* walking the list by keys, the tint alone is the focus mark and sits near
+   1.2:1 on the list: the same accent ring as every other focus (WCAG 1.4.11) */
+.kbd .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .t-option[aria-selected="true"] { color: var(--accent); }
 .t-option[aria-selected="true"] > svg { flex: none; font-size: 1.125rem; }
 .t-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
