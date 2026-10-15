@@ -521,7 +521,7 @@ describe('SeriesModalProvider', () => {
 
     // unsaved changes: the guard asks, and a declined confirm keeps the editor
     await openEditor()
-    fireEvent.change(screen.getByLabelText('watch.mediaId'), { target: { value: '42' } })
+    fireEvent.change(document.getElementById('watch-fromep')!, { target: { value: '42' } })
     fireEvent.click(screen.getByRole('button', { name: 'watch.backToCard' }))
     await new Promise((r) => setTimeout(r, 0))
     expect(screen.getByRole('heading', { name: 'watch.editTitle' })).toBeInTheDocument()

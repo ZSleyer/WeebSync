@@ -30,6 +30,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SeriesCardView, useSeriesModal, type CardViewProps, type SeriesAction } from '../components/SeriesModal'
 import { useToast } from '../components/toast'
+import { RematchDialog, RematchForm, rematchTitle } from '../components/Rematch'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
@@ -37,11 +38,9 @@ import Press from '../components/Press'
 import {
   Badge,
   Button,
-  Cover,
   Dialog,
   EmptyState,
   IconButton,
-  Input,
   Menu,
   MenuItem,
   Row,
@@ -2310,172 +2309,5 @@ function CatalogVersions({
         ))}
       </ul>
     </section>
-  )
-}
-
-interface RematchProps {
-  serverId: number
-  item: CatalogItem
-  onClose: () => void
-  /** after a pick went through, with the new record's id (0: match removed) */
-  onPicked?: (mediaId: number) => void
-}
-
-function RematchDialog(props: RematchProps) {
-  const { t } = useTranslation()
-  return (
-    // a search field over a list that caps itself at max-h-72: this one is
-    // compact by construction, so it stays a centred box instead of stretching
-    // to a full screen it cannot fill
-    <Dialog
-      width="max-w-lg"
-      sheet={false}
-      aria-label={t('remote.matchFor', { name: props.item.entry.name })}
-      onClose={props.onClose}
-    >
-      <RematchForm {...props} />
-    </Dialog>
-  )
-}
-
-const rematchTitle = (item: RematchProps['item']) => `MATCH: ${item.entry.name}`
-
-// The match search without a dialog, for the title card to show in place of
-// its content.
-function RematchForm({
-  serverId,
-  item,
-  onClose,
-  onPicked,
-  inPage,
-  className = '',
-}: RematchProps & Partial<CardViewProps>) {
-  const { t } = useTranslation()
-  const qc = useQueryClient()
-  const [q, setQ] = useState(item.entry.name)
-  const [results, setResults] = useState<Media[]>([])
-  const [pickError, setPickError] = useState('')
-
-  // search accepts a title, a bare ID or an anilist.co/themoviedb.org link;
-  // the metadata source follows the folder's scope
-  const tmdbKind = item.source?.startsWith('tmdb:') ? item.source.slice(5) : ''
-  const isTvdb = item.source === 'tvdb'
-  const seq = useRef(0) // drop out-of-order responses
-  const search = async () => {
-    const mySeq = ++seq.current
-    const idm =
-      q.match(/themoviedb\.org\/(?:tv|movie)\/(\d+)/) ??
-      q.match(/thetvdb\.com\/series\/(\d+)/) ??
-      q.match(/anilist\.co\/(?:anime|manga)\/(\d+)/) ??
-      q.match(/^\s*(\d+)\s*$/)
-    try {
-      let next: Media[]
-      if (idm) {
-        next = [
-          await api.get<Media>(
-            isTvdb
-              ? `/api/tvdb/media?id=${idm[1]}`
-              : tmdbKind
-                ? `/api/tmdb/media?kind=${tmdbKind}&id=${idm[1]}`
-                : `/api/anilist/media/${idm[1]}`,
-          ),
-        ]
-      } else {
-        next = await api.get<Media[]>(
-          isTvdb
-            ? `/api/tvdb/search?q=${encodeURIComponent(q)}`
-            : tmdbKind
-              ? `/api/tmdb/search?kind=${tmdbKind}&q=${encodeURIComponent(q)}`
-              : `/api/anilist/search?q=${encodeURIComponent(q)}${item.source === 'anilist:manga' ? '&type=manga' : ''}`,
-        )
-      }
-      if (mySeq !== seq.current) return // a newer request superseded this one
-      setResults(next)
-      setPickError('')
-    } catch (err) {
-      if (mySeq !== seq.current) return
-      setResults([])
-      // a failed search (provider down, rate limit) is not "no results"
-      setPickError(err instanceof Error ? err.message : t('app.error'))
-    }
-  }
-  // live search: results update as you type (debounced)
-  useEffect(() => {
-    const id = setTimeout(() => void search(), 300)
-    return () => clearTimeout(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q])
-  const pick = async (mediaId: number) => {
-    setPickError('')
-    try {
-      await api.put(`/api/servers/${serverId}/catalog/match`, { folder: item.entry.path, mediaId })
-    } catch (err) {
-      setPickError(err instanceof Error ? err.message : t('app.error'))
-      return
-    }
-    qc.invalidateQueries({ queryKey: ['catalog', serverId] })
-    if (onPicked) onPicked(mediaId)
-    else onClose()
-  }
-
-  return (
-    <div className={`overflow-y-auto p-5 ${className}`}>
-      {/* in the series page its bar names the form */}
-      {!inPage && <h3 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(item)}</h3>}
-      {item.media && (
-        <p className="mb-2 text-xs text-t-muted">
-          {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
-        </p>
-      )}
-      <div className="mb-1 flex gap-2">
-        <label className="sr-only" htmlFor="rematch-q">
-          {t('remote.search')}
-        </label>
-        <Input
-          id="rematch-q"
-          value={q}
-          placeholder={t('remote.searchHint')}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search()}
-        />
-        <Button className="shrink-0" onClick={search}>
-          <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('remote.search')}
-        </Button>
-      </div>
-      <ul className="max-h-72 overflow-y-auto">
-        {results.map((m) => (
-          <li key={m.id}>
-            <button
-              className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
-              onClick={() => pick(m.id)}
-            >
-              <Cover src={m.coverImage.large} size="sm" />
-              <span className="min-w-0">
-                <span className="block truncate text-sm">{mediaTitle(m)}</span>
-                <span className="text-xs text-t-muted">
-                  {m.seasonYear} · {m.format} · {m.episodes} EP
-                </span>
-              </span>
-            </button>
-          </li>
-        ))}
-      </ul>
-      {pickError && (
-        <p className="mt-2 text-xs text-err" role="alert">
-          {pickError}
-        </p>
-      )}
-      <div className="mt-4 flex justify-between">
-        <Button variant="danger" size="sm" onClick={() => pick(0)}>
-          <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('remote.removeMatch')}
-        </Button>
-        <Button onClick={onClose}>
-          <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
-          {t('remote.close')}
-        </Button>
-      </div>
-    </div>
   )
 }

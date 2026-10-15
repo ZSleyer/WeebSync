@@ -1,10 +1,19 @@
 import { Folder, Save, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth, useProviders } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Button, Dialog, Field, Input, Select } from 'fluid-lycoris'
-import { api, ApiError, plexStreamLabel, plexStreamOptions, type SubfolderMode } from '../api'
+import {
+  api,
+  ApiError,
+  plexStreamLabel,
+  plexStreamOptions,
+  type CatalogExplain,
+  type Entry,
+  type SubfolderMode,
+} from '../api'
+import { RematchDialog } from './Rematch'
 import { useConfirm } from './confirm'
 import { FileBrowser, LocalPicker } from './FileBrowser'
 import { FsErrorNote, isFsErrorCode } from './FsErrorNote'
@@ -73,6 +82,9 @@ export interface WatchFormProps {
 // body in five sections (source&target / display metadata / download filter /
 // Plex playback / rename+preview), sticky footer. The dry-run preview loads
 // automatically.
+// the provider a match comes from, as the dialog names it
+const sourceLabel = (source: string) => (source === 'tvdb' ? 'TVDB' : source.startsWith('tmdb') ? 'TMDB' : 'AniList')
+
 export default function WatchDialog(props: WatchFormProps) {
   const guard = useRef<() => Promise<boolean>>(async () => true)
   return (
@@ -131,13 +143,28 @@ export function WatchForm({
   // which Plex show the track selection acts on; the field below overrides it
   const { data: plexShow, refetch: refetchPlexShow } = usePlexShow(watchId)
   const [renameOn, setRenameOn] = useState(!!(initial.template || initial.pattern))
-  const manga = f.mediaSource === 'anilist:manga'
   const initialSub = subfolderMode(initial)
   const [subMode, setSubMode] = useState<SubfolderMode>(initialSub)
   const [subSep, setSubSep] = useState(initial.subfolderSeparator ?? '')
   // the title a "by title" subfolder is named after: the rename override wins,
   // exactly as it does over the provider title in the file names
   const { data: folder, isPending: folderPending } = useFolderKind(serverId, f.remotePath)
+  // books: matched as manga, or found to hold volumes and no video
+  const manga = f.mediaSource === 'anilist:manga' || folder?.kind === 'manga'
+  // correcting the match: the source to search comes from the server, which
+  // knows the mark and the library the folder answers to
+  const qc = useQueryClient()
+  const [matching, setMatching] = useState(false)
+  const { data: explained } = useQuery({
+    queryKey: ['catalog-explain', serverId, initial.remotePath],
+    queryFn: () =>
+      api.get<CatalogExplain>(
+        `/api/servers/${serverId}/catalog/explain?folder=${encodeURIComponent(initial.remotePath)}`,
+      ),
+    enabled: matching,
+    staleTime: 60_000,
+    retry: false,
+  })
   const seriesTitle = f.titleOverride || folder?.title || ''
   // undefined while the lookup runs: "no title found" is a claim worth making
   // only once the answer is in, otherwise every open flashes the fallback note
@@ -242,6 +269,10 @@ export function WatchForm({
         localPath: syncRequestPath(subMode, f.localPath, targetDir),
         subfolder: subMode === 'remote',
         ...(targetMoved && isAdmin ? { moveFiles } : {}),
+        // an edit never writes the match: it is the catalogue's, corrected
+        // through the button above, and the id the form opened with would
+        // undo a correction made since
+        ...(watchId ? { mediaId: 0 } : {}),
       }
       // rename off = keep original names, persist empty rules
       const note = await onSave(renameOn ? saved : { ...saved, template: '', pattern: '', replacement: '' })
@@ -404,45 +435,42 @@ export function WatchForm({
           <h3 className="ws-form-h">{t('watch.sectionMeta')}</h3>
           {/* same 50/50 split as every other two-column row in this dialog,
                 so the column edge never shifts between sections */}
-          <div className={ROW_GRID}>
-            <Field
-              label={
-                <>
-                  {t('watch.mediaSource')}
-                  <Hint text={t('watch.metaHint')} />
-                </>
-              }
-            >
-              <Select value={f.mediaSource || 'anilist'} onChange={(e) => setF({ ...f, mediaSource: e.target.value })}>
-                <option value="anilist">AniList (Anime)</option>
-                <option value="anilist:manga">AniList (Manga, Light Novel)</option>
-                <option value="tmdb:tv">{t('watch.sourceTmdbTv')}</option>
-                <option value="tmdb:movie">{t('watch.sourceTmdbMovie')}</option>
-                {(caps?.tvdbApiKeySet || f.mediaSource === 'tvdb') && (
-                  <option value="tvdb">{t('watch.sourceTvdb')}</option>
-                )}
-              </Select>
-            </Field>
-            <Field label={t('watch.mediaId')} htmlFor="watch-mediaid">
-              <Input
-                id="watch-mediaid"
-                type="number"
-                className="font-mono"
-                value={f.mediaId || ''}
-                placeholder={t('common.example', {
-                  value:
-                    f.mediaSource === 'tvdb'
-                      ? '72454 (Detective Conan)'
-                      : f.mediaSource?.startsWith('tmdb')
-                        ? '1399 (Game of Thrones)'
-                        : manga
-                          ? '30013 (One Piece)'
-                          : '21 (One Piece)',
-                })}
-                onChange={(e) => setF({ ...f, mediaId: Number(e.target.value) || 0 })}
-              />
-            </Field>
-          </div>
+          {/* the match is the catalogue's: one place to correct it, one
+              source it is searched on, whichever page it is opened from */}
+          {watchId ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="min-w-0 text-ctl-sm">
+                {initial.mediaId
+                  ? t('watch.matchNow', {
+                      title: folder?.title || initial.remotePath.split('/').pop(),
+                      src: sourceLabel(initial.mediaSource),
+                      id: initial.mediaId,
+                    })
+                  : t('watch.matchNone')}
+              </p>
+              <Button type="button" size="sm" onClick={() => setMatching(true)}>
+                {t('watch.matchChange')}
+              </Button>
+            </div>
+          ) : (
+            <p className="text-ctl-sm text-t-muted">{t('watch.matchFollows')}</p>
+          )}
+          {matching && explained && (
+            <RematchDialog
+              serverId={serverId}
+              item={{
+                entry: { name: initial.remotePath.split('/').pop() ?? '', path: initial.remotePath } as Entry,
+                source: explained.source || initial.mediaSource,
+              }}
+              onClose={() => setMatching(false)}
+              onPicked={() => {
+                setMatching(false)
+                void qc.invalidateQueries({ queryKey: ['watches'] })
+                void qc.invalidateQueries({ queryKey: ['catalog-explain', serverId, initial.remotePath] })
+                void qc.invalidateQueries({ queryKey: ['watch-defaults', serverId, initial.remotePath] })
+              }}
+            />
+          )}
           {/* which of the record's episodes the local folder is held against;
               it counts with or without renaming, so it lives here */}
           {!manga && <FromEpisodeField rule={f} onChange={(patch) => setF({ ...f, ...patch })} idPrefix="watch" />}
