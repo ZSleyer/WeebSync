@@ -1,0 +1,2 @@
+# a deliberately wrong ed25519 public key in the SFTP live test
+5aa375c8f7b30a1a566774f5beacc4a412ce25ed:backend/internal/remote/sftp_live_test.go:generic-api-key:37
