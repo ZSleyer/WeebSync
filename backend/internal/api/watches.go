@@ -2035,7 +2035,8 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 		scope = "manga" // a manga stays a manga; its tree often carries no mark
 	}
 	// no mark and no library says nothing about the source: what is stored stays
-	foreign := stored && scope != "" && sourceForScope(scope) != source && (manual == 0 || overrule)
+	foreign := stored && scope != "" && sourceForScope(scope) != source && (manual == 0 || overrule) &&
+		!s.anilistAgreesWithPlex(mediaID, source, localPath)
 	if stored && !foreign && (mediaID != 0 || manual == 1) {
 		return false
 	}
@@ -2046,6 +2047,47 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 	}
 	s.queueScopedMatch(serverID, folder, name, scope, stored)
 	return true
+}
+
+// anilistAgreesWithPlex reports whether an AniList match names the same show
+// as the Plex library the watch writes into: the anime mapping files the entry
+// under the TVDB or TMDB id that Plex reports for the show at the local
+// folder. An anime library ordered by TVDB holds AniList matches on purpose
+// (absolute episode numbers, airing times), and those are not foreign to it;
+// a guess that only shares a name ("Dragon, Ie wo Kau." for House of the
+// Dragon) maps to another show than Plex has there.
+func (s *Server) anilistAgreesWithPlex(mediaID int, source, localPath string) bool {
+	if source != "anilist" || mediaID == 0 {
+		return false
+	}
+	ids, ok := s.animeIDs(mediaID)
+	if !ok {
+		return false
+	}
+	target := s.localAbs(localPath)
+	if target == "" {
+		return false
+	}
+	// the Plex index stores a show per season folder: the watch may write into
+	// the show, one of its seasons or a folder below one
+	rows, err := s.DB.Query(`SELECT DISTINCT show_key FROM catalog_variants
+		WHERE server_id = 0 AND (folder = ?1 OR folder >= ?1 || '/' AND folder < ?1 || '0' OR ?1 >= folder || '/' AND ?1 < folder || '0')`,
+		target)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var key string
+		if rows.Scan(&key) != nil {
+			continue
+		}
+		if (ids.tvdbID > 0 && key == "tvdb:"+strconv.Itoa(ids.tvdbID)) ||
+			(ids.tmdbID > 0 && key == "tmdb:"+strconv.Itoa(ids.tmdbID)) {
+			return true
+		}
+	}
+	return false
 }
 
 // watchMatchQuery is the search name and scope of a watch folder.

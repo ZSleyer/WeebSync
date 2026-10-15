@@ -74,6 +74,29 @@ func TestMatchWatchFollowsTheLibrarySource(t *testing.T) {
 	}
 }
 
+// An anime library ordered by TVDB holds AniList matches on purpose: when the
+// anime mapping and Plex name the same show, a source change leaves them be.
+// A name-alike guess maps elsewhere and is searched again.
+func TestMatchWatchKeepsAnAnimeThePlexShowConfirms(t *testing.T) {
+	s := sourceTestServer(t)
+	db.SetSetting(s.DB, "plex_lib_scopes", "/media/anime\ttvdb\n/media/tv\ttvdb")
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season) VALUES (235, 72454, 1), (112376, 398083, 1)`)
+	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season) VALUES
+		(0, '/media/anime/Conan/Season 33', 'tvdb:72454', 33),
+		(0, '/media/tv/House of the Dragon/Season 01', 'tvdb:371572', 1)`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id, manual) VALUES
+		(1, '/x/Conan', 'anilist', 235, 1), (1, '/x/HotD', 'anilist', 112376, 1)`)
+	if s.matchWatch(1, "/x/Conan", "/media/anime/Conan/Season 33", true) {
+		t.Fatal("Conan: Plex and the anime mapping agree, the AniList match must stay")
+	}
+	if s.matchWatch(1, "/x/Conan", "/media/anime/Conan", true) {
+		t.Fatal("Conan: a watch on the show folder sees its seasons")
+	}
+	if !s.matchWatch(1, "/x/HotD", "/media/tv/House of the Dragon", true) {
+		t.Fatal("HotD: the AniList guess maps to another show, it must be searched again")
+	}
+}
+
 func TestChangedRoots(t *testing.T) {
 	got := changedRoots("/a\tanime\n/b\tanime", []string{"/a\tanime", "/b\ttvdb", "/c\ttv"})
 	if len(got) != 2 || got[0] != "/b" || got[1] != "/c" {
