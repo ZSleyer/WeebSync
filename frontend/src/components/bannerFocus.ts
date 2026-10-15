@@ -1,4 +1,4 @@
-import type { Schemas } from '../../api.gen'
+import type { Schemas } from '../api.gen'
 
 type Focus = Schemas['api.bannerFocus']
 

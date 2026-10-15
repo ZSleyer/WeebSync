@@ -1065,17 +1065,32 @@ ol.ws-skips li::before {
 }
 
 /* ── morphs: a cover into the detail cover, a Heute banner panel into the
-   detail banner, the rest of the page fading in around them ── */
-::view-transition-group(ws-hero) {
+   detail banner, the rest of the page fading in around them. Each rule is
+   written for [data-vt-local] too: the local transition's default for every
+   group is more specific than a bare name and cut both morphs to 280ms. ── */
+::view-transition-group(ws-hero),
+:root[data-vt-local]::view-transition-group(ws-hero) {
   animation-duration: 420ms;
   animation-timing-function: var(--m3-spatial, var(--spring));
   overflow: clip;
   border-radius: var(--r-cover);
 }
-::view-transition-group(band) {
+::view-transition-group(band),
+:root[data-vt-local]::view-transition-group(band) {
   animation-duration: 460ms;
   animation-timing-function: var(--spring-calm);
   overflow: clip;
+}
+/* The groups stack in the order they were captured: the panel's comes from
+   the old page, so the series page, new and opaque, would cover it and the
+   banner only appeared once the morph was over. The banner flies above the
+   page, and the page's head (title, cover) above the banner, where it sits
+   once the page stands. */
+::view-transition-group(band) {
+  z-index: 1;
+}
+::view-transition-group(ws-d-hero) {
+  z-index: 2;
 }
 ::view-transition-old(ws-hero),
 ::view-transition-new(ws-hero),

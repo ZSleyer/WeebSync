@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { focusPosition, slice } from '../pages/today/focus'
+import { focusPosition, slice } from '../components/bannerFocus'
 
 const flat = Array(64).fill(10)
 const right = flat.map((v, i) => (i >= 48 ? 100 : v))

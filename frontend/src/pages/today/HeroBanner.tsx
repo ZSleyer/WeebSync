@@ -8,7 +8,7 @@ import type { Schemas } from '../../api.gen'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { useNow } from '../../hooks'
 import { deal, nextPattern, PATTERNS, placed, shapes, type Panel } from './banner'
-import { focusPosition } from './focus'
+import { focusPosition } from '../../components/bannerFocus'
 
 type Banner = Schemas['api.todayBanner']
 type Banners = Schemas['api.todayBannersResponse']
@@ -160,7 +160,7 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   const openPanel = (b: Banner) => {
     if (caption.current) caption.current.style.viewTransitionName = 'fl-cap'
     named.current = true
-    open({ source: b.source, id: b.id })
+    open({ source: b.source, id: b.id, banner: { url: b.url, focus: b.focus } })
   }
 
   // the panels slide in once, after the first paint of the dealt page

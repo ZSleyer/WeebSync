@@ -26,6 +26,8 @@ import {
   useMediaQuery,
 } from 'fluid-lycoris'
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
+import type { Schemas } from '../api.gen'
+import { focusPosition } from './bannerFocus'
 import { coverSet } from '../images'
 import { useAuth, useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
@@ -50,6 +52,11 @@ export interface SeriesTarget {
   id: number
   /** the record the caller holds; the page fetches what is missing */
   media?: Media
+  /**
+   * The banner a Heute panel morphs from, shown before the record has
+   * loaded, and the map of its detail so the page cuts it as the panel did
+   */
+  banner?: { url: string; focus?: Schemas['api.bannerFocus'] }
   /** the watch the caller came from, listed first among the title's watches */
   watchId?: number
   /** the heading, where the caller knows a better one than the record's */
@@ -279,6 +286,8 @@ function pairMorph(o: Origin, update: () => void, back = false) {
     const d = document.querySelector<HTMLElement>('.ws-detail')
     nameIt(d, 'ws-detail')
     nameIt(d?.querySelector<HTMLElement>(VT_TARGET[o.kind]), name)
+    // the head stays above the flying banner (see series.css)
+    if (o.kind === 'band') nameIt(d?.querySelector<HTMLElement>('.ws-d-hero'), 'ws-d-hero')
   }
   if (back) detailSide()
   else nameIt(o.el, name)
@@ -375,7 +384,10 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       const o = !was ? fresh : null
       setOrigin(o ? { el: o.el, kind: o.kind } : null)
       if (o && typeof document.startViewTransition === 'function' && !reducedMotion()) {
-        await decodeFirst([o.kind === 'band' ? t.media?.bannerImage : undefined, t.media?.coverImage?.large])
+        await decodeFirst([
+          o.kind === 'band' ? (t.media?.bannerImage ?? t.banner?.url) : undefined,
+          t.media?.coverImage?.large,
+        ])
         void pairMorph(o, () => go(e, false))
       } else go(e, !!was)
     },
@@ -598,7 +610,20 @@ function SeriesCard({
     enabled: source === 'anilist' && !!media && !media.bannerImage && stage > 0,
     staleTime: 24 * 60 * 60_000,
   })
-  const art = media?.bannerImage || backdrop?.url
+  const art = media?.bannerImage || cur.banner?.url || backdrop?.url
+  // cut like the Heute panel it grew out of, or the two crops cross-fade in
+  // the morph. The box is the banner's (the column's width, 15rem tall, 20rem
+  // on a desktop), worked out without a size read: the page commits inside
+  // the morph's update callback
+  const artAt =
+    cur.banner?.focus && art === cur.banner.url
+      ? focusPosition(
+          cur.banner.focus,
+          window.innerWidth,
+          (matchMedia('(width >= 64rem)').matches ? 20 : 15) *
+            (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16),
+        )
+      : {}
   const big = !media?.bannerImage && backdrop?.large ? backdrop.large : ''
   const artSet = big ? `${art} 1280w, ${big} 3840w` : undefined
 
@@ -985,6 +1010,9 @@ function SeriesCard({
                 <span ref={bannerArt} className="ws-d-banner-art">
                   <img
                     src={art}
+                    style={
+                      artAt.x || artAt.y ? { objectPosition: `${artAt.x ?? '50%'} ${artAt.y ?? '50%'}` } : undefined
+                    }
                     srcSet={artSet}
                     sizes={artSet ? '100vw' : undefined}
                     alt=""
