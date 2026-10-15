@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SherClockHolmes/webpush-go"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/secret"
@@ -32,7 +31,7 @@ func New(d *sql.DB) (*Service, error) {
 	priv := secret.SettingOrEnv(d, "vapid_private", "")
 	if pub == "" || priv == "" {
 		var err error
-		priv, pub, err = webpush.GenerateVAPIDKeys()
+		priv, pub, err = generateKeys()
 		if err != nil {
 			return nil, err
 		}
@@ -134,23 +133,10 @@ func (s *Service) Notify(userID int64, n Notification) {
 			slog.Warn("push endpoint blocked", "host", endpointHost(x.endpoint), "err", err)
 			continue
 		}
-		resp, err := webpush.SendNotification(payload, &webpush.Subscription{
-			Endpoint: x.endpoint,
-			Keys:     webpush.Keys{P256dh: x.p256dh, Auth: x.auth},
-		}, &webpush.Options{
-			// route the send through netguard so a subscription host that
-			// DNS-rebinds or 30x-redirects to link-local/metadata is blocked
-			// at dial time; the default client would follow it unchecked
-			HTTPClient:      netguard.PublicClient(15 * time.Second),
-			Subscriber:      s.subscriber(),
-			VAPIDPublicKey:  s.public,
-			VAPIDPrivateKey: s.private,
-			TTL:             3600,
-			// the library pads every record to 4096 bytes by default, which
-			// Mozilla's endpoints reject with 413 ("intended for a constrained
-			// device") - our notifications are a few hundred bytes at most
-			RecordSize: 2048,
-		})
+		// netguard's client: a subscription host that DNS-rebinds or
+		// 30x-redirects to link-local/metadata is blocked at dial time
+		resp, err := send(netguard.PublicClient(15*time.Second), x.endpoint, x.p256dh, x.auth,
+			payload, s.subscriber(), s.public, s.private, 3600)
 		if err != nil {
 			slog.Warn("push send", "err", err)
 			continue

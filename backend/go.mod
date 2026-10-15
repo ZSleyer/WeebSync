@@ -3,7 +3,6 @@ module github.com/ch4d1/weebsync
 go 1.26.9
 
 require (
-	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/at-wat/ebml-go v0.19.4
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.6
