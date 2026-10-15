@@ -35,6 +35,10 @@ linters:
     # catches those. These two keep it that way.
     - depguard
     - forbidigo
+    # security patterns at lint time: a server without a header timeout,
+    # InsecureSkipVerify, math/rand for a token, weak hashes, decompression
+    # without a cap. The rules it cannot judge here are excluded below
+    - gosec
   # nilerr is deliberately absent: every place it reports swallows an error
   # on purpose (an unreadable entry in a WalkDir, the last admin kept) and
   # says so in a comment.
@@ -52,6 +56,21 @@ linters:
           deny:
             - pkg: unsafe
               desc: memory the Go memory model does not cover; see the depguard note above
+    gosec:
+      excludes:
+        - G104 # unchecked errors: the errcheck note above
+        - G101 # hardcoded credentials: it flags names (setupTokenHeader); gitleaks scans for real secrets
+        - G115 # integer conversions: the ones on file input are in mkvsubs, which is fuzzed
+        - G124 # cookie flags: every cookie goes through auth.SetCookie, which gosec cannot see into
+        - G202 # SQL concatenation: only WHERE clauses built from literals, values stay placeholders
+        - G701 # SQL taint: same, plus CodeQL's go/sql-injection runs on every push
+        - G204 # subprocess with variable: ffmpeg/ffprobe get an argument list, never a shell,
+        - G702 #   the input behind -i as an fd or loopback URL, under ffCommand's whitelists
+        - G304 # file path from variable: local paths are opened through os.Root
+        - G703 # path taint: same
+        - G704 # SSRF taint: outbound requests go through netguard
+        - G301 # directory 0755: the media trees are shared with other add-ons and Plex
+        - G306 # file 0644: same
     forbidigo:
       forbid:
         - pattern: ^(syscall|unix)\.Mmap$
@@ -66,6 +85,7 @@ linters:
         linters:
           - dupl
           - bodyclose
+          - gosec
 
 formatters:
   enable:

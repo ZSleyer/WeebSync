@@ -462,7 +462,11 @@ func (s *Server) loopbackURL(src playSource) (string, *loopToken, func(), error)
 		}
 		l.addr = ln.Addr().String()
 		l.tokens = map[string]*loopToken{}
-		go http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// loopback only, and ffmpeg's reads stream for as long as the episode
+		// plays, so no write timeout: the header one is all a stalled
+		// connection needs
+		srv := &http.Server{ReadHeaderTimeout: 10 * time.Second}
+		srv.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			l.mu.Lock()
 			tok, ok := l.tokens[path.Base(r.URL.Path)]
 			l.mu.Unlock()
@@ -471,7 +475,8 @@ func (s *Server) loopbackURL(src playSource) (string, *loopToken, func(), error)
 				return
 			}
 			s.servePlayFileTracked(w, r, tok.src, tok)
-		}))
+		})
+		go srv.Serve(ln)
 	})
 	if l.err != nil {
 		return "", nil, nil, l.err

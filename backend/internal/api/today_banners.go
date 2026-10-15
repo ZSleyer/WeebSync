@@ -157,7 +157,7 @@ func (s *Server) handleTodayBanners(w http.ResponseWriter, r *http.Request) {
 			s.queueMediaFetch(b.ID)
 		}
 	}
-	resp.Banners = pickBanners([][]todayBanner{watches, matches, defaults}, maxBanners, rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64())))
+	resp.Banners = pickBanners([][]todayBanner{watches, matches, defaults}, maxBanners, rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))) //nolint:gosec // which banners show is no secret
 	for i := range resp.Banners {
 		resp.Banners[i].Focus = s.cachedFocus(resp.Banners[i].URL)
 	}
