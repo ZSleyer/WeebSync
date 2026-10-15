@@ -131,6 +131,25 @@ describe('listPosition', () => {
   })
 })
 
+describe('Select hidden options', () => {
+  it('shows a hidden prompt as the value but never lists it or lets the keys reach it', () => {
+    render(
+      <Select aria-label="Server" value="" onChange={() => {}}>
+        <option value="" hidden>
+          Choose one
+        </option>
+        <option value="plex">Plex</option>
+        <option value="jellyfin">Jellyfin</option>
+      </Select>,
+    )
+    const trigger = screen.getByRole('combobox')
+    expect(trigger).toHaveTextContent('Choose one')
+    fireEvent.click(trigger)
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['Plex', 'Jellyfin'])
+    expect(stepOption(selectOptions(<option hidden>x</option>), -1, 1)).toBe(-1)
+  })
+})
+
 describe('Select names its list', () => {
   it('mirrors the trigger label onto the listbox when there is no id', () => {
     render(

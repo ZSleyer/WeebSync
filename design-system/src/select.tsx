@@ -29,6 +29,9 @@ export interface SelectOption {
   /** the plain text, for type-ahead */
   text: string
   disabled: boolean
+  /** shown as the value but never listed, like a native `<option hidden>`:
+   * a "choose one" prompt that is not itself a choice */
+  hidden: boolean
 }
 
 function textOf(node: ReactNode): string {
@@ -45,7 +48,7 @@ export function selectOptions(children: ReactNode): SelectOption[] {
   const walk = (nodes: ReactNode) =>
     Children.forEach(nodes, (child) => {
       if (!isValidElement(child)) return
-      const el = child as ReactElement<{ children?: ReactNode; value?: unknown; disabled?: boolean }>
+      const el = child as ReactElement<{ children?: ReactNode; value?: unknown; disabled?: boolean; hidden?: boolean }>
       if (el.type === Fragment || el.type === 'optgroup') return walk(el.props.children)
       if (el.type !== 'option') return
       const text = textOf(el.props.children)
@@ -53,7 +56,9 @@ export function selectOptions(children: ReactNode): SelectOption[] {
         value: el.props.value === undefined ? text : String(el.props.value),
         label: el.props.children,
         text,
-        disabled: !!el.props.disabled,
+        // a hidden option cannot be reached by the keys either
+        disabled: !!el.props.disabled || !!el.props.hidden,
+        hidden: !!el.props.hidden,
       })
     })
   walk(children)
@@ -273,7 +278,8 @@ export function Select({
             mode === 'anchor' ? 't-menu' : mode === 'inline' && 'absolute top-full left-0 z-20 mt-1 min-w-full',
           )}
         >
-          {options.map((o, i) => (
+          {options.map((o, i) =>
+            o.hidden ? null : (
             <li
               key={`${o.value}-${i}`}
               id={`${listId}-${i}`}
@@ -291,7 +297,8 @@ export function Select({
               <span className="min-w-0 flex-1">{o.label}</span>
               {i === picked && <Check />}
             </li>
-          ))}
+            ),
+          )}
         </ul>
       )}
     </span>
