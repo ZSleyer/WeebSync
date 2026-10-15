@@ -295,10 +295,24 @@ type Hit struct {
 // title: the localized name becomes Romaji, the native name English, so the UI
 // can show "Localized (Original)". Empty lang keeps the native name.
 func (c *Client) SearchHits(ctx context.Context, query, lang string) ([]Hit, error) {
+	return c.searchHits(ctx, query, lang, 0)
+}
+
+// SearchYear is SearchHits narrowed to the year a series first aired. TVDB
+// ranks by its own popularity, and a bare "Squid Game" brings the reality
+// spin-off and strangers but not the 2021 drama itself; the year does.
+func (c *Client) SearchYear(ctx context.Context, query string, year int) ([]Hit, error) {
+	return c.searchHits(ctx, query, "", year)
+}
+
+func (c *Client) searchHits(ctx context.Context, query, lang string, year int) ([]Hit, error) {
 	var resp struct {
 		Data []searchHit `json:"data"`
 	}
 	q := url.Values{"query": {query}, "type": {"series"}}
+	if year > 0 {
+		q.Set("year", strconv.Itoa(year))
+	}
 	if err := c.get(ctx, "/search?"+q.Encode(), &resp); err != nil {
 		return nil, err
 	}

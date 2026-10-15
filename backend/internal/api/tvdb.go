@@ -9,7 +9,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
-	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 // TVDB as a catalog metadata source: a folder marked 'tvdb' matches against
@@ -19,36 +19,33 @@ import (
 // queueTvdbMatch resolves one folder against TVDB in the background.
 func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		query := GuessTitle(name)
-		list, err := s.Tvdb.SearchMedia(ctx, query)
-		if err != nil {
-			return // retried by the next catalog poll
-		}
-		if len(list) == 0 && GuessAltTitle(name) != "" {
-			if list, err = s.Tvdb.SearchMedia(ctx, GuessAltTitle(name)); err != nil {
-				return
+		// Plex has already identified a show of this name and year: its id
+		// beats any title search (12 of 12 against a search that missed some)
+		mediaID, _ := s.matchLocalByPlexID(folder, "tvdb")
+		year, _ := strconv.Atoi(yearRe.FindString(name))
+		for _, q := range s.liveQueries(serverID, folder, name) {
+			if mediaID != 0 {
+				break
 			}
-		}
-		if nq := match.Normalize(query); len(list) == 0 && nq != normTitle(query) {
-			if list, err = s.Tvdb.SearchMedia(ctx, nq); err != nil {
-				return
-			}
-		}
-		mediaID := 0
-		if len(list) > 0 {
-			mediaID = list[0].ID
-		}
-		// a folder that names its year gets the entry of that era, not the
-		// best-named one ("Avatar The Last Airbender (2023)" is the remake,
-		// not the 2005 series); nothing of that era means no match
-		if y, _ := strconv.Atoi(yearRe.FindString(name)); y != 0 {
-			mediaID = 0
-			for _, m := range list {
-				if m.SeasonYear == 0 || absInt(m.SeasonYear-y) <= 2 {
-					mediaID = m.ID
-					break
+			var hits []tvdb.Hit
+			if year != 0 {
+				// the year finds what popularity buries ("Squid Game" 2021)
+				h, err := s.Tvdb.SearchYear(ctx, q, year)
+				if err != nil {
+					return // retried by the next catalog poll
 				}
+				hits = h
 			}
+			h, err := s.Tvdb.SearchHits(ctx, q, "")
+			if err != nil {
+				return
+			}
+			hits = append(hits, h...)
+			cands := make([]liveCand, 0, len(hits))
+			for _, h := range hits {
+				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles})
+			}
+			mediaID = pickLive(name, q, cands)
 		}
 		if mediaID != 0 {
 			s.Tvdb.Media(ctx, mediaID) // full details into the cache first

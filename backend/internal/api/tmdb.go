@@ -11,7 +11,6 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
-	"github.com/ch4d1/weebsync/internal/match"
 )
 
 // Folder scopes: a folder marked 'tv' or 'movie' switches catalog matching
@@ -315,40 +314,37 @@ var yearRe = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 // No batching: TMDB's rate limit is generous and the client paces itself.
 func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force bool) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		query := GuessTitle(name)
-		year := 0
-		if y := yearRe.FindString(name); y != "" {
-			year, _ = strconv.Atoi(y)
-		}
-		if force {
-			s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
-				fmt.Sprintf("tmdb:search:%s:%s|%d", kind, query, year))
-		}
-		list, err := s.Tmdb.Search(ctx, kind, query, year)
-		if err != nil {
-			return // retried by the next catalog poll
-		}
-		if len(list) == 0 && year != 0 {
-			list, err = s.Tmdb.Search(ctx, kind, query, 0)
-			if err != nil {
-				return
+		// what Plex identified under this name and year wins over a search
+		mediaID, _ := s.matchLocalByPlexID(folder, "tmdb:"+kind)
+		year, _ := strconv.Atoi(yearRe.FindString(name))
+		for _, query := range s.liveQueries(serverID, folder, name) {
+			if mediaID != 0 {
+				break
 			}
-		}
-		if len(list) == 0 && GuessAltTitle(name) != "" {
-			list, err = s.Tmdb.Search(ctx, kind, GuessAltTitle(name), 0)
-			if err != nil {
-				return
+			var list []anilist.Media
+			for _, y := range []int{year, 0} {
+				if y == 0 && year != 0 && len(list) > 0 {
+					break // the year search answered; without it only strangers join
+				}
+				if force {
+					s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
+						fmt.Sprintf("tmdb:search:%s:%s|%d", kind, query, y))
+				}
+				l, err := s.Tmdb.Search(ctx, kind, query, y)
+				if err != nil {
+					return // retried by the next catalog poll
+				}
+				list = append(list, l...)
+				if year == 0 {
+					break
+				}
 			}
-		}
-		if nq := match.Normalize(query); len(list) == 0 && nq != normTitle(query) {
-			list, err = s.Tmdb.Search(ctx, kind, nq, 0)
-			if err != nil {
-				return
+			// the localized name and the original, as the adapter maps them
+			cands := make([]liveCand, 0, len(list))
+			for _, m := range list {
+				cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}})
 			}
-		}
-		mediaID := 0
-		if len(list) > 0 {
-			mediaID = list[0].ID
+			mediaID = pickLive(name, query, cands)
 		}
 		if mediaID != 0 {
 			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
