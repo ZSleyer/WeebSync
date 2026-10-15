@@ -75,3 +75,20 @@ func TestRepairCatalogClearsOldMarksAndReconcilesAgain(t *testing.T) {
 		t.Fatal("repair not stamped")
 	}
 }
+
+// A watched season folder under a mark keeps the AniList row it had before the
+// mark: the repair leaves a watch's row to matchWatch, which nothing called for
+// a folder two levels down. A manual pick there stays.
+func TestRepairCatalogMatchesWatchedSeasonFoldersAgain(t *testing.T) {
+	s := sourceTestServer(t)
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/LA/Serien', 'tvdb')`)
+	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES
+		(1, 1, '/LA/Serien/Phineas and Ferb (2007)/Staffel.5', 'x'),
+		(1, 1, '/LA/Serien/Kept (2010)/Staffel.1', 'y')`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id, manual) VALUES
+		(1, '/LA/Serien/Phineas and Ferb (2007)/Staffel.5', 'anilist', 0, 0),
+		(1, '/LA/Serien/Kept (2010)/Staffel.1', 'anilist', 21, 1)`)
+	if _, rematched := s.clearStaleSubRows(1, "/LA/Serien", "tvdb"); rematched != 1 {
+		t.Fatalf("watches matched again %d, want the automatic one only", rematched)
+	}
+}

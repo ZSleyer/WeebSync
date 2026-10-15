@@ -237,35 +237,60 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	queued := 0
 	if in.Kind != "" && in.Kind != scopeNone {
 		queued = s.queueScopeChildren(serverID, in.Path, in.Kind)
-		s.clearStaleSubRows(serverID, in.Path, in.Kind)
+		_, rematched := s.clearStaleSubRows(serverID, in.Path, in.Kind)
+		queued += rematched
 	}
 	writeJSON(w, http.StatusOK, scopeSetResponse{Status: "ok", Queued: queued})
 }
 
 // clearStaleSubRows drops the empty rows of another source further down a
 // marked folder - a season folder listed once before the mark is no match,
-// only a stale "none found". A watch's folder keeps its row, matchWatch
-// answers for it. Reports how many went.
-func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) int64 {
+// only a stale "none found". A watch's folder keeps its row: matchWatch moves
+// an automatic match of another source over, and no other pass reaches a
+// watch below the folders the mark lists (a watched season folder), so it is
+// asked here. A manual match stays. Reports the rows dropped and the watches
+// queued.
+func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) (cleared int64, rematched int) {
 	res, err := s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ?1 AND manual = 0 AND media_id = 0 AND source != ?3
 		AND folder >= ?2 || '/' AND folder < ?2 || '0' AND instr(substr(folder, length(?2) + 2), '/') > 0
 		AND folder NOT IN (SELECT remote_path FROM watches WHERE server_id = ?1)`,
 		serverID, dir, sourceForScope(kind))
 	if err != nil {
-		return 0
+		return 0, 0
 	}
-	n, _ := res.RowsAffected()
-	return n
+	cleared, _ = res.RowsAffected()
+	rows, err := s.DB.Query(`SELECT remote_path, local_path FROM watches WHERE server_id = ?1
+		AND remote_path >= ?2 || '/' AND remote_path < ?2 || '0' AND instr(substr(remote_path, length(?2) + 2), '/') > 0`,
+		serverID, dir)
+	if err != nil {
+		return cleared, 0
+	}
+	type watchFolder struct{ remote, local string }
+	var watched []watchFolder
+	for rows.Next() {
+		var w watchFolder
+		if rows.Scan(&w.remote, &w.local) == nil {
+			watched = append(watched, w)
+		}
+	}
+	rows.Close()
+	for _, w := range watched {
+		if s.matchWatch(serverID, w.remote, w.local, false) {
+			rematched++
+		}
+	}
+	return cleared, rematched
 }
 
 // catalogRepairs names the one-time fixes of stored state below; bumping it
 // runs them once more.
-const catalogRepairs = "2026-10-stale-rows-plex-ids"
+const catalogRepairs = "2026-10-watched-season-folders"
 
 // RepairCatalog runs once per catalogRepairs, at startup:
 //
 //   - the stale rows under every mark set before marks cleared them
-//     (clearStaleSubRows ran only on setting a mark)
+//     (clearStaleSubRows ran only on setting a mark), and the watched season
+//     folders under a mark that kept the match of another source
 //   - Plex's ids hung on the series again: the leftover rule dropped ids Plex
 //     had attached where the anime mapping is wrong, and the reconcile pass
 //     only revisits folders it has not checked yet
@@ -293,13 +318,16 @@ func (s *Server) RepairCatalog() {
 		return
 	}
 	var cleared int64
+	rematched := 0
 	for _, m := range marks {
-		cleared += s.clearStaleSubRows(m.server, m.path, m.kind)
+		c, r := s.clearStaleSubRows(m.server, m.path, m.kind)
+		cleared += c
+		rematched += r
 	}
 	if _, err := s.DB.Exec(`DELETE FROM plex_reconciled`); err != nil {
 		return
 	}
-	slog.Info("catalog repaired", "staleRows", cleared, "marks", len(marks))
+	slog.Info("catalog repaired", "staleRows", cleared, "watchesRematched", rematched, "marks", len(marks))
 	db.SetSetting(s.DB, "catalog_repairs", catalogRepairs)
 }
 

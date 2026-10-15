@@ -15,6 +15,9 @@ const (
 	sweepInterval  = 30 * time.Minute
 	sweepBatch     = 30             // max match enqueues per server per sweep, protects the provider rate limiters
 	variantRecheck = 12 * time.Hour // recompute a folder's quality at most this often
+	// folders the Plex reconcile checks per sweep: it reads the cached Plex
+	// index and asks no provider, so a whole library fits into one pass
+	plexReconcileBatch = 5000
 )
 
 // SweepLoop is the background match cronjob: it scans scoped directories for
@@ -81,7 +84,7 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			s.recordAirings()
 			// enrich series bundles with Plex's authoritative tvdb/tmdb ids
 			// (cross-provider bundling, grounded in Plex); no-op without Plex
-			s.reconcilePlex(sweepBatch)
+			s.reconcilePlex(plexReconcileBatch)
 			// retry matches that BackfillSeries skipped because their metadata
 			// wasn't cached yet - the self-healing net that makes the migration
 			// of old matches onto the series structure eventually complete
