@@ -98,6 +98,9 @@ const clock = (s: number) => {
   return `${h ? `${h}:${pad2(m)}` : m}:${pad2(Math.floor(s % 60))}`
 }
 const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
+// Safari, and every browser on an iPhone (all WebKit), reads no Matroska: a
+// direct .mkv loaded forever without a frame
+const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Android/.test(navigator.userAgent)
 
 // The codec string for a picture: profile and bit depth matter, a phone that
 // decodes HEVC Main may not decode Main 10.
@@ -240,7 +243,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       (a && a.index !== data.audio[0].index) ||
       // Firefox on Android reads a whole Matroska file before it reports a
       // duration: an episode spun for minutes. The segments start at once.
-      (ext === 'mkv' && FIREFOX_ANDROID) ||
+      (ext === 'mkv' && (FIREFOX_ANDROID || WEBKIT)) ||
       burn >= 0
     )
   }, [data, path, audioIdx, burn, forceHls, videoOk])
