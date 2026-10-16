@@ -9,7 +9,9 @@ package main
 // land in <data>/mobile-debug/ for reading on the development machine.
 
 import (
+	"crypto/sha256"
 	_ "embed"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -31,6 +33,10 @@ func mobileDebug(mux *http.ServeMux, dataDir, webDir string, web http.Handler) h
 	}
 	slog.Warn("MOBILE DEBUG BUILD: diagnostics overlay and screenshot uploads are on - never deploy this binary", "dir", dir)
 
+	// the script's address carries its hash: a proxy that caches .js (the
+	// reverse proxy in front of a test instance did) never serves an old one
+	sum := sha256.Sum256(mobileDebugScript)
+	version := hex.EncodeToString(sum[:4])
 	mux.HandleFunc("GET /mobile-debug.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -85,7 +91,7 @@ func mobileDebug(mux *http.ServeMux, dataDir, webDir string, web http.Handler) h
 			web.ServeHTTP(w, r)
 			return
 		}
-		page = []byte(strings.Replace(string(page), "</head>", `<script src="/mobile-debug.js" defer></script></head>`, 1))
+		page = []byte(strings.Replace(string(page), "</head>", `<script src="/mobile-debug.js?v=`+version+`" defer></script></head>`, 1))
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Write(page)

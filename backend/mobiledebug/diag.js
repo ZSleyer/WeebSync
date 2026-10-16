@@ -42,6 +42,30 @@
       main: rect('.app-shell > main'),
       tabs: rect('.ws-tabs'),
       'tab bar': tabs ? `${rect('.ws-tabs')} pb ${getComputedStyle(tabs).paddingBottom}` : 'none',
+      'live wrap': rect('.ws-live-wrap'),
+      'live pill': rect('.t-live'),
+      'to-top wrap': rect('.t-totop-wrap'),
+      'to-top': rect('.t-totop'),
+      'main scroll': (() => {
+        const m = document.querySelector('.app-shell > main')
+        return m ? `top ${Math.round(m.scrollTop)} of ${m.scrollHeight} pb ${getComputedStyle(m).paddingBottom}` : 'none'
+      })(),
+      dialog: rect('dialog[open]'),
+      // everything pinned to the viewport, where it sits
+      fixed: [...document.querySelectorAll('body *')]
+        .filter((e) => getComputedStyle(e).position === 'fixed' && e.getBoundingClientRect().height > 0 && !e.closest('[data-mobile-debug]'))
+        .slice(0, 12)
+        .map((e) => {
+          const r = e.getBoundingClientRect()
+          return `\n  ${e.tagName.toLowerCase()}.${String(e.className).split(' ').slice(0, 2).join('.')} top ${Math.round(r.top)} bottom ${Math.round(r.bottom)} left ${Math.round(r.left)} right ${Math.round(r.right)}`
+        })
+        .join(''),
+      // anything wider than the screen
+      overflow: [...document.querySelectorAll('body *')]
+        .filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('[data-mobile-debug]'))
+        .slice(0, 6)
+        .map((e) => `\n  ${e.tagName.toLowerCase()}.${String(e.className).split(' ').slice(0, 2).join('.')} right ${Math.round(e.getBoundingClientRect().right)}`)
+        .join(''),
     }
     return Object.entries(lines)
       .map(([k, val]) => `${k}: ${val}`)
@@ -53,11 +77,13 @@
   const button = (label, top, bg) => {
     const b = document.createElement('button')
     b.textContent = label
+    b.dataset.mobileDebug = ""
     b.style.cssText = `position:fixed;z-index:99999;right:6px;top:${top};padding:6px 10px;font:600 13px system-ui;background:${bg};color:#000;border:0;border-radius:8px`
     return b
   }
   const diag = button('diag', '45%', '#ffd400')
   const pane = document.createElement('pre')
+  pane.dataset.mobileDebug = ""
   pane.style.cssText =
     'position:fixed;z-index:99998;left:8px;right:8px;top:12%;margin:0;padding:12px;font:12px/1.35 ui-monospace,monospace;background:#ffd400;color:#000;border-radius:10px;white-space:pre-wrap;display:none'
   diag.onclick = () => {
@@ -88,12 +114,17 @@
   let last = ''
   addEventListener('load', () => {
     document.body.append(diag, pane, up, pick)
-    // a page of the app reports once it has laid out
+    // a page of the app reports once it has laid out, and so does a dialog,
+    // which covers the diag button while it is open
+    let dialogs = 0
     setInterval(() => {
       if (location.pathname !== last) {
         last = location.pathname
         setTimeout(() => send('page'), 1500)
       }
+      const open = document.querySelectorAll('dialog[open]').length
+      if (open > dialogs) setTimeout(() => send('dialog'), 800)
+      dialogs = open
     }, 500)
   })
 })()
