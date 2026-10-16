@@ -886,8 +886,9 @@ function Shell({ email }: { email: string }) {
                           <Outlet />
                         </RouteTransition>
                         <PageScroll stacked={!!back} />
-                        {/* what transfers right now, riding the page's bottom edge */}
-                        {!wide && !immersive && (
+                        {/* what transfers right now, riding the bottom edge of Today: on
+                      the other pages it covered their own controls */}
+                        {!wide && !immersive && location.pathname === '/' && (
                           <div className="ws-live-wrap">
                             <LiveActivity variant="pill" />
                           </div>
