@@ -307,9 +307,8 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
   }
 
   // On a phone the palette fills the screen and the keyboard covers its lower
-  // part. iOS does not shrink the layout for the keyboard, so the list gets
-  // what the visual viewport lost at the bottom as extra padding, and its
-  // last rows can still be scrolled into view.
+  // part. iOS does not shrink the layout for the keyboard, so the palette
+  // gives up what the visual viewport lost at the bottom and ends above it.
   useEffect(() => {
     const vv = window.visualViewport
     if (!vv) return

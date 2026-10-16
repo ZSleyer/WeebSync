@@ -6,7 +6,8 @@ dialog.pal-dlg {
   margin: 0;
   width: 100%;
   max-width: none;
-  height: 100dvh;
+  /* ends at the keyboard: iOS lays the page out under it (--kb, CommandPalette) */
+  height: calc(100dvh - var(--kb, 0px));
   max-height: none;
   border: 0;
   border-radius: 0;
@@ -62,7 +63,7 @@ dialog.pal-dlg > .pal-body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 0.25rem 0.5rem calc(0.75rem + var(--safe-b) + var(--kb, 0px));
+  padding: 0.25rem 0.5rem calc(0.75rem + var(--safe-b));
 }
 .pal-list > ul { margin: 0; padding: 0; list-style: none; }
 .pal-g {
