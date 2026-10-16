@@ -41,6 +41,9 @@ var japAudio = regexp.MustCompile(`(?i)\[[^\]]*jap`)
 // Brüder"): the part before it is what TVDB and TMDB know.
 var subtitleDash = regexp.MustCompile(` [-–] `)
 
+// trailingYear is the "(2021)" TVDB appends to the name of a remake.
+var trailingYear = regexp.MustCompile(`\s*\((?:19|20)\d{2}\)$`)
+
 // releaseTitleRe reads the title off a scene or Plex file name, the part before
 // the episode marker ("Lockerbie.A.Search.for.Truth.S01E01.GERMAN…").
 var releaseTitleRe = regexp.MustCompile(`(?i)^(.+?)[ ._-]+S\d{1,2}E\d{1,3}`)
@@ -106,7 +109,8 @@ func (s *Server) releaseTitle(serverID int64, folder string) string {
 
 // pickLive returns the id of the hit a folder names under query, 0 when none
 // carries one of the folder's names exactly. The year in the folder is a
-// strong hint and a veto beyond two years, as for anime.
+// strong hint and a veto beyond two years, as for anime, and rules out an
+// entry that has none.
 func pickLive(name, accept string, cands []liveCand) int {
 	info := match.ParseName(name, accept, accept)
 	// one entry per show here: "3th Season" names a season of it, not a
@@ -115,8 +119,15 @@ func pickLive(name, accept string, cands []liveCand) int {
 	var list []anilist.Media
 	var anime []bool
 	for _, c := range cands {
+		// an entry without a year cannot be held to the folder's: on TVDB that
+		// is an empty stub ("Best Bet", "Shackleton (1983)"), never the show
+		if info.Year != 0 && c.year == 0 {
+			continue
+		}
 		for _, t := range c.titles {
-			if t == "" {
+			// TVDB tells shows of one name apart by a year in it ("Around the
+			// World in 80 Days (2021)"); the year is the entry's, not the title
+			if t = strings.TrimSpace(trailingYear.ReplaceAllString(t, "")); t == "" {
 				continue
 			}
 			var m anilist.Media

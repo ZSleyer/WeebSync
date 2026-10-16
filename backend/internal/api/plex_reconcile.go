@@ -46,8 +46,8 @@ type plexGuid struct {
 // place that carries all three ids for the same show.
 func (s *Server) plexGuidIndex() map[string]plexGuid {
 	idx := map[string]plexGuid{}
-	// v3: movie flag; a key bump skips stale cached blobs without the field
-	if p, ok := s.cacheGet("plex:guididx:v3", time.Hour); ok {
+	// v3: movie flag; v4: tvdbKey entries. A key bump skips stale cached blobs
+	if p, ok := s.cacheGet("plex:guididx:v4", time.Hour); ok {
 		json.Unmarshal([]byte(p), &idx)
 		return idx
 	}
@@ -79,12 +79,40 @@ func (s *Server) plexGuidIndex() map[string]plexGuid {
 					idx[k] = g
 				}
 			}
+			// two shows of one title ("Doctor Who" 2005 and 2023) share the
+			// title key; the id keeps each of them findable
+			if g.TVDB != 0 && !g.Movie {
+				idx[tvdbKey(g.TVDB)] = g
+			}
 		}
 	}
 	if p, err := json.Marshal(idx); err == nil {
-		s.cacheSet("plex:guididx:v3", string(p))
+		s.cacheSet("plex:guididx:v4", string(p))
 	}
 	return idx
+}
+
+// tvdbKey files a Plex show under its TVDB id in plexGuidIndex. A folded title
+// carries no colon, so the two kinds of key never meet.
+func tvdbKey(id int) string { return "tvdb:" + strconv.Itoa(id) }
+
+// plexByTVDB is the Plex show holding one of the TVDB ids a series already
+// carries: the same show by id, whatever its title or year in Plex.
+func (s *Server) plexByTVDB(idx map[string]plexGuid, seriesID int64) (plexGuid, bool) {
+	rows, err := s.DB.Query(`SELECT media_id FROM series_provider WHERE series_id = ? AND source = 'tvdb'`, seriesID)
+	if err != nil {
+		return plexGuid{}, false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int
+		if rows.Scan(&id) == nil {
+			if g, ok := idx[tvdbKey(id)]; ok {
+				return g, true
+			}
+		}
+	}
+	return plexGuid{}, false
 }
 
 // reconcilePlex enriches series bundles with Plex's authoritative provider ids.
@@ -132,8 +160,16 @@ func (s *Server) reconcilePlex(budget int) {
 
 	enriched := 0
 	for _, h := range hits {
-		g, ok := idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
+		// the TVDB id the series already has beats its title: Plex may call
+		// the show something else ("Little Britain in the USA"), or hold two
+		// of the same name
+		g, byID := s.plexByTVDB(idx, h.seriesID)
+		ok := byID
+		if !ok {
+			g, ok = idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
+		}
 		switch {
+		case byID:
 		case ok:
 			if fy := folderYearOf(path.Base(h.folder)); fy != 0 && g.Year != 0 && absInt(fy-g.Year) > 1 {
 				continue // same folded title, different show (remake vs original)

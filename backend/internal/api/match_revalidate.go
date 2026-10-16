@@ -12,12 +12,13 @@ import (
 
 // matchRules names the matcher's current rule set; bumping it re-checks every
 // automatic match once against the rules, from the cache alone.
-const matchRules = "2026-09-year"
+const matchRules = "2026-10-live-no-year"
 
 // RevalidateMatches drops automatic matches the stricter matcher would not
 // make today: a folder whose year is more than two years from the entry's
 // ("One Piece (2022)" filed under the 1999 anime, "JoJo (2012)" under the
-// 1993 OVA). Only the year is judged: titles are judged by the matcher's
+// 1993 OVA), or a TVDB/TMDB entry without a year for a folder with one. Only
+// the year is judged: titles are judged by the matcher's
 // search, which sees synonyms and translations the cache does not, and a
 // folder called "DanMachi" or "Frieren - Nach dem Ende der Reise" shares no
 // word with its entry's romaji. Judged from cached media only; a folder
@@ -54,7 +55,7 @@ func (s *Server) RevalidateMatches() {
 		if m == nil {
 			continue
 		}
-		reason := matchStale(r.folder, *m)
+		reason := matchStale(r.folder, r.source, *m)
 		if reason == "" {
 			continue
 		}
@@ -68,6 +69,11 @@ func (s *Server) RevalidateMatches() {
 		// title search); force would skip that
 		force := r.serverID != localServerID
 		scope := s.scopeFor(r.serverID, path.Dir(r.folder))
+		if scope == "" && r.source != "anilist" {
+			// no mark above (a watch matched in its library's source): search
+			// where the match came from, not on AniList
+			scope = strings.TrimPrefix(r.source, "tmdb:")
+		}
 		if r.source == mangaSource {
 			scope = "manga" // a manga stays a manga; its tree often carries no mark
 		}
@@ -83,11 +89,17 @@ func (s *Server) RevalidateMatches() {
 
 // matchStale applies the rules to one folder/media pair and names the rule
 // that fails, "" when the match stands.
-func matchStale(folder string, m anilist.Media) string {
+func matchStale(folder, source string, m anilist.Media) string {
 	base := path.Base(folder)
 	info := match.ParseName(base, GuessTitle(base), GuessAltTitle(base))
 	if info.Year != 0 && m.SeasonYear != 0 && absInt(m.SeasonYear-info.Year) > 2 {
 		return "year"
+	}
+	// pickLive takes no entry without a year for a folder with one; the first
+	// TVDB/TMDB matcher took the top hit, often such a stub ("Bet (2025)"
+	// filed under "Best Bet")
+	if info.Year != 0 && m.SeasonYear == 0 && source != "anilist" && source != mangaSource {
+		return "no-year"
 	}
 	return ""
 }

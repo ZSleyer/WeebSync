@@ -26,7 +26,7 @@ func TestPlexOwnedMatchesTitleAndTmdbID(t *testing.T) {
 	// both indexes are read from the cache table, so the check runs without a
 	// Plex server behind it
 	s.cacheSet("plex:titleidx:v2", `{"sword art online":"11","ソードアート・オンライン":"11"}`)
-	s.cacheSet("plex:guididx:v3", `{"thematrix":{"tmdb":603,"ratingKey":"42"}}`)
+	s.cacheSet("plex:guididx:v4", `{"thematrix":{"tmdb":603,"ratingKey":"42"}}`)
 	// plexOwned needs a configured client to consult the indexes at all
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('plex_url','http://plex.example.com:32400'), ('plex_token','t')`)
 

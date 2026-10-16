@@ -295,7 +295,7 @@ func (s *Server) refreshPlexRoots() {
 	if mid, err := c.MachineID(); err == nil && mid != "" {
 		if prev := db.Setting(s.DB, "media_server_id"); prev != mid {
 			s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
-				OR key IN ('plex:guididx:v3', 'plex:titleidx:v2', 'plex:showlist:v1')`)
+				OR key IN ('plex:guididx:v4', 'plex:titleidx:v2', 'plex:showlist:v1')`)
 			db.SetSetting(s.DB, "media_server_id", mid)
 			if prev != "" {
 				// the local quality index and the folder bridge describe the

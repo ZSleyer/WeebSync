@@ -284,7 +284,7 @@ func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) (cleared in
 
 // catalogRepairs names the one-time fixes of stored state below; bumping it
 // runs them once more.
-const catalogRepairs = "2026-10-watched-season-folders"
+const catalogRepairs = "2026-10-plex-by-tvdb-id"
 
 // RepairCatalog runs once per catalogRepairs, at startup:
 //
@@ -292,7 +292,8 @@ const catalogRepairs = "2026-10-watched-season-folders"
 //     (clearStaleSubRows ran only on setting a mark), and the watched season
 //     folders under a mark that kept the match of another source
 //   - Plex's ids hung on the series again: the leftover rule dropped ids Plex
-//     had attached where the anime mapping is wrong, and the reconcile pass
+//     had attached where the anime mapping is wrong, a show Plex names or
+//     dates differently is now found by its TVDB id, and the reconcile pass
 //     only revisits folders it has not checked yet
 func (s *Server) RepairCatalog() {
 	if db.Setting(s.DB, "catalog_repairs") == catalogRepairs {
