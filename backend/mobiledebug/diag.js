@@ -43,7 +43,7 @@
       tabs: rect('.ws-tabs'),
       'tab bar': tabs ? `${rect('.ws-tabs')} pb ${getComputedStyle(tabs).paddingBottom}` : 'none',
       'live wrap': rect('.ws-live-wrap'),
-      'live pill': rect('.t-live'),
+      'live pill': rect('.ws-live-wrap > .t-live'),
       'to-top wrap': rect('.t-totop-wrap'),
       'to-top': rect('.t-totop'),
       'main scroll': (() => {
