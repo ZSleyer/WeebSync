@@ -8,6 +8,11 @@
   display: flex;
   gap: 0.125rem;
   overflow-x: auto;
+  /* overflow-x: auto turns the other axis into auto as well, and the links'
+     -1px margin under the hairline is vertical overflow: on an iPhone a drag
+     over the strip scrolled it up and down and cut the labels off */
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
   scrollbar-width: none;
   margin: 0 -1rem 1rem;
   padding: 0 1rem;

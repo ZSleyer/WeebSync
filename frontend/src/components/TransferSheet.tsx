@@ -129,7 +129,9 @@ function TransferBody() {
       .catch(fail)
 
   return (
-    <div className="grid gap-4">
+    // grid-cols-1 is minmax(0, 1fr): a bare grid sizes its one column to the
+    // longest title and the limit row, and the sheet scrolled sideways on a phone
+    <div className="grid grid-cols-1 gap-4">
       {active.some((d) => d.status === 'running') && <SpeedPanel downloads={active} />}
       {(anyActive || anyPaused || !!user?.isAdmin) && (
         <div className="flex flex-wrap items-center gap-2">
@@ -157,7 +159,7 @@ function TransferBody() {
             const running = d.status === 'running'
             const pct = d.size > 0 ? (d.transferred / d.size) * 100 : 0
             return (
-              <li key={d.id} className="grid gap-1.5 py-2.5">
+              <li key={d.id} className="grid grid-cols-1 gap-1.5 py-2.5">
                 <div className="flex items-center gap-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-t-primary">{label}</span>

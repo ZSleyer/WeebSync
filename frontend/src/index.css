@@ -242,8 +242,8 @@ main:has(.page-fill) {
     position: relative;
     display: grid;
     place-items: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 3.25rem;
+    height: 3.25rem;
     translate: 0 calc(-100% + 0.5rem);
     border-radius: 9999px;
     border: 1px solid var(--border-subtle);

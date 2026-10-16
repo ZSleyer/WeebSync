@@ -424,9 +424,14 @@
   .ws-live-wrap > .t-live {
     translate: 0 -100%;
   }
-  /* the last row scrolls clear of the pill, and "back to top" stands above it */
-  .app-shell > main:has(> .ws-live-wrap > .t-live) {
-    padding-bottom: 5rem;
+  /* the last row scrolls clear of the pill, and "back to top" stands above it.
+     The room is a margin before the anchor, not padding on the scroller:
+     WebKit takes a scroller's padding off the box a sticky element keeps to
+     (constrainingRectForStickyPosition; csswg-drafts#3352 is still open), so
+     5rem of padding lifted the pill 5rem off the tab bar on iPhones, while
+     Chrome and Firefox measure from the scrollport and kept it down. */
+  .app-shell > main > .ws-live-wrap:has(> .t-live) {
+    margin-top: 5rem;
   }
   .app-shell > main:has(> .ws-live-wrap > .t-live) > .t-totop-wrap {
     bottom: 4.5rem;
