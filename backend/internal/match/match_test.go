@@ -281,6 +281,20 @@ func TestParseName(t *testing.T) {
 	}
 }
 
+// The year in parens names the release; one in the title is the title's.
+func TestParseNameYear(t *testing.T) {
+	for name, want := range map[string]int{
+		"Wonder Woman 1984 (2020)": 2020,
+		"1992 (2015)":              2015,
+		"The Lion King (2019) ()":  2019,
+		"Blade Runner 2049":        2049, // no parens: the only year there is
+	} {
+		if got := ParseName(name, GuessTitle(name), GuessAltTitle(name)).Year; got != want {
+			t.Errorf("ParseName(%q).Year = %d, want %d", name, got, want)
+		}
+	}
+}
+
 func TestStripMarkers(t *testing.T) {
 	cases := map[string]string{
 		"Boku no Hero Academia S3":  "Boku no Hero Academia",

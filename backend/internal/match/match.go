@@ -79,6 +79,9 @@ var (
 	ovaRe        = regexp.MustCompile(`(?i)\b(?:ova|oad|specials?)\b`)
 	promoRe      = regexp.MustCompile(`(?i)\b(?:teaser|trailer|pv|cm)\b`)
 	yearRe       = regexp.MustCompile(`\b(19|20)\d{2}\b`)
+	// the "(2020)" a library names its folders with; a year in the title
+	// ("Wonder Woman 1984 (2020)") is part of the title
+	parenYearRe = regexp.MustCompile(`\(((?:19|20)\d{2})\)`)
 )
 
 var romanNum = map[string]int{"II": 2, "III": 3, "IV": 4, "V": 5}
@@ -162,7 +165,9 @@ func ParseName(name, title, alt string) Info {
 			typeOVA = true
 		}
 	}
-	if parsed.Year != 0 {
+	if m := parenYearRe.FindAllStringSubmatch(name, -1); m != nil {
+		info.Year, _ = strconv.Atoi(m[len(m)-1][1])
+	} else if parsed.Year != 0 {
 		info.Year = parsed.Year
 	} else if m := yearRe.FindString(name); m != "" {
 		info.Year, _ = strconv.Atoi(m)
