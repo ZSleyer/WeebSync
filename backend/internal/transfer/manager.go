@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -449,6 +450,67 @@ func looksUploading(size int64, siblings []int64) bool {
 	return size < median/2
 }
 
+// seasonEpisodeRe reads the SxxEyy off a file name.
+var seasonEpisodeRe = regexp.MustCompile(`(?i)S(\d+)E(\d+)`)
+
+// episodeOf is a name's season and episode as one key, 0 without SxxEyy.
+func episodeOf(name string) int {
+	m := seasonEpisodeRe.FindStringSubmatch(name)
+	if m == nil {
+		return 0
+	}
+	se, _ := strconv.Atoi(m[1])
+	ep, _ := strconv.Atoi(m[2])
+	if ep == 0 {
+		return 0
+	}
+	return se*10000 + ep
+}
+
+type sizedName struct {
+	name string
+	size int64
+}
+
+// presentUnderOtherName returns the video beside local that carries the same
+// SxxEyy and exactly size bytes, "" when there is none. A changed name with
+// unchanged bytes is a renamed release, not a new one. listed caches each
+// directory's videos by episode for the rest of the check.
+func (m *Manager) presentUnderOtherName(local string, size int64, listed map[string]map[int][]sizedName) string {
+	key := episodeOf(filepath.Base(local))
+	if key == 0 {
+		return ""
+	}
+	dir := filepath.Dir(local)
+	byEp, ok := listed[dir]
+	if !ok {
+		byEp = map[int][]sizedName{}
+		listed[dir] = byEp
+		if rooted, err := OpenLocal(m.roots(), dir); err == nil {
+			if d, err := rooted.Root.Open(rooted.Name); err == nil {
+				entries, _ := d.ReadDir(-1)
+				d.Close()
+				for _, e := range entries {
+					k := episodeOf(e.Name())
+					if k == 0 || !e.Type().IsRegular() || !VideoExt[strings.ToLower(filepath.Ext(e.Name()))] {
+						continue
+					}
+					if fi, err := e.Info(); err == nil {
+						byEp[k] = append(byEp[k], sizedName{e.Name(), fi.Size()})
+					}
+				}
+			}
+			rooted.Close()
+		}
+	}
+	for _, f := range byEp[key] {
+		if f.size == size {
+			return f.name
+		}
+	}
+	return ""
+}
+
 // Enqueue queues remotePath (file or directory, recursive) below localRel.
 // nameFn, when non-nil, maps each remote file name to its local name (watch
 // rename templates); existing files with matching size are skipped.
@@ -627,6 +689,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			"kept", logSafe(path.Base(win.remote)), "dropped", logSafe(path.Base(lose.remote)))
 	}
 
+	listed := map[string]map[int][]sizedName{} // per target dir, for presentUnderOtherName
 	for _, local := range targets {
 		j := *best[local]
 		rooted, rerr := OpenLocal(m.roots(), local)
@@ -641,6 +704,17 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		if serr == nil && fi.Size() == j.size {
 			res.Skipped++
 			continue
+		}
+		// the uploader renamed the release ("x264" corrected to "h265"): the
+		// same episode with the very same bytes lies beside the target under
+		// its old name. Left alone rather than renamed, so the media server
+		// keeps the item and its watched state
+		if serr != nil && VideoExt[strings.ToLower(path.Ext(j.remote))] {
+			if have := m.presentUnderOtherName(local, j.size, listed); have != "" {
+				res.Skipped++
+				slog.Debug("file already here under another name", "remote", logSafe(path.Base(j.remote)), "local", logSafe(have))
+				continue
+			}
 		}
 		// held elsewhere under another name. Only for a target that is not
 		// there at all: one that is, is ours, and a re-release of it of
