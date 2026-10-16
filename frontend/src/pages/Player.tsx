@@ -13,6 +13,8 @@ import {
   Captions,
   Check,
   CaptionsOff,
+  Maximize,
+  Minimize,
   PictureInPicture2,
   SkipBack,
   SkipForward,
@@ -100,6 +102,9 @@ const clock = (s: number) => {
 const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
 // Safari, and every browser on an iPhone (all WebKit), reads no Matroska: a
 // direct .mkv loaded forever without a frame
+// an iPhone has fullscreen for a bare <video> only: iOS's own player, without
+// the subtitles, the menus or the dock. The player covers the screen itself.
+const OWN_FULLSCREEN = !document.fullscreenEnabled
 const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Android/.test(navigator.userAgent)
 
 // The codec string for a picture: profile and bit depth matter, a phone that
@@ -465,6 +470,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // moment of asking and set again once the window closes.
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
   const [inPip, setInPip] = useState(false)
+  const [ownFs, setOwnFs] = useState(false)
   const togglePip = async () => {
     const v = videoRef.current
     if (!v) return
@@ -612,6 +618,31 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       for (const [a] of on) set(a, null)
     }
   }, [name, title.media, title.cur, hasPrev, hasNext])
+
+  // the bar and the times on the lock screen: without a position the system
+  // shows the title alone and nothing to scrub
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !('mediaSession' in navigator) || !navigator.mediaSession.setPositionState) return
+    const sync = () => {
+      if (!Number.isFinite(v.duration) || v.duration <= 0) return
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: v.duration,
+          playbackRate: v.playbackRate || 1,
+          position: Math.min(v.currentTime, v.duration),
+        })
+      } catch {
+        // a position past the end while the duration catches up
+      }
+    }
+    const events = ['loadedmetadata', 'durationchange', 'ratechange', 'seeked', 'play', 'pause']
+    for (const e of events) v.addEventListener(e, sync)
+    sync()
+    return () => {
+      for (const e of events) v.removeEventListener(e, sync)
+    }
+  }, [data])
 
   const playerRef = useRef<MediaControllerElement>(null)
   // media-chrome's keys (space, k, f, m, arrows) plus the player's own: j and
@@ -995,6 +1026,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           ref={playerRef}
           lang={i18n.language}
           className="t-player"
+          data-fs={ownFs || undefined}
           // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
           // inside the player, never page-wide (WCAG 2.1.4)
           onPointerDown={noteHidden}
@@ -1287,7 +1319,20 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                   <PictureInPicture2 aria-hidden size={20} />
                 </button>
               )}
-              <MediaFullscreenButton />
+              {OWN_FULLSCREEN ? (
+                <button
+                  type="button"
+                  className="t-player-btn"
+                  aria-pressed={ownFs}
+                  aria-label={t(ownFs ? 'viewer.exitFullscreen' : 'viewer.fullscreen')}
+                  title={t(ownFs ? 'viewer.exitFullscreen' : 'viewer.fullscreen')}
+                  onClick={() => setOwnFs((x) => !x)}
+                >
+                  {ownFs ? <Minimize aria-hidden size={20} /> : <Maximize aria-hidden size={20} />}
+                </button>
+              ) : (
+                <MediaFullscreenButton />
+              )}
             </MediaControlBar>
           </div>
         </MediaController>

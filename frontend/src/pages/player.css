@@ -113,7 +113,14 @@
   --media-menu-transition-out: opacity var(--dur-1) var(--ease-in), transform var(--dur-1) var(--ease-in);
   --media-menu-transform-out: translateY(4px) scale(0.98);
 }
-.t-player:fullscreen {
+/* the player's own fullscreen where the browser has none for it (iPhone) */
+.t-player[data-fs] {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  width: 100%;
+}
+.t-player:is(:fullscreen, [data-fs]) {
   aspect-ratio: auto;
   height: 100%;
   max-height: none;
@@ -144,7 +151,7 @@
   align-self: stretch;
   pointer-events: auto;
 }
-.t-player:fullscreen .t-player-top {
+.t-player:is(:fullscreen, [data-fs]) .t-player-top {
   padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
   padding-inline: max(0.625rem, env(safe-area-inset-left, 0px)) max(0.625rem, env(safe-area-inset-right, 0px));
 }
@@ -275,7 +282,7 @@
   --media-font-family: var(--font-sans);
   --media-menu-item-description-max-width: 9rem;
 }
-.t-player:fullscreen .t-player-menu { right: max(1.5rem, env(safe-area-inset-right, 0px)); }
+.t-player:is(:fullscreen, [data-fs]) .t-player-menu { right: max(1.5rem, env(safe-area-inset-right, 0px)); }
 /* the subtitle and audio menus are plain media-chrome menus: media-chrome
    lifts only its own settings menu out of the flow */
 media-chrome-menu.t-player-menu { position: absolute; }
@@ -283,7 +290,7 @@ media-chrome-menu.t-player-menu { position: absolute; }
 media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
 /* never taller than the room above the dock; it scrolls inside instead */
 .t-player-menu { --media-menu-max-height: calc(100cqi * 9 / 16 - var(--pl-dock-h) - 1rem); }
-.t-player:fullscreen .t-player-menu {
+.t-player:is(:fullscreen, [data-fs]) .t-player-menu {
   --media-menu-max-height: calc(100dvh - var(--pl-dock-h) - max(1rem, env(safe-area-inset-top, 0px)));
 }
 .t-player-menu::part(container) { overflow: hidden auto; }
@@ -318,7 +325,7 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
   padding: 1.375rem 0.5rem 0.25rem;
   background: linear-gradient(transparent, rgb(0 0 0 / 0.72));
 }
-.t-player:fullscreen .t-player-dock {
+.t-player:is(:fullscreen, [data-fs]) .t-player-dock {
   padding: 1.375rem max(1.5rem, env(safe-area-inset-right, 0px)) max(0.75rem, env(safe-area-inset-bottom, 0px))
     max(1.5rem, env(safe-area-inset-left, 0px));
 }

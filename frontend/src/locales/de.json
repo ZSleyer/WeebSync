@@ -890,6 +890,7 @@
     "fitWidth": "An Breite anpassen",
     "fitHeight": "An Höhe anpassen",
     "fullscreen": "Vollbild",
+    "exitFullscreen": "Vollbild beenden",
     "unpacking": "Buch wird entpackt",
     "noChapters": "Das Buch hat keine Kapitel.",
     "chapterN": "Kapitel {{n}}",
