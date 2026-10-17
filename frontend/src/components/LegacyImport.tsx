@@ -72,6 +72,9 @@ export default function LegacyImport({
   const [password, setPassword] = useState('')
   const [skipped, setSkipped] = useState<Record<string, boolean>>({})
   const [fromEp, setFromEp] = useState<Record<string, number>>({})
+  const [protocol, setProtocol] = useState('sftp')
+  // null until the user types a port: until then it follows the protocol
+  const [portEdit, setPortEdit] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
@@ -226,7 +229,7 @@ export default function LegacyImport({
               <Input name="name" required defaultValue={plan.server.name} />
             </Field>
             <Field label={t('servers.protocol')}>
-              <Select name="protocol" defaultValue="sftp">
+              <Select name="protocol" value={protocol} onChange={(e) => setProtocol(e.target.value)}>
                 <option value="sftp">SFTP (SSH)</option>
                 <option value="ftps">FTPS (TLS)</option>
               </Select>
@@ -238,8 +241,11 @@ export default function LegacyImport({
                 type="number"
                 min={1}
                 max={65535}
-                defaultValue={plan.server.port}
+                value={portEdit ?? (protocol === 'ftps' ? '21' : String(plan.server.port || 22))}
+                onChange={(e) => setPortEdit(e.target.value)}
+                placeholder={protocol === 'ftps' ? '21 / 990' : '22'}
               />
+              {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
             </Field>
             <Field label={t('servers.host')} className="sm:col-span-2">
               <Input name="host" className="font-mono" required defaultValue={plan.server.host} />

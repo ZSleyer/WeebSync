@@ -271,11 +271,12 @@ export default function SetupSteps({
                 className="font-mono"
                 inputMode="numeric"
                 pattern="[0-9]*"
-                placeholder={protocol === 'sftp' ? '22' : '21'}
+                placeholder={protocol === 'sftp' ? '22' : '21 / 990'}
                 disabled={srvOk}
               />
             </div>
           </div>
+          {protocol === 'ftps' && <p className="ws-quiet">{t('servers.tlsHint')}</p>}
           <div className="ws-su-2">
             <div>
               <label htmlFor="su-user" className="ws-lbl">

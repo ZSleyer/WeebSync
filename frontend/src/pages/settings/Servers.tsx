@@ -345,9 +345,10 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               type="number"
               min={1}
               max={65535}
-              placeholder="22 / 21"
+              placeholder={protocol === 'ftps' ? '21 / 990' : '22'}
               defaultValue={editing?.port || ''}
             />
+            {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
           </Field>
           <Field label={t('servers.host')} className="sm:col-span-2">
             <Input name="host" className="font-mono" required defaultValue={editing?.host} />
