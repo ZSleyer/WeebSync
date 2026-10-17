@@ -39,6 +39,7 @@ import UpdateToast from './components/UpdateToast'
 import Tips from './components/Tips'
 import ScrollMemory from './components/ScrollMemory'
 import RouteFocus from './components/RouteFocus'
+import AppBadgeSync from './components/AppBadgeSync'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
 import { LiveActivity } from './components/LiveActivity'
@@ -865,6 +866,7 @@ function Shell({ email }: { email: string }) {
                           <>
                             <RouteFocus title={screenTitle} />
                             <RouteTitle />
+                            <AppBadgeSync />
                             <ScrollMemory />
                             <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
                           </>

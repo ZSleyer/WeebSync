@@ -10,21 +10,18 @@ import {
   type Download,
   type DownloadMeta,
   type JobsStatus,
-  type PlexMe,
-  type ScopeHint,
   type SystemStatus,
-  type Watch,
 } from '../api'
 import { upcomingAirings } from '../airings'
-import { useAppBadge } from '../appBadge'
 import { jobLabel } from '../jobs'
 import { WIDE_MQ } from '../components/PageActions'
 import { useTransfers } from '../components/transfers'
-import { useAuth, useNow, usePersistedQuery } from '../hooks'
+import { useAuth } from '../hooks'
 import { Agenda } from './today/Agenda'
 import { HeroBanner } from './today/HeroBanner'
 import { buildNeeds, hiddenNeeds } from './today/needs'
 import { Needs } from './today/Needs'
+import { useNeedsData } from './today/useNeedsData'
 import { NewShelf } from './today/NewShelf'
 import { useAfterFirstPaint, useFold, useRiseOnData } from './today/shared'
 import './today/today.css'
@@ -38,42 +35,7 @@ import './today/today.css'
  */
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
-  const now = useNow()
-  const { data: downloads = [], isLoading } = useQuery<Download[]>({
-    queryKey: ['downloads'],
-    queryFn: () => api.get('/api/downloads'),
-    refetchInterval: 5000,
-  })
-  const { data: meta } = useQuery<DownloadMeta>({
-    queryKey: ['downloads', 'meta'],
-    queryFn: () => api.get('/api/downloads/meta'),
-    staleTime: 60_000,
-    refetchInterval: 60_000,
-  })
-  const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>(
-    'watches',
-    () => api.get('/api/watches'),
-    {
-      refetchInterval: () => 30_000,
-    },
-  )
-  const { data: hints = [] } = useQuery<ScopeHint[]>({
-    queryKey: ['scope-hints'],
-    queryFn: () => api.get('/api/catalog/scope-hints'),
-    staleTime: 5 * 60_000,
-  })
-
-  // an admin whose Plex runs on a pasted token is asked to sign in with Plex
-  // instead; a token from the environment cannot be changed here, so no ask
-  const { data: me } = useAuth()
-  const { data: plexMe } = useQuery<PlexMe>({
-    queryKey: ['plex-me'],
-    queryFn: () => api.get('/api/plex/me'),
-    enabled: !!me?.isAdmin,
-    staleTime: 5 * 60_000,
-  })
-  const plexToken = !!plexMe?.configured && plexMe.auth === 'token' && plexMe.kind !== 'jellyfin'
-  const mediaChoose = !!plexMe?.choose
+  const { now, downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose } = useNeedsData()
 
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
@@ -83,8 +45,6 @@ export default function Dashboard() {
   const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose }).filter(
     (n) => !hidden.has(n.print),
   ).length
-  // the installed app's icon carries what waits for the user
-  useAppBadge(needCount)
   const next = upcomingAirings(watches, now, 7).find((a) => a.at * 1000 > now)
   const nextAt = next
     ? new Date(next.at * 1000).toLocaleString(i18n.language, {
