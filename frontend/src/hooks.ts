@@ -131,28 +131,51 @@ export function useEvents(enabled: boolean) {
   const qc = useQueryClient()
   useEffect(() => {
     if (!enabled) return
-    const es = new EventSource('/api/events')
-    es.onmessage = (ev) => {
-      let d: Download
-      try {
-        d = JSON.parse(ev.data)
-      } catch {
-        return // ignore malformed/keepalive frames
+    let es: EventSource | null = null
+    const open = () => {
+      es = new EventSource('/api/events')
+      es.onmessage = (ev) => {
+        let d: Download
+        try {
+          d = JSON.parse(ev.data)
+        } catch {
+          return // ignore malformed/keepalive frames
+        }
+        qc.setQueryData<Download[]>(['downloads'], (old) => {
+          if (!old) return old
+          const idx = old.findIndex((x) => x.id === d.id)
+          if (idx === -1) return [d, ...old]
+          const next = [...old]
+          next[idx] = d
+          return next
+        })
       }
-      qc.setQueryData<Download[]>(['downloads'], (old) => {
-        if (!old) return old
-        const idx = old.findIndex((x) => x.id === d.id)
-        if (idx === -1) return [d, ...old]
-        const next = [...old]
-        next[idx] = d
-        return next
-      })
+      // on stream error re-check auth: a 401 (expired session) otherwise makes
+      // EventSource reconnect-loop forever. If the session is gone, ['me'] flips
+      // to null → the app unmounts this (enabled=false) and the stream closes.
+      es.onerror = () => qc.invalidateQueries({ queryKey: ['me'] })
     }
-    // on stream error re-check auth: a 401 (expired session) otherwise makes
-    // EventSource reconnect-loop forever. If the session is gone, ['me'] flips
-    // to null → the app unmounts this (enabled=false) and the stream closes.
-    es.onerror = () => qc.invalidateQueries({ queryKey: ['me'] })
-    return () => es.close()
+    const close = () => {
+      es?.close()
+      es = null
+    }
+    // An open stream keeps a page out of the back/forward cache in browsers
+    // that count it as a live connection, and a page restored from the cache
+    // has missed everything since: close it when the page is put away, open a
+    // fresh one and refetch what the queries hold when it comes back.
+    const onShow = (ev: PageTransitionEvent) => {
+      if (!ev.persisted || es) return
+      open()
+      void qc.invalidateQueries()
+    }
+    open()
+    window.addEventListener('pagehide', close)
+    window.addEventListener('pageshow', onShow)
+    return () => {
+      window.removeEventListener('pagehide', close)
+      window.removeEventListener('pageshow', onShow)
+      close()
+    }
   }, [enabled, qc])
 }
 
