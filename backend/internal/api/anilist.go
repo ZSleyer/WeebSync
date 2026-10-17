@@ -512,10 +512,8 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		if len(ids) == 0 {
 			break
 		}
+		// a failed batch still returns the part it resolved: use it
 		got, err := s.Anilist.RelationsBatch(ctx, ids)
-		if err != nil {
-			break // judge with what we have
-		}
 		frontier = map[int]bool{}
 		for id, r := range got {
 			rels[id] = r
@@ -524,6 +522,9 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 					frontier[e.Node.ID] = true
 				}
 			}
+		}
+		if err != nil {
+			break // judge with what we have
 		}
 	}
 	for _, i := range fix {

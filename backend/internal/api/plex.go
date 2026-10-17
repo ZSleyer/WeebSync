@@ -625,13 +625,8 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		if len(ids) == 0 {
 			break
 		}
+		// a failed batch still returns the part it resolved: use it
 		got, err := s.Anilist.RelationsBatch(ctx, ids)
-		if err != nil {
-			// deadline/rate hit mid-resolution: keep the sequels found so far
-			// and build suggestions with them; the next poll fills the rest
-			slog.Warn("plex relations", "err", err)
-			break
-		}
 		for id, r := range got {
 			rels[id] = r
 			for _, e := range r {
@@ -639,6 +634,12 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 					need[e.Node.ID] = true
 				}
 			}
+		}
+		if err != nil {
+			// deadline/rate hit mid-resolution: keep the sequels found so far
+			// and build suggestions with them; the next poll fills the rest
+			slog.Warn("plex relations", "err", err)
+			break
 		}
 	}
 
