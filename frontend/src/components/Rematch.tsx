@@ -152,6 +152,7 @@ export function RematchForm({
         </label>
         <Input
           id="rematch-q"
+          kind="search"
           value={q}
           placeholder={t('remote.searchHint')}
           onChange={(e) => setQ(e.target.value)}

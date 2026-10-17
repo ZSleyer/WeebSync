@@ -39,6 +39,7 @@ export type {
   FieldProps,
   FieldRowProps,
   IconButtonProps,
+  InputKind,
   InputProps,
   LoadingIndicatorProps,
   PanelProps,

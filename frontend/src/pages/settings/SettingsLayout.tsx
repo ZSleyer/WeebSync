@@ -198,6 +198,10 @@ function SettingsSearch({ groups }: { groups: SettingsGroup[] }) {
         <input
           type="search"
           className="t-input"
+          enterKeyHint="search"
+          autoCapitalize="off"
+          autoCorrect="off"
+          spellCheck={false}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder={t('settings.search.placeholder')}

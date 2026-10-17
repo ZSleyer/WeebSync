@@ -481,6 +481,10 @@ export default function Watches() {
       <input
         id="watch-search"
         type="search"
+        enterKeyHint="search"
+        autoCapitalize="off"
+        autoCorrect="off"
+        spellCheck={false}
         value={query}
         autoComplete="off"
         autoFocus={bar}

@@ -155,6 +155,36 @@ describe('Input', () => {
     render(<Input aria-label="Suche" className="w-40" />)
     expect(screen.getByLabelText('Suche').className).toBe('t-input w-40')
   })
+
+  it('leaves prose fields alone and sets the phone keyboard for technical ones', () => {
+    render(
+      <>
+        <Input aria-label="Name" />
+        <Input aria-label="Pfad" kind="path" />
+        <Input aria-label="Suche" kind="search" />
+        <Input aria-label="Passwort" type="password" />
+      </>,
+    )
+    const name = screen.getByLabelText('Name')
+    expect(name).not.toHaveAttribute('autocapitalize')
+    expect(name).not.toHaveAttribute('autocorrect')
+    const path = screen.getByLabelText('Pfad')
+    expect(path).toHaveAttribute('autocapitalize', 'off')
+    expect(path).toHaveAttribute('autocorrect', 'off')
+    expect(path).toHaveAttribute('spellcheck', 'false')
+    expect(path).toHaveAttribute('inputmode', 'url')
+    const search = screen.getByLabelText('Suche')
+    expect(search).toHaveAttribute('type', 'search')
+    expect(search).toHaveAttribute('enterkeyhint', 'search')
+    expect(screen.getByLabelText('Passwort')).toHaveAttribute('autocapitalize', 'off')
+  })
+
+  it('lets an explicit attribute beat the kind default', () => {
+    render(<Input aria-label="Suche" kind="search" type="text" enterKeyHint="go" />)
+    const el = screen.getByLabelText('Suche')
+    expect(el).toHaveAttribute('type', 'text')
+    expect(el).toHaveAttribute('enterkeyhint', 'go')
+  })
 })
 
 describe('Select', () => {

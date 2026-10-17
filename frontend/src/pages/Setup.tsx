@@ -287,6 +287,7 @@ export default function Setup({
               </label>
               <Input
                 id="setup-token"
+                kind="code"
                 required
                 autoComplete="off"
                 spellCheck={false}
@@ -317,6 +318,7 @@ export default function Setup({
                   </label>
                   <Input
                     id="setup-email"
+                    enterKeyHint="next"
                     type="email"
                     autoComplete="email"
                     required
@@ -415,6 +417,7 @@ export default function Setup({
                 <div className="flex gap-2">
                   <Input
                     id="setup-oidcIssuer"
+                    kind="url"
                     type="text"
                     className="font-mono"
                     required={oidcOnly && !envLocked('oidcIssuer')}

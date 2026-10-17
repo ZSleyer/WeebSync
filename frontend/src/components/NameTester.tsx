@@ -82,6 +82,8 @@ export function NameTester() {
         rows={3}
         value={name}
         spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
         autoComplete="off"
         aria-describedby={id + '-hint'}
         onChange={(e) => setName(e.target.value.slice(0, 1024))}

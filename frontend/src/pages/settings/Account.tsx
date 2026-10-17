@@ -420,6 +420,8 @@ function TotpSection() {
           <SettingsField label={t('account.totpEnterCode')} htmlFor={id + 'c'}>
             <Input
               id={id + 'c'}
+              enterKeyHint="go"
+              kind="digits"
               className="sf-num font-mono tracking-[0.3em]"
               inputMode="numeric"
               autoComplete="one-time-code"

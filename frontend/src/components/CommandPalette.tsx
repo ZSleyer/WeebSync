@@ -384,6 +384,9 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
         <input
           autoFocus
           role="combobox"
+          enterKeyHint="go"
+          autoCapitalize="off"
+          autoCorrect="off"
           aria-expanded
           aria-controls={listId}
           aria-activedescendant={shown[sel] ? optionId(sel) : undefined}

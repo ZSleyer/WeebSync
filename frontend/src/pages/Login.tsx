@@ -349,6 +349,7 @@ export default function Login() {
                   </label>
                   <Input
                     id="totp-code"
+                    enterKeyHint="go"
                     name="code"
                     className="ws-login-code"
                     autoComplete="one-time-code"
@@ -419,6 +420,7 @@ export default function Login() {
               </label>
               <Input
                 id="email"
+                enterKeyHint="next"
                 type="email"
                 // "webauthn" arms passkey autofill on this field (conditional UI)
                 autoComplete="username webauthn"
@@ -447,6 +449,7 @@ export default function Login() {
               <div className="ws-login-pw">
                 <Input
                   id="password"
+                  enterKeyHint="go"
                   type={showPw ? 'text' : 'password'}
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required

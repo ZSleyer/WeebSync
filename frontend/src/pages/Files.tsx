@@ -647,6 +647,10 @@ export default function Files() {
                     <Search aria-hidden size={18} />
                     <input
                       type="search"
+                      enterKeyHint="search"
+                      autoCapitalize="off"
+                      autoCorrect="off"
+                      spellCheck={false}
                       placeholder={
                         path ? t('remote.searchIn', { dir: path.slice(path.lastIndexOf('/') + 1) }) : t('remote.search')
                       }

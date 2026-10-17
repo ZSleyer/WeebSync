@@ -351,10 +351,10 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
           </Field>
           <Field label={t('servers.host')} className="sm:col-span-2">
-            <Input name="host" className="font-mono" required defaultValue={editing?.host} />
+            <Input name="host" kind="host" className="font-mono" required defaultValue={editing?.host} />
           </Field>
           <Field label={t('servers.user')}>
-            <Input name="username" className="font-mono" required defaultValue={editing?.username} />
+            <Input name="username" kind="username" className="font-mono" required defaultValue={editing?.username} />
           </Field>
           <Field label={t('servers.password')}>
             <Input
@@ -366,7 +366,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             />
           </Field>
           <Field label={t('servers.rootPath')} className="sm:col-span-2">
-            <Input name="rootPath" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
+            <Input name="rootPath" kind="path" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
           </Field>
           {/* the hint is its own grid cell: inside the Field it would sit
               below the control, which pins itself to the bottom of the row */}

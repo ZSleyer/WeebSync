@@ -106,7 +106,7 @@ export default function History() {
         <label className="hs-q">
           <span className="sr-only">{t('history.search')}</span>
           <Input
-            type="search"
+            kind="search"
             value={query}
             placeholder={t('history.searchHint')}
             onChange={(e) => setQuery(e.target.value)}

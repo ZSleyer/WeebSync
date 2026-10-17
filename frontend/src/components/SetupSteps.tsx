@@ -259,7 +259,7 @@ export default function SetupSteps({
               <label htmlFor="su-host" className="ws-lbl">
                 {t('servers.host')}
               </label>
-              <Input id="su-host" name="host" className="font-mono" required disabled={srvOk} />
+              <Input id="su-host" kind="host" name="host" className="font-mono" required disabled={srvOk} />
             </div>
             <div>
               <label htmlFor="su-port" className="ws-lbl">
@@ -267,6 +267,7 @@ export default function SetupSteps({
               </label>
               <Input
                 id="su-port"
+                enterKeyHint="next"
                 name="port"
                 className="font-mono"
                 inputMode="numeric"
@@ -282,7 +283,7 @@ export default function SetupSteps({
               <label htmlFor="su-user" className="ws-lbl">
                 {t('servers.user')}
               </label>
-              <Input id="su-user" name="username" className="font-mono" required disabled={srvOk} />
+              <Input id="su-user" kind="username" name="username" className="font-mono" required disabled={srvOk} />
             </div>
             <div>
               <label htmlFor="su-pass" className="ws-lbl">
@@ -302,7 +303,7 @@ export default function SetupSteps({
           <label htmlFor="su-root" className="ws-lbl">
             {t('servers.rootPath')}
           </label>
-          <Input id="su-root" name="rootPath" className="font-mono" defaultValue="/" disabled={srvOk} />
+          <Input id="su-root" kind="path" name="rootPath" className="font-mono" defaultValue="/" disabled={srvOk} />
           {testing && (
             <p className="ws-quiet mt-3" role="status">
               {t('setup.serverTesting')}
@@ -440,6 +441,7 @@ export default function SetupSteps({
       </span>
       <Input
         id={`su-${key}`}
+        kind="code"
         type={type}
         className="font-mono"
         autoComplete="off"

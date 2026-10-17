@@ -153,6 +153,7 @@ export function SeriesPicker({
     <div className="t-inset mt-2">
       <div className="mb-1 flex gap-1">
         <Input
+          kind="search"
           className="font-mono"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -251,6 +252,8 @@ export function TitleSearch({ value, onChange }: { value: string; onChange: (v: 
       <label>
         {t('rename.titleOverride')}
         <Input
+          kind="search"
+          type="text"
           className="mt-1"
           value={value}
           placeholder={t('rename.titlePlaceholder')}
@@ -368,6 +371,7 @@ export default function RenameOptions({
             </label>
             <Input
               id={`${idPrefix}-template`}
+              kind="code"
               className="font-mono"
               placeholder="{title} - S{season:02}E{episode:02}"
               value={rule.template}
@@ -403,6 +407,7 @@ export default function RenameOptions({
           <label className="text-xs text-t-muted">
             {t('rename.pattern')}
             <Input
+              kind="code"
               className="mt-1 font-mono"
               value={rule.pattern}
               placeholder={'\\.S(\\d+)E(\\d+)\\.'}
@@ -412,6 +417,7 @@ export default function RenameOptions({
           <label className="text-xs text-t-muted">
             {t('rename.replacement')}
             <Input
+              kind="code"
               className="mt-1 font-mono"
               value={rule.replacement}
               placeholder=" - S${1}E${2}."

@@ -923,7 +923,14 @@ function ArrPanel({
       {key && (
         <SettingsField label={t('settings.arrKeyShowOnce')} htmlFor="arr-key">
           <div className="sec-row">
-            <Input id="arr-key" className="font-mono" readOnly value={key} onFocus={(e) => e.target.select()} />
+            <Input
+              id="arr-key"
+              kind="code"
+              className="font-mono"
+              readOnly
+              value={key}
+              onFocus={(e) => e.target.select()}
+            />
             <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
               {t('settings.apiTokenCopy')}
             </Button>
@@ -1105,6 +1112,7 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
         ) : (
           <Input
             id="ai-model"
+            kind="code"
             className="font-mono"
             placeholder="gpt-4o-mini"
             value={value}

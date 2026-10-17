@@ -125,6 +125,8 @@ export default function PlexShowField({
         <div className="relative min-w-0 flex-1">
           <Input
             id={`${ids}-input`}
+            kind="search"
+            type="text"
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}

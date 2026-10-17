@@ -114,6 +114,8 @@ export default function PathInput({
     <div ref={boxRef} className="relative min-w-0 flex-1">
       <Input
         id={inputId}
+        kind="path"
+        enterKeyHint="go"
         role="combobox"
         aria-expanded={showList}
         aria-controls={listId}

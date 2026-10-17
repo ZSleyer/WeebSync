@@ -139,10 +139,49 @@ export function IconButton({ size = 'md', className, ...rest }: IconButtonProps)
 export interface InputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** compact field for dense rows; matches a small Button in the same row */
   size?: 'md' | 'sm'
+  /**
+   * What the field holds, which sets the mobile-keyboard attributes a phone
+   * needs: no auto-capital, auto-correct or spell-check on a path, host, user
+   * name or key, the right keyboard and Enter key. Any attribute passed
+   * explicitly wins. Without it the kind follows `type` (search, password,
+   * email, url); plain text stays untouched.
+   */
+  kind?: InputKind
 }
 
-export function Input({ size = 'md', className, ...rest }: InputProps) {
-  return <input {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
+/**
+ * path: a folder or file path. url: a web address. host: a host name.
+ * username, secret: an account name, a password or key. code: any other
+ * technical text (a template, a pattern, a model id). digits: a number typed
+ * as text. search: a search field. email: an address. text: prose, no change.
+ */
+export type InputKind = 'text' | 'search' | 'path' | 'url' | 'host' | 'username' | 'secret' | 'code' | 'digits' | 'email'
+
+const PLAIN = { autoCapitalize: 'off', autoCorrect: 'off', spellCheck: false } as const
+const KINDS: Record<InputKind, InputHTMLAttributes<HTMLInputElement>> = {
+  text: {},
+  search: { type: 'search', enterKeyHint: 'search', autoComplete: 'off', ...PLAIN },
+  path: { inputMode: 'url', autoComplete: 'off', ...PLAIN },
+  url: { inputMode: 'url', autoComplete: 'off', ...PLAIN },
+  host: { inputMode: 'url', autoComplete: 'off', ...PLAIN },
+  username: PLAIN,
+  secret: PLAIN,
+  code: { autoComplete: 'off', ...PLAIN },
+  digits: { inputMode: 'numeric', autoComplete: 'off', ...PLAIN },
+  email: { inputMode: 'email', ...PLAIN },
+}
+
+function kindOf(kind: InputKind | undefined, type: string | undefined): InputKind {
+  if (kind) return kind
+  if (type === 'search') return 'search'
+  if (type === 'password') return 'secret'
+  if (type === 'email') return 'email'
+  if (type === 'url') return 'url'
+  return 'text'
+}
+
+export function Input({ size = 'md', kind, className, ...rest }: InputProps) {
+  return <input {...KINDS[kindOf(kind, rest.type)]} {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
 }
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> {
@@ -185,11 +224,13 @@ export function Radio({ label, labelClassName, className, ...rest }: RadioProps)
 export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   /** compact field, same step as Input - height still comes from `rows` */
   size?: 'md' | 'sm'
+  /** technical text (a list of patterns, a template): no auto-capital, auto-correct or spell-check. Prose stays untouched. */
+  code?: boolean
 }
 
 /** Multi-line input; same border, focus ring and padding as Input. */
-export function Textarea({ size = 'md', className, ...rest }: TextareaProps) {
-  return <textarea {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
+export function Textarea({ size = 'md', code, className, ...rest }: TextareaProps) {
+  return <textarea {...(code ? PLAIN : {})} {...rest} className={cx('t-input', size === 'sm' && 't-input--sm', className)} />
 }
 
 export interface FieldProps {

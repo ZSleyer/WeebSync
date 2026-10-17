@@ -248,10 +248,16 @@ export default function LegacyImport({
               {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
             </Field>
             <Field label={t('servers.host')} className="sm:col-span-2">
-              <Input name="host" className="font-mono" required defaultValue={plan.server.host} />
+              <Input name="host" kind="host" className="font-mono" required defaultValue={plan.server.host} />
             </Field>
             <Field label={t('servers.user')}>
-              <Input name="username" className="font-mono" required defaultValue={plan.server.username} />
+              <Input
+                name="username"
+                kind="username"
+                className="font-mono"
+                required
+                defaultValue={plan.server.username}
+              />
             </Field>
             <Field label={t('servers.password')}>
               <Input
@@ -264,7 +270,7 @@ export default function LegacyImport({
               />
             </Field>
             <Field label={t('servers.rootPath')} className="sm:col-span-2">
-              <Input name="rootPath" className="font-mono" defaultValue="/" />
+              <Input name="rootPath" kind="path" className="font-mono" defaultValue="/" />
             </Field>
             <p className="sm:col-span-2 text-xs text-t-muted">
               {plan.server.hasPassword ? t('legacy.passwordCarried') : t('legacy.passwordMissing')}

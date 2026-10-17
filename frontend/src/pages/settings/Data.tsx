@@ -378,6 +378,10 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
               <input
                 type="search"
                 className="t-input"
+                enterKeyHint="search"
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
                 placeholder={t('remote.search')}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}

@@ -118,6 +118,7 @@ export default function Security() {
           <span className="flex gap-2">
             <Input
               id={issuerId}
+              kind="url"
               className="font-mono"
               placeholder="https://auth.example.com/application/o/weebsync/"
               value={form.oidcIssuer}
@@ -250,7 +251,14 @@ function ApiTokenSection() {
       {token && (
         <SettingsField label={t('settings.apiTokenShowOnce')} htmlFor={tokenId}>
           <span className="flex gap-2">
-            <Input id={tokenId} className="font-mono" readOnly value={token} onFocus={(e) => e.target.select()} />
+            <Input
+              id={tokenId}
+              kind="code"
+              className="font-mono"
+              readOnly
+              value={token}
+              onFocus={(e) => e.target.select()}
+            />
             <Button className="shrink-0" onClick={async () => setCopied(await copyText(token))}>
               {t('settings.apiTokenCopy')}
             </Button>

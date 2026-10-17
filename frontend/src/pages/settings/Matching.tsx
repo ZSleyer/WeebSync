@@ -435,6 +435,10 @@ function MatchesView({ stat }: { stat: MatchStat }) {
           <input
             type="search"
             className="t-input"
+            enterKeyHint="search"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder={t('remote.search')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -495,6 +499,8 @@ function MatchesView({ stat }: { stat: MatchStat }) {
                       </label>
                       <Input
                         id="correct-q"
+                        kind="search"
+                        type="text"
                         value={searchQ}
                         placeholder={t('remote.search')}
                         onChange={(e) => setSearchQ(e.target.value)}

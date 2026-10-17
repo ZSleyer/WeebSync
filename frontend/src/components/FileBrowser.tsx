@@ -471,6 +471,8 @@ export function LocalPicker({ path, onNavigate }: { path: string; onNavigate: (p
         </label>
         <Input
           id="mkdir-input"
+          kind="code"
+          enterKeyHint="done"
           className="py-1 text-xs"
           placeholder={t('remote.newFolder')}
           value={newDir}

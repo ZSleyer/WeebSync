@@ -42,6 +42,10 @@ export function InlineRename({
     <input
       ref={input}
       defaultValue={name}
+      enterKeyHint="done"
+      autoCapitalize="off"
+      autoCorrect="off"
+      spellCheck={false}
       aria-label={t('local.renameField', { name })}
       className={`t-input t-input--sm min-w-0 flex-1 ${className}`}
       onClick={(e) => e.stopPropagation()}

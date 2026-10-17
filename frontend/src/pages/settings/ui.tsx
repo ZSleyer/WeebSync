@@ -164,6 +164,7 @@ export function ListSetting({
     >
       <Textarea
         id={id}
+        code
         className="font-mono"
         rows={rows ?? Math.min(8, Math.max(2, lines))}
         value={value}
