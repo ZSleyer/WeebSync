@@ -43,7 +43,7 @@ func (s *Server) handleRenamePreview(w http.ResponseWriter, r *http.Request) {
 		RenameSeriesID  int    `json:"renameSeriesId"`
 		rename.Options
 	}
-	if !readJSON(w, r, &in) {
+	if !readJSON(w, r, &in) || !validPattern(w, in.Pattern) {
 		return
 	}
 	local, err := s.openLocal(in.Path)
@@ -123,7 +123,7 @@ func (s *Server) handleRenameNames(w http.ResponseWriter, r *http.Request) {
 		RenameSeriesID  int      `json:"renameSeriesId"`
 		rename.Options
 	}
-	if !readJSON(w, r, &in) {
+	if !readJSON(w, r, &in) || !validPattern(w, in.Pattern) {
 		return
 	}
 	if len(in.Names) > 100 {

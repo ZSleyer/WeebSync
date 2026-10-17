@@ -13,7 +13,18 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/rename"
 )
+
+// validPattern answers 400 for a rename pattern over rename.MaxPattern bytes:
+// the regex is compiled on every check, and no real rule comes near 4 KiB.
+func validPattern(w http.ResponseWriter, pattern string) bool {
+	if len(pattern) > rename.MaxPattern {
+		writeErr(w, http.StatusBadRequest, "pattern: must be at most 4096 bytes")
+		return false
+	}
+	return true
+}
 
 // watchKinds are the media kinds a default can be set for; the same names
 // the calendar filter uses (watchCategory).

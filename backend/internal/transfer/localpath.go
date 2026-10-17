@@ -37,6 +37,11 @@ func resolveLocal(roots []string, name string) (root, rel, abs string, err error
 		return "", "", "", errors.New("no local roots configured")
 	}
 
+	// a NUL can never name a file: say so up front instead of failing later at
+	// the open, where callers read it as a missing directory
+	if strings.ContainsRune(name, 0) {
+		return "", "", "", errors.New("invalid path")
+	}
 	clean := filepath.Clean(name)
 	if !filepath.IsAbs(clean) {
 		// legacy relative spelling: either a root-less form of an absolute

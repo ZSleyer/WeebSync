@@ -1835,7 +1835,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	if !validDubLag(w, in.DubLagDays) {
+	if !validPattern(w, in.Pattern) || !validDubLag(w, in.DubLagDays) {
 		return
 	}
 	// a target the container cannot write is worth catching here: otherwise the
@@ -1922,7 +1922,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid mode")
 		return
 	}
-	if !validDubLag(w, in.DubLagDays) {
+	if !validPattern(w, in.Pattern) || !validDubLag(w, in.DubLagDays) {
 		return
 	}
 	var oldRemote, oldLocal, oldAudio, oldSub string

@@ -34,6 +34,9 @@ type Options struct {
 	EpisodeOverride *int `json:"-"`
 }
 
+// MaxPattern is the longest regex pattern a rename rule may carry, in bytes.
+const MaxPattern = 4096
+
 // {name}, {name:0W} (zero-pad width W), {name+N}/{name-N} (numeric offset),
 // and both combined as {name-N:0W} - e.g. {episode-1155:02} turns an absolute
 // One Piece "E1156" into a season-relative "01".
@@ -207,6 +210,9 @@ func Group(name string) string {
 func New(name string, o Options) (string, error) {
 	switch o.Mode {
 	case "regex":
+		if len(o.Pattern) > MaxPattern {
+			return "", fmt.Errorf("invalid pattern: longer than %d bytes", MaxPattern)
+		}
 		re, err := regexp.Compile(o.Pattern)
 		if err != nil {
 			return "", fmt.Errorf("invalid pattern: %w", err)
