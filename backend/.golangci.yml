@@ -55,7 +55,7 @@ linters:
               desc: memory the Go memory model does not cover; see the depguard note above
     gosec:
       excludes:
-        - G104 # unchecked errors: the errcheck note above
+        - G104 # unchecked errors: errcheck covers the database calls, see the exclusions below
         - G101 # hardcoded credentials: it flags names (setupTokenHeader); gitleaks scans for real secrets
         - G115 # integer conversions: the ones on file input are in mkvsubs, which is fuzzed
         - G124 # cookie flags: every cookie goes through auth.SetCookie, which gosec cannot see into
