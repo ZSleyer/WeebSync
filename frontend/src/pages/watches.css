@@ -254,6 +254,9 @@
   cursor: pointer;
 }
 .w-sort > svg:first-child { color: var(--fg-3); }
+@media (pointer: coarse) {
+  .w-sort { height: var(--hit); }
+}
 .w-sort-dir { color: var(--accent-2); }
 .w-sort-opt { display: grid; gap: 0.125rem; }
 .w-sort-opt small { font-size: 0.75rem; color: var(--fg-3); }

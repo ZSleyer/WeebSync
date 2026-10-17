@@ -351,6 +351,10 @@
   font-size: var(--fs-link);
   color: var(--fg-2);
 }
+/* a disclosure whose summary is a note: a full touch row */
+@media (pointer: coarse) {
+  summary.sf-note { display: flex; align-items: center; min-height: var(--hit); }
+}
 .sf-note b {
   font-weight: 600;
   color: var(--fg);

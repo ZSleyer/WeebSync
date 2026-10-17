@@ -144,6 +144,10 @@
 .ws-chip-sel::after { right: 0.6875rem; }
 .ws-chip { display: inline-flex; align-items: center; gap: 0.3125rem; padding: 0 0.5625rem 0 0.75rem; color: var(--fg); font-family: inherit; cursor: pointer; }
 .ws-chip svg { color: var(--fg-3); }
+/* touch: the chip row scrolls, which would clip a ::before hit area - the chip takes the height */
+@media (pointer: coarse) {
+  .ws-chip-sel .t-select, .ws-chip { height: var(--hit); min-height: var(--hit); }
+}
 .ws-chip[data-unset] { border-color: var(--accent); color: var(--accent); }
 .ws-chip-dot { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--accent-2); }
 .ws-cat-chips .t-iconbtn { width: 2.25rem !important; height: 2.25rem !important; }

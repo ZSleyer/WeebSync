@@ -232,6 +232,9 @@
   /* 44px controls, 34px small ones; written in rem (px / 16) so they ride
      the host's root scale with everything else */
   --ctl-h: 2.75rem; /* input, select, button, icon button */
+  /* touch hit area under every control on a coarse pointer (WCAG 2.5.8 asks
+     24px, this is the comfortable size). px, not rem: the phone root is 18-22px */
+  --hit: 44px;
   --ctl-h-sm: 2.125rem; /* small buttons and fields */
   --ctl-fs: 0.9375rem;
   --ctl-fs-sm: 0.8125rem;
@@ -346,17 +349,17 @@ body {
   p { text-wrap: pretty; }
 }
 
-/* Touch: the small controls keep their look but take a 44px hit area. The
+/* Touch: the small controls keep their look but take a --hit (44px) hit area. The
    pseudo-element grows only on the axis that is short (100% is the control's
    own box), so a wide chip does not reach into its neighbours sideways. A
    parent with overflow: hidden clips it - give that parent padding instead.
    In the base layer, so an `absolute` utility on the control still wins. */
 @layer base { @media (pointer: coarse) {
-  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label) { position: relative; }
-  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label)::before {
+  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label, .t-pill, .t-seg-btn, button.t-link, a.t-link, input[type='checkbox'], input[type='radio']) { position: relative; }
+  :is(.t-iconbtn, .t-btn--sm, button.t-label, a.t-label, .t-pill, .t-seg-btn, button.t-link, a.t-link, input[type='checkbox'], input[type='radio'])::before {
     content: '';
     position: absolute;
-    inset: min(0px, calc((100% - 44px) / 2));
+    inset: min(0px, calc((100% - var(--hit)) / 2));
   }
 } }
 
@@ -2000,6 +2003,9 @@ p > .t-link::before {
   position: absolute;
   inset: -0.5rem 0;
 }
+@media (pointer: coarse) {
+  p > .t-link::before { inset: min(-0.5rem, calc((100% - var(--hit)) / 2)) 0; }
+}
 @media (hover: hover) {
   .t-link:hover { text-decoration: underline; text-underline-offset: 3px; }
 }
@@ -2141,7 +2147,19 @@ input[type='checkbox'].t-switch::after {
 input[type='checkbox'].t-switch:checked { background: var(--accent); }
 input[type='checkbox'].t-switch:checked::after { translate: 1.125rem 0; background: var(--on-accent); }
 input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
-.t-switch-label { display: flex; align-items: center; gap: 0.75rem; min-height: 2.75rem; cursor: pointer; }
+.t-switch-label { display: flex; align-items: center; gap: 0.75rem; min-height: var(--hit); cursor: pointer; }
+
+/* Touch: what the ::before hit areas cannot reach. A field has no pseudo-element,
+   so the compact field takes the real height outside a toolbar (a toolbar keeps
+   its row height, the buttons beside it reach 44 through ::before). The text of
+   every field is at least 16px, below that iOS zooms the page on focus. */
+@media (pointer: coarse) {
+  .t-input--sm, .t-select--sm { font-size: var(--ctl-fs); line-height: var(--ctl-lh); min-height: var(--hit); }
+  .t-toolbar .t-input--sm, .t-toolbar .t-select--sm { min-height: var(--ctl-h-sm); }
+  :where(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='button'], [type='submit'], [type='color']), select, textarea) {
+    font-size: max(16px, var(--ctl-fs));
+  }
+}
 
 /* ── SettingsField: label, chip, control, quiet hint ── */
 /* one column that never grows past the field: an implicit column is as wide
