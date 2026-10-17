@@ -151,3 +151,53 @@ func TestSetupOIDCWriteFailure(t *testing.T) {
 		t.Fatalf("setup with failing settings writes: %d %s", rec.Code, rec.Body)
 	}
 }
+
+// An unreadable TOTP table must not read as "no second factor enrolled":
+// the password alone would open a session.
+func TestLoginFailsClosedWhenTotpUnreadable(t *testing.T) {
+	mux, s, _, _ := totpFixture(t)
+	setPassword(t, s, 1, "1234567890")
+	if _, err := s.DB.Exec(`DROP TABLE user_totp`); err != nil {
+		t.Fatal(err)
+	}
+	rec := doReq(mux, "POST", "/api/auth/login", `{"email":"a@example.com","password":"1234567890"}`, nil)
+	if rec.Code != http.StatusInternalServerError || hasSession(rec) {
+		t.Fatalf("login with unreadable totp state: %d %s", rec.Code, rec.Body)
+	}
+}
+
+func TestTotpEnabledSeparatesMissingFromFailure(t *testing.T) {
+	_, s, _, _ := totpFixture(t)
+	if on, err := s.totpEnabled(1); err != nil || !on {
+		t.Fatalf("enrolled: %v, %v", on, err)
+	}
+	if on, err := s.totpEnabled(99); err != nil || on {
+		t.Fatalf("no row: %v, %v", on, err)
+	}
+	s.DB.Exec(`DROP TABLE user_totp`)
+	if _, err := s.totpEnabled(1); err == nil {
+		t.Fatal("a failed read was reported as a clean answer")
+	}
+}
+
+// A settings table that cannot be read must not read as auth_mode "password":
+// manual user creation (and, with a working provider, the password endpoints)
+// would be open although an admin switched them off.
+func TestUserCreateFailsClosedWhenAuthModeUnreadable(t *testing.T) {
+	_, s, _, _ := totpFixture(t)
+	if _, err := s.DB.Exec(`DROP TABLE settings`); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "/api/users", strings.NewReader(`{"email":"n@example.com","password":"correct horse battery 42"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.handleUserCreate(rec, req)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status %d, want 500: %s", rec.Code, rec.Body)
+	}
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE email = 'n@example.com'`).Scan(&n)
+	if n != 0 {
+		t.Fatal("the account was created")
+	}
+}

@@ -19,11 +19,15 @@ import (
 	"github.com/ch4d1/weebsync/internal/totp"
 )
 
-// totpEnabled reports whether the user has a confirmed TOTP secret.
-func (s *Server) totpEnabled(userID int64) bool {
+// totpEnabled reports whether the user has a confirmed TOTP secret. A failed
+// read is an error, never "not enabled": the sign-in would skip the second factor.
+func (s *Server) totpEnabled(userID int64) (bool, error) {
 	var confirmed sql.NullString
 	err := s.DB.QueryRow(`SELECT confirmed_at FROM user_totp WHERE user_id = ?`, userID).Scan(&confirmed)
-	return err == nil && confirmed.Valid
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil && confirmed.Valid, err
 }
 
 // newLoginPending mints a short-lived single-use token that bridges a correct
@@ -70,11 +74,17 @@ type TwoFactorStatusResponse struct {
 // @Produce  json
 // @Success  200 {object} TwoFactorStatusResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/totp [get]
 func (s *Server) handleTotpStatus(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	writeJSON(w, http.StatusOK, TwoFactorStatusResponse{Enabled: s.totpEnabled(u.ID)})
+	on, err := s.totpEnabled(u.ID)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	writeJSON(w, http.StatusOK, TwoFactorStatusResponse{Enabled: on})
 }
 
 // TotpSetupResponse carries the enrollment material: the base32 secret and the
@@ -105,7 +115,10 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) || !s.reauth(w, r, u.ID, in.Password) {
 		return
 	}
-	if s.totpEnabled(u.ID) {
+	if on, err := s.totpEnabled(u.ID); err != nil {
+		dbErr(w)
+		return
+	} else if on {
 		writeErr(w, http.StatusConflict, "TOTP already enabled")
 		return
 	}

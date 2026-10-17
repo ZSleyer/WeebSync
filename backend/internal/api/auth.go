@@ -41,8 +41,12 @@ func validLocale(l string) string {
 // disabled - but only while OIDC actually works, so a broken provider can
 // never lock everyone out. Existing local users migrate automatically: the
 // OIDC callback links accounts by email address.
+//
+// Fails closed: when the mode cannot be read, a working provider still blocks
+// the password endpoints rather than reading "password" and opening them.
 func (s *Server) passwordAuthBlocked() bool {
-	return auth.AuthMode(s.DB) != "password" && s.OIDC.Enabled()
+	mode, err := auth.AuthModeErr(s.DB)
+	return (err != nil || mode != "password") && s.OIDC.Enabled()
 }
 
 // RegisterResponse is returned by handleRegister: either the created account
@@ -332,7 +336,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "login error")
 		return
 	}
-	totpOn := s.totpEnabled(id)
+	totpOn, err := s.totpEnabled(id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
+	}
 	if totpOn || keyOn {
 		token, err := s.newLoginPending(id, c.Remember)
 		if err != nil {
