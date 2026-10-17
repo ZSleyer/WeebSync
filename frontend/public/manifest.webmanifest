@@ -2,16 +2,23 @@
   "id": "/",
   "name": "WeebSync",
   "short_name": "WeebSync",
-  "description": "S/FTP anime sync - private use",
+  "description": "Keeps your anime, manga and files in sync with your servers: what is new, what needs you, what airs next.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#05070d",
+  "launch_handler": { "client_mode": ["navigate-existing", "auto"] },
+  "share_target": {
+    "action": "/share",
+    "method": "GET",
+    "params": { "title": "title", "text": "text", "url": "url" }
+  },
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ],
   "shortcuts": [
     {
@@ -20,12 +27,12 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Kalender",
+      "name": "Calendar",
       "url": "/calendar",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
-      "name": "Dateien",
+      "name": "Files",
       "url": "/files",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
