@@ -291,6 +291,7 @@ const NET_ERRORS: [RegExp, string][] = [
   [/i\/o timeout|deadline exceeded|timed out/i, 'errors.net.timeout'],
   [/no such host|server misbehaving/i, 'errors.net.noHost'],
   [/connection reset|broken pipe|unexpected EOF/i, 'errors.net.reset'],
+  [/connection lost/i, 'errors.net.lost'],
   [/network is unreachable|no route to host/i, 'errors.net.unreachable'],
   [/unable to authenticate|permission denied \(publickey|login incorrect/i, 'errors.net.auth'],
   [/x509|tls: /i, 'errors.net.tls'],

@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
-import { CircleAlert, FolderPlus, Info, KeyRound } from 'lucide-react'
-import { haptic, SectionHeading } from 'fluid-lycoris'
-import { api, type Download, type DownloadMeta, type ScopeHint, type Watch } from '../../api'
+import { CircleAlert, FolderPlus, Info, KeyRound, RotateCcw, Server, Trash2, X } from 'lucide-react'
+import { haptic, IconButton, SectionHeading } from 'fluid-lycoris'
+import { api, type Download, type DownloadMeta, type ScopeHint, type ServerInfo, type Watch } from '../../api'
+import ActionMenu from '../../components/ActionMenu'
+import type { SheetAction } from '../../components/ActionSheet'
 import { filesLink } from '../../components/playLinks'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { useToast } from '../../components/toast'
 import { scopeChanged } from '../../components/useCatalogView'
 import { useNow } from '../../hooks'
-import { buildNeeds, hiddenNeeds, saveHidden, type Need } from './needs'
+import { buildNeeds, hiddenNeeds, moreLink, saveHidden, type Need } from './needs'
 import { seriesTarget, useFold, useRiseOnData } from './shared'
 
 /** rows shown before "N more" */
@@ -116,7 +118,20 @@ function useCommitSwipe(onCommit: (side: 'act' | 'hide') => void) {
 
 const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus, plex: KeyRound }
 
-function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: () => void; onHide: () => void }) {
+function NeedRow({
+  n,
+  teach,
+  menu,
+  onAct,
+  onHide,
+}: {
+  n: Need
+  teach: boolean
+  /** a failed row's other actions; the rest get a plain Hide button */
+  menu?: SheetAction[]
+  onAct: () => void
+  onHide: () => void
+}) {
   const { t } = useTranslation()
   const swipe = useCommitSwipe((side) => (side === 'act' ? onAct() : onHide()))
   const Icon = ICONS[n.kind]
@@ -124,7 +139,7 @@ function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: 
     <li className={`t-row${teach ? ' td-teach' : ''}`} {...swipe}>
       <div className="td-under" aria-hidden>
         <span className="l">{n.act}</span>
-        <span className="r">{t('today.hide')}</span>
+        <span className="r">{n.kind === 'failed' ? t('today.removeFailed') : t('today.hide')}</span>
       </div>
       <div className="t-row-in">
         <span aria-hidden className="t-glyph" data-tone={n.tone === 'accent-2' ? 'accent-2' : undefined}>
@@ -132,7 +147,7 @@ function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: 
         </span>
         <div className="t-row-t">
           <strong>{n.title}</strong>
-          <span title={n.sub}>{n.sub}</span>
+          <span title={n.raw ? `${n.sub}\n${n.raw}` : n.sub}>{n.sub}</span>
         </div>
         <button
           type="button"
@@ -142,6 +157,13 @@ function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: 
         >
           {n.act}
         </button>
+        {menu ? (
+          <ActionMenu label={t('dash.moreActions', { name: n.title })} title={n.title} actions={menu} />
+        ) : (
+          <IconButton aria-label={`${t('today.hide')}: ${n.title}`} title={t('today.hide')} onClick={onHide}>
+            <X aria-hidden size="1.1em" />
+          </IconButton>
+        )}
       </div>
     </li>
   )
@@ -149,8 +171,9 @@ function NeedRow({ n, teach, onAct, onHide }: { n: Need; teach: boolean; onAct: 
 
 /**
  * "Braucht dich": what needs a hand, one row each with its reason and one
- * action. A swipe to the right runs the action, to the left hides the row;
- * either leaves at once and can be taken back from the toast.
+ * action. A swipe to the right runs the action, to the left hides the row
+ * (a failed download is removed instead); the same is a button for mouse and
+ * keyboard. Either leaves at once and can be taken back from the toast.
  */
 export function Needs({
   downloads,
@@ -177,10 +200,16 @@ export function Needs({
   const navigate = useNavigate()
   const now = useNow()
   const { open } = useSeriesModal()
+  const { data: servers = [] } = useQuery<ServerInfo[]>({
+    queryKey: ['servers'],
+    queryFn: () => api.get('/api/servers'),
+    staleTime: 60_000,
+  })
+  const serverNames = Object.fromEntries(servers.map((x) => [x.id, x.name]))
   const [hidden, setHidden] = useState(hiddenNeeds)
   // rows that left and wait for their toast to run out
   const [gone, setGone] = useState<Set<string>>(new Set())
-  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose })
+  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, serverNames })
   const live = all.filter((n) => !hidden.has(n.print))
   const shown = live.filter((n) => !gone.has(n.key))
   const body = useRef<HTMLDivElement>(null)
@@ -201,8 +230,19 @@ export function Needs({
     return () => clearTimeout(id)
   }, [anyRow])
 
+  // one failed download or a whole group of them
   const resume = useMutation({
-    mutationFn: (d: Download) => api.post(`/api/downloads/${d.id}/resume`),
+    mutationFn: (ds: Download[]) =>
+      ds.length === 1
+        ? api.post(`/api/downloads/${ds[0].id}/resume`)
+        : api.post('/api/downloads/bulk', { action: 'resume', ids: ds.map((d) => d.id) }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
+  })
+  const discard = useMutation({
+    mutationFn: (ds: Download[]) =>
+      ds.length === 1
+        ? api.del(`/api/downloads/${ds[0].id}`)
+        : api.post('/api/downloads/bulk', { action: 'delete', ids: ds.map((d) => d.id) }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
   })
   const mark = useMutation({
@@ -210,19 +250,36 @@ export function Needs({
     onSuccess: (_, h) => scopeChanged(qc, h.serverId),
   })
 
-  const leave = (n: Need, message: string, commit: () => void) => {
-    setGone((g) => new Set(g).add(n.key))
-    toast({
-      message,
-      undo: () =>
-        setGone((g) => {
-          const next = new Set(g)
-          next.delete(n.key)
-          return next
-        }),
-      commit,
+  const unGone = (n: Need) =>
+    setGone((g) => {
+      const next = new Set(g)
+      next.delete(n.key)
+      return next
     })
+  const leave = (n: Need, message: string, commit: () => void | Promise<unknown>) => {
+    setGone((g) => new Set(g).add(n.key))
+    toast({ message, undo: () => unGone(n), commit })
   }
+  // a group's key outlives its members, so the row may only come back (for a
+  // later failure of the same cause) once the list no longer holds them
+  const leaveFailed = (n: Need, message: string, run: (ds: Download[]) => Promise<unknown>) => {
+    const ds = n.group ?? (n.download ? [n.download] : [])
+    leave(n, message, () =>
+      run(ds)
+        .catch(() => {})
+        .then(() => qc.invalidateQueries({ queryKey: ['downloads'] }))
+        .finally(() => unGone(n)),
+    )
+  }
+  const retry = (n: Need) => {
+    const count = n.group?.length ?? 1
+    leaveFailed(n, count > 1 ? t('today.retriedMany', { count }) : t('today.retried', { what: n.title }), (ds) =>
+      resume.mutateAsync(ds),
+    )
+  }
+  const remove = (n: Need) =>
+    leaveFailed(n, t('today.removedFailed', { count: n.group?.length ?? 1 }), (ds) => discard.mutateAsync(ds))
+  const checkServer = () => navigate('/settings/servers')
   const act = (n: Need) => {
     if (n.kind === 'plex') {
       // the sign-in and the choice live with the servers; the row goes once done
@@ -236,22 +293,53 @@ export function Needs({
       else navigate('/watches?filter=attention')
       return
     }
-    if (n.download) {
-      const d = n.download
-      leave(n, t('today.retried', { what: n.title }), () => resume.mutate(d))
+    if (n.kind === 'failed') {
+      // a refused login is fixed at the server, not by trying again
+      if (n.auth) checkServer()
+      else retry(n)
     } else if (n.hint) {
       const h = n.hint
       leave(n, t('today.marked', { name: h.name }), () => mark.mutate(h))
     }
   }
   const hide = (n: Need) =>
-    leave(n, t('today.hidden'), () =>
-      setHidden((h) => {
-        const next = new Set(h).add(n.print)
-        saveHidden(next, all)
-        return next
-      }),
-    )
+    n.kind === 'failed'
+      ? remove(n)
+      : leave(n, t('today.hidden'), () =>
+          setHidden((h) => {
+            const next = new Set(h).add(n.print)
+            saveHidden(next, all)
+            return next
+          }),
+        )
+
+  // a failed row's other actions, next to the primary one
+  const menuFor = (n: Need): SheetAction[] | undefined => {
+    if (n.kind !== 'failed') return undefined
+    const many = (n.group?.length ?? 1) > 1
+    const ico = { 'aria-hidden': true, size: '1.1em' } as const
+    return [
+      ...(n.auth
+        ? [
+            {
+              key: 'retry',
+              label: many ? t('today.retryAll') : t('dash.retry'),
+              icon: <RotateCcw {...ico} />,
+              onClick: () => retry(n),
+            },
+          ]
+        : n.serverId !== undefined
+          ? [{ key: 'server', label: t('today.checkServer'), icon: <Server {...ico} />, onClick: checkServer }]
+          : []),
+      {
+        key: 'remove',
+        label: many ? t('today.removeFailedAll') : t('today.removeFailed'),
+        icon: <Trash2 {...ico} />,
+        danger: true,
+        onClick: () => remove(n),
+      },
+    ]
+  }
 
   const rows = shown.slice(0, NEEDS_MAX)
   const fold = useFold('needs')
@@ -268,12 +356,19 @@ export function Needs({
           {loading
             ? [0, 1].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
             : rows.map((n, i) => (
-                <NeedRow key={n.key} n={n} teach={teach && i === 0} onAct={() => act(n)} onHide={() => hide(n)} />
+                <NeedRow
+                  key={n.key}
+                  n={n}
+                  teach={teach && i === 0}
+                  menu={menuFor(n)}
+                  onAct={() => act(n)}
+                  onHide={() => hide(n)}
+                />
               ))}
           {!loading && rows.length === 0 && <li className="td-empty">{t('today.nothingOpen')}</li>}
         </ul>
         {shown.length > rows.length && (
-          <Link to="/watches?filter=attention" className="t-link td-more">
+          <Link to={moreLink(shown.slice(rows.length))} className="t-link td-more">
             {t('dash.attentionMore', { count: shown.length - rows.length })}
           </Link>
         )}

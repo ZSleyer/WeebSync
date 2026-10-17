@@ -1,4 +1,4 @@
-import { downloadLabel, type Download, type DownloadMeta, type ScopeHint, type Watch } from '../../api'
+import { downloadLabel, netErrorText, type Download, type DownloadMeta, type ScopeHint, type Watch } from '../../api'
 import { attentionInfo } from '../../attention'
 import { isFsErrorCode } from '../../components/FsErrorNote'
 
@@ -27,7 +27,16 @@ export interface Need {
   act: string
   /** the action explains rather than changes: the row stays after it */
   why: boolean
+  /** a single failed download */
   download?: Download
+  /** two or more failed downloads with the same cause on the same server */
+  group?: Download[]
+  /** the server a failed row ran into, for "Check server" */
+  serverId?: number
+  /** the backend's own words for a failure, when `sub` says it in ours */
+  raw?: string
+  /** the cause is the login: fixing it comes before trying again */
+  auth?: boolean
   watch?: Watch
   hint?: ScopeHint
 }
@@ -47,6 +56,7 @@ export function buildNeeds(
     now,
     plexToken,
     mediaChoose,
+    serverNames,
   }: {
     downloads: Download[]
     meta?: DownloadMeta
@@ -57,6 +67,8 @@ export function buildNeeds(
     plexToken?: boolean
     /** Plex and Jellyfin both connected, neither chosen: nothing runs */
     mediaChoose?: boolean
+    /** server names by id, for the failures' "<server>: <cause>" line */
+    serverNames?: Record<number, string>
   },
 ): Need[] {
   const out: Need[] = []
@@ -84,25 +96,54 @@ export function buildNeeds(
       why: false,
     })
   }
+  // failures with the same cause on the same server are one row: fifteen
+  // rejected logins are one problem, not fifteen
+  const failed = new Map<string, Download[]>()
   for (const d of downloads) {
     if (d.status !== 'error') continue
     const at = ended(d)
     if (at && now - at > FAILED_DAYS * 86_400_000) continue
+    const k = failureKey(d)
+    failed.set(k, [...(failed.get(k) ?? []), d])
+  }
+  for (const [k, list] of failed) {
+    const d = list[0]
+    const server = serverNames?.[d.serverId]
+    const reason = failureText(t, d)
+    const raw = d.error && d.error !== reason ? d.error : undefined
+    const auth = d.errorCode === 'auth_failed'
+    if (list.length > 1) {
+      out.push({
+        key: `grp-${k}`,
+        print: `grp-${k}-${list.map((x) => `${x.id}.${x.attempts ?? 0}`).join(',')}`,
+        kind: 'failed',
+        tone: 'err',
+        title: t('today.needFailedMany', { count: list.length }),
+        sub: server ? `${server}: ${reason}` : reason,
+        act: auth ? t('today.checkServer') : t('today.retryAll'),
+        why: false,
+        group: list,
+        serverId: d.serverId,
+        raw,
+        auth,
+      })
+      continue
+    }
     const { group, name, ep } = downloadLabel(d, meta)
     const what = group?.title ? [group.title, ep].filter(Boolean).join(' ') : name
-    const dir = d.localPath.slice(0, d.localPath.lastIndexOf('/')) || '/'
     out.push({
       key: `dl-${d.id}`,
       print: `dl-${d.id}-${d.errorCode ?? ''}-${d.attempts ?? 0}`,
       kind: 'failed',
       tone: 'err',
       title: t('today.needFailed', { what }),
-      sub: isFsErrorCode(d.errorCode)
-        ? t(`fsError.${d.errorCode}.what`, { path: dir })
-        : d.error || t('today.needFailedSub'),
-      act: t('dash.retry'),
+      sub: reason,
+      act: auth ? t('today.checkServer') : t('dash.retry'),
       why: false,
       download: d,
+      serverId: d.serverId,
+      raw,
+      auth,
     })
   }
   for (const w of watches) {
@@ -136,6 +177,38 @@ export function buildNeeds(
     })
   }
   return out
+}
+
+/** What a failed download says about itself, in words: the classified cause, else the backend's text made readable. */
+function failureText(t: T, d: Download): string {
+  if (d.errorCode === 'auth_failed') return t('today.needAuth')
+  if (isFsErrorCode(d.errorCode)) return t(`fsError.${d.errorCode}.what`, { path: dirOf(d) })
+  return d.error ? netErrorText(d.error) : t('today.needFailedSub')
+}
+
+const dirOf = (d: Download) => d.localPath.slice(0, d.localPath.lastIndexOf('/')) || '/'
+
+/**
+ * The cause two failures share: server plus the error code, or, when the
+ * backend did not classify it, its text with the numbers (ports, sizes,
+ * addresses) taken out. A filesystem cause is per directory.
+ */
+export function failureKey(d: Download): string {
+  const cause = d.errorCode
+    ? isFsErrorCode(d.errorCode)
+      ? `${d.errorCode}:${dirOf(d)}`
+      : d.errorCode
+    : netErrorText(d.error ?? '')
+        .replace(/\d+/g, '#')
+        .slice(0, 120)
+  return `${d.serverId}-${cause}`
+}
+
+/** Where "+N more" leads: the failed downloads when that is what is hidden, else the auto-syncs. */
+export function moreLink(hidden: Need[]): string {
+  return hidden.length > 0 && hidden.every((n) => n.kind === 'failed')
+    ? '/history?filter=fail'
+    : '/watches?filter=attention'
 }
 
 /** A folder mark's kind in words ("Anime", "Serie"). */

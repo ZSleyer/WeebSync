@@ -19,6 +19,13 @@ describe('netErrorText', () => {
     )
   })
 
+  it('knows a lost connection', async () => {
+    await i18n.changeLanguage('en')
+    expect(netErrorText('connection lost')).toBe('The connection to the server was lost.')
+    await i18n.changeLanguage('de')
+    expect(netErrorText('sftp: connection lost')).toBe('Die Verbindung zum Server ist verloren gegangen.')
+  })
+
   it('leaves any other text as it is', () => {
     expect(netErrorText('the target folder is not allowed')).toBe('the target folder is not allowed')
   })

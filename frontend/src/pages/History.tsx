@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input, PageHeader, Segmented, useEnterPage } from 'fluid-lycoris'
@@ -48,7 +49,9 @@ export default function History() {
     staleTime: 0,
   })
   const { data: watches = [] } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'))
-  const [filter, setFilter] = useState<HistFilter>('all')
+  // the dashboard's "+N more" arrives here as ?filter=fail
+  const [params] = useSearchParams()
+  const [filter, setFilter] = useState<HistFilter>(() => FILTERS.find((f) => f === params.get('filter')) ?? 'all')
   const [query, setQuery] = useState('')
   const list = useRef<HTMLDivElement>(null)
   useEnterPage(list, `${filter}|${isLoading}`)
