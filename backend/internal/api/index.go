@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -127,6 +128,16 @@ func writeListing(tx *sql.Tx, serverID int64, dir string, entries []remote.Entry
 		ON CONFLICT(server_id, path) DO UPDATE SET listed_at = excluded.listed_at`,
 		serverID, dir, pathBase(dir), now)
 	return err
+}
+
+// subtreeCond is a SQL condition for "col is p or lies below it", plus its
+// three arguments. An exact range, not LIKE p||'%': the path is user data, so
+// LIKE would read "_" and "%" as wildcards, fold ASCII case and let "/a/Show"
+// match "/a/Show 2". "/" and "0" are adjacent bytes, so [p/, p0) is exactly
+// the strings that start with "p/".
+func subtreeCond(col, p string) (string, []any) {
+	p = strings.TrimRight(p, "/")
+	return "(" + col + " = ? OR (" + col + " >= ? AND " + col + " < ?))", []any{p, p + "/", p + "0"}
 }
 
 // deleteSubtree drops a path and every row below it. A range, not LIKE: paths
@@ -433,7 +444,8 @@ func canonCode(c string) string {
 	if c == "" {
 		return c
 	}
-	return strings.ToUpper(c[:1]) + strings.ToLower(c[1:])
+	r, n := utf8.DecodeRuneInString(c)
+	return strings.ToUpper(string(r)) + strings.ToLower(c[n:])
 }
 
 func keysSorted(m map[string]bool) []string {

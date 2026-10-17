@@ -197,3 +197,26 @@ func TestNextCrawlDirsOwnStampAndDepth(t *testing.T) {
 		}
 	}
 }
+
+func TestCanonCodeMultiByte(t *testing.T) {
+	for in, want := range map[string]string{"GEr": "Ger", "ger": "Ger", "": "", "\u00e4Ng": "\u00c4ng"} {
+		if got := canonCode(in); got != want {
+			t.Errorf("canonCode(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSubtreeCondIsExact(t *testing.T) {
+	d := dbtest.Open(t)
+	d.Exec(`CREATE TEMP TABLE p (path TEXT)`)
+	for _, p := range []string{"/a/Show", "/a/Show/S1/e.mkv", "/a/Show 2", "/a/Show 2/e.mkv", "/a/show/e.mkv", "/a/ShowX", "/a/Sh_w/e.mkv", "/a/Show-1"} {
+		d.Exec(`INSERT INTO p VALUES (?)`, p)
+	}
+	for in, want := range map[string]int{"/a/Show": 2, "/a/Show/": 2, "/a/Sh_w": 1, "/a/Sh%": 0, "/a/show": 1} {
+		cond, args := subtreeCond("path", in)
+		var n int
+		if err := d.QueryRow(`SELECT COUNT(*) FROM p WHERE `+cond, args...).Scan(&n); err != nil || n != want {
+			t.Errorf("subtree(%q) = %d (%v), want %d", in, n, err, want)
+		}
+	}
+}

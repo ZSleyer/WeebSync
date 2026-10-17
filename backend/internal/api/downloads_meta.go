@@ -210,7 +210,8 @@ func (s *Server) downloadGroup(userID int64, d dlMetaRow, folder string, bySrc m
 
 	var ordering string
 	s.DB.QueryRow(`SELECT id, rename_ordering FROM watches
-		WHERE user_id = ? AND server_id = ? AND ? LIKE remote_path || '%'
+		WHERE user_id = ? AND server_id = ?
+		  AND (?3 = rtrim(remote_path, '/') OR substr(?3, 1, length(rtrim(remote_path, '/')) + 1) = rtrim(remote_path, '/') || '/')
 		ORDER BY length(remote_path) DESC LIMIT 1`, userID, d.serverID, folder).Scan(&g.WatchID, &ordering)
 	return g, s.episodeTitles(showKey, ordering, locale)
 }

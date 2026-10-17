@@ -152,9 +152,10 @@ func (s *Server) handleWatchExplain(w http.ResponseWriter, r *http.Request) {
 
 	var last watchLastFile
 	var replaceOld bool
+	under, underArgs := subtreeCond("remote_path", wt.RemotePath)
 	if err := s.DB.QueryRow(`SELECT remote_path, local_path, size, updated_at, replace_old FROM downloads
-		WHERE user_id = ? AND server_id = ? AND status = 'done' AND remote_path LIKE ? || '%'
-		ORDER BY updated_at DESC, id DESC LIMIT 1`, u.ID, wt.ServerID, wt.RemotePath).
+		WHERE user_id = ? AND server_id = ? AND status = 'done' AND `+under+`
+		ORDER BY updated_at DESC, id DESC LIMIT 1`, append([]any{u.ID, wt.ServerID}, underArgs...)...).
 		Scan(&last.Remote, &last.Local, &last.Size, &last.At, &replaceOld); err == nil {
 		last.Lang = s.lastFileLang(wt, last.Remote)
 		if replaceOld {

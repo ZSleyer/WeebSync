@@ -1231,9 +1231,10 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		}
 		it.Seasons = localSeasons(seasonKeys)
 		it.Unsorted = s.pendingCount(it.ID)
+		under, underArgs := subtreeCond("remote_path", it.RemotePath)
 		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
-			AND status IN ('queued','running','paused') AND remote_path LIKE ? || '%'`,
-			userID, it.ServerID, it.RemotePath).Scan(&it.Active)
+			AND status IN ('queued','running','paused') AND `+under,
+			append([]any{userID, it.ServerID}, underArgs...)...).Scan(&it.Active)
 		offset := watchOffset(it.Template)
 		it.Offset = offset
 		// No dub filter, yet the older files carry a dub the newer ones lack:
@@ -1456,9 +1457,10 @@ const maxEpisode = 999
 // sightings until new ones come in; a table of its own is the upgrade if that
 // bites.
 func (s *Server) firstSeen(userID, serverID int64, remotePath string) map[int]int64 {
+	under, underArgs := subtreeCond("remote_path", remotePath)
 	rows, err := s.DB.Query(`SELECT local_path, MIN(created_at) FROM downloads
-		WHERE user_id = ? AND server_id = ? AND remote_path LIKE ? || '%' GROUP BY local_path`,
-		userID, serverID, remotePath)
+		WHERE user_id = ? AND server_id = ? AND `+under+` GROUP BY local_path`,
+		append([]any{userID, serverID}, underArgs...)...)
 	if err != nil {
 		return nil
 	}

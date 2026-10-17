@@ -975,8 +975,9 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	// films inside a tv scope carry the movie source, so both tags qualify
 	rows, err := s.DB.Query(`SELECT folder FROM catalog_matches
 		WHERE server_id = ? AND manual = 0 AND source IN (?, ?) `+cond+`
-		AND folder LIKE ? || '/%' AND folder NOT LIKE ? || '/%/%'`,
-		serverID, sourceForScope(scope), sourceForScope(scopeForItem(scope, "movie")), in.Path, in.Path)
+		AND folder >= ? AND folder < ?`,
+		serverID, sourceForScope(scope), sourceForScope(scopeForItem(scope, "movie")),
+		strings.TrimRight(in.Path, "/")+"/", strings.TrimRight(in.Path, "/")+"0")
 	if err != nil {
 		dbErr(w)
 		return
@@ -985,6 +986,9 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f string
 		rows.Scan(&f)
+		if strings.Contains(f[len(strings.TrimRight(in.Path, "/"))+1:], "/") {
+			continue // the range holds the whole subtree; only direct children count
+		}
 		folders = append(folders, f)
 	}
 	rows.Close()

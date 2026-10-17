@@ -49,7 +49,8 @@ func (s *Server) handleDuplicateTrash(w http.ResponseWriter, r *http.Request) {
 	}
 	// the index still lists the folder until the next library pass; without
 	// this the rebuild below shows the duplicate again
-	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND (folder = ? OR folder LIKE ? || '/%')`, in.Path, in.Path)
+	under, underArgs := subtreeCond("folder", in.Path)
+	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND `+under, underArgs...)
 	// every user's suggestions counted that copy
 	s.staleSuggestions()
 	s.rebuildSuggestions(u.ID)
