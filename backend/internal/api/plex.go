@@ -819,6 +819,9 @@ func (s *Server) plexWebLink(titles ...string) string {
 	return s.plexLinkFor(c, key)
 }
 
+// plexMachineRetry is how long a failed machine-id lookup is not repeated.
+const plexMachineRetry = 30 * time.Second
+
 // plexLinkFor assembles the media server's web deep link for a library
 // ratingKey.
 func (s *Server) plexLinkFor(c plex.Server, key string) string {
@@ -829,10 +832,15 @@ func (s *Server) plexLinkFor(c plex.Server, key string) string {
 	}
 	mid, ok := s.cacheGet(ck, 24*time.Hour)
 	if !ok {
-		var err error
-		if mid, err = c.MachineID(); err != nil || mid == "" {
+		if at, down := s.machineFailed.Load(ck); down && time.Since(at.(time.Time)) < plexMachineRetry {
 			return ""
 		}
+		var err error
+		if mid, err = c.MachineID(); err != nil || mid == "" {
+			s.machineFailed.Store(ck, time.Now())
+			return ""
+		}
+		s.machineFailed.Delete(ck)
 		s.cacheSet(ck, mid)
 	}
 	return c.DeepLink(mid, key)

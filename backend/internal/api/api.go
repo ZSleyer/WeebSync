@@ -125,6 +125,10 @@ type Server struct {
 	// cards costs one walk per folder and not one per poll
 	statMu    sync.Mutex
 	statCache map[string]statEntry
+
+	// media-server kind → when its machine id last failed, so a dead server
+	// costs one timeout per plexMachineRetry and not one per link on a page
+	machineFailed sync.Map
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).
