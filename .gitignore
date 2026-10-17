@@ -2,6 +2,8 @@
 AGENTS.md
 CLAUDE.md
 graphify-out
+# local agent settings and the git worktrees they create
+.claude/
 
 # dependencies / build
 node_modules/
