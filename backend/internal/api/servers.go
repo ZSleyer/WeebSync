@@ -2,9 +2,11 @@ package api
 
 import (
 	"context"
+	"crypto/x509"
 	"database/sql"
 	"errors"
 	"net/http"
+	"net/textproto"
 	"strconv"
 	"strings"
 	"time"
@@ -244,6 +246,120 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// creds/host/limit may have changed: drop any pooled connections
+	s.Conns.Evict(id)
+	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
+}
+
+// MigrateFTPSInput is the choice a legacy plain-FTP server is moved to FTPS with.
+type MigrateFTPSInput struct {
+	// Port is the FTPS port: 21 for explicit TLS (AUTH TLS), 990 for implicit
+	// TLS. Zero keeps the stored port.
+	Port int `json:"port"`
+	// Force saves the switch without the connection test passing.
+	Force bool `json:"force"`
+}
+
+// MigrateFTPSError is the answer (502) when the FTPS test failed, so the UI
+// can say why in words.
+type MigrateFTPSError struct {
+	Error string `json:"error"`
+	// Code names the cause: cert_untrusted, tls_unsupported, auth_failed or
+	// connect_failed.
+	Code string `json:"code" enums:"cert_untrusted,tls_unsupported,auth_failed,connect_failed" example:"cert_untrusted"`
+}
+
+// ftpsFailCode sorts a failed FTPS dial into a cause the UI has words for.
+func ftpsFailCode(err error) string {
+	var unknown x509.UnknownAuthorityError
+	var invalid x509.CertificateInvalidError
+	var host x509.HostnameError
+	var perr *textproto.Error
+	switch {
+	case errors.Is(err, remote.ErrAuthRejected):
+		return "auth_failed"
+	case errors.As(err, &unknown), errors.As(err, &invalid), errors.As(err, &host):
+		return "cert_untrusted"
+	case errors.As(err, &perr) && perr.Code != 530, strings.Contains(err.Error(), "tls: "):
+		// AUTH TLS, PBSZ or PROT refused, or no TLS on the other end
+		return "tls_unsupported"
+	}
+	return "connect_failed"
+}
+
+// @Summary  Move a plain-FTP server to FTPS
+// @Description Switches a legacy server stored with the retired protocol "ftp" to FTPS, keeping its stored password. The FTPS connection is tested first with the new settings and the switch is only saved when it works; with force it is saved regardless.
+// @Tags     Servers
+// @Accept   json
+// @Produce  json
+// @Param    id   path int               true "Server ID"
+// @Param    body body MigrateFTPSInput  true "FTPS port and force flag"
+// @Success  200 {object} OkResponse
+// @Failure  400 {object} ErrorResponse
+// @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
+// @Failure  502 {object} MigrateFTPSError
+// @Security CookieAuth
+// @Router   /api/servers/{id}/migrate-ftps [post]
+func (s *Server) handleServerMigrateFTPS(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFrom(r.Context())
+	id := pathID(r)
+	var in MigrateFTPSInput
+	if !readJSON(w, r, &in) {
+		return
+	}
+	if in.Port < 0 || in.Port > 65535 {
+		writeErr(w, http.StatusBadRequest, "invalid port")
+		return
+	}
+	var cfg remote.Config
+	var enc []byte
+	var rootPath string
+	err := s.DB.QueryRow(`SELECT protocol, host, port, username, secret_enc, root_path, max_connections
+		FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).
+		Scan(&cfg.Protocol, &cfg.Host, &cfg.Port, &cfg.Username, &enc, &rootPath, &cfg.MaxConns)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeErr(w, http.StatusNotFound, "server not found")
+		return
+	}
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	if cfg.Protocol != "ftp" {
+		writeErr(w, http.StatusBadRequest, "server does not use plain FTP")
+		return
+	}
+	if in.Port > 0 {
+		cfg.Port = in.Port
+	}
+	cfg.Protocol = "ftps"
+	if !in.Force {
+		if s.testLimiter != nil {
+			if ok, wait := s.testLimiter.take("user:" + strconv.FormatInt(u.ID, 10)); !ok {
+				tooMany(w, wait)
+				return
+			}
+		}
+		if cfg.Password, err = secret.Decrypt(enc); err != nil {
+			writeErr(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		client, err := remote.Dial(cfg)
+		if err == nil {
+			_, err = client.List(rootPath)
+			client.Close()
+		}
+		if err != nil {
+			writeJSON(w, http.StatusBadGateway, MigrateFTPSError{Error: err.Error(), Code: ftpsFailCode(err)})
+			return
+		}
+	}
+	if _, err := s.DB.Exec(`UPDATE servers SET protocol = 'ftps', port = ? WHERE id = ? AND user_id = ? AND protocol = 'ftp'`,
+		cfg.Port, id, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	s.Conns.Evict(id)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

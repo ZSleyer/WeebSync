@@ -1821,6 +1821,46 @@
                 ],
                 "type": "object"
             },
+            "api.MigrateFTPSError": {
+                "properties": {
+                    "code": {
+                        "description": "Code names the cause: cert_untrusted, tls_unsupported, auth_failed or\nconnect_failed.",
+                        "enum": [
+                            "cert_untrusted",
+                            "tls_unsupported",
+                            "auth_failed",
+                            "connect_failed"
+                        ],
+                        "example": "cert_untrusted",
+                        "type": "string"
+                    },
+                    "error": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "error",
+                    "code"
+                ],
+                "type": "object"
+            },
+            "api.MigrateFTPSInput": {
+                "properties": {
+                    "force": {
+                        "description": "Force saves the switch without the connection test passing.",
+                        "type": "boolean"
+                    },
+                    "port": {
+                        "description": "Port is the FTPS port: 21 for explicit TLS (AUTH TLS), 990 for implicit\nTLS. Zero keeps the stored port.",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "port",
+                    "force"
+                ],
+                "type": "object"
+            },
             "api.MkdirLocalRequest": {
                 "properties": {
                     "path": {
@@ -18348,6 +18388,113 @@
                 "summary": "List remote language tags",
                 "tags": [
                     "Browse"
+                ]
+            }
+        },
+        "/api/servers/{id}/migrate-ftps": {
+            "post": {
+                "description": "Switches a legacy server stored with the retired protocol \"ftp\" to FTPS, keeping its stored password. The FTPS connection is tested first with the new settings and the switch is only saved when it works; with force it is saved regardless.",
+                "parameters": [
+                    {
+                        "description": "Server ID",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.MigrateFTPSInput",
+                                        "description": "FTPS port and force flag",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "FTPS port and force flag",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.MigrateFTPSError"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Move a plain-FTP server to FTPS",
+                "tags": [
+                    "Servers"
                 ]
             }
         },

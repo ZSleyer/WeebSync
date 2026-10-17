@@ -237,6 +237,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("PUT /api/servers/{id}", authed(http.HandlerFunc(s.handleServerUpdate)))
 	mux.Handle("DELETE /api/servers/{id}", authed(http.HandlerFunc(s.handleServerDelete)))
 	mux.Handle("POST /api/servers/{id}/test", authed(http.HandlerFunc(s.handleServerTest)))
+	mux.Handle("POST /api/servers/{id}/migrate-ftps", authed(http.HandlerFunc(s.handleServerMigrateFTPS)))
 	mux.Handle("POST /api/servers/{id}/trust-hostkey", authed(http.HandlerFunc(s.handleServerTrustHostKey)))
 
 	// browse

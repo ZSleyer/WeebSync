@@ -798,6 +798,25 @@ export interface Schemas {
      */
     upgradeRequired?: "password" | "passkey"
   }
+  'api.MigrateFTPSError': {
+    /**
+     * Code names the cause: cert_untrusted, tls_unsupported, auth_failed or
+     * connect_failed.
+     */
+    code: "cert_untrusted" | "tls_unsupported" | "auth_failed" | "connect_failed"
+    error: string
+  }
+  'api.MigrateFTPSInput': {
+    /**
+     * Force saves the switch without the connection test passing.
+     */
+    force: boolean
+    /**
+     * Port is the FTPS port: 21 for explicit TLS (AUTH TLS), 990 for implicit
+     * TLS. Zero keeps the stored port.
+     */
+    port: number
+  }
   'api.MkdirLocalRequest': {
     path: string
   }
