@@ -1284,7 +1284,14 @@ func (s *Server) aiLists(userID int64) any {
 	have := s.aiHaveIndex(userID)
 	list := s.aiUserList(userID)
 	if list == nil {
-		out["anilist"] = "no AniList account linked"
+		// nil is both "no account" and "list not cached yet" (a fetch that
+		// failed or is still running): the model must not tell a linked user
+		// to link an account
+		if _, _, err := s.anilistAccount(userID); err != nil {
+			out["anilist"] = "no AniList account linked"
+		} else {
+			out["anilist"] = "AniList list not loaded yet, try again shortly"
+		}
 	} else {
 		entries := make([]aiListEntry, 0, len(list))
 		for i, e := range list {

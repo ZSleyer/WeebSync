@@ -46,6 +46,7 @@ func TestFixSequelPicksUsesPartialRelations(t *testing.T) {
 		raw, _ := json.Marshal(map[string]any{"data": data})
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(raw))), Header: http.Header{}}, nil
 	})}
+	cl.WithoutRateLimit()
 	s := &Server{Anilist: cl}
 
 	const n = 12
@@ -66,5 +67,23 @@ func TestFixSequelPicksUsesPartialRelations(t *testing.T) {
 	}
 	if upgraded != 10 {
 		t.Fatalf("%d picks moved to their season-2 entry, want the 10 of the batch that resolved", upgraded)
+	}
+}
+
+// The model reads aiLists' text: a linked user whose list is not cached yet
+// (AniList unreachable) must not be told to link an account.
+func TestAiListsSaysNotLoadedForALinkedAccount(t *testing.T) {
+	s, _, _, _, d := linkedServer(t)
+	s.Anilist.HTTP = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, fmt.Errorf("anilist unreachable")
+	})}
+	got := s.aiLists(1).(map[string]any)["anilist"]
+	if msg, _ := got.(string); !strings.Contains(msg, "not loaded yet") {
+		t.Fatalf("linked account, nothing cached: %v", got)
+	}
+	d.Exec(`DELETE FROM anilist_accounts`)
+	got = s.aiLists(1).(map[string]any)["anilist"]
+	if msg, _ := got.(string); !strings.Contains(msg, "no AniList account linked") {
+		t.Fatalf("no account: %v", got)
 	}
 }
