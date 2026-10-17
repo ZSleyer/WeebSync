@@ -23,6 +23,7 @@ import PlexShowField, { usePlexShow } from './PlexShowField'
 import RenameOptions, { FromEpisodeField, Hint, ROW_GRID, type RenameProfile, type RenameRule } from './RenameOptions'
 import RenamePreview from './RenamePreview'
 import { useRenamePreview } from './useRenamePreview'
+import PickerBack from './PickerBack'
 import SubfolderChoice from './SubfolderChoice'
 import {
   seasonInPath,
@@ -298,6 +299,11 @@ export function WatchForm({
     }
   }
 
+  const pickLocal = (p: string) => {
+    setLocalBrowse(p)
+    setF({ ...f, localPath: p })
+  }
+
   const pathRow = (which: 'remote' | 'local') => {
     const isRemote = which === 'remote'
     return (
@@ -334,6 +340,8 @@ export function WatchForm({
         </div>
         {browse === which && (
           <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
+            {/* back goes up a folder before it closes the dialog */}
+            <PickerBack path={isRemote ? browsePath : localBrowse} onNavigate={isRemote ? setBrowsePath : pickLocal} />
             {isRemote ? (
               <FileBrowser
                 queryKey={['watch-remote', serverId]}
@@ -349,13 +357,7 @@ export function WatchForm({
                 selectDirsOnly
               />
             ) : (
-              <LocalPicker
-                path={localBrowse}
-                onNavigate={(p) => {
-                  setLocalBrowse(p)
-                  setF({ ...f, localPath: p })
-                }}
-              />
+              <LocalPicker path={localBrowse} onNavigate={pickLocal} />
             )}
           </div>
         )}

@@ -35,6 +35,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
+import PickerBack from '../components/PickerBack'
 import {
   Badge,
   Button,
@@ -2174,6 +2175,7 @@ function SyncForm({
           </div>
           {browse && (
             <div className="mt-2 flex max-h-56 flex-col overflow-hidden rounded-lg border border-border-subtle bg-bg-secondary/40">
+              <PickerBack path={localPath} onNavigate={onLocalPath} />
               <LocalPicker path={localPath} onNavigate={onLocalPath} />
             </div>
           )}
