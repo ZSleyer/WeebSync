@@ -144,7 +144,12 @@ jobs:
       - name: no mobile debug build in the image
         # the debugging aid (screenshot uploads, an injected script) must
         # never reach a release: its startup warning is the marker
-        run: docker run --rm --entrypoint sh weebsync-ci -c '! grep -aq "MOBILE DEBUG BUILD" /weebsync'
+        # (the image has no shell: copy the binary out of a stopped container)
+        run: |
+          docker create --name weebsync-ci-bin weebsync-ci
+          docker cp weebsync-ci-bin:/weebsync ./weebsync-bin
+          docker rm weebsync-ci-bin
+          ! grep -aq "MOBILE DEBUG BUILD" ./weebsync-bin
       - name: image vulnerability scan
         run: >-
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock
