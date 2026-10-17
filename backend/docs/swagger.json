@@ -5241,6 +5241,166 @@
                 ],
                 "type": "object"
             },
+            "api.hwCandidate": {
+                "properties": {
+                    "code": {
+                        "enum": [
+                            "ok",
+                            "no_render_nodes",
+                            "render_node_no_access",
+                            "vaapi_driver_failed",
+                            "no_nvidia_device",
+                            "nvenc_failed",
+                            "skipped_by_mode"
+                        ],
+                        "type": "string"
+                    },
+                    "device": {
+                        "description": "the render node, for vaapi",
+                        "type": "string"
+                    },
+                    "encoder": {
+                        "enum": [
+                            "nvenc",
+                            "vaapi"
+                        ],
+                        "type": "string"
+                    },
+                    "params": {
+                        "$ref": "#/components/schemas/api.hwParams"
+                    }
+                },
+                "required": [
+                    "encoder",
+                    "code",
+                    "params"
+                ],
+                "type": "object"
+            },
+            "api.hwChoice": {
+                "description": "absent until probed",
+                "properties": {
+                    "device": {
+                        "type": "string"
+                    },
+                    "encoder": {
+                        "enum": [
+                            "nvenc",
+                            "vaapi",
+                            "software"
+                        ],
+                        "type": "string"
+                    },
+                    "maxHeight": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "encoder",
+                    "maxHeight"
+                ],
+                "type": "object"
+            },
+            "api.hwIssue": {
+                "properties": {
+                    "code": {
+                        "enum": [
+                            "arch_no_encoder",
+                            "forced_mode_failed"
+                        ],
+                        "type": "string"
+                    },
+                    "params": {
+                        "$ref": "#/components/schemas/api.hwParams"
+                    }
+                },
+                "required": [
+                    "code",
+                    "params"
+                ],
+                "type": "object"
+            },
+            "api.hwParams": {
+                "properties": {
+                    "error": {
+                        "description": "*_failed: a short excerpt of the error",
+                        "type": "string"
+                    },
+                    "gid": {
+                        "description": "render_node_no_access: the node's group id",
+                        "type": "integer"
+                    },
+                    "groups": {
+                        "description": "render_node_no_access: the process's groups",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "mode": {
+                        "description": "forced_mode_failed: the WEEBSYNC_HWACCEL value",
+                        "type": "string"
+                    },
+                    "node": {
+                        "description": "render_node_no_access: the device node",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.hwReport": {
+                "properties": {
+                    "arch": {
+                        "type": "string"
+                    },
+                    "candidates": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.hwCandidate"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "choice": {
+                        "$ref": "#/components/schemas/api.hwChoice",
+                        "description": "absent until probed"
+                    },
+                    "issues": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.hwIssue"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "mode": {
+                        "description": "auto, nvenc, vaapi, none",
+                        "type": "string"
+                    },
+                    "modeFromEnv": {
+                        "type": "boolean"
+                    },
+                    "probed": {
+                        "type": "boolean"
+                    },
+                    "probedAt": {
+                        "description": "RFC 3339",
+                        "type": "string"
+                    },
+                    "probing": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "arch",
+                    "mode",
+                    "modeFromEnv",
+                    "probed",
+                    "probing",
+                    "issues",
+                    "candidates"
+                ],
+                "type": "object"
+            },
             "api.ipStatus": {
                 "properties": {
                     "blocked": {
@@ -8285,6 +8445,98 @@
                     }
                 ],
                 "summary": "Delete a data store",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/hwaccel": {
+            "get": {
+                "description": "The encoder the player transcodes with (NVENC, VA-API or software), the configured WEEBSYNC_HWACCEL mode and, per candidate, a machine-readable diagnosis (code + params). Before the first transcode or probe, \"probed\" is false and there is no choice (admin only).",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.hwReport"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Hardware transcoding status",
+                "tags": [
+                    "Admin"
+                ]
+            }
+        },
+        "/api/admin/hwaccel/probe": {
+            "post": {
+                "description": "Runs the test encodes again (a few seconds, at most 90) and replaces the cached choice, so new transcodes use the result. A probe already running is joined, never run twice at once (admin only).",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.hwReport"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Re-run the hardware transcoding probe",
                 "tags": [
                     "Admin"
                 ]

@@ -443,6 +443,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// the dashboard's activity hint: every signed-in user may see THAT work is
 	// running, only an admin may pause or stop it
 	mux.Handle("GET /api/jobs", authed(http.HandlerFunc(s.handleJobsStatus)))
+	mux.Handle("GET /api/admin/hwaccel", authed(adminOnly(http.HandlerFunc(s.handleAdminHWAccel))))
+	mux.Handle("POST /api/admin/hwaccel/probe", authed(adminOnly(http.HandlerFunc(s.handleAdminHWAccelProbe))))
 	mux.Handle("GET /api/admin/data", authed(adminOnly(http.HandlerFunc(s.handleAdminData))))
 	mux.Handle("POST /api/admin/data/reset", authed(adminOnly(http.HandlerFunc(s.handleAdminDataReset))))
 	mux.Handle("DELETE /api/admin/data/{name}", authed(adminOnly(http.HandlerFunc(s.handleAdminDataDelete))))
