@@ -28,13 +28,94 @@ var lookupIP = func(ctx context.Context, host string) ([]net.IP, error) {
 
 // blocked reports whether a resolved IP must never be dialed. Loopback and
 // private LAN stay allowed on purpose - a self-hosted setup legitimately points
-// at SFTP/Plex/OIDC on the same host or LAN. Unspecified (0.0.0.0 / ::) is never
-// a real target and on Linux 0.0.0.0 dials localhost, so it is refused.
-func blocked(ip net.IP) bool {
-	return ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.Equal(awsMetadataV6)
+// at SFTP/Plex/OIDC on the same host or LAN. Refused everywhere: all of
+// 0.0.0.0/8 (on Linux it reaches the local host), :: , link-local, multicast
+// (one-to-many, never a TCP target), the IPv4 broadcast address and the AWS
+// IPv6 metadata address. An IPv4 address a gateway or tunnel embeds in an IPv6
+// one is judged as the IPv4 address it reaches.
+func blocked(ip net.IP) bool { return denyEmbedded(ip, blockedAddr) }
+
+// publicBlocked adds everything that is not a public destination: loopback,
+// private LAN, CGNAT, benchmarking, reserved and IETF-assignment IPv4 ranges
+// and the deprecated IPv6 site-local range.
+func publicBlocked(ip net.IP) bool { return denyEmbedded(ip, publicBlockedAddr) }
+
+func blockedAddr(ip net.IP) bool {
+	if ip4 := ip.To4(); ip4 != nil {
+		return ip4[0] == 0 || ip4.IsLinkLocalUnicast() || ip4.IsMulticast() || ip4.Equal(net.IPv4bcast)
+	}
+	return ip.IsUnspecified() || ip.IsLinkLocalUnicast() || ip.IsMulticast() || ip.Equal(awsMetadataV6)
 }
 
-func publicBlocked(ip net.IP) bool { return blocked(ip) || ip.IsLoopback() || ip.IsPrivate() }
+func publicBlockedAddr(ip net.IP) bool {
+	if blockedAddr(ip) || ip.IsLoopback() || ip.IsPrivate() {
+		return true
+	}
+	if ip4 := ip.To4(); ip4 != nil {
+		for _, n := range publicBlockedV4 {
+			if n.Contains(ip4) {
+				return true
+			}
+		}
+		return false
+	}
+	// fec0::/10, deprecated site-local
+	return len(ip) == net.IPv6len && ip[0] == 0xfe && ip[1]&0xc0 == 0xc0
+}
+
+// publicBlockedV4 are the IPv4 ranges besides RFC 1918 and loopback that no
+// public service lives in.
+var publicBlockedV4 = []*net.IPNet{
+	cgnat,
+	{IP: net.IPv4(198, 18, 0, 0), Mask: net.CIDRMask(15, 32)},
+	{IP: net.IPv4(240, 0, 0, 0), Mask: net.CIDRMask(4, 32)},
+	{IP: net.IPv4(192, 0, 0, 0), Mask: net.CIDRMask(24, 32)},
+}
+
+func denyEmbedded(ip net.IP, deny func(net.IP) bool) bool {
+	if deny(ip) {
+		return true
+	}
+	e := embeddedV4(ip)
+	return e != nil && deny(e)
+}
+
+// embeddedV4 returns the IPv4 address a gateway or tunnel embeds in an IPv6
+// one, nil for anything else. On a NAT64 network 64:ff9b::a9fe:a9fe reaches
+// 169.254.169.254 all the same.
+func embeddedV4(ip net.IP) net.IP {
+	if ip.To4() != nil || len(ip) != net.IPv6len {
+		return nil
+	}
+	seg := func(i int) uint16 { return uint16(ip[2*i])<<8 | uint16(ip[2*i+1]) }
+	v4 := func(hi, lo uint16) net.IP { return net.IPv4(byte(hi>>8), byte(hi), byte(lo>>8), byte(lo)) }
+	allZero := func(from, to int) bool {
+		for i := from; i < to; i++ {
+			if seg(i) != 0 {
+				return false
+			}
+		}
+		return true
+	}
+	switch {
+	// ::a.b.c.d, IPv4-compatible (deprecated); ::1 is not 0.0.0.1
+	case allZero(0, 6) && seg(6) != 0:
+		return v4(seg(6), seg(7))
+	// 64:ff9b::/96, NAT64
+	case seg(0) == 0x64 && seg(1) == 0xff9b && allZero(2, 6):
+		return v4(seg(6), seg(7))
+	// ::ffff:0:a.b.c.d, SIIT
+	case allZero(0, 4) && seg(4) == 0xffff && seg(5) == 0:
+		return v4(seg(6), seg(7))
+	// 2002:a.b.c.d::/16, 6to4
+	case seg(0) == 0x2002:
+		return v4(seg(1), seg(2))
+	// 2001:0::/32, Teredo, whose client address is stored inverted
+	case seg(0) == 0x2001 && seg(1) == 0:
+		return v4(^seg(6), ^seg(7))
+	}
+	return nil
+}
 
 // SafeDial resolves host, rejects blocked IPs, and dials the exact verified IP
 // (no second resolve, so no DNS-rebinding TOCTOU). For raw-TCP callers such as
