@@ -20,7 +20,7 @@ import (
 // "fribb"). Returns ok=false when nothing resolves unambiguously - the caller
 // then falls back to the normal title search, so this never guesses.
 func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
-	idx := s.plexGuidIndex()
+	idx := s.plexGuidIndexNoWait()
 	if len(idx) == 0 {
 		return 0, false // no Plex configured / nothing indexed
 	}

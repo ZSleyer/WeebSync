@@ -734,21 +734,36 @@ func (s *Server) cacheSet(key, payload string) {
 // suggestions. The key carries a version because the cached payload of the
 // shows-only build is indistinguishable from a complete one.
 func (s *Server) plexTitleIndex(c plex.Server) map[string]string {
+	return s.plexTitles.get(s, plexTitleKey, true, func() (map[string]string, bool) { return buildPlexTitleIndex(c) })
+}
+
+// plexTitleIndexNoWait is plexTitleIndex for a request, see plexGuidIndexNoWait.
+func (s *Server) plexTitleIndexNoWait() map[string]string {
+	return s.plexTitles.get(s, plexTitleKey, false, func() (map[string]string, bool) {
+		c := s.plexClient()
+		if c == nil {
+			return map[string]string{}, false
+		}
+		return buildPlexTitleIndex(c)
+	})
+}
+
+const plexTitleKey = "plex:titleidx:v2"
+
+func buildPlexTitleIndex(c plex.Server) (map[string]string, bool) {
 	idx := map[string]string{}
-	if p, ok := s.cacheGet("plex:titleidx:v2", time.Hour); ok {
-		json.Unmarshal([]byte(p), &idx)
-		return idx
-	}
 	sections, err := c.Sections()
 	if err != nil {
-		return idx
+		return idx, false
 	}
+	failed := false
 	for _, sec := range sections {
 		if sec.Type != "show" && sec.Type != "movie" {
 			continue
 		}
 		shows, err := c.Shows(sec.Key)
 		if err != nil {
+			failed = true
 			continue
 		}
 		for _, sh := range shows {
@@ -758,9 +773,7 @@ func (s *Server) plexTitleIndex(c plex.Server) map[string]string {
 			}
 		}
 	}
-	p, _ := json.Marshal(idx)
-	s.cacheSet("plex:titleidx:v2", string(p))
-	return idx
+	return idx, !failed || len(idx) > 0
 }
 
 // plexOwned answers "does the library already hold this?" for a whole round of
@@ -802,7 +815,7 @@ func (s *Server) plexWebLink(titles ...string) string {
 	if c == nil {
 		return ""
 	}
-	idx := s.plexTitleIndex(c)
+	idx := s.plexTitleIndexNoWait()
 	key := ""
 	for _, t := range titles {
 		if t == "" {
@@ -879,7 +892,7 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 	if manual {
 		return stored // a person decided this; nothing here overrules it
 	}
-	live := guidRatingKey(s.plexGuidIndex(), showKey)
+	live := guidRatingKey(s.plexGuidIndexNoWait(), showKey)
 	if live == "" {
 		return stored // Plex unreachable: a stale address still beats none
 	}

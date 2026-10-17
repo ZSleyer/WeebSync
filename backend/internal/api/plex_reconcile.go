@@ -1,13 +1,11 @@
 package api
 
 import (
-	"encoding/json"
 	"log/slog"
 	"path"
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/ch4d1/weebsync/internal/match"
 )
@@ -43,28 +41,41 @@ type plexGuid struct {
 // plexGuidIndex folds every Plex show/movie title to the tvdb/tmdb id Plex
 // assigned it, cached for an hour on the shared cache table. This is the bridge
 // that lets an AniList-only series gain its TVDB/TMDB identity: Plex is the one
-// place that carries all three ids for the same show.
+// place that carries all three ids for the same show. It waits for a build when
+// there is no copy at all, so it belongs to background work; a request path
+// uses plexGuidIndexNoWait. The map is shared: read it, never write to it.
 func (s *Server) plexGuidIndex() map[string]plexGuid {
+	return s.plexGuids.get(s, plexGuidKey, true, s.buildPlexGuidIndex)
+}
+
+// plexGuidIndexNoWait is plexGuidIndex for a request: it never waits on Plex,
+// it answers from the last copy (empty before the first build) and warms a
+// missing one in the background.
+func (s *Server) plexGuidIndexNoWait() map[string]plexGuid {
+	return s.plexGuids.get(s, plexGuidKey, false, s.buildPlexGuidIndex)
+}
+
+// v3: movie flag; v4: tvdbKey entries. A key bump skips stale cached blobs
+const plexGuidKey = "plex:guididx:v4"
+
+func (s *Server) buildPlexGuidIndex() (map[string]plexGuid, bool) {
 	idx := map[string]plexGuid{}
-	// v3: movie flag; v4: tvdbKey entries. A key bump skips stale cached blobs
-	if p, ok := s.cacheGet("plex:guididx:v4", time.Hour); ok {
-		json.Unmarshal([]byte(p), &idx)
-		return idx
-	}
 	c := s.plexClient()
 	if c == nil {
-		return idx
+		return idx, false
 	}
 	secs, err := c.Sections()
 	if err != nil {
-		return idx
+		return idx, false
 	}
+	failed := false
 	for _, sec := range secs {
 		if sec.Type != "show" && sec.Type != "movie" {
 			continue
 		}
 		shows, err := c.Shows(sec.Key)
 		if err != nil {
+			failed = true
 			continue
 		}
 		for _, sh := range shows {
@@ -86,10 +97,8 @@ func (s *Server) plexGuidIndex() map[string]plexGuid {
 			}
 		}
 	}
-	if p, err := json.Marshal(idx); err == nil {
-		s.cacheSet("plex:guididx:v4", string(p))
-	}
-	return idx
+	// every library unreadable is a failure, not an empty server
+	return idx, !failed || len(idx) > 0
 }
 
 // tvdbKey files a Plex show under its TVDB id in plexGuidIndex. A folded title

@@ -356,7 +356,7 @@ func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []provid
 // plexIDKey does; empty without Plex.
 func (s *Server) plexIDs() map[string]bool {
 	out := map[string]bool{}
-	for _, g := range s.plexGuidIndex() {
+	for _, g := range s.plexGuidIndexNoWait() {
 		if g.TVDB != 0 {
 			out[plexIDKey("tvdb", g.TVDB)] = true
 		}

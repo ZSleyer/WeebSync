@@ -76,6 +76,11 @@ type Server struct {
 	// unpacked comics and EPUBs the reader serves pieces of (reader.go)
 	books bookShelf
 
+	// the media server's guid and title indexes, built once for all callers
+	// (plex_idxcache.go)
+	plexGuids  plexIndexCache[map[string]plexGuid]
+	plexTitles plexIndexCache[map[string]string]
+
 	// the files of local folders between walks, kept current by inotify (local_files.go)
 	localCache localCache
 
