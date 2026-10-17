@@ -335,7 +335,8 @@ func spaHandler(dir string) http.Handler {
 		// keep their name across releases - a stale service worker means
 		// push notifications silently stop working
 		switch {
-		case r.URL.Path == "/index.html", r.URL.Path == "/sw.js", r.URL.Path == "/manifest.webmanifest":
+		case r.URL.Path == "/index.html", r.URL.Path == "/sw.js", r.URL.Path == "/manifest.webmanifest",
+			r.URL.Path == "/offline.html", r.URL.Path == "/offline.js":
 			w.Header().Set("Cache-Control", "no-cache")
 		case strings.HasPrefix(r.URL.Path, "/assets/"):
 			// without a header a browser revalidated every bundle on each

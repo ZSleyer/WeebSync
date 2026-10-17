@@ -101,7 +101,7 @@ func TestHardenCapsBodies(t *testing.T) {
 // always may: the first are cached for good, the second revalidated.
 func TestSPACachesOnlyTheHashedBundles(t *testing.T) {
 	dir := t.TempDir()
-	for _, f := range []string{"index.html", "sw.js", "assets/index-abc123.js"} {
+	for _, f := range []string{"index.html", "sw.js", "offline.html", "offline.js", "manifest.webmanifest", "assets/index-abc123.js"} {
 		p := filepath.Join(dir, f)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			t.Fatal(err)

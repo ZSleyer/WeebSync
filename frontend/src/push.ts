@@ -4,7 +4,9 @@ import { api } from './api'
 export function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
-      .register('/sw.js')
+      // updateViaCache none: a proxy or the HTTP cache that kept an old worker
+      // once blocked updates; the script is always fetched from the server
+      .register('/sw.js', { updateViaCache: 'none' })
       // an installed worker is only re-checked every 24h by default; a stale
       // one silently stops rendering push notifications, so ask on every start
       .then((reg) => reg.update())

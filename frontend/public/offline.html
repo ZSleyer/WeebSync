@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#05070d" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>WeebSync</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #ffffff;
+        --fg: #14171f;
+        --fg-2: #5a6070;
+        --accent: #b3263f;
+        --accent-fg: #ffffff;
+        --edge: #d9dce4;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #05070d;
+          --fg: #eef0f6;
+          --fg-2: #9aa1b2;
+          --accent: #ef6177;
+          --accent-fg: #1a0509;
+          --edge: #232837;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+        background: var(--bg);
+        color: var(--fg);
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        text-align: center;
+      }
+      main {
+        max-width: 26rem;
+      }
+      svg {
+        width: 5rem;
+        height: auto;
+        margin-bottom: 1.5rem;
+      }
+      .w {
+        fill: var(--accent);
+      }
+      .s {
+        fill: var(--fg-2);
+      }
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.4rem;
+        font-weight: 600;
+      }
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--fg-2);
+        line-height: 1.5;
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        min-height: 2.75rem;
+        padding: 0 1.5rem;
+        border: 0;
+        border-radius: 999px;
+        background: var(--accent);
+        color: var(--accent-fg);
+        cursor: pointer;
+      }
+      button:focus-visible {
+        outline: 2px solid var(--fg);
+        outline-offset: 3px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg viewBox="0 -215 1024 1024" aria-hidden="true">
+        <path
+          class="w"
+          d="M0 0L117 0L189 419L193 419L310 0L398 1L512 419L517 417L541 275L628 366L582 594L473 594L355 176L351 178L232 594L123 594Z"
+        />
+        <path
+          class="s"
+          d="M633 594L653 496L818 496L848 471L852 467L869 367L846 340L671 340L552 213L574 84L673 0L942 0L1024 97L1011 177L897 177L905 126L882 98L714 98L680 128L666 215L688 242L907 242L912 247L988 339L958 510L860 594Z"
+        />
+      </svg>
+      <h1 id="title">Server unreachable</h1>
+      <p id="text">WeebSync cannot reach your server right now. Check your connection or the server, then try again.</p>
+      <button type="button" id="retry">Try again</button>
+    </main>
+    <script src="/offline.js"></script>
+  </body>
+</html>
