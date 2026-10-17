@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useBackEntry } from 'fluid-lycoris'
+import { useBackEntry, useCloseWatcher } from 'fluid-lycoris'
 
 const segs = (p: string) => p.split('/').filter(Boolean)
 
@@ -21,8 +21,15 @@ export function pathAtDepth(start: string, path: string, depth: number): string 
   )
 }
 
+// One folder: a history entry for the browsers that answer back by traversing
+// history, and a close watcher for those that answer it with a close request
+// (Chrome on Android sends it to the topmost watcher - the dialog's own, were
+// there none here, which would close the dialog from any folder). Made in the
+// tap that opened the folder, each step is a group of its own, so one back
+// closes one step.
 function Step({ onBack }: { onBack: () => void }) {
   useBackEntry(onBack)
+  useCloseWatcher(onBack)
   return null
 }
 

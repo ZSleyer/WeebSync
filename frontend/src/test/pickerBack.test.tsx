@@ -130,4 +130,40 @@ describe('PickerBack inside a dialog', () => {
     expect(push).toHaveBeenCalledTimes(1)
     act(() => {})
   })
+
+  it('answers a close request (Android back) one folder at a time, not with the dialog', async () => {
+    // Chrome sends the back key to the newest close watcher: the dialog's own
+    // would close it from any folder, so every folder step holds one
+    class FakeWatcher {
+      static stack: FakeWatcher[] = []
+      onclose: (() => void) | null = null
+      constructor() {
+        FakeWatcher.stack.push(this)
+      }
+      destroy() {
+        FakeWatcher.stack = FakeWatcher.stack.filter((w) => w !== this)
+      }
+      static back() {
+        const top = FakeWatcher.stack.at(-1)
+        top?.destroy()
+        top?.onclose?.()
+      }
+    }
+    vi.stubGlobal('CloseWatcher', FakeWatcher)
+    const onClose = vi.fn()
+    const { getByText, container } = render(<Harness onClose={onClose} />)
+    expect(FakeWatcher.stack).toHaveLength(0)
+    fireEvent.click(getByText('into'))
+    await waitFor(() => expect(FakeWatcher.stack).toHaveLength(1))
+    fireEvent.click(getByText('into'))
+    await waitFor(() => expect(FakeWatcher.stack).toHaveLength(2))
+    act(() => FakeWatcher.back())
+    await waitFor(() => expect(pathText(container)).toBe('Anime/sub'))
+    expect(FakeWatcher.stack).toHaveLength(1)
+    act(() => FakeWatcher.back())
+    await waitFor(() => expect(pathText(container)).toBe('Anime'))
+    expect(FakeWatcher.stack).toHaveLength(0)
+    expect(onClose).not.toHaveBeenCalled()
+    vi.unstubAllGlobals()
+  })
 })
