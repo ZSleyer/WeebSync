@@ -16,6 +16,9 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    # vendored with patches in backend/third_party/rardecode, bumped by hand
+    ignore:
+      - dependency-name: github.com/nwaples/rardecode/v2
     groups:
       go:
         patterns: ["*"]

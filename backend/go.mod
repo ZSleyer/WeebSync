@@ -8,7 +8,7 @@ require (
 	github.com/go-jose/go-jose/v4 v4.1.6
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jlaffaye/ftp v0.2.4
-	github.com/nwaples/rardecode/v2 v2.4.3
+	github.com/nwaples/rardecode/v2 v2.4.5
 	github.com/pkg/sftp v1.13.11
 	golang.org/x/crypto v0.58.0
 	golang.org/x/oauth2 v0.37.0

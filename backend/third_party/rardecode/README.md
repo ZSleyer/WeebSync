@@ -1,8 +1,11 @@
 # Patched copy of github.com/nwaples/rardecode/v2
 
-Vendored from upstream v2.4.3 (the version WeebSync used before) and wired in
-with a `replace` directive in `backend/go.mod`. Upstream v2.4.4 and v2.4.5 do
+Vendored from upstream v2.4.5 (WeebSync used v2.4.3 before) and wired in
+with a `replace` directive in `backend/go.mod`. Upstream v2.4.5, the latest, does
 not fix any of the three bugs below. Drop this directory once upstream does.
+
+Dependabot cannot update this copy (the module is replaced, and the gomod
+entry ignores it). Diff new upstream releases by hand and re-apply the patches.
 
 Patches, all small:
 

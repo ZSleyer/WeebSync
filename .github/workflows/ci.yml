@@ -53,6 +53,11 @@ jobs:
           working-directory: backend
       - name: test
         run: go test -race ./...
+      - name: vendored RAR decoder
+        run: |
+          cd third_party/rardecode
+          go vet ./...
+          go test -race ./...
       - name: fuzz the Matroska parser
         # it reads files off remote servers, on worker goroutines whose panic
         # ends the process. A short run per target catches what a change broke;
