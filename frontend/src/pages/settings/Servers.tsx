@@ -102,9 +102,9 @@ export default function Servers() {
               </div>
               <span aria-live="polite">{status(s.id)}</span>
             </div>
-            {/* plain FTP still works, it is only on its way out: the card says so,
-                since a server set up long ago never opens the form again */}
-            {s.protocol === 'ftp' && (
+            {/* plain FTP is gone and such a server cannot connect any more: the card
+                says so, since a server set up long ago never opens the form again */}
+            {(s.protocol as string) === 'ftp' && (
               <p className="sf-note text-warn" role="note">
                 {t('servers.ftpDeprecated')}
               </p>
@@ -210,7 +210,9 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const confirm = useConfirm()
   const qc = useQueryClient()
   const [error, setError] = useState('')
-  const [protocol, setProtocol] = useState(editing?.protocol ?? 'sftp')
+  const [protocol, setProtocol] = useState<ServerInfo['protocol']>(
+    (editing?.protocol as string) === 'ftp' ? 'ftps' : (editing?.protocol ?? 'sftp'),
+  )
   const [icon, setIcon] = useState(editing?.icon ?? '')
   const [color, setColor] = useState(editing?.color ?? '')
   // uncontrolled form: any input change marks it dirty for the close guard;
@@ -334,7 +336,6 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
             >
               <option value="sftp">SFTP (SSH)</option>
               <option value="ftps">FTPS (TLS)</option>
-              <option value="ftp">{t('servers.ftpOption')}</option>
             </Select>
           </Field>
           <Field label={t('servers.port')}>
@@ -378,11 +379,6 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
               defaultValue={editing?.maxConnections ?? 3}
             />
           </Field>
-          {protocol === 'ftp' && (
-            <p className="sm:col-span-2 rounded-md border border-warn/50 px-3 py-2 text-sm text-warn" role="status">
-              {t('servers.ftpWarning')}
-            </p>
-          )}
           <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
           {error && (
             <p className="sf-issue sm:col-span-2" role="alert">

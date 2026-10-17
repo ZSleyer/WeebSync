@@ -229,7 +229,6 @@ export default function LegacyImport({
               <Select name="protocol" defaultValue="sftp">
                 <option value="sftp">SFTP (SSH)</option>
                 <option value="ftps">FTPS (TLS)</option>
-                <option value="ftp">{t('servers.ftpOption')}</option>
               </Select>
             </Field>
             <Field label={t('servers.port')}>

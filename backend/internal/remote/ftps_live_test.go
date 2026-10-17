@@ -19,8 +19,14 @@ func TestFTPSLive(t *testing.T) {
 		t.Skip("FTPS_TEST_HOST not set")
 	}
 	port, _ := strconv.Atoi(os.Getenv("FTPS_TEST_PORT"))
-	c, err := Dial(Config{Protocol: "ftps", Host: host, Port: port,
-		Username: os.Getenv("FTPS_TEST_USER"), Password: os.Getenv("FTPS_TEST_PASS")})
+	cfg := Config{Protocol: "ftps", Host: host, Port: port,
+		Username: os.Getenv("FTPS_TEST_USER"), Password: os.Getenv("FTPS_TEST_PASS")}
+	// FTPS_TEST_IMPLICIT=1 targets an implicit-TLS server on a port other than 990
+	dial := Dial
+	if os.Getenv("FTPS_TEST_IMPLICIT") != "" {
+		dial = func(cfg Config) (Client, error) { return dialFTPTLS(cfg, nil, true) }
+	}
+	c, err := dial(cfg)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}

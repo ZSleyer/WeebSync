@@ -62,6 +62,9 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 
 	serverID := in.ServerID
 	if serverID == 0 {
+		if rejectPlainFTP(w, in.Server) {
+			return
+		}
 		if in.Server == nil || !in.Server.valid() || in.Server.Password == "" {
 			writeErr(w, http.StatusBadRequest, "server (name, protocol, host, username, password) or serverId required")
 			return

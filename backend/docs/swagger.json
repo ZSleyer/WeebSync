@@ -6523,8 +6523,7 @@
                     "protocol": {
                         "enum": [
                             "sftp",
-                            "ftps",
-                            "ftp"
+                            "ftps"
                         ],
                         "type": "string"
                     },

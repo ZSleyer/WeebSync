@@ -2848,7 +2848,7 @@ export interface Schemas {
     maxConnections: number
     name: string
     port: number
-    protocol: "sftp" | "ftps" | "ftp"
+    protocol: "sftp" | "ftps"
     rootPath: string
     username: string
   }

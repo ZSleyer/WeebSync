@@ -19,7 +19,7 @@ import (
 type serverInfo struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
-	Protocol       string `json:"protocol" enums:"sftp,ftps,ftp"`
+	Protocol       string `json:"protocol" enums:"sftp,ftps"`
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
 	Username       string `json:"username"`
@@ -66,7 +66,7 @@ func (in *serverInput) valid() bool {
 		return false
 	}
 	switch in.Protocol {
-	case "sftp", "ftps", "ftp":
+	case "sftp", "ftps":
 	default:
 		return false
 	}
@@ -87,6 +87,15 @@ func (in *serverInput) valid() bool {
 		in.MaxConnections = 10
 	}
 	return in.Name != "" && in.Host != "" && in.Username != "" && in.Port > 0 && in.Port < 65536
+}
+
+// rejectPlainFTP answers a server config that asks for the retired plain FTP.
+func rejectPlainFTP(w http.ResponseWriter, in *serverInput) bool {
+	if in == nil || in.Protocol != "ftp" {
+		return false
+	}
+	writeErr(w, http.StatusBadRequest, remote.ErrPlainFTP.Error())
+	return true
 }
 
 // @Summary  List servers
@@ -141,8 +150,11 @@ func (s *Server) handleServerCreate(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	if rejectPlainFTP(w, &in) {
+		return
+	}
 	if !in.valid() || in.Password == "" {
-		writeErr(w, http.StatusBadRequest, "name, protocol (sftp|ftps|ftp), host, username, password required")
+		writeErr(w, http.StatusBadRequest, "name, protocol (sftp|ftps), host, username, password required")
 		return
 	}
 	id, err := s.insertServer(u.ID, in)
@@ -190,6 +202,9 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	var in serverInput
 	if !readJSON(w, r, &in) {
+		return
+	}
+	if rejectPlainFTP(w, &in) {
 		return
 	}
 	if !in.valid() {

@@ -71,7 +71,7 @@ export function SetupFoot({
   )
 }
 
-type Protocol = 'sftp' | 'ftps' | 'ftp'
+type Protocol = 'sftp' | 'ftps'
 
 // the disk a root lives on: the status lists each filesystem once, with the
 // other library paths that share it
@@ -248,10 +248,8 @@ export default function SetupSteps({
             options={[
               { value: 'sftp', label: 'SFTP' },
               { value: 'ftps', label: 'FTPS' },
-              { value: 'ftp', label: 'FTP' },
             ]}
           />
-          {protocol === 'ftp' && <p className="ws-su-warn mt-2">{t('servers.ftpWarning')}</p>}
           <label htmlFor="su-name" className="ws-lbl">
             {t('servers.name')}
           </label>

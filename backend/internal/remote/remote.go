@@ -1,7 +1,8 @@
-// Package remote provides a unified client over SFTP, FTPS and FTP.
+// Package remote provides a unified client over SFTP and FTPS.
 package remote
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -41,7 +42,7 @@ type Client interface {
 }
 
 type Config struct {
-	Protocol string // sftp | ftps | ftp
+	Protocol string // sftp | ftps
 	Host     string
 	Port     int
 	Username string
@@ -55,9 +56,13 @@ type Config struct {
 	InsecureHostKey bool
 	// MaxConns caps concurrent connections to this server (default applied by
 	// the caller). For SFTP the pool multiplexes channels over up to this many
-	// connections; for FTP/FTPS it caps concurrent connections directly.
+	// connections; for FTPS it caps concurrent connections directly.
 	MaxConns int
 }
+
+// ErrPlainFTP is what a server stored with the retired protocol "ftp" gets
+// instead of a connection: USER and PASS would cross the network in clear text.
+var ErrPlainFTP = errors.New("plain FTP is not supported (credentials would be sent unencrypted), use protocol ftps")
 
 func Dial(cfg Config) (Client, error) {
 	if err := netguard.Allowed(cfg.Host); err != nil {
@@ -66,8 +71,10 @@ func Dial(cfg Config) (Client, error) {
 	switch cfg.Protocol {
 	case "sftp":
 		return dialSFTP(cfg)
-	case "ftps", "ftp":
+	case "ftps":
 		return dialFTP(cfg)
+	case "ftp":
+		return nil, ErrPlainFTP
 	default:
 		return nil, fmt.Errorf("unknown protocol %q", cfg.Protocol)
 	}
