@@ -1,2 +1,5 @@
 # a deliberately wrong ed25519 public key in the SFTP live test
 5aa375c8f7b30a1a566774f5beacc4a412ce25ed:backend/internal/remote/sftp_live_test.go:generic-api-key:37
+
+# a fixed placeholder key in the test that proves the real TMDB key is redacted
+ad09607e0e80b8bb8c2e8db1d1b0649870f7dc25:backend/internal/tmdb/redact_test.go:generic-api-key:16
