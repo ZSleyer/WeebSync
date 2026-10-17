@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -16,6 +17,7 @@ func sizeTestServer(t *testing.T) (*Server, string) {
 	root := t.TempDir()
 	d := dbtest.Open(t)
 	s := &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d)}
+	drainJobsAtCleanup(t, s)
 	d.Exec(`INSERT INTO users (id, email, upgrade_dims) VALUES (1,'u@e.test','res,sub,dub,soft')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'seedbox','sftp','h',22,'u',x'00')`)
@@ -182,4 +184,27 @@ func TestAddMissingUnitsSkipsFilesAlreadyOnDisk(t *testing.T) {
 	if len(got) != 1 || got[0].Season != 3 {
 		t.Fatalf("want the genuinely missing season 3, got %+v", got)
 	}
+}
+
+// drainJobsAtCleanup stops the background jobs a test started and waits for
+// them: one still writing to the database when the test returns races the
+// removal of its temp dir. Registered after the database's own cleanup, so it
+// runs before it.
+func drainJobsAtCleanup(t *testing.T, s *Server) {
+	t.Helper()
+	t.Cleanup(func() {
+		deadline := time.Now().Add(10 * time.Second)
+		for time.Now().Before(deadline) {
+			s.matchMu.Lock()
+			for _, cancel := range s.matchJobs {
+				cancel()
+			}
+			n := len(s.matchJobs)
+			s.matchMu.Unlock()
+			if n == 0 {
+				return
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	})
 }

@@ -17,8 +17,12 @@ func sourceTestServer(t *testing.T) *Server {
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
-	db.SetSetting(d, "jobs_paused", "m") // decide only, search nothing
-	return &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d), Tvdb: tvdb.New(d)}
+	// decide only, search and fetch nothing: a TVDB fetch in the background
+	// deletes the cached record a test has just put there
+	db.SetSetting(d, "jobs_paused", "m,tvf")
+	s := &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d), Tvdb: tvdb.New(d)}
+	drainJobsAtCleanup(t, s)
+	return s
 }
 
 // Saving the edit dialog sends the folder's match back unchanged; that is no
