@@ -98,7 +98,7 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		// (SHA-1) or DSA host key signatures
 		Config: ssh.Config{
 			KeyExchanges: noSHA1(algos.KeyExchanges),
-			Ciphers:      algos.Ciphers,
+			Ciphers:      noChaCha(algos.Ciphers),
 			MACs:         noSHA1(algos.MACs),
 		},
 		User:              cfg.Username,
@@ -115,6 +115,23 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		return nil, err
 	}
 	return ssh.NewClient(sc, chans, reqs), nil
+}
+
+// noChaCha drops chacha20-poly1305@openssh.com. Without the strict key
+// exchange extension the Terrapin attack can delete packets from the start of
+// an encrypted session under this cipher. x/crypto always asks for strict KEX
+// but exposes neither whether the server agreed nor the negotiated cipher, so
+// the "refuse it unless strict KEX is on" rule cannot be enforced after the
+// handshake; leaving the cipher out of the offer is the enforceable form.
+// AES-GCM and AES-CTR with ETM MACs stay, and every current server has them.
+func noChaCha(list []string) []string {
+	out := make([]string, 0, len(list))
+	for _, a := range list {
+		if a != "chacha20-poly1305@openssh.com" {
+			out = append(out, a)
+		}
+	}
+	return out
 }
 
 // noSHA1 drops the algorithms built on SHA-1.
