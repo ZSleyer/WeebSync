@@ -90,6 +90,11 @@ func TestHardenCapsBodies(t *testing.T) {
 	if n, err := read("/api/settings", 2<<20); err == nil {
 		t.Errorf("every other route stays at a megabyte, read %d bytes", n)
 	}
+	for _, p := range []string{"/healthz", "/anything", "/"} {
+		if n, err := read(p, 2<<20); err == nil {
+			t.Errorf("%s is capped at a megabyte too, read %d bytes", p, n)
+		}
+	}
 }
 
 // The hashed bundles never change under their name, the files that name them

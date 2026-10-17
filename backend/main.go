@@ -281,16 +281,22 @@ func harden(next http.Handler) http.Handler {
 		h.Set("Permissions-Policy", "camera=(), microphone=(self), geolocation=()")
 		if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
 			h.Set("Cache-Control", "no-store")
-			// this reader wraps first, so a handler that asks for a wider cap
-			// cannot widen it back - the assistant routes carry conversations
-			// with pictures in them and need their own ceiling here. Every
-			// handler under /api/ai/ still names its own limit inside.
-			limit := int64(1 << 20)
-			if strings.HasPrefix(r.URL.Path, "/api/ai/") {
-				limit = api.AIChatBodyLimit
-			}
-			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
+		// every route is capped, not only the API: nothing outside /api/ takes
+		// a body worth more than a megabyte. This reader wraps first, so a
+		// handler that asks for a wider cap cannot widen it back - the
+		// assistant routes carry conversations with pictures in them and need
+		// their own ceiling here (every handler under /api/ai/ still names its
+		// own limit inside), and the mobiledebug build's screenshot upload
+		// reads up to 30 MiB.
+		limit := int64(1 << 20)
+		switch {
+		case strings.HasPrefix(r.URL.Path, "/api/ai/"):
+			limit = api.AIChatBodyLimit
+		case r.URL.Path == "/mobile-debug/upload":
+			limit = 31 << 20
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		if auth.IsHTTPS(r) {
 			h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
