@@ -176,9 +176,10 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out.Plex = adminPlexInfo{Configured: s.plexClient() != nil, TTLSec: int(s.plexSuggestTTL() / time.Second)}
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&out.Plex.SuggestionsAt)
+	// the overview's counters: a failed read shows the zero value
+	_ = s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&out.Plex.SuggestionsAt)
 
-	s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_accounts`).Scan(&out.Anilist.Accounts)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_accounts`).Scan(&out.Anilist.Accounts)
 
 	rows, err := s.DB.Query(`SELECT s.id, s.name, COUNT(i.path), COALESCE(SUM(i.is_dir),0),
 		COALESCE(SUM(i.is_dir = 1 AND i.listed_at = ''),0),
@@ -209,7 +210,7 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out.Watch.IntervalMin = s.watchInterval()
-	s.DB.QueryRow(`SELECT COUNT(*) FROM watches`).Scan(&out.Watch.Count)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM watches`).Scan(&out.Watch.Count)
 
 	rows, err = s.DB.Query(`SELECT m.server_id, s.name, m.source, COUNT(*),
 		SUM(m.media_id != 0), SUM(m.media_id = 0 AND m.manual = 0), SUM(m.manual)
@@ -383,7 +384,8 @@ func (s *Server) rematchServer(serverID int64, all bool) int {
 	matches, _ := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
 	s.queueMatches(matches)
 	for _, m := range matches {
-		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
+		// a row that stays is replaced by the queued search's result anyway
+		_, _ = s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
 			m.serverID, m.folder)
 	}
 	return len(matches)
@@ -684,6 +686,7 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 // @Failure      401  {object}  ErrorResponse
 // @Failure      403  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/admin/ttl [put]
 func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
@@ -701,9 +704,12 @@ func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	db.SetSetting(s.DB, "ttl_anilist_h", strconv.Itoa(in.AnilistH))
-	db.SetSetting(s.DB, "ttl_tmdb_h", strconv.Itoa(in.TmdbH))
-	db.SetSetting(s.DB, "ttl_plex_h", strconv.Itoa(in.PlexH))
+	for k, v := range map[string]int{"ttl_anilist_h": in.AnilistH, "ttl_tmdb_h": in.TmdbH, "ttl_plex_h": in.PlexH} {
+		if err := db.SetSetting(s.DB, k, strconv.Itoa(v)); err != nil {
+			dbErrDetail(w, "save "+k, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -723,6 +729,7 @@ func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
 // @Failure      401  {object}  ErrorResponse
 // @Failure      403  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/admin/index/{id}/config [put]
 func (s *Server) handleAdminIndexConfig(w http.ResponseWriter, r *http.Request) {
@@ -739,8 +746,12 @@ func (s *Server) handleAdminIndexConfig(w http.ResponseWriter, r *http.Request) 
 			fmt.Sprintf("intervalMin must be 0..%d, batch 0..%d (0 = default)", crawlMaxInterval, crawlMaxBatch))
 		return
 	}
-	db.SetSetting(s.DB, fmt.Sprintf("crawl_interval_min:%d", id), strconv.Itoa(in.IntervalMin))
-	db.SetSetting(s.DB, fmt.Sprintf("crawl_batch:%d", id), strconv.Itoa(in.Batch))
+	for k, v := range map[string]int{fmt.Sprintf("crawl_interval_min:%d", id): in.IntervalMin, fmt.Sprintf("crawl_batch:%d", id): in.Batch} {
+		if err := db.SetSetting(s.DB, k, strconv.Itoa(v)); err != nil {
+			dbErrDetail(w, "save "+k, err)
+			return
+		}
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 

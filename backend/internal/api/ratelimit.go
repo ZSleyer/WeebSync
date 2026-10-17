@@ -353,7 +353,9 @@ const (
 // device cookie signed under the old one stops counting with it.
 func (s *Server) passwordGeneration(email string) string {
 	var hash string
-	s.DB.QueryRow(`SELECT password_hash FROM users WHERE email = ?`, email).Scan(&hash)
+	// a failed read hashes "": a cookie signed under the real generation
+	// stops matching, so the device counts as unknown (the safe side)
+	_ = s.DB.QueryRow(`SELECT password_hash FROM users WHERE email = ?`, email).Scan(&hash)
 	sum := sha256.Sum256([]byte(hash))
 	return hex.EncodeToString(sum[:8])
 }

@@ -49,7 +49,7 @@ func (s *Server) RevalidateMatches() {
 	if rows.Err() != nil {
 		return // a partial pass must not stamp the rule set as applied
 	}
-	dropped := 0
+	dropped, failed := 0, 0
 	for _, r := range all {
 		m := s.cachedMedia(r.source, r.mediaID)
 		if m == nil {
@@ -61,10 +61,17 @@ func (s *Server) RevalidateMatches() {
 		}
 		slog.Info("match dropped by the current rules", "folder", logSafe(r.folder), "source", r.source, "reason", reason,
 			"media", r.mediaID, "title", logSafe(m.Title.Romaji), "english", logSafe(m.Title.English), "year", m.SeasonYear)
-		s.persistMatch(r.serverID, r.folder, 0, false, r.source)
+		if err := s.persistMatch(r.serverID, r.folder, 0, false, r.source); err != nil {
+			// still filed under the wrong show: leave the rule set unstamped so
+			// the next start judges it again
+			failed++
+			continue
+		}
 		// the index row carries the show key the old match gave it; without
 		// this the folder keeps meeting the wrong show until its next crawl
-		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, r.serverID, r.folder)
+		if _, err := s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, r.serverID, r.folder); err != nil {
+			slog.Warn("variants of a dropped match not cleared", "folder", logSafe(r.folder), "err", err)
+		}
 		// a local folder asks Plex first (its guid names the 2012 JoJo, not a
 		// title search); force would skip that
 		force := r.serverID != localServerID
@@ -83,8 +90,13 @@ func (s *Server) RevalidateMatches() {
 	if dropped > 0 {
 		s.staleSuggestions()
 	}
-	slog.Info("matches revalidated", "checked", len(all), "dropped", dropped)
-	db.SetSetting(s.DB, "match_rules", matchRules)
+	slog.Info("matches revalidated", "checked", len(all), "dropped", dropped, "failed", failed)
+	if failed > 0 {
+		return
+	}
+	if err := db.SetSetting(s.DB, "match_rules", matchRules); err != nil {
+		slog.Warn("match rule set not recorded", "err", err)
+	}
 }
 
 // matchStale applies the rules to one folder/media pair and names the rule
@@ -170,7 +182,9 @@ func (s *Server) BackfillWatchMatches() int {
 	// a Plex that did not answer yet leaves no library scopes: retry the misses
 	// on the next start rather than settle them on AniList
 	if s.plexClient() == nil || db.Setting(s.DB, "plex_lib_scopes") != "" {
-		db.SetSetting(s.DB, "watch_match_rules", watchMatchRules)
+		if err := db.SetSetting(s.DB, "watch_match_rules", watchMatchRules); err != nil {
+			slog.Warn("watch match rule set not recorded", "err", err)
+		}
 	}
 	return queued
 }

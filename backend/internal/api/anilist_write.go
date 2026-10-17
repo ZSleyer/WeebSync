@@ -28,7 +28,8 @@ const (
 // anilistPerms reads a user's switches; a missing row reads as all off.
 func (s *Server) anilistPerms(userID int64) AnilistPermissions {
 	var p AnilistPermissions
-	s.DB.QueryRow(`SELECT anilist_write_list, anilist_write_social FROM users WHERE id = ?`, userID).
+	// fails closed: an unreadable row leaves every switch off
+	_ = s.DB.QueryRow(`SELECT anilist_write_list, anilist_write_social FROM users WHERE id = ?`, userID).
 		Scan(&p.List, &p.Social)
 	return p
 }
@@ -71,6 +72,7 @@ type anilistPermissionsRequest struct {
 //	@Param			body	body		anilistPermissionsRequest	true	"Switches to change"
 //	@Success		200		{object}	AnilistPermissions
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/anilist/permissions [put]
 func (s *Server) handleAnilistPermissions(w http.ResponseWriter, r *http.Request) {
@@ -80,10 +82,16 @@ func (s *Server) handleAnilistPermissions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if in.List != nil {
-		s.DB.Exec(`UPDATE users SET anilist_write_list = ? WHERE id = ?`, *in.List, u.ID)
+		if _, err := s.DB.Exec(`UPDATE users SET anilist_write_list = ? WHERE id = ?`, *in.List, u.ID); err != nil {
+			dbErr(w)
+			return
+		}
 	}
 	if in.Social != nil {
-		s.DB.Exec(`UPDATE users SET anilist_write_social = ? WHERE id = ?`, *in.Social, u.ID)
+		if _, err := s.DB.Exec(`UPDATE users SET anilist_write_social = ? WHERE id = ?`, *in.Social, u.ID); err != nil {
+			dbErr(w)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, s.anilistPerms(u.ID))
 }

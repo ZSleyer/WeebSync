@@ -372,7 +372,7 @@ func (s *Server) onboardingDone() bool {
 		return true
 	}
 	var servers int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers`).Scan(&servers)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM servers`).Scan(&servers) // unreadable counts as none
 	return servers > 0
 }
 

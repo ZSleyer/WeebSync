@@ -2,6 +2,7 @@ package api
 
 import (
 	"io/fs"
+	"log/slog"
 	"net/http"
 	"path/filepath"
 	"sort"
@@ -226,7 +227,9 @@ func (s *Server) handleTrashRestore(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "not moved: "+logSafe(err.Error()))
 			return
 		}
-		s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
+		if _, err := s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p); err != nil {
+			slog.Warn("restored file still listed in the trash", "err", err)
+		}
 		pruneTrashDir(local, filepath.Dir(local.Name))
 		local.Close()
 	}

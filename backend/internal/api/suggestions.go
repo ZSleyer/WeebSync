@@ -396,7 +396,8 @@ func categorize(providers []string, m anilist.Media, source, kind string) string
 // page empty for as long as the rebuild took - minutes, when the remote copies
 // are probed - which read as "all suggestions gone".
 func (s *Server) staleSuggestions() {
-	s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'suggestions:%'`)
+	// a failed aging only means the blobs keep their TTL
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'suggestions:%'`)
 }
 
 func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
@@ -408,7 +409,8 @@ func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	// live plex.tv call) is the slow part, so it never runs on the request path.
 	key := fmt.Sprintf("suggestions:%d", u.ID)
 	var payload, fetched string
-	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched)
+	// no row or an unreadable one: no blob, built below
+	_ = s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched)
 	fresh := false
 	var fetchedAt time.Time
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
@@ -776,7 +778,8 @@ func (s *Server) addAnilistWatchlist(userID int64, acc *sugAcc, bySrc map[string
 	}
 	list := s.Anilist.CachedUserList(alID)
 	var fetched string
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
+	// a missing or unreadable stamp reads as stale: the list is rebuilt
+	_ = s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
 	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour {
 		s.buildAnilistSuggestions(alID, token)
 	}
@@ -883,7 +886,8 @@ func (s *Server) addIncomplete(userID int64, acc *sugAcc, bySrc map[string]int64
 		return
 	}
 	var payload, fetched string
-	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
+	// no row or an unreadable one: no blob, rebuilt below
+	_ = s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
 	fresh := false
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= s.plexSuggestTTL()

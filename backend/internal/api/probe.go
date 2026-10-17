@@ -210,7 +210,8 @@ func (s *Server) probeCachePut(dir, sig string, q FolderQuality) {
 	if err != nil {
 		return
 	}
-	s.DB.Exec(`INSERT INTO probe_cache (dir, sig, quality, probed_at) VALUES (?, ?, ?, datetime('now'))
+	// a cache write: the next probe measures again
+	_, _ = s.DB.Exec(`INSERT INTO probe_cache (dir, sig, quality, probed_at) VALUES (?, ?, ?, datetime('now'))
 		ON CONFLICT(dir) DO UPDATE SET sig = excluded.sig, quality = excluded.quality, probed_at = excluded.probed_at`,
 		dir, sig, string(blob))
 }

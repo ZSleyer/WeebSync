@@ -192,7 +192,9 @@ func (s *Server) nextCrawlDirs(serverID int64, limit int) []string {
 	var dirs []string
 	for rows.Next() {
 		var p string
-		rows.Scan(&p)
+		if err := rows.Scan(&p); err != nil {
+			return nil // a partial batch would starve the dirs behind it; retry next tick
+		}
 		dirs = append(dirs, p)
 	}
 	if rows.Err() != nil {
@@ -244,7 +246,9 @@ func (s *Server) IndexLoop(ctx context.Context) {
 				var out []srv
 				for rows.Next() {
 					var v srv
-					rows.Scan(&v.id, &v.userID, &v.root)
+					if err := rows.Scan(&v.id, &v.userID, &v.root); err != nil {
+						return nil, err
+					}
 					out = append(out, v)
 				}
 				return out, rows.Err()
@@ -266,7 +270,8 @@ func (s *Server) IndexLoop(ctx context.Context) {
 
 func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root string, batch int) {
 	// seed: the root is always a known directory
-	s.DB.Exec(`INSERT OR IGNORE INTO remote_index (server_id, path, parent, name, is_dir)
+	// a failed seed shows as nothing due below and is retried on the next tick
+	_, _ = s.DB.Exec(`INSERT OR IGNORE INTO remote_index (server_id, path, parent, name, is_dir)
 		VALUES (?, ?, '', ?, 1)`, serverID, root, pathBase(root))
 
 	dirs := s.nextCrawlDirs(serverID, batch)
@@ -289,14 +294,17 @@ func (s *Server) crawlServer(ctx context.Context, userID, serverID int64, root s
 			if gone(err) {
 				// the directory is not there any more: it goes, with its tree
 				slog.Debug("index crawl list", "dir", dir, "err", err)
-				deleteSubtree(s.DB, serverID, dir)
+				if err := deleteSubtree(s.DB, serverID, dir); err != nil {
+					slog.Warn("index crawl: dropping a vanished directory failed", "server", serverID, "dir", logSafe(dir), "err", err)
+				}
 				continue
 			}
 			// unreadable for now - a timeout, a permission: what is indexed
 			// stays, and the directory is stamped so it does not take a slot
 			// of every batch until the recheck brings it round again
 			slog.Info("index crawl list failed", "server", serverID, "dir", dir, "err", err)
-			s.DB.Exec(`UPDATE remote_index SET listed_at = ? WHERE server_id = ? AND path = ?`,
+			// a failed stamp only means the directory is tried again sooner
+			_, _ = s.DB.Exec(`UPDATE remote_index SET listed_at = ? WHERE server_id = ? AND path = ?`,
 				time.Now().UTC().Format(sqliteTime), serverID, dir)
 			continue
 		}
@@ -337,14 +345,17 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
 	}
 	words := strings.Fields(r.URL.Query().Get("q"))
 	out := ServerSearchResponse{Results: []remote.Entry{}}
-	s.DB.QueryRow(`SELECT COUNT(*) FROM remote_index WHERE server_id = ?`, id).Scan(&out.Indexed)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM remote_index WHERE server_id = ?`, id).Scan(&out.Indexed) // a count for display
 	if len(words) > 0 {
 		q := `SELECT path, name, is_dir, size, mod_time FROM remote_index WHERE server_id = ?`
 		args := []any{id}
@@ -405,7 +416,10 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	id := pathID(r)
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return

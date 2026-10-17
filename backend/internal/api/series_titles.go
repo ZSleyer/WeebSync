@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -18,15 +19,16 @@ const titlesRefresh = 30 * 24 * time.Hour
 const titlesBudget = 20
 
 // storeSeriesTitle upserts one translation row; empty titles are dropped.
-func (s *Server) storeSeriesTitle(seriesID int64, source, locale, title string) {
+func (s *Server) storeSeriesTitle(seriesID int64, source, locale, title string) error {
 	locale = strings.ToLower(strings.TrimSpace(locale))
 	title = strings.TrimSpace(title)
 	if locale == "" || title == "" {
-		return
+		return nil
 	}
-	s.DB.Exec(`INSERT INTO series_titles (series_id, source, locale, title) VALUES (?, ?, ?, ?)
+	_, err := s.DB.Exec(`INSERT INTO series_titles (series_id, source, locale, title) VALUES (?, ?, ?, ?)
 		ON CONFLICT(series_id, source, locale) DO UPDATE SET title = excluded.title`,
 		seriesID, source, locale, title)
+	return err
 }
 
 // refreshSeriesTitles fetches all available title translations for series that
@@ -62,14 +64,16 @@ func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 		if !s.fetchSeriesTitles(ctx, id) {
 			continue // providers unread: no stamp, the next sweep tries again
 		}
-		s.DB.Exec(`UPDATE series SET titles_fetched_at = ? WHERE id = ?`,
+		// a stamp that did not land only repeats the fetch on the next sweep
+		_, _ = s.DB.Exec(`UPDATE series SET titles_fetched_at = ? WHERE id = ?`,
 			time.Now().UTC().Format(time.RFC3339), id)
 	}
 }
 
 // fetchSeriesTitles pulls every provider's translations for one series. It
-// reports false only when the series' providers could not be read whole -
-// a provider that fails to answer is the best-effort case and still true.
+// reports false when the series' providers could not be read whole or a title
+// could not be stored - a provider that fails to answer is the best-effort case
+// and still true.
 func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 	rows, err := s.DB.Query(`SELECT source, media_id FROM series_provider WHERE series_id = ?`, seriesID)
 	if err != nil {
@@ -86,14 +90,21 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 	if rows.Err() != nil {
 		return false
 	}
+	stored := true
+	store := func(source, locale, title string) {
+		if err := s.storeSeriesTitle(seriesID, source, locale, title); err != nil {
+			slog.Warn("series title not stored", "series", seriesID, "err", err)
+			stored = false
+		}
+	}
 	for _, r := range refs {
 		switch {
 		case r.Source == "anilist":
 			// no API call: the cached media already carries all three titles
 			if m, _ := s.sourceMedia(r.Source, r.MediaID); m != nil {
-				s.storeSeriesTitle(seriesID, "anilist", "x-jat", m.Title.Romaji)
-				s.storeSeriesTitle(seriesID, "anilist", "en", m.Title.English)
-				s.storeSeriesTitle(seriesID, "anilist", "ja", m.Title.Native)
+				for loc, title := range map[string]string{"x-jat": m.Title.Romaji, "en": m.Title.English, "ja": m.Title.Native} {
+					store("anilist", loc, title)
+				}
 			}
 		case strings.HasPrefix(r.Source, "tmdb:"):
 			if s.Tmdb == nil || !s.Tmdb.Enabled() {
@@ -102,7 +113,7 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 			kind := strings.TrimPrefix(r.Source, "tmdb:")
 			if tr, err := s.Tmdb.Translations(ctx, kind, r.MediaID); err == nil {
 				for loc, title := range tr {
-					s.storeSeriesTitle(seriesID, "tmdb", loc, title)
+					store("tmdb", loc, title)
 				}
 			}
 		case r.Source == "tvdb":
@@ -111,12 +122,12 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 			}
 			if tr, err := s.Tvdb.NameTranslations(ctx, r.MediaID); err == nil {
 				for loc, title := range tr {
-					s.storeSeriesTitle(seriesID, "tvdb", loc, title)
+					store("tvdb", loc, title)
 				}
 			}
 		}
 	}
-	return true
+	return stored // a title that was not stored: no stamp, the next sweep fetches again
 }
 
 // titleLocaleChain is the display preference: German, English, Romaji.

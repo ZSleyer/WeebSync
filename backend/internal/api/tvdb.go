@@ -51,7 +51,8 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 		if mediaID != 0 {
 			s.Tvdb.Media(ctx, mediaID) // full details into the cache first
 		}
-		s.persistMatch(serverID, folder, mediaID, false, "tvdb")
+		// persistMatch logs a failure; the next catalog poll retries
+		_ = s.persistMatch(serverID, folder, mediaID, false, "tvdb")
 	})
 }
 
@@ -89,14 +90,16 @@ func (s *Server) queueTvdbMovieMatch(serverID int64, folder, name string) {
 		if mediaID != 0 {
 			s.Tvdb.Movie(ctx, mediaID) // full details into the cache first
 		}
-		s.persistMatch(serverID, folder, mediaID, false, tvdbMovieSource)
+		// persistMatch logs a failure; the next catalog poll retries
+		_ = s.persistMatch(serverID, folder, mediaID, false, tvdbMovieSource)
 	})
 }
 
 // queueTvdbMovieFetch refreshes a missing or stale TVDB film in the background.
 func (s *Server) queueTvdbMovieFetch(id int) {
 	s.runJob(fmt.Sprintf("tvmf:%d", id), func(ctx context.Context) {
-		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:movie:media:%d", id))
+		// a stale entry that stays only costs the refresh
+		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:movie:media:%d", id))
 		s.Tvdb.Movie(ctx, id)
 	})
 }
@@ -104,7 +107,8 @@ func (s *Server) queueTvdbMovieFetch(id int) {
 // queueTvdbFetch refreshes missing/stale TVDB media in the background.
 func (s *Server) queueTvdbFetch(id int) {
 	s.runJob(fmt.Sprintf("tvf:%d", id), func(ctx context.Context) {
-		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:media:%d", id))
+		// a stale entry that stays only costs the refresh
+		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:media:%d", id))
 		s.Tvdb.Media(ctx, id)
 	})
 }

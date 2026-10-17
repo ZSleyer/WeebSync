@@ -125,6 +125,18 @@ type plexServerConnectResponse struct {
 	URL  string `json:"url"`
 }
 
+// saveSettings writes key/value pairs in order and stops at the first failure,
+// so a connect handler answers 500 instead of "connected" with half a server
+// stored.
+func saveSettings(d db.Execer, kv ...string) error {
+	for i := 0; i+1 < len(kv); i += 2 {
+		if err := db.SetSetting(d, kv[i], kv[i+1]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // handlePlexServerConnect stores the chosen server: the first of its addresses
 // that answers as that very server (local first, relay last), and its token.
 //
@@ -173,10 +185,12 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusInternalServerError, "encrypt error")
 		return
 	}
-	db.SetSetting(s.DB, "plex_url", addr)
-	db.SetSetting(s.DB, "plex_token", enc)
-	db.SetSetting(s.DB, "plex_server_name", server.Name)
-	db.SetSetting(s.DB, "plex_auth", "signin") // no prompt to sign in any more
+	// plex_auth "signin": no prompt to sign in any more
+	if err := saveSettings(s.DB, "plex_url", addr, "plex_token", enc, "plex_server_name", server.Name, "plex_auth", "signin"); err != nil {
+		slog.Error("plex server settings", "err", err)
+		dbErr(w)
+		return
+	}
 	plexServerSignins.Lock()
 	delete(plexServerSignins.m, in.ID)
 	plexServerSignins.Unlock()

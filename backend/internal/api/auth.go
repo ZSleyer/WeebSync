@@ -3,7 +3,9 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"io"
+	"log/slog"
 	"math"
 	"net/http"
 	"net/mail"
@@ -269,11 +271,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var verified int
 	var approved bool
 	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified, approved FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified, &approved)
-	if err != nil && err != sql.ErrNoRows {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		dbErr(w)
 		return
 	}
-	if err == sql.ErrNoRows || hash == "" {
+	if errors.Is(err, sql.ErrNoRows) || hash == "" {
 		auth.DummyVerify(c.Password) // equalize timing so unknown emails aren't distinguishable
 		s.loginRefused(w, r, c.Email)
 		return
@@ -312,7 +314,8 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// at hand; nothing changes for the user
 	if legacy {
 		if h, err := auth.HashPassword(c.Password); err == nil {
-			s.DB.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, h, id)
+			// best effort: the hash is renewed on the next sign-in
+			_, _ = s.DB.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, h, id)
 		}
 	}
 	// a password from before the current rules still opens the account, but
@@ -323,7 +326,13 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// second factor: if TOTP or a security key is enrolled, hand back a
 	// short-lived pending token instead of a session; the client completes at
 	// /api/auth/login/totp or /api/auth/webauthn/2fa/*.
-	totpOn, keyOn := s.totpEnabled(id), s.hasSecurityKey(id)
+	keyOn, err := s.hasSecurityKey(id)
+	if err != nil {
+		// not knowing must not read as "no second factor enrolled"
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
+	}
+	totpOn := s.totpEnabled(id)
 	if totpOn || keyOn {
 		token, err := s.newLoginPending(id, c.Remember)
 		if err != nil {
@@ -359,7 +368,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {object} OkResponse
 // @Router   /api/auth/logout [post]
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	auth.DestroySession(s.DB, w, r)
+	if err := auth.DestroySession(s.DB, w, r); err != nil {
+		// the cookie is cleared, but the session is still good on the server
+		slog.Error("logout: session not destroyed", "err", err)
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -406,7 +420,8 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 // account the first OIDC login created has none.
 func (s *Server) hasPassword(userID int64) bool {
 	var hash string
-	s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
+	// fails closed: an unreadable row counts as no password
+	_ = s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, userID).Scan(&hash)
 	return hash != ""
 }
 

@@ -1,6 +1,9 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
+	"log/slog"
 	"net/http"
 	"path"
 	"regexp"
@@ -48,8 +51,12 @@ func (s *Server) ruleScope(serverID int64, p string) (id int64, kind string) {
 	if parent == p {
 		return 0, ""
 	}
-	s.DB.QueryRow(`SELECT id, kind FROM catalog_scope_rules WHERE server_id = ? AND parent = ? AND shape = ?`,
+	err := s.DB.QueryRow(`SELECT id, kind FROM catalog_scope_rules WHERE server_id = ? AND parent = ? AND shape = ?`,
 		serverID, parent, folderShape(name)).Scan(&id, &kind)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Warn("scope rule lookup failed", "server", serverID, "path", logSafe(p), "err", err)
+		return 0, ""
+	}
 	return id, kind
 }
 

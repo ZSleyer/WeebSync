@@ -137,7 +137,9 @@ func (s *Server) sendVerifyEmail(to, token, locale string) {
 	htmlBody := emailHTML(locale, welcome, emailLines([]string{intro}), button, "")
 	if err := s.Mail.Send(to, "WeebSync – "+tr(locale, "email.verifySubject"), text, htmlBody); err != nil {
 		slog.Error("verify email failed", "to", to, "err", err)
-		s.DB.Exec(`UPDATE users SET verify_sent_at = '' WHERE email = ? AND email_verified = 0`, to)
+		// clears the resend throttle so the user can ask again; if this fails
+		// they wait out the 24 hours
+		_, _ = s.DB.Exec(`UPDATE users SET verify_sent_at = '' WHERE email = ? AND email_verified = 0`, to)
 	}
 }
 
@@ -172,7 +174,7 @@ func (s *Server) reissueVerify(userID int64, email string) {
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
 		var locale string
-		s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale)
+		_ = s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale) // empty = default language
 		go s.sendVerifyEmail(email, token, locale)
 	}
 }
@@ -210,13 +212,14 @@ func (s *Server) hashLegacyVerifyTokens() {
 				return err
 			}
 		}
-		return nil
+		// the flag goes in the same transaction: if it were lost after the
+		// hashes were written, the next start would hash the hashes and every
+		// link in an inbox would stop working
+		return db.SetSetting(tx, "verify_tokens_hashed_v1", "1")
 	})
 	if err != nil {
 		slog.Error("hash verify tokens", "err", err)
-		return
 	}
-	db.SetSetting(s.DB, "verify_tokens_hashed_v1", "1")
 }
 
 // handleVerifyEmail consumes a verification token and marks the account
@@ -252,7 +255,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 // pushAllowed reports whether the user opted this category into web push.
 func (s *Server) pushAllowed(userID int64, category string) bool {
 	var prefs string
-	s.DB.QueryRow(`SELECT push_prefs FROM users WHERE id = ?`, userID).Scan(&prefs)
+	_ = s.DB.QueryRow(`SELECT push_prefs FROM users WHERE id = ?`, userID).Scan(&prefs) // fails closed: nothing allowed
 	return slices.Contains(splitPrefs(prefs), category)
 }
 
@@ -261,7 +264,7 @@ func (s *Server) pushAllowed(userID int64, category string) bool {
 // hold notifications back into a single, less noisy summary.
 func (s *Server) notifyQuiet(userID int64) time.Duration {
 	var freq string
-	s.DB.QueryRow(`SELECT notify_freq FROM users WHERE id = ?`, userID).Scan(&freq)
+	_ = s.DB.QueryRow(`SELECT notify_freq FROM users WHERE id = ?`, userID).Scan(&freq) // empty = the default
 	switch freq {
 	case "hourly":
 		return time.Hour
@@ -603,7 +606,7 @@ type EmailPrefsResponse struct {
 func (s *Server) handleEmailPrefsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var prefs string
-	s.DB.QueryRow(`SELECT email_prefs FROM users WHERE id = ?`, u.ID).Scan(&prefs)
+	_ = s.DB.QueryRow(`SELECT email_prefs FROM users WHERE id = ?`, u.ID).Scan(&prefs) // empty = nothing enabled
 	available := slices.Clone(userCategories)
 	if u.IsAdmin {
 		available = append(available, adminCategories...)
@@ -705,7 +708,7 @@ func (s *Server) notifyPendingUser(email string) {
 // approved reports whether an admin let the account in.
 func (s *Server) approved(userID int64) bool {
 	var ok bool
-	s.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&ok)
+	_ = s.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&ok) // fails closed: not approved
 	return ok
 }
 

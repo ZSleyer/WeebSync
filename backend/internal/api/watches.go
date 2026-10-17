@@ -188,7 +188,8 @@ func (s *Server) tvdbAnime(source string, id int) bool {
 		return false
 	}
 	var n int
-	s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, id).Scan(&n)
+	// no row (or no read) means the mapping does not know it: the TVDB genre decides below
+	_ = s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, id).Scan(&n)
 	if n == 1 {
 		return true
 	}
@@ -413,7 +414,8 @@ func smartDue(intervalDue bool, media *anilist.Media, haveEps, offset, fromEpiso
 func (s *Server) watchMedia(serverID int64, remotePath string) *anilist.Media {
 	var id int
 	var source string
-	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+	// no match (or no read) leaves id 0: the watch simply has no media yet
+	_ = s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
 		serverID, remotePath).Scan(&id, &source)
 	if id == 0 {
 		return nil
@@ -450,7 +452,8 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 		out.Error = "watch not found"
 		return out
 	}
-	s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
+	// a missed timestamp only shows an older check time
+	_, _ = s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 
 	nameFn, waiting := s.watchNameFnQuarantine(w, s.unsortedDir(w.UserID))
 	// files already collected must not be fetched again: Enqueue only skips
@@ -481,7 +484,9 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 	// stream-selection pass (drained by the sweep once Plex has the file)
 	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
 		for _, dl := range ids {
-			s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, dl, id)
+			if _, err := s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, dl, id); err != nil {
+				slog.Warn("plex stream selection not queued", "watch", id, "download", dl, "err", err)
+			}
 		}
 	}
 	// structured result: the frontend localizes the counts; last_result only
@@ -494,7 +499,8 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 	// backoff; a successful check clears both.
 	attempts, retryAt := 0, int64(0)
 	if err != nil {
-		s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
+		// unreadable counts as the first failure
+		_ = s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
 		attempts++
 		retryAt = time.Now().Add(s.watchBackoff(attempts)).Unix()
 		result, queued, uploading, filtered, filteredKeys, owned = err.Error(), -1, 0, 0, nil, 0
@@ -509,8 +515,11 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 		skips = []transfer.Skip{}
 	}
 	skipsJSON, _ := json.Marshal(skips)
-	s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
-		last_owned = ?, check_attempts = ?, retry_at = ?, last_skips = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, string(skipsJSON), id)
+	if _, err := s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
+		last_owned = ?, check_attempts = ?, retry_at = ?, last_skips = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, string(skipsJSON), id); err != nil {
+		// the check ran; only its outcome and the backoff are missing
+		slog.Warn("watch check result not saved", "id", id, "err", err)
+	}
 	if err != nil {
 		out.Error = result
 		return out
@@ -696,7 +705,8 @@ func (s *Server) watchSeries(w Watch) airmap.Series {
 	}
 	var mediaID int
 	var source string
-	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+	// no match leaves the ids unset, as for a show with no media
+	_ = s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
 		w.ServerID, w.RemotePath).Scan(&mediaID, &source)
 	switch source {
 	case "tmdb:tv":
@@ -1024,7 +1034,10 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	serverID := pathID(r)
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
@@ -1247,7 +1260,8 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		it.Seasons = localSeasons(seasonKeys)
 		it.Unsorted = s.pendingCount(it.ID)
 		under, underArgs := subtreeCond("remote_path", it.RemotePath)
-		s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
+		// a failed count shows no active downloads on this card
+		_ = s.DB.QueryRow(`SELECT COUNT(*) FROM downloads WHERE user_id = ? AND server_id = ?
 			AND status IN ('queued','running','paused') AND `+under,
 			append([]any{userID, it.ServerID}, underArgs...)...).Scan(&it.Active)
 		offset := watchOffset(it.Template)
@@ -1263,7 +1277,8 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			it.SeenEpisodes = progress[it.Media.ID]
 			// surface the match source so the edit dialog prefills the right
 			// provider and the UI can drop anime-only cosmetics (JST) for TMDB
-			s.DB.QueryRow(`SELECT source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+			// cosmetic: without the source the dialog falls back to its default
+			_ = s.DB.QueryRow(`SELECT source FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
 				it.ServerID, it.RemotePath).Scan(&it.MediaSource)
 		}
 		if it.Media != nil && it.Media.NextAiring != nil {
@@ -1844,7 +1859,10 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
@@ -2085,7 +2103,9 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 	if foreign {
 		slog.Info("watch folder matched again", "folder", logSafe(folder), "from", source, "to", sourceForScope(scope), "manual", manual == 1)
 		// the index row carries the show key of the old match
-		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, serverID, folder)
+		if _, err := s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, serverID, folder); err != nil {
+			slog.Warn("stale index row kept", "folder", logSafe(folder), "err", err)
+		}
 	}
 	s.queueScopedMatch(serverID, folder, name, scope, stored)
 	return true
@@ -2103,7 +2123,8 @@ func (s *Server) folderSource(serverID int64, folder string) string {
 	}
 	var stored string
 	var mediaID int
-	s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+	// no stored match (or no read): the folder counts as unmatched
+	_ = s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&stored, &mediaID)
 	var local string
 	if s.DB.QueryRow(`SELECT local_path FROM watches WHERE server_id = ? AND remote_path = ? LIMIT 1`,
@@ -2282,7 +2303,10 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 		args = append(args, auth.UserFrom(r.Context()).ID)
 	}
 	var owned int
-	s.DB.QueryRow(q, args...).Scan(&owned)
+	if err := s.DB.QueryRow(q, args...).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "watch not found")
 		return

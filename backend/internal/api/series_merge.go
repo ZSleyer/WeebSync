@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -44,25 +46,40 @@ func (s *Server) showIdentity(anilistID int) (showRef, bool) {
 
 // seriesByProvider returns the series a provider id hangs on, 0 for none.
 func (s *Server) seriesByProvider(source string, mediaID int) int64 {
-	var id int64
-	s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = ? AND media_id = ?`,
-		source, mediaID).Scan(&id)
+	id, _ := s.seriesByProviderErr(source, mediaID) // callers that cannot act on a failed read treat it as none
 	return id
+}
+
+// seriesByProviderErr is seriesByProvider for callers where a failed read must
+// not pass for "none": that would bundle the show a second time.
+func (s *Server) seriesByProviderErr(source string, mediaID int) (int64, error) {
+	var id int64
+	err := s.DB.QueryRow(`SELECT series_id FROM series_provider WHERE source = ? AND media_id = ?`,
+		source, mediaID).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return id, err
 }
 
 // claimShow hangs the show-level id on this series and records what the work
 // called its season. The provider row is what makes the next cour of the same
 // show find its way here instead of starting an entry of its own.
 func (s *Server) claimShow(seriesID int64, ref showRef, title string, year int) {
-	s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
-		ref.Source, ref.MediaID, seriesID)
+	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
+		ref.Source, ref.MediaID, seriesID); err != nil {
+		slog.Warn("show id not hung on series", "series", seriesID, "err", err)
+		return
+	}
 	if title == "" {
 		return
 	}
 	// first namer wins: a season keeps the name of the work that is that
 	// season, and a second work covering the same one does not overwrite it.
-	s.DB.Exec(`INSERT OR IGNORE INTO series_seasons (series_id, season, title, source, year)
-		VALUES (?, ?, ?, 'anilist', ?)`, seriesID, ref.Season, title, year)
+	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO series_seasons (series_id, season, title, source, year)
+		VALUES (?, ?, ?, 'anilist', ?)`, seriesID, ref.Season, title, year); err != nil {
+		slog.Warn("season name not stored", "series", seriesID, "err", err)
+	}
 }
 
 // mergeSeries moves everything hanging on one series onto another and drops the
@@ -156,7 +173,12 @@ func (s *Server) mergeShowSeries(budget int) {
 			continue // metadata not cached yet; sourceMedia queued it, retry next sweep
 		}
 		seriesID := c.seriesID
-		if owner := s.seriesByProvider(ref.Source, ref.MediaID); owner != 0 && owner != seriesID {
+		owner, err := s.seriesByProviderErr(ref.Source, ref.MediaID)
+		if err != nil {
+			slog.Warn("series lookup failed", "err", err)
+			continue // retried on the next sweep
+		}
+		if owner != 0 && owner != seriesID {
 			s.mergeSeries(seriesID, owner)
 			seriesID = owner
 			merged++
@@ -217,10 +239,14 @@ func (s *Server) refreshShowTitle(seriesID int64) {
 		return
 	}
 	if firstYear == 0 {
-		s.DB.Exec(`UPDATE series SET key = ?, title = ? WHERE id = ?`, key, name, seriesID)
+		if _, err := s.DB.Exec(`UPDATE series SET key = ?, title = ? WHERE id = ?`, key, name, seriesID); err != nil {
+			slog.Warn("show title not stored", "series", seriesID, "err", err)
+		}
 		return
 	}
-	s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, name, firstYear, seriesID)
+	if _, err := s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, name, firstYear, seriesID); err != nil {
+		slog.Warn("show title not stored", "series", seriesID, "err", err)
+	}
 }
 
 // sharedTitlePrefix returns the common opening of several season titles, cut

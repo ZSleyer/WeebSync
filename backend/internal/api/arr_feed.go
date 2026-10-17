@@ -85,9 +85,10 @@ func (s *Server) arrFiles(where string, limit int, args ...any) []arrFile {
 // the series has one, else its canonical title, else the folder's guess.
 func (s *Server) arrSeriesTitle(seriesID int64, folder string) (title string, year int) {
 	if seriesID > 0 {
-		s.DB.QueryRow(`SELECT title, year FROM series WHERE id = ?`, seriesID).Scan(&title, &year)
+		// a failed lookup falls through to the folder's guess below
+		_ = s.DB.QueryRow(`SELECT title, year FROM series WHERE id = ?`, seriesID).Scan(&title, &year)
 		var en string
-		s.DB.QueryRow(`SELECT title FROM series_titles WHERE series_id = ? AND locale = 'en' ORDER BY source LIMIT 1`, seriesID).Scan(&en)
+		_ = s.DB.QueryRow(`SELECT title FROM series_titles WHERE series_id = ? AND locale = 'en' ORDER BY source LIMIT 1`, seriesID).Scan(&en)
 		if en != "" {
 			title = en
 		}
@@ -436,7 +437,8 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		writeNewznabItem(&items, rel, base, key)
 	}
 	// releases the feed has not shown for a month cannot still be grabbed
-	s.DB.Exec(`DELETE FROM arr_releases WHERE seen_at < datetime('now', '-30 days')`)
+	// housekeeping: the next feed request prunes again
+	_, _ = s.DB.Exec(`DELETE FROM arr_releases WHERE seen_at < datetime('now', '-30 days')`)
 
 	w.Header().Set("Content-Type", "application/rss+xml")
 	fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?>

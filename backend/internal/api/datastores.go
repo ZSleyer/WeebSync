@@ -418,7 +418,8 @@ func (s *Server) storeStat(st dataStore) adminDataStore {
 			a, c = nil, ""
 		}
 		var n int64
-		s.DB.QueryRow("SELECT COUNT(*) FROM "+table+c, a...).Scan(&n)
+		// the overview's numbers: a failed read shows as zero
+		_ = s.DB.QueryRow("SELECT COUNT(*) FROM "+table+c, a...).Scan(&n)
 		out.Rows += n
 	}
 	if timeTable, timeCol := st.timeSource(); timeCol != "" {
@@ -429,7 +430,7 @@ func (s *Server) storeStat(st dataStore) adminDataStore {
 		}
 		// NULLIF: remote_index stamps only directories, so the empty strings of
 		// the file rows would otherwise always win MIN()
-		s.DB.QueryRow(fmt.Sprintf(
+		_ = s.DB.QueryRow(fmt.Sprintf(
 			`SELECT COALESCE(MIN(NULLIF(%s,'')),''), COALESCE(MAX(NULLIF(%s,'')),'') FROM %s%s`,
 			timeCol, timeCol, timeTable, c), a...).Scan(&out.Oldest, &out.Newest)
 	}
@@ -444,11 +445,11 @@ func (s *Server) storeStat(st dataStore) adminDataStore {
 			age = `datetime(fetched_at) <= datetime('now', ?)`
 			a = append([]any{fmt.Sprintf("-%d seconds", out.TTLSec)}, a...)
 		}
-		s.DB.QueryRow(`SELECT COALESCE(SUM(LENGTH(payload)),0), COALESCE(SUM(`+age+`),0)
+		_ = s.DB.QueryRow(`SELECT COALESCE(SUM(LENGTH(payload)),0), COALESCE(SUM(`+age+`),0)
 			FROM anilist_cache`+cond, a...).Scan(&out.Bytes, &out.Stale)
 		if st.prune > 0 && cond != "" {
 			out.PruneSec = int(st.prune / time.Second)
-			s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache`+cond+` AND datetime(fetched_at) <= datetime('now', ?)`,
+			_ = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache`+cond+` AND datetime(fetched_at) <= datetime('now', ?)`,
 				append(append([]any{}, args...), fmt.Sprintf("-%d seconds", out.PruneSec))...).Scan(&out.Prunable)
 		}
 	}
@@ -606,8 +607,10 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 	// refresh holding the write lock for longer than that used to end this whole
 	// operation with SQLITE_BUSY. Per connection, so it goes back to the pool's
 	// value before anyone else gets this connection.
-	conn.ExecContext(ctx, "PRAGMA busy_timeout = 30000")
-	defer conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA busy_timeout = 5000")
+	// best effort both ways: the BEGIN below reports a lock that stays busy,
+	// and a timeout left long on a pooled connection only makes it patient
+	_, _ = conn.ExecContext(ctx, "PRAGMA busy_timeout = 30000")
+	defer func() { _, _ = conn.ExecContext(context.WithoutCancel(ctx), "PRAGMA busy_timeout = 5000") }()
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
 		dbErrDetail(w, "reset begin", err)
 		return
@@ -615,14 +618,14 @@ func (s *Server) handleAdminDataReset(w http.ResponseWriter, r *http.Request) {
 	for _, st := range wipe {
 		n, derr := deleteStore(ctx, conn, st)
 		if derr != nil {
-			conn.ExecContext(ctx, "ROLLBACK")
+			_, _ = conn.ExecContext(ctx, "ROLLBACK") // the delete error is the one reported
 			dbErrDetail(w, "reset "+st.name, derr)
 			return
 		}
 		out.Deleted[st.name] = n
 	}
 	if _, err := conn.ExecContext(ctx, "COMMIT"); err != nil {
-		conn.ExecContext(ctx, "ROLLBACK")
+		_, _ = conn.ExecContext(ctx, "ROLLBACK") // the commit error is the one reported
 		dbErrDetail(w, "reset commit", err)
 		return
 	}

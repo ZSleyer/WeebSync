@@ -65,8 +65,11 @@ func (s *Server) rememberPending(watchID int64, ids []int64, files []pendingFile
 		if !ok {
 			continue
 		}
-		s.DB.Exec(`INSERT OR IGNORE INTO pending_episodes (download_id, watch_id, token, local_path, remote_path)
-			VALUES (?, ?, ?, ?, ?)`, id, watchID, f.Token, local, remote)
+		if _, err := s.DB.Exec(`INSERT OR IGNORE INTO pending_episodes (download_id, watch_id, token, local_path, remote_path)
+			VALUES (?, ?, ?, ?, ?)`, id, watchID, f.Token, local, remote); err != nil {
+			// untracked, the file would sit in the collecting folder for good
+			slog.Warn("pending episode not recorded", "download", id, "err", err)
+		}
 	}
 }
 
@@ -74,7 +77,7 @@ func (s *Server) rememberPending(watchID int64, ids []int64, files []pendingFile
 // overview.
 func (s *Server) pendingCount(watchID int64) int {
 	var n int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM pending_episodes WHERE watch_id = ?`, watchID).Scan(&n)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM pending_episodes WHERE watch_id = ?`, watchID).Scan(&n) // a count for display
 	return n
 }
 
@@ -117,7 +120,8 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 		}
 		// the file may have been moved or deleted by hand in the meantime
 		if !s.localExists(e.localPath) {
-			s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, e.downloadID)
+			// a row that stays is dropped again on the next tick
+			_, _ = s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, e.downloadID)
 			continue
 		}
 		var w Watch
@@ -134,7 +138,8 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 		if !ok {
 			// still unknown: leave it, and push the next attempt out by one
 			// interval so this does not run on every tick
-			s.DB.Exec(`UPDATE pending_episodes SET created_at = datetime('now') WHERE download_id = ?`, e.downloadID)
+			// a failed push-out only means the next tick tries again
+			_, _ = s.DB.Exec(`UPDATE pending_episodes SET created_at = datetime('now') WHERE download_id = ?`, e.downloadID)
 			continue
 		}
 		s.filePendingEpisode(e.downloadID, w, e.localPath, season, ep)
@@ -180,14 +185,14 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 		return
 	}
 	if dst.Abs == from {
-		s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
+		_, _ = s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID) // retried next tick
 		return
 	}
 	if _, err := dst.Root.Stat(dst.Name); err == nil {
 		// the episode arrived by another route; the collected copy is the
 		// duplicate, so stop tracking it rather than overwrite a good file
 		slog.Info("pending episode already present", "target", logSafe(dst.Abs))
-		s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID)
+		_, _ = s.DB.Exec(`DELETE FROM pending_episodes WHERE download_id = ?`, downloadID) // retried next tick
 		return
 	}
 	if err := dst.Root.MkdirAll(filepath.Dir(dst.Name), 0o755); err != nil {
@@ -218,7 +223,9 @@ func (s *Server) filePendingEpisode(downloadID int64, w Watch, from string, seas
 	// Plex re-analyse it as a different part and the selection is lost with it,
 	// so ask for the preference again.
 	if w.PlexAudioLang != "" || w.PlexSubLang != "" {
-		s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, downloadID, w.ID)
+		if _, err := s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, watch_id) VALUES (?, ?)`, downloadID, w.ID); err != nil {
+			slog.Warn("plex stream preference not queued after the move", "download", downloadID, "err", err)
+		}
 	}
 	s.plexRescan(filepath.Dir(dst.Abs))
 }

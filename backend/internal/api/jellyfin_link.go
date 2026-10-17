@@ -188,9 +188,11 @@ func (s *Server) handleJellyfinServerLinkPoll(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusInternalServerError, "encrypt error")
 		return
 	}
-	db.SetSetting(s.DB, "jellyfin_url", sg.url)
-	db.SetSetting(s.DB, "jellyfin_token", enc)
-	db.SetSetting(s.DB, "jellyfin_auth", "signin")
+	if err := saveSettings(s.DB, "jellyfin_url", sg.url, "jellyfin_token", enc, "jellyfin_auth", "signin"); err != nil {
+		slog.Error("jellyfin server settings", "err", err)
+		dbErr(w)
+		return
+	}
 	slog.Info("jellyfin server connected", "url", logSafe(sg.url), "user", logSafe(user.Name))
 	s.Transfers.Roots = s.localRoots()
 	go s.refreshPlexRoots()

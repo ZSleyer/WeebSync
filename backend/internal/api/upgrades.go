@@ -457,7 +457,11 @@ var upgradeAxes = []string{"res", "soft", "sub", "dub"}
 // the default was cleared, i.e. nothing.
 func (s *Server) upgradeDimsFor(userID int64) UpgradeDims {
 	var csv string
-	s.DB.QueryRow(`SELECT upgrade_dims FROM users WHERE id = ?`, userID).Scan(&csv)
+	if err := s.DB.QueryRow(`SELECT upgrade_dims FROM users WHERE id = ?`, userID).Scan(&csv); err != nil {
+		// an empty csv means "cleared" below, which a failed read must not say
+		slog.Warn("upgrade axes not read", "user", userID, "err", err)
+		return dimsFromOrder(upgradeAxes)
+	}
 	return dimsFromOrder(strings.Split(csv, ","))
 }
 

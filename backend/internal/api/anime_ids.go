@@ -111,7 +111,10 @@ func (s *Server) refreshAnimeIDs() {
 		slog.Warn("anime-ids refresh not stored", "err", err)
 		return
 	}
-	db.SetSetting(s.DB, "anime_ids_at", time.Now().UTC().Format(time.RFC3339))
+	if err := db.SetSetting(s.DB, "anime_ids_at", time.Now().UTC().Format(time.RFC3339)); err != nil {
+		// only the "last refreshed" stamp: the next sweep refreshes again
+		slog.Warn("anime-ids stamp not stored", "err", err)
+	}
 	slog.Info("anime-ids refreshed", "rows", n, "entries", len(entries))
 }
 

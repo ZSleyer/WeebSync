@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
 	"slices"
 )
@@ -81,7 +83,11 @@ func (s *Server) decideSeriesKind(refs []providerRef) string {
 		}
 		return kindLive
 	}
-	return deriveSeriesKind(refs, s.seriesInFribb(refs))
+	inFribb, err := s.seriesInFribb(refs)
+	if err != nil {
+		return "" // a kind is decided once, never from a read that failed
+	}
+	return deriveSeriesKind(refs, inFribb)
 }
 
 // refreshSeriesKinds fills in the kind of series that do not have one, a budget
@@ -114,7 +120,10 @@ func (s *Server) refreshSeriesKinds(budget int) {
 		if kind == "" {
 			continue
 		}
-		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, id)
+		if _, err := s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, id); err != nil {
+			slog.Warn("series kind not stored", "series", id, "err", err)
+			continue // still undecided, the next sweep picks it up again
+		}
 		decided++
 	}
 	if decided > 0 {
@@ -126,24 +135,28 @@ func (s *Server) refreshSeriesKinds(budget int) {
 // table is keyed by AniList id but indexed by tvdb and tmdb as well (migration
 // 037), so a show matched only through TMDB is still recognised as anime if the
 // mapping carries it. That is the one place a non-AniList id may decide.
-func (s *Server) seriesInFribb(refs []providerRef) bool {
+func (s *Server) seriesInFribb(refs []providerRef) (bool, error) {
 	for _, r := range refs {
 		var n int
+		var err error
 		switch r.Source {
 		case "anilist":
 			if _, ok := s.animeIDs(r.MediaID); ok {
-				return true
+				return true, nil
 			}
 		case "tvdb":
-			s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, r.MediaID).Scan(&n)
+			err = s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tvdb_id = ? LIMIT 1`, r.MediaID).Scan(&n)
 		case "tmdb:tv", "tmdb:movie":
-			s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tmdb_id = ? LIMIT 1`, r.MediaID).Scan(&n)
+			err = s.DB.QueryRow(`SELECT 1 FROM anime_ids WHERE tmdb_id = ? LIMIT 1`, r.MediaID).Scan(&n)
+		}
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return false, err
 		}
 		if n == 1 {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
 // seriesKinds reads the decided kind of many series at once, for the builders
@@ -174,6 +187,6 @@ func (s *Server) seriesKindOf(seriesID int64) string {
 		return ""
 	}
 	var k string
-	s.DB.QueryRow(`SELECT kind FROM series WHERE id = ?`, seriesID).Scan(&k)
+	_ = s.DB.QueryRow(`SELECT kind FROM series WHERE id = ?`, seriesID).Scan(&k) // "" is undecided
 	return k
 }

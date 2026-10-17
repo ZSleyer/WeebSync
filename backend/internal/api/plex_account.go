@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -30,7 +31,10 @@ func (s *Server) plexClientID() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	id := hex.EncodeToString(b)
-	db.SetSetting(s.DB, "plex_client_id", id)
+	if err := db.SetSetting(s.DB, "plex_client_id", id); err != nil {
+		// a PIN created under an id that is not kept cannot be polled later
+		slog.Warn("plex client id not stored", "err", err)
+	}
 	return id
 }
 

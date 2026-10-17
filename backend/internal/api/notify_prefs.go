@@ -32,7 +32,10 @@ type NotifyPrefsResponse struct {
 func (s *Server) handleNotifyPrefsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var push, freq string
-	s.DB.QueryRow(`SELECT push_prefs, notify_freq FROM users WHERE id = ?`, u.ID).Scan(&push, &freq)
+	if err := s.DB.QueryRow(`SELECT push_prefs, notify_freq FROM users WHERE id = ?`, u.ID).Scan(&push, &freq); err != nil {
+		dbErr(w)
+		return
+	}
 	available := slices.Clone(userCategories)
 	if u.IsAdmin {
 		available = append(available, adminCategories...)

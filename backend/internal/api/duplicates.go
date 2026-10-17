@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -50,7 +51,9 @@ func (s *Server) handleDuplicateTrash(w http.ResponseWriter, r *http.Request) {
 	// the index still lists the folder until the next library pass; without
 	// this the rebuild below shows the duplicate again
 	under, underArgs := subtreeCond("folder", in.Path)
-	s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND `+under, underArgs...)
+	if _, err := s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0 AND `+under, underArgs...); err != nil {
+		slog.Warn("duplicate trashed but still indexed", "err", err)
+	}
 	// every user's suggestions counted that copy
 	s.staleSuggestions()
 	s.rebuildSuggestions(u.ID)

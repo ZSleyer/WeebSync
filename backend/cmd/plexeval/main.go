@@ -91,8 +91,9 @@ func main() {
 	defer d.Close()
 
 	var url, token string
-	d.QueryRow(`SELECT value FROM settings WHERE key='plex_url'`).Scan(&url)
-	d.QueryRow(`SELECT value FROM settings WHERE key='plex_token'`).Scan(&token)
+	// unset is caught by the check below
+	_ = d.QueryRow(`SELECT value FROM settings WHERE key='plex_url'`).Scan(&url)
+	_ = d.QueryRow(`SELECT value FROM settings WHERE key='plex_token'`).Scan(&token)
 	if url == "" || token == "" {
 		log.Fatal("plex_url/plex_token not set in settings")
 	}

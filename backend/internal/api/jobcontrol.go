@@ -147,7 +147,10 @@ func (s *Server) handleAdminJobPause(w http.ResponseWriter, r *http.Request) {
 		paused = slices.DeleteFunc(paused, func(f string) bool { return f == in.Family })
 	}
 	sort.Strings(paused)
-	db.SetSetting(s.DB, "jobs_paused", strings.Join(paused, ","))
+	if err := db.SetSetting(s.DB, "jobs_paused", strings.Join(paused, ",")); err != nil {
+		dbErr(w)
+		return
+	}
 	slog.Info("job family paused", "family", in.Family, "paused", in.Paused,
 		"by", auth.UserFrom(r.Context()).ID)
 	if paused == nil {

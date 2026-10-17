@@ -77,7 +77,10 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 		serverID = id
 	} else {
 		var owned int
-		s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
+		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
+			dbErr(w)
+			return
+		}
 		if owned == 0 {
 			writeErr(w, http.StatusNotFound, "server not found")
 			return
@@ -86,7 +89,10 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 
 	// the interval is the instance's, set for everyone: an admin's
 	if u.IsAdmin && in.IntervalMin >= 5 && in.IntervalMin <= 1440 {
-		db.SetSetting(s.DB, "watch_interval_min", strconv.Itoa(in.IntervalMin))
+		if err := db.SetSetting(s.DB, "watch_interval_min", strconv.Itoa(in.IntervalMin)); err != nil {
+			dbErr(w)
+			return
+		}
 	}
 
 	out := LegacyImportResult{ServerID: serverID, Errors: []string{}}

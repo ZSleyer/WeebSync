@@ -163,6 +163,9 @@ func (s *Server) handleUpdateCheckToggle(w http.ResponseWriter, r *http.Request)
 	if !readJSON(w, r, &in) {
 		return
 	}
-	db.SetSetting(s.DB, "update_check", map[bool]string{true: "1", false: "0"}[in.Enabled])
+	if err := db.SetSetting(s.DB, "update_check", map[bool]string{true: "1", false: "0"}[in.Enabled]); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, updateCheckResponse{UpdateCheck: in.Enabled})
 }

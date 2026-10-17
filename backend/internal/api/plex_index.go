@@ -95,7 +95,9 @@ func (s *Server) indexPlexLibrary(ctx context.Context) {
 			}
 		}
 	}
-	db.SetSetting(s.DB, "plex_indexed_at", now)
+	if err := db.SetSetting(s.DB, "plex_indexed_at", now); err != nil {
+		slog.Warn("plex index time not saved, the next tick indexes again", "err", err)
+	}
 	slog.Info("plex library indexed", "units", units, "sections", len(sections))
 }
 
@@ -124,9 +126,13 @@ func (s *Server) storePlexRoots(sections []plex.Section) {
 		}
 	}
 	before := db.Setting(s.DB, "plex_lib_scopes")
-	db.SetSetting(s.DB, "plex_lib_roots", strings.Join(roots, "\n"))
-	db.SetSetting(s.DB, "plex_lib_map", strings.Join(mapLines, "\n"))
-	db.SetSetting(s.DB, "plex_lib_scopes", strings.Join(scopeLines, "\n"))
+	if err := saveSettings(s.DB, "plex_lib_roots", strings.Join(roots, "\n"),
+		"plex_lib_map", strings.Join(mapLines, "\n"),
+		"plex_lib_scopes", strings.Join(scopeLines, "\n")); err != nil {
+		// the allowlist below would be built from a half-written set
+		slog.Warn("plex library roots not saved", "err", err)
+		return
+	}
 	if s.Transfers != nil {
 		s.Transfers.Roots = s.localRoots()
 	}
@@ -299,31 +305,54 @@ func (s *Server) refreshPlexRoots() {
 	// links and item keys for hours
 	if mid, err := c.MachineID(); err == nil && mid != "" {
 		if prev := db.Setting(s.DB, "media_server_id"); prev != mid {
-			s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
-				OR key IN ('plex:guididx:v4', 'plex:titleidx:v2', 'plex:showlist:v1')`)
-			s.plexGuids.reset()
-			s.plexTitles.reset()
-			db.SetSetting(s.DB, "media_server_id", mid)
-			if prev != "" {
-				// the local quality index and the folder bridge describe the
-				// old library: rebuild both against this one on the next sweep
-				s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0`)
-				s.DB.Exec(`DELETE FROM plex_reconciled`)
-				db.SetSetting(s.DB, "plex_indexed_at", "")
-				// a linked watchlist account belongs to the server kind it was
-				// made for: a plex.tv account serves any Plex server, a
-				// Jellyfin user token only the server that issued it
-				if prevKind := db.Setting(s.DB, "media_server_kind"); prevKind != c.Kind() || c.Kind() == "jellyfin" {
-					s.DB.Exec(`DELETE FROM plex_accounts`)
-				}
-				slog.Info("media server changed", "kind", c.Kind())
+			if err := s.forgetMediaServer(c, mid, prev); err != nil {
+				// media_server_id is the last write: the switch is retried whole
+				slog.Warn("media server switch incomplete, retrying on the next refresh", "err", err)
+				return
 			}
-			db.SetSetting(s.DB, "media_server_kind", c.Kind())
 		}
 	}
 	if sections, err := c.Sections(); err == nil {
 		s.storePlexRoots(sections)
 	}
+}
+
+// forgetMediaServer drops what was cached about the previous server and
+// records the new one. media_server_id is written last, so any failure leaves
+// the switch to be done again from the start.
+func (s *Server) forgetMediaServer(c plex.Server, mid, prev string) error {
+	if _, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
+		OR key IN ('plex:guididx:v4', 'plex:titleidx:v2', 'plex:showlist:v1')`); err != nil {
+		return err
+	}
+	s.plexGuids.reset()
+	s.plexTitles.reset()
+	if prev != "" {
+		// the local quality index and the folder bridge describe the
+		// old library: rebuild both against this one on the next sweep
+		if _, err := s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0`); err != nil {
+			return err
+		}
+		if _, err := s.DB.Exec(`DELETE FROM plex_reconciled`); err != nil {
+			return err
+		}
+		if err := db.SetSetting(s.DB, "plex_indexed_at", ""); err != nil {
+			return err
+		}
+		// a linked watchlist account belongs to the server kind it was
+		// made for: a plex.tv account serves any Plex server, a
+		// Jellyfin user token only the server that issued it
+		if prevKind := db.Setting(s.DB, "media_server_kind"); prevKind != c.Kind() || c.Kind() == "jellyfin" {
+			if _, err := s.DB.Exec(`DELETE FROM plex_accounts`); err != nil {
+				return err
+			}
+		}
+		slog.Info("media server changed", "kind", c.Kind())
+	}
+	if err := db.SetSetting(s.DB, "media_server_kind", c.Kind()); err != nil {
+		return err
+	}
+	return db.SetSetting(s.DB, "media_server_id", mid)
 }
 
 // showKeyFor picks a Plex show's canonical show_key from its guids, preferring

@@ -1,6 +1,8 @@
 package api
 
 import (
+	"database/sql"
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"strconv"
@@ -26,7 +28,8 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 	}
 	var oldID int
 	var oldSource string
-	s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+	// no row is the common case (a first match); a failed read only skips the detach
+	_ = s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&oldID, &oldSource)
 	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, ?, ?, ?)`,
 		serverID, folder, mediaID, m, source); err != nil {
@@ -119,7 +122,11 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 	}
 	var seriesID int64
 	if isSeason {
-		seriesID = s.seriesByProvider(ref.Source, ref.MediaID)
+		var err error
+		if seriesID, err = s.seriesByProviderErr(ref.Source, ref.MediaID); err != nil {
+			slog.Warn("series lookup failed", "title", logSafe(title), "err", err)
+			return false, title
+		}
 	}
 	if seriesID == 0 {
 		var err error
@@ -144,8 +151,13 @@ func (s *Server) linkSeries(source string, mediaID int) (created bool, title str
 		seriesID, _ = res.LastInsertId()
 		created = true
 	}
-	s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
-		source, mediaID, seriesID)
+	// without this row the series is an orphan nothing finds again; stop here and
+	// let relinkOrphans bundle the match on a later sweep
+	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
+		source, mediaID, seriesID); err != nil {
+		slog.Warn("series provider not stored", "series", seriesID, "source", logSafe(source), "media", mediaID, "err", err)
+		return false, title
+	}
 	if isSeason {
 		s.claimShow(seriesID, ref, title, year)
 		if !created {
@@ -192,9 +204,11 @@ func (s *Server) detachProvider(source string, mediaID int) int64 {
 			col = "tmdb_id"
 		}
 		var mapped int
-		s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids a JOIN series_provider sp
+		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids a JOIN series_provider sp
 			ON sp.source = 'anilist' AND sp.media_id = a.anilist_id
-			WHERE sp.series_id = ? AND a.`+col+` = ?`, seriesID, mediaID).Scan(&mapped)
+			WHERE sp.series_id = ? AND a.`+col+` = ?`, seriesID, mediaID).Scan(&mapped); err != nil {
+			return 0 // detaching is destructive: keep the provider when the check failed
+		}
 		if mapped > 0 {
 			return 0
 		}
@@ -267,7 +281,9 @@ func (s *Server) retitleSeries(seriesID int64, source string, mediaID int) {
 	if key == "" {
 		return
 	}
-	s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, title, media.SeasonYear, seriesID)
+	if _, err := s.DB.Exec(`UPDATE series SET key = ?, title = ?, year = ? WHERE id = ?`, key, title, media.SeasonYear, seriesID); err != nil {
+		slog.Warn("series not retitled", "series", seriesID, "err", err)
+	}
 }
 
 // settleSeries gives a series a folder matched on TVDB or TMDB the name and kind
@@ -316,9 +332,11 @@ func (s *Server) settleSeries(source string, mediaID int) {
 	// half an hour - except "anime": dropping the leftovers above is what
 	// can change it, so the sweep decides that one again
 	if kind := s.decideSeriesKind(refs); kind != "" {
-		s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID)
-	} else {
-		s.DB.Exec(`UPDATE series SET kind = '' WHERE id = ? AND kind = ?`, seriesID, kindAnime)
+		if _, err := s.DB.Exec(`UPDATE series SET kind = ? WHERE id = ?`, kind, seriesID); err != nil {
+			slog.Warn("series kind not stored", "series", seriesID, "err", err)
+		}
+	} else if _, err := s.DB.Exec(`UPDATE series SET kind = '' WHERE id = ? AND kind = ?`, seriesID, kindAnime); err != nil {
+		slog.Warn("series kind not reset", "series", seriesID, "err", err)
 	}
 }
 
@@ -337,8 +355,15 @@ func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []provid
 		// an AniList id), Plex names the show in the library
 		mapped := s.inAnimeIDs(r.Source, r.MediaID) && !plexIDs[plexIDKey(r.Source, r.MediaID)]
 		if mapped {
-			s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&matched)
-			s.DB.QueryRow(`SELECT manual FROM series_provider WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&manual)
+			// dropping is destructive: a failed read keeps the id
+			if err := s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&matched); err != nil {
+				out = append(out, r)
+				continue
+			}
+			if err := s.DB.QueryRow(`SELECT manual FROM series_provider WHERE source = ? AND media_id = ?`, r.Source, r.MediaID).Scan(&manual); err != nil && !errors.Is(err, sql.ErrNoRows) {
+				out = append(out, r)
+				continue
+			}
 		}
 		if mapped && matched == 0 && manual == 0 {
 			if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE source = ? AND media_id = ? AND series_id = ?`,
@@ -388,7 +413,8 @@ func (s *Server) inAnimeIDs(source string, id int) bool {
 		return false
 	}
 	var n int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids WHERE `+col+` = ?`, id).Scan(&n)
+	// a failed read counts as "not mapped"; both callers then keep what they have
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids WHERE `+col+` = ?`, id).Scan(&n)
 	return n > 0
 }
 
@@ -406,7 +432,8 @@ func (s *Server) SettleMatchedSeries() {
 	// TVDB records cached before they carried genres and the next episode
 	// turn stale: still good for a name, fetched again as they are needed, and
 	// a kind waits undecided till then (decideSeriesKind)
-	s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'tvdb:media:%'`)
+	// a refresh hint: unmarked records keep the titles they have
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'tvdb:media:%'`)
 	rows, err := s.DB.Query(`SELECT DISTINCT source, media_id FROM catalog_matches
 		WHERE media_id != 0 AND (source IN ('tvdb', 'tvdb:movie') OR source LIKE 'tmdb:%')`)
 	if err != nil {
@@ -427,7 +454,9 @@ func (s *Server) SettleMatchedSeries() {
 		s.settleSeries(r.Source, r.MediaID)
 	}
 	slog.Info("matched series settled", "matches", len(refs))
-	db.SetSetting(s.DB, "series_rules", seriesRules)
+	if err := db.SetSetting(s.DB, "series_rules", seriesRules); err != nil {
+		slog.Warn("series rules not stamped, settling again next start", "err", err)
+	}
 }
 
 // seriesKey is the bundling key of a title: the romaji fold for AniList, the
@@ -611,13 +640,15 @@ func (s *Server) refreshVariant(serverID int64, folder string) {
 // copy bestCopy picked. Store the section key here if per-library separation
 // ever needs to be exact.
 func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, showKey string, season int, isMovie bool, seriesID int64, libKind string) {
-	s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO catalog_variants
 		(server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, computed_at, show_key, season, is_movie, series_id, probed, lib_kind)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		serverID, folder, q.ResRank, strings.Join(q.Dub, ","), strings.Join(q.Sub, ","),
 		strings.Join(q.Soft, ","),
 		time.Now().UTC().Format(time.RFC3339), showKey, season, boolInt(isMovie),
-		seriesID, int(q.Probed), libKind)
+		seriesID, int(q.Probed), libKind); err != nil {
+		slog.Warn("variant not stored", "server", serverID, "folder", logSafe(folder), "err", err)
+	}
 }
 
 // seriesIDForFolder resolves the canonical series behind a matched folder: the
@@ -626,7 +657,8 @@ func (s *Server) storeVariant(serverID int64, folder string, q FolderQuality, sh
 // the sweep's relinkOrphans catches up, and show_key carries until then.
 func (s *Server) seriesIDForFolder(serverID int64, folder string) int64 {
 	var id int64
-	s.DB.QueryRow(`SELECT sp.series_id FROM catalog_matches cm
+	// 0 reads as "not bundled yet", which the sweep's relinkOrphans repairs
+	_ = s.DB.QueryRow(`SELECT sp.series_id FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.server_id = ? AND cm.folder = ?`, serverID, folder).Scan(&id)
 	return id
@@ -645,7 +677,8 @@ func (s *Server) seriesIDForFolder(serverID int64, folder string) int64 {
 func (s *Server) folderUnit(serverID int64, folder string) (showKey string, season int, isMovie bool) {
 	var source string
 	var mediaID int
-	if s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+	// an unreadable match leaves source empty, the same as an unmatched folder
+	if _ = s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&source, &mediaID); source == "" || mediaID == 0 {
 		return "", 0, false
 	}

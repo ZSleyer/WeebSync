@@ -75,7 +75,9 @@ func (s *Server) syncMediaServer() {
 		want = "jellyfin"
 	}
 	if want != pref {
-		db.SetSetting(s.DB, "media_server", want)
+		if err := db.SetSetting(s.DB, "media_server", want); err != nil {
+			slog.Warn("media server choice not saved", "err", err)
+		}
 	}
 }
 
@@ -333,7 +335,8 @@ func (s *Server) handlePlexSuggestions(w http.ResponseWriter, r *http.Request) {
 	// a forced rebuild walks the admin's whole Plex library: an admin's
 	force := r.URL.Query().Get("force") == "1" && u.IsAdmin
 	var payload, fetched string
-	s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
+	// no cached row: an empty fetched_at reads as stale and rebuilds
+	_ = s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'plex:suggestions:v3'`).Scan(&payload, &fetched)
 	fresh := false
 	if t, err := time.Parse(sqliteTime, fetched); err == nil {
 		fresh = time.Since(t) <= s.plexSuggestTTL()
@@ -709,8 +712,11 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	}
 
 	payload, _ := json.Marshal(suggestions)
-	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v3', ?, datetime('now'))
-		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload))
+	if _, err := s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v3', ?, datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload)); err != nil {
+		// not cached: the next request walks the library again
+		slog.Warn("plex suggestions not cached", "err", err)
+	}
 	slog.Info("plex suggestions built", "shows", len(shows), "matched", len(matched),
 		"liveTV", len(liveTV), "liveMovies", len(liveMovies), "suggestions", len(suggestions))
 }
@@ -735,7 +741,8 @@ func (s *Server) cacheGet(key string, maxAge time.Duration) (string, bool) {
 }
 
 func (s *Server) cacheSet(key, payload string) {
-	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, datetime('now'))
+	// a cache write: when it fails the next reader just refetches
+	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, key, payload)
 }
 
@@ -909,7 +916,9 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 		return stored // Plex unreachable: a stale address still beats none
 	}
 	if stored != "" && stored != live {
-		s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ? AND manual = 0`, stored)
+		if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ? AND manual = 0`, stored); err != nil {
+			slog.Warn("plex stale ratingKey kept", "was", stored, "err", err)
+		}
 		slog.Info("plex ratingKey reissued", "showKey", logSafe(showKey), "was", stored, "now", live)
 	}
 	return live
@@ -995,8 +1004,10 @@ func (s *Server) attachPlexIdentity(seriesID int64, g plexGuid, exact bool) {
 			}
 			s.mergeSeries(other, seriesID)
 		}
-		s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
-			r.Source, r.MediaID, seriesID)
+		if _, err := s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
+			r.Source, r.MediaID, seriesID); err != nil {
+			slog.Warn("plex identity not attached", "seriesId", seriesID, "source", r.Source, "mediaId", r.MediaID, "err", err)
+		}
 	}
 }
 

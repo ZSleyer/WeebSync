@@ -67,7 +67,8 @@ func (s *Server) SweepLoop(ctx context.Context) {
 				if n := s.pruneCache(); n > 0 {
 					slog.Info("sweep pruned cache", "rows", n)
 				}
-				db.SetSetting(s.DB, "cache_pruned_at", time.Now().UTC().Format(time.RFC3339))
+				// only throttles the prune: a missed stamp prunes again next tick
+				_ = db.SetSetting(s.DB, "cache_pruned_at", time.Now().UTC().Format(time.RFC3339))
 			}
 			// keep the planner's statistics in step with the tables as the
 			// crawler and the prune grow and shrink them; a no-op while fresh
@@ -97,7 +98,8 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// released for the watches that filter for a dub; the calendar
 			// projects the rest from them. No-op without such a watch.
 			if last := db.Setting(s.DB, "dub_recorded_at"); last == "" || olderThan(last, time.Hour) {
-				db.SetSetting(s.DB, "dub_recorded_at", time.Now().UTC().Format(time.RFC3339))
+				// only throttles the job: a missed stamp runs it again next tick
+				_ = db.SetSetting(s.DB, "dub_recorded_at", time.Now().UTC().Format(time.RFC3339))
 				s.runJobFor("dub:record", 10*time.Minute, s.recordDubAirings)
 			}
 			// select preferred Plex audio/sub streams on freshly indexed
@@ -332,7 +334,8 @@ func (s *Server) warmSuggestions() {
 	for _, id := range ids {
 		key := fmt.Sprintf("suggestions:%d", id)
 		var fetched string
-		s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&fetched)
+		// no row or a failed read leaves "" and the blob counts as stale
+		_ = s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&fetched)
 		stale := true
 		if t, perr := time.Parse(sqliteTime, fetched); perr == nil {
 			stale = time.Since(t) > suggestTTL
@@ -376,7 +379,7 @@ func (s *Server) BackfillSeries() {
 		s.linkSeries(r.source, r.mediaID)
 		s.refreshVariant(r.serverID, r.folder)
 	}
-	db.SetSetting(s.DB, "series_backfilled", "1")
+	s.setDoneFlag("series_backfilled")
 }
 
 // suggestionFormat is bumped whenever the shape/content of the cached suggestion
@@ -391,14 +394,33 @@ func (s *Server) ClearStaleSuggestionCache() {
 	if db.Setting(s.DB, "sugg_fmt") == suggestionFormat {
 		return
 	}
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
-	// TVDB media cached before the English-translation fix hold native titles;
-	// drop them so they re-fetch with a latinized title (background, rate-limited).
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%'`)
-	// the Plex missing-sequel blob caches each sequel's media (with its old
-	// native title); drop it so the sequels re-resolve with the fixed titles.
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'plex:suggestions:v3'`)
-	db.SetSetting(s.DB, "sugg_fmt", suggestionFormat)
+	// a delete that failed leaves the format unstamped, so the next boot
+	// clears again instead of serving the stale blobs for good
+	for _, q := range []string{
+		`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`,
+		// TVDB media cached before the English-translation fix hold native titles;
+		// drop them so they re-fetch with a latinized title (background, rate-limited).
+		`DELETE FROM anilist_cache WHERE key LIKE 'tvdb:media:%'`,
+		// the Plex missing-sequel blob caches each sequel's media (with its old
+		// native title); drop it so the sequels re-resolve with the fixed titles.
+		`DELETE FROM anilist_cache WHERE key = 'plex:suggestions:v3'`,
+	} {
+		if _, err := s.DB.Exec(q); err != nil {
+			slog.Warn("suggestion cache not cleared", "err", err)
+			return
+		}
+	}
+	if err := db.SetSetting(s.DB, "sugg_fmt", suggestionFormat); err != nil {
+		slog.Warn("suggestion format not stamped", "err", err)
+	}
+}
+
+// setDoneFlag marks a one-shot pass as done. A stamp that did not land only
+// means the pass runs again next time, so it is logged, not fatal.
+func (s *Server) setDoneFlag(key string) {
+	if err := db.SetSetting(s.DB, key, "1"); err != nil {
+		slog.Warn("done flag not stored", "key", key, "err", err)
+	}
 }
 
 // backfillPlexStreams applies the Plex playback preference once to the episodes
@@ -442,7 +464,7 @@ func (s *Server) backfillPlexStreams() {
 	for _, wt := range todo {
 		s.applyPlexStreamsJob(wt)
 	}
-	db.SetSetting(s.DB, "plex_streams_backfilled", "1")
+	s.setDoneFlag("plex_streams_backfilled")
 	if len(todo) > 0 {
 		slog.Info("plex stream preference backfill queued", "watches", len(todo))
 	}
@@ -459,17 +481,25 @@ func (s *Server) BackfillUnits() {
 		return
 	}
 	var staleRemote, staleLocal int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches cm
+	// a count that failed to read is not "nothing to fix": that would stamp
+	// the flag and skip the pass for good
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches cm
 		JOIN catalog_variants cv ON cv.server_id = cm.server_id AND cv.folder = cm.folder
-		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`).Scan(&staleRemote)
-	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE server_id = 0 AND show_key = ''`).Scan(&staleLocal)
+		WHERE cm.server_id != 0 AND cm.media_id != 0 AND cv.show_key = ''`).Scan(&staleRemote); err != nil {
+		slog.Warn("units backfill: counting remote rows failed", "err", err)
+		return
+	}
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_variants WHERE server_id = 0 AND show_key = ''`).Scan(&staleLocal); err != nil {
+		slog.Warn("units backfill: counting local rows failed", "err", err)
+		return
+	}
 	if staleRemote == 0 && staleLocal == 0 {
-		db.SetSetting(s.DB, "units_backfilled_v1", "1") // nothing to fix
+		s.setDoneFlag("units_backfilled_v1") // nothing to fix
 		return
 	}
 	// folderUnit resolves anime seasons via the Fribb map - make sure it is loaded
 	var animeN int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids`).Scan(&animeN)
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM anime_ids`).Scan(&animeN) // 0 on a failed read just refreshes the map
 	if animeN == 0 {
 		s.refreshAnimeIDs()
 	}
@@ -503,13 +533,28 @@ func (s *Server) BackfillUnits() {
 	// stale server-0 rows are the OLD per-show Plex index (no show_key). Drop them
 	// and force a per-season re-index on the next sweep tick.
 	if staleLocal > 0 {
-		s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = 0`)
-		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = 0`)
-		db.SetSetting(s.DB, "plex_indexed_at", "")
+		// stale rows that stay would keep the old per-show index alive, so a
+		// failed write ends the pass with the flag unset
+		for _, q := range []string{
+			`DELETE FROM catalog_variants WHERE server_id = 0`,
+			`DELETE FROM catalog_matches WHERE server_id = 0`,
+		} {
+			if _, err := s.DB.Exec(q); err != nil {
+				slog.Warn("units backfill: dropping stale Plex rows failed", "err", err)
+				return
+			}
+		}
+		if err := db.SetSetting(s.DB, "plex_indexed_at", ""); err != nil {
+			slog.Warn("units backfill: forcing the Plex re-index failed", "err", err)
+			return
+		}
 	}
 	// rebuild the cached suggestion blobs against the now-populated units
-	s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`)
-	db.SetSetting(s.DB, "units_backfilled_v1", "1")
+	if _, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'suggestions:%'`); err != nil {
+		slog.Warn("units backfill: dropping suggestion blobs failed", "err", err)
+		return
+	}
+	s.setDoneFlag("units_backfilled_v1")
 }
 
 // expireAuthRows drops sessions and pending logins past their TTL. Sessions
@@ -517,8 +562,9 @@ func (s *Server) BackfillUnits() {
 // forever. Both tables store UTC RFC3339, so a string compare is exact.
 func (s *Server) expireAuthRows() {
 	now := time.Now().UTC().Format(time.RFC3339)
-	s.DB.Exec(`DELETE FROM sessions WHERE expires_at <= ?`, now)
+	// housekeeping: a delete that fails leaves the rows for the next tick
+	_, _ = s.DB.Exec(`DELETE FROM sessions WHERE expires_at <= ?`, now)
 	long, short := auth.IdleCutoffs(time.Now())
-	s.DB.Exec(`DELETE FROM sessions WHERE last_seen != '' AND ((remember = 1 AND last_seen <= ?) OR (remember = 0 AND last_seen <= ?))`, long, short)
-	s.DB.Exec(`DELETE FROM login_pending WHERE expires_at <= ?`, now)
+	_, _ = s.DB.Exec(`DELETE FROM sessions WHERE last_seen != '' AND ((remember = 1 AND last_seen <= ?) OR (remember = 0 AND last_seen <= ?))`, long, short)
+	_, _ = s.DB.Exec(`DELETE FROM login_pending WHERE expires_at <= ?`, now)
 }

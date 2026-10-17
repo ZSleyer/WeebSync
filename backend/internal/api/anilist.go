@@ -106,7 +106,10 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 		for rows.Next() {
 			var n string
 			var dir int
-			rows.Scan(&n, &dir)
+			if err := rows.Scan(&n, &dir); err != nil {
+				vids, subdirs = 0, 0 // half a listing is no evidence: decide by name
+				break
+			}
 			if dir != 0 {
 				subdirs++
 			} else if transfer.VideoExt[strings.ToLower(path.Ext(n))] {
@@ -363,7 +366,8 @@ func (s *Server) matchBatch(batch []matchJob) {
 		if b.manga {
 			src = mangaSource
 		}
-		s.persistMatch(b.serverID, b.folder, mediaID, false, src)
+		// persistMatch logs a failure; the folder is matched again on a later pass
+		_ = s.persistMatch(b.serverID, b.folder, mediaID, false, src)
 	}
 }
 
@@ -588,7 +592,8 @@ func (s *Server) queueMediaFetch(id int) {
 	s.runJob(fmt.Sprintf("f:%d", id), func(ctx context.Context) {
 		// drop first: Media() would otherwise answer from a cache entry that
 		// is still fresh but written with an older field set (see sourceMedia)
-		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("media:%d", id))
+		// a failed drop only means the refetch below may answer from the older entry
+		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("media:%d", id))
 		s.Anilist.Media(ctx, id) // stores into the cache on success
 	})
 }
@@ -704,7 +709,8 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			// media entry - adopt it instead of searching for the same name
 			// again
 			if id, ok := s.reuseMatch(serverID, e.Name, itemSource); ok {
-				s.persistMatch(serverID, e.Path, id, false, itemSource)
+				// persistMatch logs a failure; the next listing adopts it again
+				_ = s.persistMatch(serverID, e.Path, id, false, itemSource)
 				item.Media, item.Pending = s.sourceMedia(itemSource, id)
 				break
 			}
@@ -712,7 +718,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			// title search when the show is already known
 			if serverID == localServerID {
 				if id, ok := s.matchLocalByPlexID(e.Path, itemSource); ok {
-					s.persistMatch(serverID, e.Path, id, false, itemSource)
+					_ = s.persistMatch(serverID, e.Path, id, false, itemSource) // logged; retried next listing
 					item.Media, item.Pending = s.sourceMedia(itemSource, id)
 					break
 				}
@@ -878,7 +884,7 @@ func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, fo
 	if serverID == localServerID && !force && scope != "manga" {
 		src := sourceForScope(scope)
 		if id, ok := s.matchLocalByPlexID(folder, src); ok {
-			s.persistMatch(serverID, folder, id, false, src)
+			_ = s.persistMatch(serverID, folder, id, false, src) // logged; the sweep tries again
 			return
 		}
 	}
@@ -986,7 +992,10 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	var folders []string
 	for rows.Next() {
 		var f string
-		rows.Scan(&f)
+		if err := rows.Scan(&f); err != nil {
+			dbErr(w)
+			return
+		}
 		if strings.Contains(f[len(strings.TrimRight(in.Path, "/"))+1:], "/") {
 			continue // the range holds the whole subtree; only direct children count
 		}
@@ -1001,7 +1010,8 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		s.queueScopedMatch(serverID, f, name, scopeForItem(scope, s.itemKind(serverID, f, name)), true)
 		// drop the row so the catalog shows these as pending while the
 		// forced search runs (poll picks the fresh result up)
-		s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
+		// a row that stays is replaced by the forced search's result anyway
+		_, _ = s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`, serverID, f)
 	}
 	// plus what the source has not matched at all yet: a folder never
 	// listed, or one still on the source the mark replaced
@@ -1096,7 +1106,10 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	// handlers - without this branch correcting a local match 404s.
 	if serverID != localServerID {
 		var owned int
-		s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned)
+		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
+			dbErr(w)
+			return
+		}
 		if owned == 0 {
 			writeErr(w, http.StatusNotFound, "server not found")
 			return

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -85,15 +86,21 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		add("registration_open", "info", 0, "")
 	}
 	var pending int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users WHERE approved = 0`).Scan(&pending)
+	countOr := func(n *int, query string) {
+		// the report is a snapshot: a failed count is logged, not shown as zero risk
+		if err := s.DB.QueryRow(query).Scan(n); err != nil {
+			slog.Warn("security check count failed", "err", err)
+		}
+	}
+	countOr(&pending, `SELECT COUNT(*) FROM users WHERE approved = 0`)
 	if pending > 0 {
 		add("pending_approvals", "info", pending, "")
 	}
 	// admins who sign in with a password alone
 	var weakAdmins int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users u WHERE u.is_admin = 1 AND u.password_hash != ''
+	countOr(&weakAdmins, `SELECT COUNT(*) FROM users u WHERE u.is_admin = 1 AND u.password_hash != ''
 		AND NOT EXISTS (SELECT 1 FROM user_totp t WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL)
-		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = u.id AND (c.passwordless = 0 OR c.uv_required = 1))`).Scan(&weakAdmins)
+		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = u.id AND (c.passwordless = 0 OR c.uv_required = 1))`)
 	if weakAdmins > 0 && !s.passwordAuthBlocked() {
 		add("admin_single_factor", "warn", weakAdmins, "")
 	} else {
@@ -117,7 +124,7 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var ftp int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE protocol = 'ftp'`).Scan(&ftp)
+	countOr(&ftp, `SELECT COUNT(*) FROM servers WHERE protocol = 'ftp'`)
 	if ftp > 0 {
 		add("ftp_cleartext", "warn", ftp, "")
 	}

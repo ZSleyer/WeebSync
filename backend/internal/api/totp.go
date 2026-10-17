@@ -31,7 +31,8 @@ func (s *Server) totpEnabled(userID int64) bool {
 func (s *Server) newLoginPending(userID int64, remember bool) (string, error) {
 	token := randToken()
 	exp := time.Now().Add(5 * time.Minute).UTC().Format(time.RFC3339)
-	s.DB.Exec(`DELETE FROM login_pending WHERE user_id = ? OR expires_at <= ?`, userID, time.Now().UTC().Format(time.RFC3339))
+	// housekeeping: stale pending rows expire on their own
+	_, _ = s.DB.Exec(`DELETE FROM login_pending WHERE user_id = ? OR expires_at <= ?`, userID, time.Now().UTC().Format(time.RFC3339))
 	_, err := s.DB.Exec(`INSERT INTO login_pending (token_hash, user_id, expires_at, remember) VALUES (?, ?, ?, ?)`,
 		hashToken(token), userID, exp, remember)
 	return token, err
@@ -249,7 +250,11 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	// the code counts against the account like the password does: a fresh
 	// pending token per correct password must not reset the guessing
 	var email string
-	s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email)
+	if err := s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
+		// an empty email would put the attempt on nobody's counter
+		dbErr(w)
+		return
+	}
 	if wait := s.accountWait(r, email); wait > 0 {
 		tooMany(w, wait)
 		return

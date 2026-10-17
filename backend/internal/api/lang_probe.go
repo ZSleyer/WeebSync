@@ -194,7 +194,8 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 			// Only the state is written, through a plain UPDATE rather than
 			// storeVariant: this knows nothing about the row's unit, and
 			// INSERT OR REPLACE would reset every column it cannot name.
-			s.DB.Exec(`UPDATE catalog_variants SET probed = ? WHERE server_id = ? AND folder = ?`,
+			// a lost mark only means the next pass tries the folder again
+			_, _ = s.DB.Exec(`UPDATE catalog_variants SET probed = ? WHERE server_id = ? AND folder = ?`,
 				int(probeFailed), c.serverID, c.folder)
 			slog.Debug("remote language probe failed", "server", c.serverID, "folder", logSafe(c.folder),
 				"reason", "the container would not answer - unreadable header, or the host is not reachable")

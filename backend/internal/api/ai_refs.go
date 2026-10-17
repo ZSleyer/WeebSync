@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"path"
 )
 
@@ -27,7 +28,10 @@ func (s *Server) aiRefFor(userID, serverID int64, p string) string {
 	ref := aiRefKey(userID, serverID, p)
 	// ponytail: one row per folder ever surfaced, never swept; the catalog
 	// bounds it. Add a created_at sweep if the table ever matters.
-	s.DB.Exec(`INSERT OR IGNORE INTO ai_refs (ref, user_id, server_id, path) VALUES (?, ?, ?, ?)`, ref, userID, serverID, p)
+	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO ai_refs (ref, user_id, server_id, path) VALUES (?, ?, ?, ?)`, ref, userID, serverID, p); err != nil {
+		// the ref goes out anyway; it will read as unknown when the model uses it
+		slog.Warn("ai ref not stored", "err", err)
+	}
 	return ref
 }
 

@@ -237,10 +237,10 @@ func (s *Server) updateCredential(c *webauthn.Credential) {
 	}
 }
 
-func (s *Server) hasSecurityKey(userID int64) bool {
+func (s *Server) hasSecurityKey(userID int64) (bool, error) {
 	var n int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ? AND passwordless = 0`, userID).Scan(&n)
-	return n > 0
+	err := s.DB.QueryRow(`SELECT COUNT(*) FROM webauthn_credentials WHERE user_id = ? AND passwordless = 0`, userID).Scan(&n)
+	return n > 0, err
 }
 
 // ── registration ────────────────────────────────────────────────────────────
@@ -461,7 +461,10 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}
 	// a security key confirms a password sign-in; on its own it is no way in
 	var passwordless int
-	s.DB.QueryRow(`SELECT passwordless FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&passwordless)
+	if err := s.DB.QueryRow(`SELECT passwordless FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&passwordless); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		dbErr(w)
+		return
+	}
 	if passwordless != 1 {
 		writeErr(w, http.StatusUnauthorized, "passkey login failed")
 		return

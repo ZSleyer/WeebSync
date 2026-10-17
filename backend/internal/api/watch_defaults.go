@@ -100,7 +100,7 @@ type WatchDefaultsResponse struct {
 // no defaults at all.
 func (s *Server) watchDefaultsFor(userID int64) WatchDefaults {
 	var raw string
-	s.DB.QueryRow(`SELECT watch_defaults FROM users WHERE id = ?`, userID).Scan(&raw)
+	_ = s.DB.QueryRow(`SELECT watch_defaults FROM users WHERE id = ?`, userID).Scan(&raw) // unreadable is no defaults, as documented
 	d := WatchDefaults{Kinds: map[string]KindDefaults{}}
 	if raw != "" {
 		json.Unmarshal([]byte(raw), &d)

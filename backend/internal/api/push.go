@@ -78,7 +78,7 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// the newest few devices stay: each one is fetched on every notification
-	s.DB.Exec(`DELETE FROM push_subscriptions WHERE user_id = ? AND rowid NOT IN
+	_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE user_id = ? AND rowid NOT IN
 		(SELECT rowid FROM push_subscriptions WHERE user_id = ? ORDER BY rowid DESC LIMIT 20)`, u.ID, u.ID)
 	writeJSON(w, http.StatusCreated, OkResponse{Status: "ok"})
 }

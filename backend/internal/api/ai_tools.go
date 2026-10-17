@@ -300,7 +300,8 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 		return s.aiRelationChain(ctx, userID, mediaID)
 	}
 	var title string
-	s.DB.QueryRow(`SELECT title FROM series WHERE id = ?`, seriesID).Scan(&title)
+	// a missing title only blanks the heading of the answer
+	_ = s.DB.QueryRow(`SELECT title FROM series WHERE id = ?`, seriesID).Scan(&title)
 	rows, err := s.DB.Query(`SELECT season, title, year FROM series_seasons WHERE series_id = ? ORDER BY season`, seriesID)
 	if err != nil {
 		return map[string]any{"error": "db error"}

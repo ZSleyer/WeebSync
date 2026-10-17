@@ -411,7 +411,7 @@ func (s *Server) processPlexStreamQueue() {
 		return
 	}
 	for _, id := range drop {
-		s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, id)
+		s.dequeuePlexStream(id)
 	}
 	if len(pending) == 0 {
 		return
@@ -424,7 +424,7 @@ func (s *Server) processPlexStreamQueue() {
 		// Jellyfin keeps no per-item track choice: these can never apply
 		for _, items := range pending {
 			for _, it := range items {
-				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+				s.dequeuePlexStream(it.downloadID)
 			}
 		}
 		return
@@ -433,7 +433,7 @@ func (s *Server) processPlexStreamQueue() {
 		w, ok := g.watch(s)
 		if !ok {
 			for _, it := range items { // watch deleted: queue is orphaned
-				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+				s.dequeuePlexStream(it.downloadID)
 			}
 			continue
 		}
@@ -449,7 +449,7 @@ func (s *Server) processPlexStreamQueue() {
 			if err != nil {
 				slog.Warn("plex stream selection dropped", "download", it.downloadID,
 					"watch", watchID, "reason", "local path outside the allowed roots")
-				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+				s.dequeuePlexStream(it.downloadID)
 				continue
 			}
 			p, found := byFile[abs]
@@ -467,13 +467,13 @@ func (s *Server) processPlexStreamQueue() {
 			}
 			switch {
 			case miss == "":
-				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+				s.dequeuePlexStream(it.downloadID)
 			case it.age > plexStreamMissGiveUp:
 				// the file is what it is: stop looking, but keep the verdict on
 				// the watch so it stays visible after the queue row is gone
 				slog.Warn("plex stream language missing", "download", it.downloadID, "watch", watchID,
 					"audio", w.PlexAudioLang, "sub", w.PlexSubLang, "miss", miss)
-				s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, it.downloadID)
+				s.dequeuePlexStream(it.downloadID)
 			default:
 				nudge[path.Dir(abs)] = true // a re-release may have replaced it
 			}
@@ -494,6 +494,15 @@ func (s *Server) processPlexStreamQueue() {
 	}
 }
 
+// dequeuePlexStream drops a download from the stream-selection queue. A failed
+// delete leaves the row for the next tick, which re-applies the same
+// selection; the give-up window bounds it, so a warning is all it needs.
+func (s *Server) dequeuePlexStream(downloadID int64) {
+	if _, err := s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, downloadID); err != nil {
+		slog.Warn("plex stream queue entry kept", "download", downloadID, "err", err)
+	}
+}
+
 // setPlexStreamMiss records what the preference could not deliver, writing only
 // on a change so the common case costs one read.
 func (s *Server) setPlexStreamMiss(watchID int64, miss string) {
@@ -501,7 +510,9 @@ func (s *Server) setPlexStreamMiss(watchID int64, miss string) {
 	if s.DB.QueryRow(`SELECT plex_stream_miss FROM watches WHERE id = ?`, watchID).Scan(&cur) != nil || cur == miss {
 		return
 	}
-	s.DB.Exec(`UPDATE watches SET plex_stream_miss = ? WHERE id = ?`, miss, watchID)
+	if _, err := s.DB.Exec(`UPDATE watches SET plex_stream_miss = ? WHERE id = ?`, miss, watchID); err != nil {
+		slog.Warn("plex stream verdict not saved", "watch", watchID, "err", err)
+	}
 }
 
 // handleWatchPlexStreams applies the watch's Plex playback preference to the

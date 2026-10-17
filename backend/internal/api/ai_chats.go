@@ -92,7 +92,8 @@ const maxAIChats = 200
 const maxAIChatBytes = 256 << 20
 
 func (s *Server) trimAIChats(userID int64) {
-	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id IN (
+	// a failed trim is retried by the next save
+	_, _ = s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id IN (
 		SELECT id FROM (SELECT id, SUM(length(CAST(turns AS BLOB))) OVER (ORDER BY id DESC) AS running
 			FROM ai_chats WHERE user_id = ?) WHERE running > ?)`, userID, userID, maxAIChatBytes)
 }
@@ -124,8 +125,9 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	id, _ := res.LastInsertId()
 	// the newest maxAIChats stay: a saved chat may be 12 MiB, and nothing
-	// else bounds how many one account keeps
-	s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id NOT IN
+	// else bounds how many one account keeps; a failed trim is retried by the
+	// next save
+	_, _ = s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id NOT IN
 		(SELECT id FROM ai_chats WHERE user_id = ? ORDER BY id DESC LIMIT ?)`, u.ID, u.ID, maxAIChats)
 	s.trimAIChats(u.ID)
 	writeJSON(w, http.StatusOK, aiChatCreated{ID: id})

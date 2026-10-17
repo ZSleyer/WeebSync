@@ -198,13 +198,13 @@ func (s *Server) reconcilePlex(budget int) {
 			g, ok = guidForShowKey(idx, showKey)
 		}
 		if !ok {
-			s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
+			_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder) // a lost marker only means one more retry next sweep
 			continue
 		}
 		s.attachPlexIdentity(h.seriesID, g, false)
 		// remember the folder either way: a folder whose title does not resolve
 		// must not be retried on every sweep, and one that did is done
-		s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder)
+		_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder) // a lost marker only means one more retry next sweep
 		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 || g.RatingKey != "" {
 			enriched++
 			// series gained its cross-provider ids from Plex ground truth

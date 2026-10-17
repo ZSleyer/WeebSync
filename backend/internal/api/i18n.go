@@ -286,7 +286,7 @@ func tr(locale, key string, args ...any) string {
 // userLocale returns a user's stored locale, defaulting to English.
 func (s *Server) userLocale(userID int64) string {
 	var l string
-	s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&l)
+	_ = s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&l) // English on a failed read
 	if l == "de" {
 		return "de"
 	}

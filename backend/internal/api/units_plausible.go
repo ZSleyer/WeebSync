@@ -190,7 +190,7 @@ func (s *Server) seriesTitleSet(seriesID int64) ([]string, []int) {
 	var years []int
 	var title string
 	var year int
-	s.DB.QueryRow(`SELECT title, year FROM series WHERE id = ?`, seriesID).Scan(&title, &year)
+	_ = s.DB.QueryRow(`SELECT title, year FROM series WHERE id = ?`, seriesID).Scan(&title, &year) // no title: the other sources decide
 	if title != "" {
 		out = append(out, title)
 	}

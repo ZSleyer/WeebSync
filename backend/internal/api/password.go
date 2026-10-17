@@ -167,7 +167,7 @@ func (s *Server) handlePasswordForgot(w http.ResponseWriter, r *http.Request) {
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
 		var locale string
-		s.DB.QueryRow(`SELECT locale FROM users WHERE email = ?`, email).Scan(&locale)
+		_ = s.DB.QueryRow(`SELECT locale FROM users WHERE email = ?`, email).Scan(&locale) // the mail goes out in English
 		go s.sendResetEmail(email, token, locale)
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

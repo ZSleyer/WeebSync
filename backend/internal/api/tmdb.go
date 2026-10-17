@@ -333,7 +333,9 @@ func (s *Server) RepairCatalog() {
 		return
 	}
 	slog.Info("catalog repaired", "staleRows", cleared, "watchesRematched", rematched, "marks", len(marks))
-	db.SetSetting(s.DB, "catalog_repairs", catalogRepairs)
+	if err := db.SetSetting(s.DB, "catalog_repairs", catalogRepairs); err != nil {
+		slog.Warn("catalog repair not recorded", "err", err)
+	}
 }
 
 // providerRecords names how TVDB and TMDB records are cached; bumping it
@@ -355,7 +357,9 @@ func (s *Server) RefreshProviderRecords() {
 	}
 	n, _ := res.RowsAffected()
 	slog.Info("provider records dropped for a fresh fetch", "records", n)
-	db.SetSetting(s.DB, "provider_records", providerRecords)
+	if err := db.SetSetting(s.DB, "provider_records", providerRecords); err != nil {
+		slog.Warn("provider records drop not recorded", "err", err)
+	}
 }
 
 // scopeSetResponse confirms a mark; Queued counts the folders under it sent
@@ -446,7 +450,8 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 					break // the year search answered; without it only strangers join
 				}
 				if force {
-					s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
+					// a stale entry that stays only costs the refresh
+					_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
 						tmdb.SearchCacheKey(kind, lq.q, y))
 				}
 				l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
@@ -468,14 +473,16 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 		if mediaID != 0 {
 			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
 		}
-		s.persistMatch(serverID, folder, mediaID, false, "tmdb:"+kind)
+		// persistMatch logs a failure; the next catalog poll retries
+		_ = s.persistMatch(serverID, folder, mediaID, false, "tmdb:"+kind)
 	})
 }
 
 // queueTmdbFetch refreshes missing/stale TMDB media in the background.
 func (s *Server) queueTmdbFetch(kind string, id int) {
 	s.runJob(fmt.Sprintf("tf:%s:%d", kind, id), func(ctx context.Context) {
-		s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tmdb:media:%s:%d", kind, id))
+		// a stale entry that stays only costs the refresh
+		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tmdb:media:%s:%d", kind, id))
 		s.Tmdb.Media(ctx, kind, id)
 	})
 }

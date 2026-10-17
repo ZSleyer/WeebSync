@@ -90,7 +90,8 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 		// version, never over what AniList said (INSERT OR IGNORE).
 		for _, e := range eps {
 			if at := crunchyroll.At(e.PremiumAt); at > 0 && at <= time.Now().Unix() && e.Number > 0 {
-				s.DB.Exec(`INSERT OR IGNORE INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', ?, ?, ?, '')`, w.id, at, e.Number)
+				// a slot missed here is written by the next pass
+				_, _ = s.DB.Exec(`INSERT OR IGNORE INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', ?, ?, ?, '')`, w.id, at, e.Number)
 			}
 		}
 		// the versions in the wanted language not written down yet

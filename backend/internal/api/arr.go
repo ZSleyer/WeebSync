@@ -124,14 +124,18 @@ func (s *Server) handleArrKeyDelete(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
-	db.SetSetting(s.DB, "arr_key", "")
+	if err := db.SetSetting(s.DB, "arr_key", ""); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
 // isArrJob reports whether a download carries a grab from Sonarr/Radarr.
 func (s *Server) isArrJob(downloadID int64) bool {
 	var n int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM arr_jobs WHERE download_id = ?`, downloadID).Scan(&n)
+	// a failed count reads as "not an arr job": the download is left alone
+	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM arr_jobs WHERE download_id = ?`, downloadID).Scan(&n)
 	return n > 0
 }
 

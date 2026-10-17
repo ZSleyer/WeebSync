@@ -264,7 +264,10 @@ func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request)
 	}
 	// the write permissions were given for this account: a later one, maybe
 	// someone else's, starts with nothing allowed again
-	s.DB.Exec(`UPDATE users SET anilist_write_list = 0, anilist_write_social = 0 WHERE id = ?`, u.ID)
+	if _, err := s.DB.Exec(`UPDATE users SET anilist_write_list = 0, anilist_write_social = 0 WHERE id = ?`, u.ID); err != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
@@ -397,7 +400,8 @@ func (s *Server) patchSuggestionProgress(userID int64, mediaID, progress int) {
 		return
 	}
 	if b, err := json.Marshal(resp); err == nil {
-		s.DB.Exec(`UPDATE anilist_cache SET payload = ? WHERE key = ?`, string(b), key)
+		// patching the cached copy is an optimisation; a stale one is refreshed on TTL
+		_, _ = s.DB.Exec(`UPDATE anilist_cache SET payload = ? WHERE key = ?`, string(b), key)
 	}
 }
 
@@ -487,7 +491,8 @@ func (s *Server) handleAnilistSuggestions(w http.ResponseWriter, r *http.Request
 	list := s.Anilist.CachedUserList(alID)
 	building := false
 	var fetched string
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
+	// no cache row: fetched stays empty, which reads as stale and rebuilds
+	_ = s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
 	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour || r.URL.Query().Get("force") == "1" {
 		building = len(list) == 0
 		if r.URL.Query().Get("force") == "1" {

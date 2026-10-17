@@ -174,7 +174,8 @@ func (s *Server) showFolder(serverID int64, dir string) string {
 
 // folderMatch reads a folder's catalog match.
 func (s *Server) folderMatch(serverID int64, folder string) (source string, mediaID int) {
-	s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
+	// display metadata: no match is the fallback
+	_ = s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ? AND media_id != 0`,
 		serverID, folder).Scan(&source, &mediaID)
 	return
 }
@@ -211,7 +212,8 @@ func (s *Server) downloadGroup(userID int64, d dlMetaRow, folder string, bySrc m
 	g.Providers, g.Links = keysSorted(set), links
 
 	var ordering string
-	s.DB.QueryRow(`SELECT id, rename_ordering FROM watches
+	// display metadata: no watch is the fallback
+	_ = s.DB.QueryRow(`SELECT id, rename_ordering FROM watches
 		WHERE user_id = ? AND server_id = ?
 		  AND (?3 = rtrim(remote_path, '/') OR substr(?3, 1, length(rtrim(remote_path, '/')) + 1) = rtrim(remote_path, '/') || '/')
 		ORDER BY length(remote_path) DESC LIMIT 1`, userID, d.serverID, folder).Scan(&g.WatchID, &ordering)

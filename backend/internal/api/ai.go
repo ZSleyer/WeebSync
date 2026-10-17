@@ -1275,7 +1275,8 @@ func (s *Server) aiUserList(userID int64) []anilist.ListEntry {
 		return nil
 	}
 	var fetched string
-	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
+	// a missing or unreadable stamp reads as stale: the list is rebuilt
+	_ = s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", alID)).Scan(&fetched)
 	if t, perr := time.Parse(sqliteTime, fetched); perr != nil || time.Since(t) > time.Hour {
 		s.buildAnilistSuggestions(alID, token)
 	}
@@ -1587,8 +1588,10 @@ func (s *Server) aiMatchedTitle(serverID int64, folder string) string {
 func (s *Server) aiMatchedMedia(serverID int64, folder string) (string, *anilist.Media) {
 	var source string
 	var mediaID int
-	if s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
-		serverID, folder).Scan(&source, &mediaID); source == "" || mediaID == 0 {
+	// no row (or an unreadable one) is an unmatched folder
+	_ = s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
+		serverID, folder).Scan(&source, &mediaID)
+	if source == "" || mediaID == 0 {
 		return "", nil
 	}
 	m, _ := s.sourceMedia(source, mediaID)
@@ -1642,7 +1645,9 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 		return nil, "unknown ref; take one from search_remote, series_seasons, suggestions or upgrades"
 	}
 	var serverName string
-	if s.DB.QueryRow(`SELECT name FROM servers WHERE id = ? AND user_id = ?`, serverID, userID).Scan(&serverName); serverName == "" {
+	// no row (or an unreadable one) reads as "server not found"
+	_ = s.DB.QueryRow(`SELECT name FROM servers WHERE id = ? AND user_id = ?`, serverID, userID).Scan(&serverName)
+	if serverName == "" {
 		return nil, "server not found"
 	}
 	var isDir int
@@ -1731,7 +1736,9 @@ func (s *Server) aiPropose(ctx context.Context, userID int64, kind, ref, title, 
 		}
 	case "watch":
 		var n int
-		s.DB.QueryRow(`SELECT COUNT(*) FROM watches WHERE user_id = ? AND server_id = ? AND remote_path = ?`, userID, serverID, remotePath).Scan(&n)
+		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM watches WHERE user_id = ? AND server_id = ? AND remote_path = ?`, userID, serverID, remotePath).Scan(&n); err != nil {
+			return nil, "db error"
+		}
 		if n > 0 {
 			return nil, "an auto-sync for that folder already exists"
 		}

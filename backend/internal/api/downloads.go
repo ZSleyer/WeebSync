@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -166,7 +167,10 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var owned int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned); err != nil {
+		dbErr(w)
+		return
+	}
 	if owned == 0 {
 		writeErr(w, http.StatusNotFound, "server not found")
 		return
@@ -190,8 +194,12 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	// queue row carries it.
 	if in.PlexAudioLang != "" || in.PlexSubLang != "" {
 		for _, dl := range res.IDs {
-			s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, plex_audio_lang, plex_sub_lang) VALUES (?, ?, ?)`,
-				dl, in.PlexAudioLang, in.PlexSubLang)
+			// the download is queued already; losing the preference only
+			// leaves the stream choice to Plex's defaults, so say so and go on
+			if _, err := s.DB.Exec(`INSERT OR IGNORE INTO plex_stream_queue (download_id, plex_audio_lang, plex_sub_lang) VALUES (?, ?, ?)`,
+				dl, in.PlexAudioLang, in.PlexSubLang); err != nil {
+				slog.Warn("plex stream preference not queued", "download", dl, "err", err)
+			}
 		}
 	}
 	writeJSON(w, http.StatusCreated, enqueueResponse(res))

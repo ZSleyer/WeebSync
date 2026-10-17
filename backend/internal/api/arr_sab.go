@@ -2,7 +2,9 @@ package api
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -137,7 +139,12 @@ func (s *Server) sabAdd(w http.ResponseWriter, r *http.Request) {
 	}
 	cat := safeSegment(r.FormValue("cat"))
 	jobDir := filepath.Join(complete, cat, safeSegment(title))
-	owner := s.serverOwner(serverID)
+	owner, err := s.serverOwner(serverID)
+	if err != nil {
+		slog.Warn("sab add: server owner lookup failed", "server", serverID, "err", err)
+		fail("server lookup failed")
+		return
+	}
 	ext := path.Ext(remote)
 	// the file is named like the release, so the app reads the same thing
 	// from the file it imports as from the release it grabbed
@@ -187,10 +194,14 @@ func safeSegment(s string) string {
 	return s
 }
 
-func (s *Server) serverOwner(serverID int64) int64 {
+// serverOwner is the user a server belongs to, 0 when there is no such server.
+func (s *Server) serverOwner(serverID int64) (int64, error) {
 	var uid int64
-	s.DB.QueryRow(`SELECT user_id FROM servers WHERE id = ?`, serverID).Scan(&uid)
-	return uid
+	err := s.DB.QueryRow(`SELECT user_id FROM servers WHERE id = ?`, serverID).Scan(&uid)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return uid, err
 }
 
 // sabJob is an arr_jobs row joined with its download.
@@ -253,7 +264,11 @@ func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
 				if j.downloadID > 0 && j.status != "done" {
 					s.Transfers.Cancel(j.userID, j.downloadID)
 				}
-				s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo)
+				if _, err := s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo); err != nil {
+					slog.Warn("sab delete: job not removed", "nzo", j.nzo, "err", err)
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job not removed"})
+					return
+				}
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": true})
@@ -306,7 +321,11 @@ func (s *Server) sabHistory(w http.ResponseWriter, r *http.Request) {
 		want := sabValues(r)
 		for _, j := range jobs {
 			if want[j.nzo] || want["all"] {
-				s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo)
+				if _, err := s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo); err != nil {
+					slog.Warn("sab history delete: job not removed", "nzo", j.nzo, "err", err)
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job not removed"})
+					return
+				}
 			}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": true})

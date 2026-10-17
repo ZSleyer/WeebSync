@@ -174,8 +174,11 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 			continue
 		}
 		absDst := filepath.Join(local.Root.Name(), dst)
-		s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
-			absDst, now, why.Reason, why.By)
+		if _, err := s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
+			absDst, now, why.Reason, why.By); err != nil {
+			// the copy is already moved; without its row the trash page cannot list it
+			slog.Warn("trashed copy not recorded", "file", logSafe(absDst), "err", err)
+		}
 		slog.Info("old copy moved to trash", "file", logSafe(n), "dir", logSafe(local.Abs))
 	}
 	return nil
@@ -221,8 +224,10 @@ func (s *Server) trashPath(abs string, why trashWhy) error {
 		return err
 	}
 	absDst := filepath.Join(local.Root.Name(), dst)
-	s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
-		absDst, time.Now().Unix(), why.Reason, why.By)
+	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO trash_files (path, trashed_at, reason, replaced_by) VALUES (?, ?, ?, ?)`,
+		absDst, time.Now().Unix(), why.Reason, why.By); err != nil {
+		slog.Warn("trashed folder not recorded", "dir", logSafe(absDst), "err", err)
+	}
 	slog.Info("folder moved to trash", "dir", logSafe(abs))
 	return nil
 }
@@ -269,7 +274,8 @@ func (s *Server) deleteTrash(paths []string) (n int) {
 	for _, p := range paths {
 		local, ok := s.trashed(p)
 		if !ok {
-			s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
+			// a row that fails the check is retried on the next delete
+			_, _ = s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
 			continue
 		}
 		// a trashed folder goes as a whole; the row names the folder itself
@@ -278,7 +284,10 @@ func (s *Server) deleteTrash(paths []string) (n int) {
 			local.Close()
 			continue
 		}
-		s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
+		if _, err := s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p); err != nil {
+			// the file is gone; the row goes with the next delete (not-exist counts as done)
+			slog.Warn("trash row not removed", "file", logSafe(p), "err", err)
+		}
 		slog.Info("trash deleted", "file", logSafe(p))
 		n++
 		pruneTrashDir(local, filepath.Dir(local.Name))
