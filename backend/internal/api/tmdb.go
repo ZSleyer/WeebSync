@@ -13,6 +13,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // Folder scopes: a folder marked 'tv' or 'movie' switches catalog matching
@@ -443,7 +444,7 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 				}
 				if force {
 					s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
-						fmt.Sprintf("tmdb:search:%s:%s|%d", kind, lq.q, y))
+						tmdb.SearchCacheKey(kind, lq.q, y))
 				}
 				l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
 				if err != nil {

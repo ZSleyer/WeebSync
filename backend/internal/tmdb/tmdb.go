@@ -439,7 +439,7 @@ func statusMap(s string) string {
 	case "In Production", "Planned", "Post Production":
 		return "NOT_YET_RELEASED"
 	}
-	return s
+	return "" // unknown: never echoed into the AniList status enum
 }
 
 // tmdbDate turns TMDB's "2026-07-05" into the sortable YYYYMMDD form.
@@ -537,12 +537,18 @@ func firstOf(a, b string) string {
 
 // ── API ─────────────────────────────────────────────────────
 
+// SearchCacheKey is the cache key a Search stores under: the query lower-cased
+// and whitespace-collapsed, so callers that drop an entry use the same key.
+func SearchCacheKey(kind, query string, year int) string {
+	norm := strings.ToLower(strings.Join(strings.Fields(query), " "))
+	return fmt.Sprintf("tmdb:search:%s:%s|%d", kind, norm, year)
+}
+
 // Search looks up series (kind "tv") or movies (kind "movie") by title,
 // optionally narrowed by year. Cached like AniList searches.
 func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]anilist.Media, error) {
 	// normalized key: folder-name variants of the same title share the entry
-	norm := strings.ToLower(strings.Join(strings.Fields(query), " "))
-	cacheKey := fmt.Sprintf("tmdb:search:%s:%s|%d", kind, norm, year)
+	cacheKey := SearchCacheKey(kind, query, year)
 	if payload, ok := c.cached(cacheKey); ok {
 		var list []anilist.Media
 		if json.Unmarshal([]byte(payload), &list) == nil {
@@ -575,7 +581,7 @@ func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]an
 	// a year-narrowed hit also answers the plain search for the same title
 	// ("Show (2020)" vs "Show" folders); empty results don't poison it
 	if year > 0 && len(list) > 0 {
-		c.store(fmt.Sprintf("tmdb:search:%s:%s|0", kind, norm), string(payload))
+		c.store(SearchCacheKey(kind, query, 0), string(payload))
 	}
 	return list, nil
 }

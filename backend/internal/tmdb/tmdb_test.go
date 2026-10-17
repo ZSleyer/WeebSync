@@ -211,3 +211,18 @@ func TestTranslations(t *testing.T) {
 		t.Fatalf("movie translations: %v %v", mv, err)
 	}
 }
+
+func TestStatusMapUnknownIsEmpty(t *testing.T) {
+	if got := statusMap("Returning Series"); got != "RELEASING" {
+		t.Errorf("known status: %q", got)
+	}
+	if got := statusMap("Something New"); got != "" {
+		t.Errorf("unknown status echoed: %q", got)
+	}
+}
+
+func TestSearchCacheKeyNormalised(t *testing.T) {
+	if a, b := SearchCacheKey("tv", "  Foo   BAR ", 2020), SearchCacheKey("tv", "foo bar", 2020); a != b || a != "tmdb:search:tv:foo bar|2020" {
+		t.Errorf("keys %q %q", a, b)
+	}
+}
