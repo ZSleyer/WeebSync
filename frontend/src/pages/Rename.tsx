@@ -32,8 +32,11 @@ const EMPTY_RULE: RenameRule = {
 export default function Rename() {
   const { t } = useTranslation()
   // Files opens this with the folder it was on (?path=)
-  const [params] = useSearchParams()
-  const [path, setPath] = useState(() => params.get('path') ?? '')
+  // The folder lives in the URL, so each folder picked is a history entry and
+  // the back gesture steps up through them before it leaves the page.
+  const [params, setParams] = useSearchParams()
+  const path = params.get('path') ?? ''
+  const setPath = (p: string) => setParams(p ? { path: p } : {})
   const folderLabel = useLocalTargetLabel(path)
   const [rule, setRule] = useState<RenameRule>(EMPTY_RULE)
   const [preview, setPreview] = useState<RenamePair[] | null>(null)

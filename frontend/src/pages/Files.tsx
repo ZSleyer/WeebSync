@@ -140,9 +140,9 @@ const sourceFromStorage = (): Source | null => {
 // search a server's index, switch to the catalog view, sync once, watch, and
 // on the local library (admins) rename and delete. Replaces the Remote and
 // Local pages; their URLs redirect here with the folder kept.
-// Files keeps its folder in state and writes it to the URL itself, so a link
-// into it from the search would be written over. A jump (navigation state
-// from the search) mounts it afresh, and it starts from the link.
+// Files keeps its folder in the URL, one history entry per step. A jump
+// (navigation state from the search) still mounts it afresh, so a stale
+// search text or selection does not carry over.
 export function FilesJump() {
   const { state } = useLocation()
   return <Files key={(state as { jump?: number } | null)?.jump ?? 0} />
@@ -161,7 +161,10 @@ export default function Files() {
   const [params, setParams] = useSearchParams()
   // the source from the link, else the one used last, else the first server
   // once the list is in, else the local library
-  const [chosen, setChosen] = useState<Source | null>(() => sourceFromParams(params) ?? sourceFromStorage())
+  // The link is the state: source and folder live in the URL, so every step
+  // into a folder or to another server is a history entry and the back
+  // gesture goes up one folder before it leaves the page.
+  const chosen: Source | null = sourceFromParams(params) ?? sourceFromStorage()
   // a server remembered from an earlier visit (or named in an old link) may
   // have been deleted since: once the list is in, it falls back like no choice
   const gone = typeof chosen === 'number' && serversIn && !servers.some((s) => s.id === chosen)
@@ -200,11 +203,13 @@ export default function Files() {
     goTo(playHref(active, e.path))
   }
   // deep links (the dashboard queue, suggestions) open the browser at a folder
-  const [path, setPath] = useState((params.get('path') ?? '').replace(/^\//, ''))
+  const path = (params.get('path') ?? '').replace(/^\//, '')
   // null = untouched, so the default target fills in; an emptied field is a
   // choice too (the download folder itself) and must not refill
   const [localPath, setLocalPath] = useState<string | null>(null)
-  const [selection, setSelection] = useState<Entry | null>(null)
+  const [picked, setSelection] = useState<Entry | null>(null)
+  // back or forward lands in another folder: a row picked in the old one goes
+  const selection = picked && picked.path.replace(/^\//, '').replace(/\/?[^/]*$/, '') === path ? picked : null
   // a finger held on a row: its actions as a sheet
   const [sheet, setSheet] = useState<Entry | null>(null)
   const [error, setError] = useState('')
@@ -243,6 +248,15 @@ export default function Files() {
       ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason)
       : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
+  // one step in the browser: a new entry, the search is left behind
+  const go = (src: Source, to: string) => {
+    const next = new URLSearchParams()
+    if (src === 'local') next.set('source', 'local')
+    else next.set('server', String(src))
+    if (to) next.set('path', to)
+    setParams(next)
+    setQuery('')
+  }
   // the last few searches, offered as chips while the field is focused and empty
   const [searchFocus, setSearchFocus] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
@@ -271,21 +285,21 @@ export default function Files() {
     })
   }
 
-  // the URL follows the browser, so a dialog round-trip, a reload and the
-  // system back gesture all land in the same folder
+  // Normalising (a missing or stale source, the search text) replaces the
+  // entry instead of adding one, so it never costs a back press.
   useEffect(() => {
+    // no source named yet and the server list still out: "local" would stick
+    if (!chosen && !serversIn) return
     const next = new URLSearchParams()
     if (isLocal) next.set('source', 'local')
     else next.set('server', String(source))
     if (path) next.set('path', path)
     if (query.trim()) next.set('q', query)
     if (next.toString() !== params.toString()) setParams(next, { replace: true })
-  }, [isLocal, source, path, query, params, setParams])
+  }, [isLocal, source, path, query, params, setParams, chosen, serversIn])
   const pickSource = (s: Source) => {
-    setChosen(s)
-    setPath('')
+    go(s, '')
     setSelection(null)
-    setQuery('')
     try {
       localStorage.setItem(SOURCE_KEY, String(s))
     } catch {
@@ -590,7 +604,7 @@ export default function Files() {
   )
 
   const navigate = (p: string) => {
-    setPath(p.replace(/^\//, ''))
+    go(source, p.replace(/^\//, ''))
     setSelection(null)
   }
   const browseUrl = (p: string) =>

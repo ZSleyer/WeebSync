@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState, type PointerEvent
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
+import { useBackEntry } from 'fluid-lycoris'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
 // Vite turns the query into a URL string; the linter only sees the .ts file
@@ -471,6 +472,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
   const [inPip, setInPip] = useState(false)
   const [ownFs, setOwnFs] = useState(false)
+  // the CSS fullscreen is a layer: back leaves it, not the page
+  useBackEntry(() => setOwnFs(false), undefined, ownFs)
   const togglePip = async () => {
     const v = videoRef.current
     if (!v) return
