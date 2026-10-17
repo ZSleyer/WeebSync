@@ -19,7 +19,7 @@ import (
 type serverInfo struct {
 	ID             int64  `json:"id"`
 	Name           string `json:"name"`
-	Protocol       string `json:"protocol" enums:"sftp,ftps"`
+	Protocol       string `json:"protocol" enums:"sftp,ftps,ftp"` // ftp: legacy rows only, no longer accepted as input
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
 	Username       string `json:"username"`
@@ -47,7 +47,7 @@ var serverColors = map[string]bool{
 
 type serverInput struct {
 	Name           string `json:"name"`
-	Protocol       string `json:"protocol"`
+	Protocol       string `json:"protocol" enums:"sftp,ftps"`
 	Host           string `json:"host"`
 	Port           int    `json:"port"`
 	Username       string `json:"username"`

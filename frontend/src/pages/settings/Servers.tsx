@@ -104,7 +104,7 @@ export default function Servers() {
             </div>
             {/* plain FTP is gone and such a server cannot connect any more: the card
                 says so, since a server set up long ago never opens the form again */}
-            {(s.protocol as string) === 'ftp' && (
+            {s.protocol === 'ftp' && (
               <p className="sf-note text-warn" role="note">
                 {t('servers.ftpDeprecated')}
               </p>
@@ -211,7 +211,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [protocol, setProtocol] = useState<ServerInfo['protocol']>(
-    (editing?.protocol as string) === 'ftp' ? 'ftps' : (editing?.protocol ?? 'sftp'),
+    editing?.protocol === 'ftp' ? 'ftps' : (editing?.protocol ?? 'sftp'),
   )
   const [icon, setIcon] = useState(editing?.icon ?? '')
   const [color, setColor] = useState(editing?.color ?? '')

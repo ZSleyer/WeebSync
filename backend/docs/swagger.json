@@ -6521,9 +6521,11 @@
                         "type": "integer"
                     },
                     "protocol": {
+                        "description": "ftp: legacy rows only, no longer accepted as input",
                         "enum": [
                             "sftp",
-                            "ftps"
+                            "ftps",
+                            "ftp"
                         ],
                         "type": "string"
                     },
@@ -6574,6 +6576,10 @@
                         "type": "integer"
                     },
                     "protocol": {
+                        "enum": [
+                            "sftp",
+                            "ftps"
+                        ],
                         "type": "string"
                     },
                     "rootPath": {

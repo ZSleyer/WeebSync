@@ -2848,7 +2848,10 @@ export interface Schemas {
     maxConnections: number
     name: string
     port: number
-    protocol: "sftp" | "ftps"
+    /**
+     * ftp: legacy rows only, no longer accepted as input
+     */
+    protocol: "sftp" | "ftps" | "ftp"
     rootPath: string
     username: string
   }
@@ -2866,7 +2869,7 @@ export interface Schemas {
      */
     password: string
     port: number
-    protocol: string
+    protocol: "sftp" | "ftps"
     rootPath: string
     username: string
   }
