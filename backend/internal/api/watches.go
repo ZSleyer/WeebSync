@@ -211,6 +211,37 @@ func (s *Server) watchInterval() int {
 	return n
 }
 
+// watchCandidate is one watch as the loop's tick judges whether it is due.
+type watchCandidate struct {
+	id                                         int64
+	serverID                                   int64
+	remotePath, localPath, template, lastCheck string
+	subfolder                                  bool
+	fromEpisode                                int
+	aired                                      bool
+	filtered                                   int
+	retryAt                                    int64
+}
+
+// watchCandidates reads every watch for the loop. A half-read list is an
+// error, not a shorter list: the watches it dropped would just wait a tick.
+func (s *Server) watchCandidates() ([]watchCandidate, error) {
+	rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_filtered, last_check, retry_at FROM watches`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var cands []watchCandidate
+	for rows.Next() {
+		var c watchCandidate
+		if err := rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.filtered, &c.lastCheck, &c.retryAt); err != nil {
+			return nil, err
+		}
+		cands = append(cands, c)
+	}
+	return cands, rows.Err()
+}
+
 // WatchLoop periodically runs due watches; the interval is a global setting.
 // A manual check updates last_check, which naturally resets the countdown.
 // Watches with an AniList match sync smart: once every aired episode is
@@ -225,27 +256,11 @@ func (s *Server) WatchLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			interval := time.Duration(s.watchInterval()) * time.Minute
-			rows, err := s.DB.Query(`SELECT id, server_id, remote_path, local_path, subfolder, template, from_episode, aired_mapping, last_filtered, last_check, retry_at FROM watches`)
+			cands, err := s.watchCandidates()
 			if err != nil {
+				slog.Warn("watch loop: list watches", "err", err)
 				continue
 			}
-			type cand struct {
-				id                                         int64
-				serverID                                   int64
-				remotePath, localPath, template, lastCheck string
-				subfolder                                  bool
-				fromEpisode                                int
-				aired                                      bool
-				filtered                                   int
-				retryAt                                    int64
-			}
-			var cands []cand
-			for rows.Next() {
-				var c cand
-				rows.Scan(&c.id, &c.serverID, &c.remotePath, &c.localPath, &c.subfolder, &c.template, &c.fromEpisode, &c.aired, &c.filtered, &c.lastCheck, &c.retryAt)
-				cands = append(cands, c)
-			}
-			rows.Close()
 			now := time.Now()
 			for _, c := range cands {
 				// a check that failed is on its own short backoff: it decides
@@ -1373,6 +1388,9 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		it.Attention = watchAttention(it)
 		list = append(list, it)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return list, nil
 }
 
@@ -1480,6 +1498,9 @@ func (s *Server) firstSeen(userID, serverID int64, remotePath string) map[int]in
 		if at := t.Unix(); seen[ep] == 0 || at < seen[ep] {
 			seen[ep] = at
 		}
+	}
+	if rows.Err() != nil {
+		return nil
 	}
 	return seen
 }
@@ -2136,6 +2157,9 @@ func (s *Server) anilistAgreesWithPlex(mediaID int, source, localPath string) bo
 			return true
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("plex library check", "err", err)
+	}
 	return false
 }
 
@@ -2177,9 +2201,13 @@ func (s *Server) holdsBooks(serverID int64, folder string) bool {
 	var books, videos, seen int
 	rows, err := s.DB.Query(`SELECT name FROM remote_index WHERE server_id = ? AND parent = ? AND is_dir = 0`, serverID, folder)
 	if err == nil {
+		defer rows.Close()
 		for rows.Next() {
 			var n string
-			rows.Scan(&n)
+			if rows.Scan(&n) != nil {
+				seen = 0 // half a listing is no evidence: fall back to the path
+				break
+			}
 			seen++
 			ext := strings.ToLower(path.Ext(n))
 			if transfer.BookExt[ext] {
@@ -2188,7 +2216,6 @@ func (s *Server) holdsBooks(serverID int64, folder string) bool {
 				videos++
 			}
 		}
-		rows.Close()
 		if rows.Err() != nil {
 			seen = 0 // half a listing is no evidence: fall back to the path
 		}

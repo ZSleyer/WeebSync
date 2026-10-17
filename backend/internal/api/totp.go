@@ -385,6 +385,7 @@ func (s *Server) useRecoveryCode(userID int64, code string) bool {
 			return n == 1
 		}
 	}
+	_ = rows.Err() // fail closed: a failed read matches no code
 	return false
 }
 

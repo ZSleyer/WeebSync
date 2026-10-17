@@ -194,6 +194,7 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 		WHERE server_id = ?1 AND is_dir = 0 AND parent >= ?2 AND parent < ?2 || '0' AND (parent = ?2 OR parent >= ?2 || '/')`,
 		w.ServerID, w.RemotePath)
 	if err == nil {
+		defer rows.Close()
 		for rows.Next() {
 			var name string
 			if rows.Scan(&name) != nil || !videoExt[strings.ToLower(filepath.Ext(name))] {
@@ -208,7 +209,9 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 			}
 			add(name)
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			slog.Warn("plex streams: remote episodes", "err", err)
+		}
 	}
 	// what is already on disk under this watch, including the episodes
 	// processPendingEpisodes moved out of the collecting folder later
@@ -216,6 +219,7 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 		WHERE status = 'done' AND server_id = ? AND (remote_path = ? OR instr(remote_path, ?) = 1)`,
 		w.ServerID, w.RemotePath, w.RemotePath+"/")
 	if derr == nil {
+		defer drows.Close()
 		for drows.Next() {
 			var local string
 			if drows.Scan(&local) != nil {
@@ -223,7 +227,9 @@ func (s *Server) trackedEpisodes(w Watch) map[int]bool {
 			}
 			add(path.Base(local))
 		}
-		drows.Close()
+		if err := drows.Err(); err != nil {
+			slog.Warn("plex streams: downloaded episodes", "err", err)
+		}
 	}
 	return eps
 }
@@ -364,6 +370,7 @@ func (s *Server) processPlexStreamQueue() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type item struct {
 		downloadID int64
 		localPath  string
@@ -398,7 +405,11 @@ func (s *Server) processPlexStreamQueue() {
 		}
 		// queued/running/paused: not our turn yet
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		// a partial queue would drop or select on half the picture
+		slog.Warn("plex stream queue", "err", err)
+		return
+	}
 	for _, id := range drop {
 		s.DB.Exec(`DELETE FROM plex_stream_queue WHERE download_id = ?`, id)
 	}

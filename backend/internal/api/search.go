@@ -69,16 +69,15 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var h SearchHit
 		if err := rows.Scan(&h.ServerID, &h.ServerName, &h.Path, &h.Name, &h.IsDir); err != nil {
-			rows.Close()
 			dbErr(w)
 			return
 		}
 		out.Results = append(out.Results, h)
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		dbErr(w)
 		return

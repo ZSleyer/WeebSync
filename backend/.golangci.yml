@@ -14,6 +14,11 @@ linters:
     # errcheck on would report fifty of those and hide anything else.
     - errcheck
   enable:
+    # database/sql: a Rows loop that never checks rows.Err() treats a
+    # mid-iteration failure as "no more rows"; an unclosed Rows leaks a
+    # connection
+    - rowserrcheck
+    - sqlclosecheck
     # an HTTP response body left open leaks the connection
     - bodyclose
     # `err == io.EOF` misses a wrapped error; errors.Is is the comparison

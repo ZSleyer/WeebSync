@@ -171,6 +171,7 @@ func (s *Server) representativeRemote(serverID int64, folder string) string {
 			return p
 		}
 	}
+	_ = rows.Err() // a failed read finds no file, same as an empty folder
 	return ""
 }
 

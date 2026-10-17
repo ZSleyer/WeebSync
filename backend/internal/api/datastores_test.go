@@ -53,6 +53,7 @@ func TestDataStoresCoverEverything(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer rows.Close()
 	var tables []string
 	for rows.Next() {
 		var name string
@@ -61,7 +62,9 @@ func TestDataStoresCoverEverything(t *testing.T) {
 		}
 		tables = append(tables, name)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if len(tables) == 0 {
 		t.Fatal("no tables in a migrated database - the schema dump is broken, not the registry")
 	}
@@ -694,13 +697,21 @@ func TestPruneCacheDropsOnlyDeadWeight(t *testing.T) {
 		t.Fatalf("pruned %d rows, want 3", n)
 	}
 	var left []string
-	rows, _ := s.DB.Query(`SELECT key FROM anilist_cache ORDER BY key`)
+	rows, err := s.DB.Query(`SELECT key FROM anilist_cache ORDER BY key`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var k string
-		rows.Scan(&k)
+		if err := rows.Scan(&k); err != nil {
+			t.Fatal(err)
+		}
 		left = append(left, k)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	want := []string{"langprobe:x", "media:1", "rel2:2", "search:fresh"}
 	if strings.Join(left, ",") != strings.Join(want, ",") {
 		t.Errorf("left %v, want %v", left, want)

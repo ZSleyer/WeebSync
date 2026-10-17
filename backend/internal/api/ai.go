@@ -1246,6 +1246,9 @@ func (s *Server) aiHaveIndex(userID int64) aiHave {
 		}
 		h.titles = append(h.titles, title)
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("assistant: reading watches failed", "err", err)
+	}
 	return h
 }
 
@@ -1564,6 +1567,9 @@ func (s *Server) aiSearchRemote(userID int64, query string) any {
 		f.MatchedTo = s.aiMatchedTitle(serverID, folder)
 		out = append(out, f)
 	}
+	if err := rows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
+	}
 	return map[string]any{"folders": out}
 }
 
@@ -1615,6 +1621,9 @@ func (s *Server) aiWatches(userID int64) any {
 			}
 			out = append(out, w)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
 	}
 	return map[string]any{"watches": out}
 }

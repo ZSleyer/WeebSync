@@ -157,13 +157,16 @@ func (s *Server) probeRemoteCandidates(ctx context.Context, budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var c cand
 		if rows.Scan(&c.serverID, &c.folder, &c.userID) == nil {
 			todo = append(todo, c)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return
+	}
 
 	opened := 0
 	for _, c := range todo {

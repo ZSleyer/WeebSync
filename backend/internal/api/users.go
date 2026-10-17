@@ -60,6 +60,10 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 		}
 		users = append(users, u)
 	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, users)
 }
 

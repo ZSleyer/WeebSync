@@ -100,13 +100,16 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var e entry
 		if rows.Scan(&e.downloadID, &e.watchID, &e.token, &e.localPath) == nil {
 			todo = append(todo, e)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return // the next tick reads the table again
+	}
 
 	for _, e := range todo {
 		if ctx.Err() != nil {

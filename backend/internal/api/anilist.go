@@ -102,6 +102,7 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 	var video string
 	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ? AND parent = ?`, serverID, folder)
 	if err == nil {
+		defer rows.Close()
 		for rows.Next() {
 			var n string
 			var dir int
@@ -113,7 +114,6 @@ func (s *Server) folderKind(serverID int64, folder, name string) string {
 				video = n
 			}
 		}
-		rows.Close()
 		if rows.Err() != nil {
 			vids, subdirs = 0, 0 // half a listing is no evidence: decide by name
 		}
@@ -982,6 +982,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	var folders []string
 	for rows.Next() {
 		var f string
@@ -991,7 +992,10 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		}
 		folders = append(folders, f)
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	for _, f := range folders {
 		name := path.Base(f)
 		s.queueScopedMatch(serverID, f, name, scopeForItem(scope, s.itemKind(serverID, f, name)), true)
@@ -1020,6 +1024,7 @@ func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
 	if err != nil {
 		return 0
 	}
+	defer rows.Close()
 	type child struct{ path, name, source string }
 	var kids []child
 	for rows.Next() {
@@ -1028,7 +1033,9 @@ func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
 			kids = append(kids, c)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return 0 // half a listing: queue nothing now, the next sweep covers it
+	}
 	queued := 0
 	for _, c := range kids {
 		if isShelf(c.name) || isHelperDir(c.name) {

@@ -121,6 +121,9 @@ func (s *Server) plexByTVDB(idx map[string]plexGuid, seriesID int64) (plexGuid, 
 			}
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("plex tvdb lookup", "series", seriesID, "err", err)
+	}
 	return plexGuid{}, false
 }
 
@@ -153,6 +156,7 @@ func (s *Server) reconcilePlex(budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type hit struct {
 		serverID int64
 		folder   string
@@ -165,7 +169,10 @@ func (s *Server) reconcilePlex(budget int) {
 			hits = append(hits, h)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("plex reconcile: matched folders", "err", err)
+		return
+	}
 
 	enriched := 0
 	for _, h := range hits {

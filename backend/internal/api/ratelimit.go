@@ -81,6 +81,7 @@ func (s *Server) accountKeyNames() map[string]string {
 			out[accountKey(e)] = e
 		}
 	}
+	_ = rows.Err() // labels only: a cut-off read shows the raw key for the rest
 	return out
 }
 

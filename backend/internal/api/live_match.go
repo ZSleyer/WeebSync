@@ -104,6 +104,8 @@ func (s *Server) releaseTitle(serverID int64, folder string) string {
 			return strings.NewReplacer(".", " ", "_", " ").Replace(m[1])
 		}
 	}
+	// a failed read names no title, same as an empty folder
+	_ = rows.Err()
 	return ""
 }
 

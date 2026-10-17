@@ -261,6 +261,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var d statusRunning
 		var remote string
@@ -284,7 +285,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Downloads.Running = append(out.Downloads.Running, d)
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	if out.Downloads.TotalBytesPerSec > 0 {
 		out.Downloads.EtaSeconds = remaining / out.Downloads.TotalBytesPerSec
 	}
@@ -297,6 +301,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var f statusFinished
 		var remote string
@@ -306,13 +311,17 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		f.Name = path.Base(remote)
 		out.LastFinished = append(out.LastFinished, f)
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 
 	rows, err = s.DB.Query(`SELECT id, title_override, remote_path, last_check, last_result, last_queued, last_uploading FROM watches ORDER BY id`)
 	if err != nil {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var wch statusWatch
 		var title, remote string
@@ -334,7 +343,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Watches = append(out.Watches, wch)
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 
 	out.Attention.Reasons, out.Attention.Watches, out.NextReleases = s.statusAttention()
 	out.Attention.Count = len(out.Attention.Watches)
@@ -369,6 +381,7 @@ func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusR
 	if err != nil {
 		return reasons, needy, releases
 	}
+	defer rows.Close()
 	var users []int64
 	for rows.Next() {
 		var id int64
@@ -376,7 +389,9 @@ func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusR
 			users = append(users, id)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return reasons, needy, releases
+	}
 	now := time.Now().Unix()
 	for _, uid := range users {
 		list, err := s.watchesFor(uid)

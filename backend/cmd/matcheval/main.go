@@ -260,6 +260,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("query catalog_matches: %v", err)
 	}
+	defer rows.Close()
 	type row struct {
 		folder string
 		oldID  int
@@ -275,7 +276,6 @@ func main() {
 	if err := rows.Err(); err != nil {
 		log.Fatalf("iterate catalog_matches: %v", err)
 	}
-	rows.Close()
 
 	clean := strings.NewReplacer("\t", " ", "\n", " ")
 	counts := map[string]int{}

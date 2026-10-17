@@ -95,7 +95,11 @@ func TestMergeShowSeriesFoldsCours(t *testing.T) {
 	}
 
 	// the works keep their names, one level down
-	rows, _ := s.DB.Query(`SELECT season, title FROM series_seasons WHERE series_id = ? ORDER BY season`, showID)
+	rows, err := s.DB.Query(`SELECT season, title FROM series_seasons WHERE series_id = ? ORDER BY season`, showID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
 	got := map[int]string{}
 	for rows.Next() {
 		var season int
@@ -103,7 +107,9 @@ func TestMergeShowSeriesFoldsCours(t *testing.T) {
 		rows.Scan(&season, &t)
 		got[season] = t
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if len(got) != 3 || got[3] != "JoJo no Kimyou na Bouken: Diamond wa Kudakenai" {
 		t.Errorf("seasons = %v, want the three cours under their own names", got)
 	}

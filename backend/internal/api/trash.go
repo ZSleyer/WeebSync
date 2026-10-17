@@ -55,6 +55,9 @@ func (s *Server) trashRows() (paths []string, at map[string]trashRow) {
 			at[p] = r
 		}
 	}
+	if rows.Err() != nil {
+		return nil, map[string]trashRow{} // a cut-off list would mis-group sidecars
+	}
 	return paths, at
 }
 

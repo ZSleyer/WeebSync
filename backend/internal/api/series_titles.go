@@ -44,6 +44,7 @@ func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
@@ -51,7 +52,9 @@ func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 			ids = append(ids, id)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return // the queue is re-read on the next sweep
+	}
 	for _, id := range ids {
 		if ctx.Err() != nil {
 			return
@@ -72,6 +75,7 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 	if err != nil {
 		return false
 	}
+	defer rows.Close()
 	var refs []providerRef
 	for rows.Next() {
 		var r providerRef
@@ -79,7 +83,6 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 			refs = append(refs, r)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return false
 	}
@@ -158,6 +161,9 @@ func (s *Server) seriesLocalTitle(seriesID int64) string {
 				break
 			}
 		}
+	}
+	if rows.Err() != nil {
+		return "" // a title picked from half the rows may not be the preferred one
 	}
 	return best
 }

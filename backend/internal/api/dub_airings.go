@@ -37,6 +37,7 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type want struct {
 		id   int
 		lang string
@@ -56,7 +57,10 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 		seen[w] = true
 		wants = append(wants, w)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("dub airings: read wants", "err", err)
+		return
+	}
 	n := 0
 	for _, w := range wants {
 		if ctx.Err() != nil {
@@ -93,13 +97,20 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 		have := map[int]bool{}
 		hr, err := s.DB.Query(`SELECT episode FROM airings WHERE source = 'anilist' AND media_id = ? AND lang = ?`, w.id, w.lang)
 		if err == nil {
-			for hr.Next() {
-				var ep int
-				if hr.Scan(&ep) == nil {
-					have[ep] = true
+			readErr := func() error {
+				defer hr.Close()
+				for hr.Next() {
+					var ep int
+					if hr.Scan(&ep) == nil {
+						have[ep] = true
+					}
 				}
+				return hr.Err()
+			}()
+			if readErr != nil {
+				slog.Warn("dub airings: read recorded episodes", "media", w.id, "err", readErr)
+				continue
 			}
-			hr.Close()
 		}
 		var ids []string
 		byGUID := map[string]int{}

@@ -289,6 +289,7 @@ func (s *Server) settleSeries(source string, mediaID int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var refs []providerRef
 	for rows.Next() {
 		var r providerRef
@@ -296,7 +297,6 @@ func (s *Server) settleSeries(source string, mediaID int) {
 			refs = append(refs, r)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return
 	}
@@ -412,6 +412,7 @@ func (s *Server) SettleMatchedSeries() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var refs []providerRef
 	for rows.Next() {
 		var r providerRef
@@ -419,7 +420,6 @@ func (s *Server) SettleMatchedSeries() {
 			refs = append(refs, r)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return
 	}

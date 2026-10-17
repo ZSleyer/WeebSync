@@ -190,6 +190,7 @@ func (s *Server) hashLegacyVerifyTokens() {
 		if err != nil {
 			return err
 		}
+		defer rows.Close()
 		type row struct {
 			id    int64
 			token string
@@ -201,7 +202,9 @@ func (s *Server) hashLegacyVerifyTokens() {
 				all = append(all, r)
 			}
 		}
-		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
 		for _, r := range all {
 			if _, err := tx.Exec(`UPDATE users SET verify_token = ? WHERE id = ?`, hashToken(r.token), r.id); err != nil {
 				return err
@@ -540,6 +543,7 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type recipient struct{ email, locale string }
 	var recipients []recipient
 	for rows.Next() {
@@ -549,7 +553,10 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 			recipients = append(recipients, recipient{email, locale})
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("admin notify email: read recipients", "err", err)
+		return // a partial list would silently skip admins
+	}
 	for _, to := range recipients {
 		go func(rc recipient) {
 			if rc.locale != "de" {

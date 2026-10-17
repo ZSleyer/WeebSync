@@ -75,6 +75,9 @@ func (s *Server) arrFiles(where string, limit int, args ...any) []arrFile {
 			out = append(out, f)
 		}
 	}
+	if rows.Err() != nil {
+		return nil
+	}
 	return out
 }
 

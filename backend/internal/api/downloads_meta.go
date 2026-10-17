@@ -122,7 +122,9 @@ func (s *Server) downloadsMeta(userID int64) (DownloadMetaResponse, error) {
 		}
 		list = append(list, d)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return resp, err
+	}
 
 	bySrc, bySeries, _ := s.seriesProviderMaps()
 	locale := s.userLocale(userID)

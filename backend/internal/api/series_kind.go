@@ -91,6 +91,7 @@ func (s *Server) refreshSeriesKinds(budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
@@ -98,8 +99,7 @@ func (s *Server) refreshSeriesKinds(budget int) {
 			ids = append(ids, id)
 		}
 	}
-	rows.Close()
-	if len(ids) == 0 {
+	if rows.Err() != nil || len(ids) == 0 {
 		return
 	}
 	// a kind is decided once and for good, so never from a partial read
@@ -161,6 +161,9 @@ func (s *Server) seriesKinds() map[int64]string {
 		if rows.Scan(&id, &k) == nil {
 			out[id] = k
 		}
+	}
+	if rows.Err() != nil {
+		return map[int64]string{} // a partial map would pass kinds off as undecided one by one
 	}
 	return out
 }

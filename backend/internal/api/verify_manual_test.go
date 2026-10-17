@@ -47,7 +47,11 @@ func TestVerifyUnits(t *testing.T) {
 	}
 
 	// 2. re-derive every matched folder's unit (remote uses remote_index, no net)
-	rows, _ := database.Query(`SELECT server_id, folder FROM catalog_matches WHERE media_id != 0`)
+	rows, err := database.Query(`SELECT server_id, folder FROM catalog_matches WHERE media_id != 0`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
 	type f struct {
 		sid int64
 		dir string
@@ -55,10 +59,14 @@ func TestVerifyUnits(t *testing.T) {
 	var folders []f
 	for rows.Next() {
 		var x f
-		rows.Scan(&x.sid, &x.dir)
+		if err := rows.Scan(&x.sid, &x.dir); err != nil {
+			t.Fatal(err)
+		}
 		folders = append(folders, x)
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	for _, x := range folders {
 		s.refreshVariant(x.sid, x.dir)
 	}
@@ -104,13 +112,21 @@ func TestVerifyUnits(t *testing.T) {
 	}
 
 	// 6. spot-check: any anime whose Fribb season > 1 (season precision proof)
-	scRows, _ := database.Query(`SELECT anilist_id, tvdb_id, tvdb_season FROM anime_ids WHERE tvdb_season > 1 LIMIT 5`)
+	scRows, err := database.Query(`SELECT anilist_id, tvdb_id, tvdb_season FROM anime_ids WHERE tvdb_season > 1 LIMIT 5`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer scRows.Close()
 	fmt.Println("sample anilist->tvdb season>1:")
 	for scRows.Next() {
 		var al, tv, se int
-		scRows.Scan(&al, &tv, &se)
+		if err := scRows.Scan(&al, &tv, &se); err != nil {
+			t.Fatal(err)
+		}
 		fmt.Printf("  anilist %d -> tvdb %d season %d\n", al, tv, se)
 	}
-	scRows.Close()
+	if err := scRows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	_ = context.Background()
 }

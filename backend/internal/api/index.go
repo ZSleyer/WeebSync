@@ -103,17 +103,16 @@ func writeListing(tx *sql.Tx, serverID int64, dir string, entries []remote.Entry
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 	var gone []string
 	for rows.Next() {
 		var p string
 		if err := rows.Scan(&p); err != nil {
 			// skipping it would leave the vanished subtree behind as orphans
-			rows.Close()
 			return err
 		}
 		gone = append(gone, p)
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
 		return err
 	}
@@ -196,6 +195,9 @@ func (s *Server) nextCrawlDirs(serverID int64, limit int) []string {
 		rows.Scan(&p)
 		dirs = append(dirs, p)
 	}
+	if rows.Err() != nil {
+		return nil // a partial batch would starve the dirs behind it; retry next tick
+	}
 	return dirs
 }
 
@@ -229,21 +231,27 @@ func (s *Server) IndexLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			rows, err := s.DB.Query(`SELECT id, user_id, root_path FROM servers`)
-			if err != nil {
-				continue
-			}
 			type srv struct {
 				id, userID int64
 				root       string
 			}
-			var servers []srv
-			for rows.Next() {
-				var v srv
-				rows.Scan(&v.id, &v.userID, &v.root)
-				servers = append(servers, v)
+			servers, err := func() ([]srv, error) {
+				rows, err := s.DB.Query(`SELECT id, user_id, root_path FROM servers`)
+				if err != nil {
+					return nil, err
+				}
+				defer rows.Close()
+				var out []srv
+				for rows.Next() {
+					var v srv
+					rows.Scan(&v.id, &v.userID, &v.root)
+					out = append(out, v)
+				}
+				return out, rows.Err()
+			}()
+			if err != nil {
+				continue // try again on the next tick
 			}
-			rows.Close()
 			now := time.Now()
 			for _, v := range servers {
 				if now.Sub(lastCrawl[v.id]) < s.crawlIntervalFor(v.id) {

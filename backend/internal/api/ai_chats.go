@@ -77,6 +77,10 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 			out = append(out, c)
 		}
 	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, out)
 }
 

@@ -36,17 +36,11 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			return
 		case <-tick.C:
 			s.expireAuthRows()
-			rows, err := s.DB.Query(`SELECT id FROM servers`)
+			ids, err := s.serverIDs()
 			if err != nil {
+				slog.Warn("sweep: reading servers failed", "err", err)
 				continue
 			}
-			var ids []int64
-			for rows.Next() {
-				var id int64
-				rows.Scan(&id)
-				ids = append(ids, id)
-			}
-			rows.Close()
 			// server 0 (local filesystem) is swept too - it has scope marks
 			// and catalog matches, just no remote_index for quality
 			ids = append(ids, 0)
@@ -132,6 +126,24 @@ func (s *Server) SweepLoop(ctx context.Context) {
 	}
 }
 
+// serverIDs lists every configured server's id.
+func (s *Server) serverIDs() ([]int64, error) {
+	rows, err := s.DB.Query(`SELECT id FROM servers`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // sweepServer enqueues matches for unmatched folders under this server's scope
 // marks and refreshes stale variants, both capped by budget.
 func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
@@ -139,14 +151,19 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 	if err != nil {
 		return
 	}
+	defer scopes.Close()
 	type scope struct{ path, kind string }
 	var marks []scope
 	for scopes.Next() {
 		var m scope
-		scopes.Scan(&m.path, &m.kind)
-		marks = append(marks, m)
+		if scopes.Scan(&m.path, &m.kind) == nil {
+			marks = append(marks, m)
+		}
 	}
-	scopes.Close()
+	if err := scopes.Err(); err != nil {
+		slog.Warn("sweep: reading scope marks failed", "server", serverID, "err", err)
+		return
+	}
 	// folders a scope rule covers are marks too, though nothing stores them
 	for _, m := range s.ruleMarks(serverID) {
 		marks = append(marks, scope{m[0], m[1]})
@@ -159,22 +176,11 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 			return
 		}
 		// direct child directories with no catalog match yet
-		rows, err := s.DB.Query(`SELECT path, name FROM remote_index
-			WHERE server_id = ? AND is_dir = 1 AND parent = ?
-			  AND NOT EXISTS (SELECT 1 FROM catalog_matches cm
-			                  WHERE cm.server_id = remote_index.server_id AND cm.folder = remote_index.path)
-			LIMIT ?`, serverID, m.path, budget-queued)
+		kids, err := s.unmatchedChildren(serverID, m.path, budget-queued)
 		if err != nil {
+			slog.Warn("sweep: listing unmatched folders failed", "server", serverID, "err", err)
 			continue
 		}
-		type child struct{ path, name string }
-		var kids []child
-		for rows.Next() {
-			var c child
-			rows.Scan(&c.path, &c.name)
-			kids = append(kids, c)
-		}
-		rows.Close()
 		for _, c := range kids {
 			if isHelperDir(c.name) {
 				continue
@@ -198,6 +204,31 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 	}
 }
 
+type sweepChild struct{ path, name string }
+
+// unmatchedChildren returns up to limit direct child directories of parent that
+// have no catalog match yet.
+func (s *Server) unmatchedChildren(serverID int64, parent string, limit int) ([]sweepChild, error) {
+	rows, err := s.DB.Query(`SELECT path, name FROM remote_index
+		WHERE server_id = ? AND is_dir = 1 AND parent = ?
+		  AND NOT EXISTS (SELECT 1 FROM catalog_matches cm
+		                  WHERE cm.server_id = remote_index.server_id AND cm.folder = remote_index.path)
+		LIMIT ?`, serverID, parent, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var kids []sweepChild
+	for rows.Next() {
+		var c sweepChild
+		if err := rows.Scan(&c.path, &c.name); err != nil {
+			return nil, err
+		}
+		kids = append(kids, c)
+	}
+	return kids, rows.Err()
+}
+
 // refreshStaleVariants recomputes quality for matched folders whose variant is
 // missing or stale, capped by budget.
 func (s *Server) refreshStaleVariants(serverID int64, budget int) {
@@ -218,13 +249,18 @@ func (s *Server) refreshStaleVariants(serverID int64, budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var folders []string
 	for rows.Next() {
 		var f string
-		rows.Scan(&f)
-		folders = append(folders, f)
+		if rows.Scan(&f) == nil {
+			folders = append(folders, f)
+		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("sweep: reading stale variants failed", "server", serverID, "err", err)
+		return
+	}
 	for _, f := range folders {
 		s.refreshVariant(serverID, f)
 	}
@@ -245,6 +281,7 @@ func (s *Server) relinkOrphans(budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type orphan struct {
 		source  string
 		mediaID int
@@ -256,7 +293,10 @@ func (s *Server) relinkOrphans(budget int) {
 			orphans = append(orphans, o)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("sweep: reading orphan matches failed", "err", err)
+		return
+	}
 	for _, o := range orphans {
 		s.linkSeries(o.source, o.mediaID)
 	}
@@ -277,13 +317,18 @@ func (s *Server) warmSuggestions() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
-		rows.Scan(&id)
-		ids = append(ids, id)
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("sweep: reading users failed", "err", err)
+		return
+	}
 	for _, id := range ids {
 		key := fmt.Sprintf("suggestions:%d", id)
 		var fetched string
@@ -310,6 +355,7 @@ func (s *Server) BackfillSeries() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type row struct {
 		serverID int64
 		folder   string
@@ -323,7 +369,6 @@ func (s *Server) BackfillSeries() {
 			all = append(all, r)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return // the flag below would leave the unread matches unlinked for good
 	}
@@ -375,6 +420,7 @@ func (s *Server) backfillPlexStreams() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
@@ -382,7 +428,6 @@ func (s *Server) backfillPlexStreams() {
 			ids = append(ids, id)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return // the flag stays unset, the next tick reads the watches again
 	}
@@ -437,6 +482,7 @@ func (s *Server) BackfillUnits() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type f struct {
 		sid    int64
 		folder string
@@ -448,7 +494,6 @@ func (s *Server) BackfillUnits() {
 			todo = append(todo, x)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return
 	}

@@ -119,6 +119,9 @@ func (s *Server) aiLibrary(userID int64, query string) any {
 		f.Dub, f.Sub, f.IsMovie = splitCSV(dub), splitCSV(sub), isMovie == 1
 		out = append(out, f)
 	}
+	if err := rows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
+	}
 	return map[string]any{"folders": out}
 }
 
@@ -175,6 +178,9 @@ func (s *Server) aiDownloads(userID int64, status string) any {
 		}
 		counts[d.Status]++
 		out = append(out, d)
+	}
+	if err := rows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
 	}
 	return map[string]any{"downloads": out, "counts": counts}
 }
@@ -299,6 +305,7 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 	if err != nil {
 		return map[string]any{"error": "db error"}
 	}
+	defer rows.Close()
 	seasons := map[int]*aiSeason{}
 	var order []int
 	for rows.Next() {
@@ -308,7 +315,9 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 			order = append(order, se.Season)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
+	}
 	at := func(n int) *aiSeason {
 		if se, ok := seasons[n]; ok {
 			return se
@@ -323,6 +332,7 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 		FROM catalog_variants v LEFT JOIN servers s ON s.id = v.server_id
 		WHERE v.series_id = ? AND (v.server_id = 0 OR s.user_id = ?) ORDER BY v.server_id, v.folder`, seriesID, userID)
 	if err == nil {
+		defer vrows.Close()
 		for vrows.Next() {
 			var f aiFolder
 			var serverID int64
@@ -346,24 +356,30 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 				se.Remote = append(se.Remote, f)
 			}
 		}
-		vrows.Close()
+		if err := vrows.Err(); err != nil {
+			return map[string]any{"error": "db error"}
+		}
 	}
 	// auto-syncs: a watch whose folder sits in one of the seasons' units
 	wrows, err := s.DB.Query(`SELECT COALESCE(v.season, 0) FROM watches w
 		JOIN catalog_variants v ON v.server_id = w.server_id AND v.folder = w.remote_path
 		WHERE w.user_id = ? AND v.series_id = ?`, userID, seriesID)
 	if err == nil {
+		defer wrows.Close()
 		for wrows.Next() {
 			var n int
 			if wrows.Scan(&n) == nil {
 				at(n).InAutoSync = true
 			}
 		}
-		wrows.Close()
+		if err := wrows.Err(); err != nil {
+			return map[string]any{"error": "db error"}
+		}
 	}
 	// the AniList work of each season, so the model can show its card
 	prows, err := s.DB.Query(`SELECT media_id FROM series_provider WHERE series_id = ? AND source = 'anilist'`, seriesID)
 	if err == nil {
+		defer prows.Close()
 		for prows.Next() {
 			var id int
 			if prows.Scan(&id) != nil {
@@ -375,7 +391,9 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 				}
 			}
 		}
-		prows.Close()
+		if err := prows.Err(); err != nil {
+			return map[string]any{"error": "db error"}
+		}
 	}
 	sort.Ints(order)
 	out := make([]aiSeason, 0, len(order))

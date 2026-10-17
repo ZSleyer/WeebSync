@@ -71,6 +71,9 @@ func (s *Server) ruleMarks(serverID int64) (marks [][2]string) {
 			marks = append(marks, [2]string{p, kind})
 		}
 	}
+	if rows.Err() != nil {
+		return nil // half the rules would mark half the folders; the next sweep retries
+	}
 	return marks
 }
 
@@ -94,6 +97,7 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 	type group struct {
 		serverID   int64
 		serverName string
@@ -121,13 +125,12 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 			marks[g][shape] = mark{kind, path.Base(p)}
 		}
 	}
-	rows.Close()
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
-	out := []scopeHint{}
-	for g, shapes := range marks {
+	// the unmarked siblings under one parent that look like a marked one
+	siblingHints := func(g group, shapes map[string]mark) (hints []scopeHint, err error) {
 		kids, err := s.DB.Query(`SELECT ri.path, ri.name FROM remote_index ri
 			WHERE ri.server_id = ? AND ri.parent = ? AND ri.is_dir = 1
 			  AND NOT EXISTS (SELECT 1 FROM catalog_scopes cs WHERE cs.server_id = ri.server_id AND cs.path = ri.path)
@@ -135,6 +138,7 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 		if err != nil {
 			return nil, err
 		}
+		defer kids.Close()
 		for kids.Next() {
 			var p, name string
 			if kids.Scan(&p, &name) != nil {
@@ -147,9 +151,18 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 			if id, _ := s.ruleScope(g.serverID, p); id != 0 {
 				continue
 			}
-			out = append(out, scopeHint{g.serverID, g.serverName, p, name, m.kind, m.name})
+			hints = append(hints, scopeHint{g.serverID, g.serverName, p, name, m.kind, m.name})
 		}
-		kids.Close()
+		return hints, kids.Err()
+	}
+
+	out := []scopeHint{}
+	for g, shapes := range marks {
+		hints, err := siblingHints(g, shapes)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, hints...)
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].ServerName != out[j].ServerName {
@@ -217,6 +230,10 @@ func (s *Server) handleScopeRules(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, sr)
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

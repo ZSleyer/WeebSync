@@ -266,6 +266,7 @@ func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) (cleared in
 	if err != nil {
 		return cleared, 0
 	}
+	defer rows.Close()
 	type watchFolder struct{ remote, local string }
 	var watched []watchFolder
 	for rows.Next() {
@@ -274,7 +275,9 @@ func (s *Server) clearStaleSubRows(serverID int64, dir, kind string) (cleared in
 			watched = append(watched, w)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return cleared, 0
+	}
 	for _, w := range watched {
 		if s.matchWatch(serverID, w.remote, w.local, false) {
 			rematched++
@@ -304,6 +307,7 @@ func (s *Server) RepairCatalog() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type mark struct {
 		server     int64
 		path, kind string
@@ -315,7 +319,6 @@ func (s *Server) RepairCatalog() {
 			marks = append(marks, m)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return
 	}

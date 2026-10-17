@@ -130,5 +130,6 @@ func (s *Server) remoteShowRoot(serverID int64, folder string) bool {
 			seasons[strings.TrimLeft(m[1], "0")] = true
 		}
 	}
+	_ = rows.Err() // a failed read counts the seasons it saw
 	return len(seasons) > 1
 }

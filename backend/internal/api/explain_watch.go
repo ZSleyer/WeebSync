@@ -265,5 +265,8 @@ func (s *Server) replacedCopy(local, finished string) string {
 			best, bestGap = name, gap
 		}
 	}
+	if rows.Err() != nil {
+		return ""
+	}
 	return best
 }

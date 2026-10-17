@@ -426,6 +426,10 @@ func (s *Server) copySizes(serverID int64, folder string) map[int64]bool {
 			out[size] = true
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("remote file sizes", "err", err)
+		return map[int64]bool{}
+	}
 	return out
 }
 
@@ -1008,6 +1012,10 @@ func (s *Server) remoteEpisodeNums(serverID int64, folder string) map[int]bool {
 			out[ep] = true
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("remote episode numbers", "err", err)
+		return map[int]bool{}
+	}
 	return out
 }
 
@@ -1295,6 +1303,11 @@ func (s *Server) loadRawUnits() catUnits {
 			cu.remotes = append(cu.remotes, v)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		// half the catalog would read as the rest being gone
+		slog.Warn("catalog units", "err", err)
+		return catUnits{byKey: map[string]*catUnit{}}
+	}
 	return u
 }
 
@@ -1363,6 +1376,10 @@ func (s *Server) showKeyCanon() map[string]string {
 			order = append(order, g)
 		}
 		groups[g] = append(groups[g], showKey)
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("show key folding", "err", err)
+		return nil
 	}
 	canon := map[string]string{} // showScope(key, form) -> the key that speaks for the series
 	for _, g := range order {
@@ -1616,6 +1633,9 @@ func (s *Server) unitEnrichIndex() *unitEnrich {
 			}
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("unit enrichment", "err", err) // covers and titles are best effort
+	}
 	// the units fold aliased keys onto one per series (see showKeyCanon), and
 	// they ask for that one - so what was learnt under an alias has to sit
 	// under it too, or a Plex show keyed by TMDB never meets the cover its
@@ -1750,6 +1770,9 @@ func (s *Server) serverNames() map[int64]string {
 		if rows.Scan(&id, &name) == nil {
 			m[id] = name
 		}
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("server names", "err", err)
 	}
 	return m
 }

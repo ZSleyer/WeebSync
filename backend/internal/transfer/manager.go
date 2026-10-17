@@ -218,13 +218,18 @@ func (m *Manager) startPending() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
-		rows.Scan(&id)
+		if rows.Scan(&id) != nil {
+			continue // id 0 would start a download that does not exist
+		}
 		ids = append(ids, id)
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return // the rows already read still start next tick; the rest follow
+	}
 	for _, id := range ids {
 		m.startDownload(id)
 	}
@@ -925,18 +930,20 @@ func (m *Manager) Reorder(userID int64, ids []int64) error {
 	if err != nil {
 		return err
 	}
+	defer rows.Close()
 	var slots []int64
 	queued := map[int64]bool{}
 	for rows.Next() {
 		var id, pos int64
 		if err := rows.Scan(&id, &pos); err != nil {
-			rows.Close()
 			return err
 		}
 		slots = append(slots, pos)
 		queued[id] = true
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
 	if len(ids) != len(slots) {
 		return ErrQueueChanged
 	}

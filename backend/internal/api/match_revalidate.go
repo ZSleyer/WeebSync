@@ -32,6 +32,7 @@ func (s *Server) RevalidateMatches() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type row struct {
 		serverID int64
 		folder   string
@@ -45,7 +46,6 @@ func (s *Server) RevalidateMatches() {
 			all = append(all, r)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return // a partial pass must not stamp the rule set as applied
 	}
@@ -144,6 +144,7 @@ func (s *Server) BackfillWatchMatches() int {
 	if err != nil {
 		return 0
 	}
+	defer rows.Close()
 	type watchFolder struct {
 		serverID      int64
 		remote, local string
@@ -156,7 +157,6 @@ func (s *Server) BackfillWatchMatches() int {
 			all = append(all, w)
 		}
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		return 0 // a partial pass must not stamp the rule set as applied
 	}

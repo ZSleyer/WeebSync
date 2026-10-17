@@ -129,6 +129,10 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 		}
 		list = append(list, si)
 	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, list)
 }
 

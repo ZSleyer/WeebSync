@@ -401,24 +401,36 @@ func (s *Server) remoteCandidates(userID int64, m anilist.Media) []plexCandidate
 			args = append(args, wrongForm)
 		}
 		q.WriteString(` LIMIT 3`)
-		rows, err := s.DB.Query(q.String(), args...)
-		if err != nil {
-			continue
-		}
-		for rows.Next() {
-			var c plexCandidate
-			rows.Scan(&c.ServerID, &c.ServerName, &c.Path)
-			if !seen[c.Path] && len(out) < 3 {
-				seen[c.Path] = true
-				out = append(out, c)
-			}
-		}
-		rows.Close()
+		s.collectPlexCandidates(q.String(), args, seen, &out)
 		if len(out) >= 3 {
 			break
 		}
 	}
 	return out
+}
+
+// collectPlexCandidates appends the folders one query finds to out, up to
+// three. A query that fails part way keeps what it read: these are
+// suggestions, and the next title's query adds its own.
+func (s *Server) collectPlexCandidates(query string, args []any, seen map[string]bool, out *[]plexCandidate) {
+	rows, err := s.DB.Query(query, args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var c plexCandidate
+		if rows.Scan(&c.ServerID, &c.ServerName, &c.Path) != nil {
+			continue
+		}
+		if !seen[c.Path] && len(*out) < 3 {
+			seen[c.Path] = true
+			*out = append(*out, c)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("plex candidates", "err", err)
+	}
 }
 
 // significantWords picks up to n search-worthy words (len >= 3) of a title.

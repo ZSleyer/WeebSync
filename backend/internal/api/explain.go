@@ -238,6 +238,9 @@ func (s *Server) bundleOf(serverID int64, folder string, c explainChosen) []stri
 			out = append(out, f)
 		}
 	}
+	if rows.Err() != nil {
+		return []string{}
+	}
 	sort.Strings(out)
 	return out
 }

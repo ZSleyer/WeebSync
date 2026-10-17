@@ -209,6 +209,7 @@ func (s *Server) seriesTitleSet(seriesID int64) ([]string, []int) {
 				add(v)
 			}
 		}
+		_ = rows.Err() // a cut-off read yields fewer candidate titles/years, nothing is written from them
 	}
 	collect(`SELECT DISTINCT title FROM series_titles WHERE series_id = ?`, func(t string) { out = append(out, t) })
 	collect(`SELECT DISTINCT year FROM series_seasons WHERE series_id = ? AND year != 0`, func(y string) {

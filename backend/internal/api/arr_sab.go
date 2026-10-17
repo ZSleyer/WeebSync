@@ -46,15 +46,17 @@ func (s *Server) handleSab(w http.ResponseWriter, r *http.Request) {
 func (s *Server) sabCategories() []string {
 	cats := []string{"*", "tv", "movies", "sonarr", "radarr", "tv-sonarr", "anime"}
 	rows, err := s.DB.Query(`SELECT DISTINCT category FROM arr_jobs WHERE category != ''`)
-	if err == nil {
-		for rows.Next() {
-			var c string
-			if rows.Scan(&c) == nil && !slices.Contains(cats, c) {
-				cats = append(cats, c)
-			}
-		}
-		rows.Close()
+	if err != nil {
+		return cats
 	}
+	defer rows.Close()
+	for rows.Next() {
+		var c string
+		if rows.Scan(&c) == nil && !slices.Contains(cats, c) {
+			cats = append(cats, c)
+		}
+	}
+	_ = rows.Err() // a cut-off read keeps the defaults plus what was read
 	return cats
 }
 

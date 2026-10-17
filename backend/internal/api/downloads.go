@@ -50,6 +50,10 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		}
 		list = append(list, d)
 	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	writeJSON(w, http.StatusOK, list)
 }
 
@@ -362,17 +366,16 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	var ids []int64
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			rows.Close()
 			dbErr(w)
 			return
 		}
 		ids = append(ids, id)
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		dbErr(w)
 		return

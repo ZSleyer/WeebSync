@@ -74,6 +74,9 @@ func (s *Server) waCredentials(userID int64) []webauthn.Credential {
 			out = append(out, c)
 		}
 	}
+	if rows.Err() != nil {
+		return nil
+	}
 	return out
 }
 

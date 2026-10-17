@@ -71,13 +71,19 @@ func TestRefreshSeriesTitlesManual(t *testing.T) {
 	var series, titles int
 	d.QueryRow(`SELECT COUNT(DISTINCT series_id), COUNT(*) FROM series_titles`).Scan(&series, &titles)
 	t.Logf("series=%d titles=%d", series, titles)
-	rows, _ := d.Query(`SELECT series_id, source, locale, title FROM series_titles LIMIT 12`)
+	rows, err := d.Query(`SELECT series_id, source, locale, title FROM series_titles LIMIT 12`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer rows.Close()
 	for rows.Next() {
 		var id int64
 		var src, loc, title string
 		rows.Scan(&id, &src, &loc, &title)
 		t.Logf("  %d %s %s %q", id, src, loc, title)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	if series == 0 {
 		t.Error("no titles fetched")

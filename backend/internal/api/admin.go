@@ -189,16 +189,15 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var v adminIndexServer
 		if err := rows.Scan(&v.ID, &v.Name, &v.Rows, &v.Dirs, &v.PendingDirs, &v.StalestListedAt); err != nil {
-			rows.Close()
 			dbErr(w)
 			return
 		}
 		out.Index.Servers = append(out.Index.Servers, v)
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		dbErr(w)
 		return
@@ -220,16 +219,15 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	for rows.Next() {
 		var v adminMatchStat
 		if err := rows.Scan(&v.ServerID, &v.Name, &v.Source, &v.Total, &v.Matched, &v.Unmatched, &v.Manual); err != nil {
-			rows.Close()
 			dbErr(w)
 			return
 		}
 		out.Matches = append(out.Matches, v)
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		dbErr(w)
 		return
@@ -296,17 +294,23 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 			token string
 		}
 		var accounts []account
+		defer rows.Close()
 		for rows.Next() {
 			var alID int
 			var enc []byte
-			rows.Scan(&alID, &enc)
+			if rows.Scan(&alID, &enc) != nil {
+				continue
+			}
 			token, err := secret.Decrypt(enc)
 			if err != nil {
 				continue
 			}
 			accounts = append(accounts, account{alID, token})
 		}
-		rows.Close()
+		if rows.Err() != nil {
+			dbErr(w)
+			return
+		}
 		for _, a := range accounts {
 			s.Anilist.InvalidateUserList(a.alID)
 			s.buildAnilistSuggestions(a.alID, a.token)
@@ -352,15 +356,10 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 // series structure when the self-healing sweep is too slow, and by the data
 // reset to refill what it just emptied. Returns the total queued.
 func (s *Server) rematchAll(all bool) int {
-	var ids []int64
-	rows, err := s.DB.Query(`SELECT id FROM servers`)
-	if err == nil {
-		for rows.Next() {
-			var id int64
-			rows.Scan(&id)
-			ids = append(ids, id)
-		}
-		rows.Close()
+	// a failed read leaves only the local filesystem to re-queue
+	ids, err := s.serverIDs()
+	if err != nil {
+		slog.Warn("rematch: reading servers failed", "err", err)
 	}
 	ids = append(ids, localServerID)
 	total := 0
@@ -650,17 +649,16 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 		dbErr(w)
 		return
 	}
+	defer rows.Close()
 	entries := []adminMatchEntry{}
 	for rows.Next() {
 		var e adminMatchEntry
 		if err := rows.Scan(&e.Folder, &e.MediaID, &e.Manual, &e.Source); err != nil {
-			rows.Close()
 			dbErr(w)
 			return
 		}
 		entries = append(entries, e)
 	}
-	rows.Close()
 	if rows.Err() != nil {
 		dbErr(w)
 		return

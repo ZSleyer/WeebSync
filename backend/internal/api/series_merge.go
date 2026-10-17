@@ -133,6 +133,7 @@ func (s *Server) mergeShowSeries(budget int) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var cands []cand
 	for rows.Next() {
 		var c cand
@@ -140,7 +141,9 @@ func (s *Server) mergeShowSeries(budget int) {
 			cands = append(cands, c)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return // the pass is repeatable; the next sweep reads the list again
+	}
 
 	merged, touched := 0, map[int64]bool{}
 	for _, c := range cands {
@@ -185,6 +188,7 @@ func (s *Server) refreshShowTitle(seriesID int64) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var titles []string
 	firstYear := 0
 	for rows.Next() {
@@ -198,7 +202,6 @@ func (s *Server) refreshShowTitle(seriesID int64) {
 			firstYear = year
 		}
 	}
-	rows.Close()
 	// the shared prefix of half the seasons is not the show's name
 	if rows.Err() != nil || len(titles) == 0 {
 		return

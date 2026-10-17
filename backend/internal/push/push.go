@@ -119,6 +119,7 @@ func (s *Service) Notify(userID int64, n Notification) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type sub struct{ endpoint, p256dh, auth string }
 	var subs []sub
 	for rows.Next() {
@@ -127,7 +128,11 @@ func (s *Service) Notify(userID int64, n Notification) {
 			subs = append(subs, x)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		// sending to the subscriptions read so far would leave the rest
+		// silently without the notification: say so instead
+		slog.Warn("push subscriptions read failed", "err", err)
+	}
 
 	payload, _ := json.Marshal(n)
 	for _, x := range subs {

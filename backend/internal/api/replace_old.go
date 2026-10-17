@@ -233,6 +233,7 @@ func (s *Server) emptyTrash() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	var paths []string
 	for rows.Next() {
 		var p string
@@ -240,7 +241,9 @@ func (s *Server) emptyTrash() {
 			paths = append(paths, p)
 		}
 	}
-	rows.Close()
+	if rows.Err() != nil {
+		return // deleting from a partial list is safe but pointless; next run retries
+	}
 	s.deleteTrash(paths)
 }
 

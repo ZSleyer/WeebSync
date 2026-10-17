@@ -70,6 +70,7 @@ func (s *Server) dismissedKeys(userID int64, kind string) map[string]bool {
 			out[k] = true
 		}
 	}
+	_ = rows.Err() // a cut-off read hides fewer suggestions, never more
 	return out
 }
 
@@ -152,6 +153,10 @@ func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 		if rows.Scan(&d.Kind, &d.RefKey, &d.Label, &d.DismissedAt, &d.Cover, &d.Section) == nil {
 			out = append(out, d)
 		}
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

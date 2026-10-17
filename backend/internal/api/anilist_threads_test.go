@@ -35,6 +35,9 @@ func cacheKeys(t *testing.T, s *Server) map[string]bool {
 		rows.Scan(&k)
 		out[k] = true
 	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	return out
 }
 

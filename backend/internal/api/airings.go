@@ -30,6 +30,7 @@ func (s *Server) recordAirings() {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type pair struct {
 		source string
 		id     int
@@ -41,7 +42,10 @@ func (s *Server) recordAirings() {
 			pairs = append(pairs, p)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		slog.Warn("airings: reading watched titles failed", "err", err)
+		return
+	}
 	n := 0
 	for _, p := range pairs {
 		m := s.cachedMedia(p.source, p.id)
@@ -95,6 +99,10 @@ func (s *Server) pastAirings(source string, mediaID int, from, to time.Time) []A
 			out = append(out, a)
 		}
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("airings: reading past airings failed", "err", err)
+		return nil
+	}
 	return out
 }
 
@@ -113,6 +121,10 @@ func (s *Server) langAirings(source string, mediaID int, lang string) []Airing {
 		if rows.Scan(&a.At, &a.Episode) == nil {
 			out = append(out, a)
 		}
+	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("airings: reading recorded airings failed", "err", err)
+		return nil
 	}
 	return out
 }

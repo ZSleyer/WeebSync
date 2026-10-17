@@ -162,6 +162,7 @@ func (s *Server) rematchLibraryWatches(roots []string) {
 	if err != nil {
 		return
 	}
+	defer rows.Close()
 	type watchFolder struct {
 		serverID      int64
 		remote, local string
@@ -173,7 +174,11 @@ func (s *Server) rematchLibraryWatches(roots []string) {
 			all = append(all, w)
 		}
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		// a half-read list would rematch some watches and silently skip the rest
+		slog.Warn("library source rematch: watches list", "err", err)
+		return
+	}
 	queued := 0
 	for _, w := range all {
 		target := s.localAbs(w.local)

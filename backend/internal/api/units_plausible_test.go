@@ -119,14 +119,22 @@ func TestRevalidateMatchesDropsWhatTheRulesRefuse(t *testing.T) {
 		t.Error("the index row of a dropped match should go with it")
 	}
 	got := map[string]int{}
-	rows, _ := s.DB.Query(`SELECT folder, media_id FROM catalog_matches WHERE server_id = 1`)
+	rows, err := s.DB.Query(`SELECT folder, media_id FROM catalog_matches WHERE server_id = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
 	for rows.Next() {
 		var f string
 		var id int
-		rows.Scan(&f, &id)
+		if err := rows.Scan(&f, &id); err != nil {
+			t.Fatal(err)
+		}
 		got[f] = id
 	}
-	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
 	want := map[string]int{"/x/Skyscraper (2018)": 0, "/x/One Piece (2022)": 0, "/x/Frieren [GerSub]": 154587, "/x/Detektiv Conan": 779, "/x/Somebody (2001)": 779}
 	for f, id := range want {
 		if got[f] != id {
