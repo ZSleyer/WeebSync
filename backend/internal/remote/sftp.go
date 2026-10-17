@@ -203,6 +203,11 @@ func (c *sftpClient) Size(p string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
+	// SIZE on an FTP server refuses a directory; do the same, so "has a size"
+	// means "is a file" for callers that probe an empty listing
+	if fi.IsDir() {
+		return 0, fmt.Errorf("%s is a directory", p)
+	}
 	return fi.Size(), nil
 }
 

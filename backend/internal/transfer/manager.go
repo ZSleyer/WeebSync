@@ -594,6 +594,14 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 	// a file: List errors (SFTP) or lists exactly itself (FTP)
 	isFile := listErr != nil ||
 		(len(entries) == 1 && !entries[0].IsDir && entries[0].Name == path.Base(remotePath))
+	// a successful but empty listing is an empty directory, or a file whose
+	// name the server took for a glob (vsftpd expands "x [1080p].mkv" to
+	// nothing). A directory has no SIZE, so ask.
+	if !isFile && listErr == nil && len(entries) == 0 {
+		if _, serr := client.Size(remotePath); serr == nil {
+			isFile = true
+		}
+	}
 	if isFile {
 		size, serr := client.Size(remotePath)
 		if serr != nil {
@@ -701,7 +709,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		// the caller can say "already there" instead of a bare "0 queued"
 		fi, serr := rooted.Root.Stat(rooted.Name)
 		rooted.Close()
-		if serr == nil && fi.Size() == j.size {
+		if serr == nil && fi.Mode().IsRegular() && fi.Size() == j.size {
 			res.Skipped++
 			continue
 		}
@@ -742,10 +750,13 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		// download that looked complete, and the file left behind is garbage.
 		// betterVariant above only settles collisions inside a single check.
 		var existing int
-		m.DB.QueryRow(`SELECT COUNT(*) FROM downloads
+		if err := m.DB.QueryRow(`SELECT COUNT(*) FROM downloads
 			WHERE status IN ('queued','running','paused')
 			  AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?)`,
-			userID, serverID, j.remote, local).Scan(&existing)
+			userID, serverID, j.remote, local).Scan(&existing); err != nil {
+			m.Wake() // what was queued before the failure still runs
+			return res, err
+		}
 		if existing > 0 {
 			res.skip(j.remote, "queued", "")
 			continue
@@ -764,10 +775,12 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		// a new row joins the end of the queue
 		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old, queue_pos)
 			VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads))`, userID, serverID, j.remote, local, j.size, replaceOld)
-		if ierr == nil {
-			if id, lerr := ins.LastInsertId(); lerr == nil {
-				res.IDs = append(res.IDs, id)
-			}
+		if ierr != nil {
+			m.Wake()
+			return res, ierr
+		}
+		if id, lerr := ins.LastInsertId(); lerr == nil {
+			res.IDs = append(res.IDs, id)
 		}
 	}
 	m.Wake()
