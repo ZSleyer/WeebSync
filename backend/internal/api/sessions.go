@@ -46,11 +46,16 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var hash string
 		var it sessionInfo
-		if rows.Scan(&hash, &it.CreatedAt, &it.ExpiresAt, &it.UserAgent, &it.OIDC) != nil {
-			continue
+		if err := rows.Scan(&hash, &it.CreatedAt, &it.ExpiresAt, &it.UserAgent, &it.OIDC); err != nil {
+			dbErr(w)
+			return
 		}
 		it.ID, it.Current = hash[:sessionIDLen], hash == cur
 		out = append(out, it)
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

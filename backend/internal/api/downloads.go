@@ -365,11 +365,18 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	var ids []int64
 	for rows.Next() {
 		var id int64
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			dbErr(w)
+			return
 		}
+		ids = append(ids, id)
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	affected := 0
 	for _, id := range ids {
 		if fn(u.ID, id) == nil {

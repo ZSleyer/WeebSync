@@ -658,10 +658,17 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var c WebAuthnCredential
 		var pw, due int
-		rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed, &due)
+		if err := rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed, &due); err != nil {
+			dbErr(w)
+			return
+		}
 		c.Passwordless = pw == 1
 		c.ReplaceDue = due == 1
 		list = append(list, c)
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, list)
 }

@@ -71,11 +71,18 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	for rows.Next() {
 		var h SearchHit
-		if rows.Scan(&h.ServerID, &h.ServerName, &h.Path, &h.Name, &h.IsDir) == nil {
-			out.Results = append(out.Results, h)
+		if err := rows.Scan(&h.ServerID, &h.ServerName, &h.Path, &h.Name, &h.IsDir); err != nil {
+			rows.Close()
+			dbErr(w)
+			return
 		}
+		out.Results = append(out.Results, h)
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 
 	// the local library has no file index; the catalog's folders are what
 	// is known of it without walking the disks. SQL narrows on the whole
@@ -94,8 +101,9 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	local := 0
 	for rows.Next() && local < searchLocalLimit {
 		var folder string
-		if rows.Scan(&folder) != nil {
-			continue
+		if err := rows.Scan(&folder); err != nil {
+			dbErr(w)
+			return
 		}
 		name := path.Base(folder)
 		if !containsAll(strings.ToLower(name), words) {
@@ -103,6 +111,10 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Results = append(out.Results, SearchHit{ServerID: localServerID, Path: folder, Name: name, IsDir: true})
 		local++
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -105,9 +105,12 @@ func writeListing(tx *sql.Tx, serverID int64, dir string, entries []remote.Entry
 	var gone []string
 	for rows.Next() {
 		var p string
-		if rows.Scan(&p) == nil {
-			gone = append(gone, p)
+		if err := rows.Scan(&p); err != nil {
+			// skipping it would leave the vanished subtree behind as orphans
+			rows.Close()
+			return err
 		}
+		gone = append(gone, p)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
@@ -308,6 +311,7 @@ type ServerSearchResponse struct {
 // @Param        path  query  string  false  "Only entries below this folder"
 // @Success      200  {object}  ServerSearchResponse
 // @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/servers/{id}/search [get]
 func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
@@ -339,15 +343,24 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		q += ` ORDER BY is_dir DESC, name COLLATE NOCASE LIMIT 50`
 		rows, err := s.DB.Query(q, args...)
-		if err == nil {
-			defer rows.Close()
-			for rows.Next() {
-				var e remote.Entry
-				var mod string
-				rows.Scan(&e.Path, &e.Name, &e.IsDir, &e.Size, &mod)
-				e.ModTime, _ = time.Parse(sqliteTime, mod)
-				out.Results = append(out.Results, e)
+		if err != nil {
+			dbErr(w)
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var e remote.Entry
+			var mod string
+			if err := rows.Scan(&e.Path, &e.Name, &e.IsDir, &e.Size, &mod); err != nil {
+				dbErr(w)
+				return
 			}
+			e.ModTime, _ = time.Parse(sqliteTime, mod)
+			out.Results = append(out.Results, e)
+		}
+		if rows.Err() != nil {
+			dbErr(w)
+			return
 		}
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -366,6 +379,7 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 // @Param        id  path  int  true  "Server ID"
 // @Success      200  {object}  ServerLanguagesResponse
 // @Failure      404  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/servers/{id}/languages [get]
 func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
@@ -379,19 +393,28 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 	}
 	dubSet, subSet := map[string]bool{}, map[string]bool{}
 	rows, err := s.DB.Query(`SELECT name FROM remote_index WHERE server_id = ?`, id)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var name string
-			rows.Scan(&name)
-			dub, sub := rename.LangTags(name)
-			for _, c := range rename.Codes(dub) {
-				dubSet[canonCode(c)] = true
-			}
-			for _, c := range rename.Codes(sub) {
-				subSet[canonCode(c)] = true
-			}
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			dbErr(w)
+			return
 		}
+		dub, sub := rename.LangTags(name)
+		for _, c := range rename.Codes(dub) {
+			dubSet[canonCode(c)] = true
+		}
+		for _, c := range rename.Codes(sub) {
+			subSet[canonCode(c)] = true
+		}
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	out := ServerLanguagesResponse{Dub: keysSorted(dubSet), Sub: keysSorted(subSet)}
 	writeJSON(w, http.StatusOK, out)

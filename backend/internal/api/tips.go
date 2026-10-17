@@ -41,9 +41,15 @@ func (s *Server) handleTipsGet(w http.ResponseWriter, r *http.Request) {
 	out := TipsResponse{Dismissed: []string{}}
 	for rows.Next() {
 		var k string
-		if rows.Scan(&k) == nil {
-			out.Dismissed = append(out.Dismissed, k)
+		if err := rows.Scan(&k); err != nil {
+			dbErr(w)
+			return
 		}
+		out.Dismissed = append(out.Dismissed, k)
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }

@@ -191,10 +191,18 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	for rows.Next() {
 		var v adminIndexServer
-		rows.Scan(&v.ID, &v.Name, &v.Rows, &v.Dirs, &v.PendingDirs, &v.StalestListedAt)
+		if err := rows.Scan(&v.ID, &v.Name, &v.Rows, &v.Dirs, &v.PendingDirs, &v.StalestListedAt); err != nil {
+			rows.Close()
+			dbErr(w)
+			return
+		}
 		out.Index.Servers = append(out.Index.Servers, v)
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	for i := range out.Index.Servers {
 		v := &out.Index.Servers[i]
 		v.IntervalMin = int(s.crawlIntervalFor(v.ID) / time.Minute)
@@ -214,10 +222,18 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	for rows.Next() {
 		var v adminMatchStat
-		rows.Scan(&v.ServerID, &v.Name, &v.Source, &v.Total, &v.Matched, &v.Unmatched, &v.Manual)
+		if err := rows.Scan(&v.ServerID, &v.Name, &v.Source, &v.Total, &v.Matched, &v.Unmatched, &v.Manual); err != nil {
+			rows.Close()
+			dbErr(w)
+			return
+		}
 		out.Matches = append(out.Matches, v)
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 
 	if s.Logs != nil {
 		out.LogLevel = logbus.LevelString(s.Logs.Level.Level())
@@ -484,8 +500,15 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 	entries := []adminCacheEntry{}
 	for rows.Next() {
 		var e adminCacheEntry
-		rows.Scan(&e.Key, &e.FetchedAt, &e.Bytes, &e.Stale)
+		if err := rows.Scan(&e.Key, &e.FetchedAt, &e.Bytes, &e.Stale); err != nil {
+			dbErr(w)
+			return
+		}
 		entries = append(entries, e)
+	}
+	if rows.Err() != nil {
+		dbErr(w)
+		return
 	}
 	writeJSON(w, http.StatusOK, adminCacheEntriesResponse{Total: total, Entries: entries})
 }
@@ -630,10 +653,18 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 	entries := []adminMatchEntry{}
 	for rows.Next() {
 		var e adminMatchEntry
-		rows.Scan(&e.Folder, &e.MediaID, &e.Manual, &e.Source)
+		if err := rows.Scan(&e.Folder, &e.MediaID, &e.Manual, &e.Source); err != nil {
+			rows.Close()
+			dbErr(w)
+			return
+		}
 		entries = append(entries, e)
 	}
 	rows.Close()
+	if rows.Err() != nil {
+		dbErr(w)
+		return
+	}
 	// titles resolve per page (bounded by the limit cap), not per table
 	for i := range entries {
 		entries[i].Title = s.cachedTitle(entries[i].Source, entries[i].MediaID)
