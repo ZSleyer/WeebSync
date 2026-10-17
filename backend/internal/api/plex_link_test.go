@@ -3,6 +3,7 @@ package api
 import (
 	"database/sql"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,10 +57,24 @@ func linkFixture(t *testing.T) (*sql.DB, *http.ServeMux, *http.Cookie) {
 func linkPUT(t *testing.T, mux *http.ServeMux, ck *http.Cookie, body string) int {
 	t.Helper()
 	req := httptest.NewRequest("PUT", "/api/watches/1/plex-show", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req.AddCookie(ck)
 	rec := httptest.NewRecorder()
 	mux.ServeHTTP(rec, req)
 	return rec.Code
+}
+
+// the link route is state-changing: a form content-type is refused like on every other JSON route
+func TestWatchPlexShowLinkNeedsJSONContentType(t *testing.T) {
+	_, mux, ck := linkFixture(t)
+	req := httptest.NewRequest("PUT", "/api/watches/1/plex-show", strings.NewReader(`{"ratingKey":"62755"}`))
+	req.Header.Set("Content-Type", "text/plain")
+	req.AddCookie(ck)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("got %d, want 415", rec.Code)
+	}
 }
 
 func TestWatchPlexShowLink(t *testing.T) {
@@ -117,5 +132,35 @@ func TestWatchPlexShowLinkNeedsASeries(t *testing.T) {
 
 	if code := linkPUT(t, mux, ck, `{"ratingKey":"62755"}`); code != http.StatusNotFound {
 		t.Errorf("PUT = %d, want 404", code)
+	}
+}
+
+// an expired PIN (404), an outage or a garbled answer is an error, not "not claimed yet"
+func TestPlexPinTokenStatusAndDecode(t *testing.T) {
+	status, body := http.StatusOK, `{"authToken":"tok"}`
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(status)
+		io.WriteString(w, body)
+	}))
+	defer fake.Close()
+	old := plexTVBase
+	plexTVBase = fake.URL
+	defer func() { plexTVBase = old }()
+	s := &Server{DB: dbtest.Open(t)}
+
+	if tok, err := s.plexPinToken("1"); err != nil || tok != "tok" {
+		t.Fatalf("claimed: %q, %v", tok, err)
+	}
+	body = `{"authToken":null}`
+	if tok, err := s.plexPinToken("1"); err != nil || tok != "" {
+		t.Fatalf("waiting: %q, %v", tok, err)
+	}
+	status = http.StatusNotFound
+	if _, err := s.plexPinToken("1"); err == nil {
+		t.Fatal("expired PIN read as waiting")
+	}
+	status, body = http.StatusOK, `<html>`
+	if _, err := s.plexPinToken("1"); err == nil {
+		t.Fatal("garbled answer read as waiting")
 	}
 }

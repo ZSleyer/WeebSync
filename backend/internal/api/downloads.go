@@ -490,6 +490,7 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads/{id}/ratelimit [put]
 func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request) {
@@ -500,7 +501,11 @@ func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := s.Transfers.SetRateLimit(u.ID, id, in.RateLimit); err != nil {
-		writeErr(w, http.StatusNotFound, err.Error())
+		if errors.Is(err, transfer.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err.Error())
+			return
+		}
+		dbErr(w)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

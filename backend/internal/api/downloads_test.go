@@ -66,6 +66,15 @@ func TestDownloadsBulk(t *testing.T) {
 	if rec := doReq(mux, "PUT", "/api/downloads/ratelimit", `{"rateLimit":-1}`, adminC); rec.Code != http.StatusBadRequest {
 		t.Errorf("negative limit: got %d, want 400", rec.Code)
 	}
+
+	// per download: a missing one is 404, a failing database is 500
+	if rec := doReq(mux, "PUT", "/api/downloads/9999/ratelimit", `{"rateLimit":1024}`, adminC); rec.Code != http.StatusNotFound {
+		t.Errorf("missing download: got %d, want 404", rec.Code)
+	}
+	s.DB.Exec(`DROP TABLE downloads`)
+	if rec := doReq(mux, "PUT", "/api/downloads/1/ratelimit", `{"rateLimit":1024}`, adminC); rec.Code != http.StatusInternalServerError {
+		t.Errorf("database failure: got %d, want 500", rec.Code)
+	}
 }
 
 func TestDownloadsReorder(t *testing.T) {

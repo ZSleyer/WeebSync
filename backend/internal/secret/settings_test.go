@@ -35,3 +35,18 @@ func TestMigrateSettings(t *testing.T) {
 		t.Fatalf("migration is not idempotent: %v", err)
 	}
 }
+
+// a failing SELECT is an error, not an empty key to skip.
+func TestMigrateSettingsReturnsSelectError(t *testing.T) {
+	dir := t.TempDir()
+	if err := Init(dir); err != nil {
+		t.Fatal(err)
+	}
+	d := dbtest.OpenAt(t, filepath.Join(dir, "test.db"))
+	if _, err := d.Exec(`DROP TABLE settings`); err != nil {
+		t.Fatal(err)
+	}
+	if err := MigrateSettings(d); err == nil {
+		t.Fatal("MigrateSettings swallowed a failing SELECT")
+	}
+}

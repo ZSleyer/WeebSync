@@ -76,11 +76,14 @@ func MigrateSettings(d *sql.DB) error {
 	for _, key := range settingKeys {
 		var value string
 		err := tx.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
-		if errors.Is(err, sql.ErrNoRows) || value == "" {
+		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}
 		if err != nil {
 			return err
+		}
+		if value == "" {
+			continue
 		}
 		if strings.HasPrefix(value, settingPrefix) {
 			if _, err := decodeSetting(value); err != nil {

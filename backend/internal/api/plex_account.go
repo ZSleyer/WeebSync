@@ -96,10 +96,13 @@ func (s *Server) startPlexPin(w http.ResponseWriter, r *http.Request, kind strin
 	writeJSON(w, http.StatusOK, plexLinkResponse{ID: pin.ID, Code: pin.Code, URL: authURL})
 }
 
+// plexTVBase is the plex.tv origin of the PIN poll; a variable so tests can point it at a fake.
+var plexTVBase = "https://plex.tv"
+
 // plexPinToken asks plex.tv whether a PIN was claimed: the account token, ""
 // while the user has not signed in yet. Plex asks for at most one poll a second.
 func (s *Server) plexPinToken(id string) (string, error) {
-	resp, err := s.plexTVReq(http.MethodGet, "https://plex.tv/api/v2/pins/"+url.PathEscape(id), "")
+	resp, err := s.plexTVReq(http.MethodGet, plexTVBase+"/api/v2/pins/"+url.PathEscape(id), "")
 	if err != nil {
 		return "", err
 	}
@@ -107,7 +110,13 @@ func (s *Server) plexPinToken(id string) (string, error) {
 	var pin struct {
 		AuthToken string `json:"authToken"`
 	}
-	json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin)
+	// an expired PIN (404) or an outage is not "not claimed yet": the UI would poll forever
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("plex.tv answered %d", resp.StatusCode)
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&pin); err != nil {
+		return "", err
+	}
 	return pin.AuthToken, nil
 }
 

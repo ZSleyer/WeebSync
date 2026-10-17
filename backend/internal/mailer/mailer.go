@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"mime"
 	"mime/quotedprintable"
 	"net/mail"
@@ -151,7 +152,12 @@ func sendSMTP(c config, auth smtp.Auth, to string, msg []byte) error {
 	if err := wc.Close(); err != nil {
 		return err
 	}
-	return cl.Quit()
+	// the server took the message: a failing QUIT must not make the caller
+	// retry and deliver it twice
+	if err := cl.Quit(); err != nil {
+		slog.Warn("smtp quit failed after the message was accepted", "err", err)
+	}
+	return nil
 }
 
 // buildMessage assembles a standards-compliant message: display-name From,

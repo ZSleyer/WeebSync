@@ -66,6 +66,12 @@ type smtpRecord struct {
 // advertises the extension.
 func fakeSMTP(t *testing.T, starttls bool) (int, *smtpRecord) {
 	t.Helper()
+	return fakeSMTPQuit(t, starttls, "221 bye")
+}
+
+// fakeSMTPQuit is fakeSMTP with the reply the server gives to QUIT.
+func fakeSMTPQuit(t *testing.T, starttls bool, quitReply string) (int, *smtpRecord) {
+	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +113,7 @@ func fakeSMTP(t *testing.T, starttls bool) (int, *smtpRecord) {
 				rec.data = string(b)
 				tp.PrintfLine("250 queued")
 			case "QUIT":
-				tp.PrintfLine("221 bye")
+				tp.PrintfLine("%s", quitReply)
 				return
 			default:
 				tp.PrintfLine("250 OK")
@@ -139,5 +145,18 @@ func TestSendSMTPPlainDelivers(t *testing.T) {
 	<-rec.done
 	if rec.rcpt != "to@x.y" || !strings.Contains(rec.data, "hello") {
 		t.Fatalf("rcpt=%q data=%q", rec.rcpt, rec.data)
+	}
+}
+
+// the server took the message at DATA; a QUIT it answers badly must not turn
+// the send into an error, or the caller retries and the mail arrives twice.
+func TestSendSMTPQuitFailureIsSuccess(t *testing.T) {
+	port, rec := fakeSMTPQuit(t, false, "421 going away")
+	if err := sendSMTP(config{host: "127.0.0.1", port: port, from: "a@b.c", security: "none"}, nil, "to@x.y", []byte("Subject: t\r\n\r\nhello")); err != nil {
+		t.Fatalf("accepted message reported as failed: %v", err)
+	}
+	<-rec.done
+	if !strings.Contains(rec.data, "hello") {
+		t.Fatalf("data=%q", rec.data)
 	}
 }

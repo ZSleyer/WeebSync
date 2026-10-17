@@ -108,8 +108,7 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	var in plexShowLinkRequest
-	if json.NewDecoder(r.Body).Decode(&in) != nil {
-		writeErr(w, http.StatusBadRequest, "invalid body")
+	if !readJSON(w, r, &in) {
 		return
 	}
 	seriesID := s.seriesIDForFolder(wt.ServerID, wt.RemotePath)
