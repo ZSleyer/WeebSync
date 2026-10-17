@@ -18,7 +18,7 @@ COPY frontend/ ./
 RUN yarn build
 
 # ── backend build ── (native toolchain, cross-compiled to $TARGETARCH)
-FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS build
 ARG TARGETOS TARGETARCH
 # build metadata surfaced on the About page (see internal/version)
 ARG VERSION=dev CHANNEL=dev COMMIT= REPO=
@@ -141,7 +141,7 @@ EOF
 # Distroless on glibc: no shell, no package manager, the C
 # library, CA certificates and tzdata of Debian 13, and the user nonroot (uid
 # 65532). Everything else is the /rootfs above, the Go binary and the frontend.
-FROM gcr.io/distroless/cc-debian13@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
+FROM gcr.io/distroless/cc-debian13@sha256:159783207c2cd44c2aa5715961d13c8612368ac9bd450f887e3f08fc8ea461e3
 COPY --from=rootfs /rootfs/ /
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
