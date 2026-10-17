@@ -55,3 +55,5 @@ require (
 )
 
 tool github.com/swaggo/swag/v2/cmd/swag
+
+replace github.com/nwaples/rardecode/v2 => ./third_party/rardecode

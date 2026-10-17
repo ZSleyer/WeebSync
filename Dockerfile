@@ -24,6 +24,7 @@ ARG TARGETOS TARGETARCH
 ARG VERSION=dev CHANNEL=dev COMMIT= REPO=
 WORKDIR /src
 COPY backend/go.mod backend/go.sum ./
+COPY backend/third_party/ third_party/
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY backend/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
