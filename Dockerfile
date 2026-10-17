@@ -141,7 +141,7 @@ EOF
 # Distroless on glibc: no shell, no package manager, the C
 # library, CA certificates and tzdata of Debian 13, and the user nonroot (uid
 # 65532). Everything else is the /rootfs above, the Go binary and the frontend.
-FROM gcr.io/distroless/cc-debian13@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
+FROM gcr.io/distroless/cc-debian13@sha256:159783207c2cd44c2aa5715961d13c8612368ac9bd450f887e3f08fc8ea461e3
 COPY --from=rootfs /rootfs/ /
 COPY --from=build /weebsync /weebsync
 # pre-owned data dir so the nonroot user can write the volume
