@@ -15,7 +15,7 @@ import { createPortal, flushSync } from 'react-dom'
 import { matchPath, useLocation, useNavigate, type Location } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Share2, Trash2 } from 'lucide-react'
 import {
   Button,
   ButtonLink,
@@ -28,7 +28,9 @@ import {
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
 import type { Schemas } from '../api.gen'
 import { focusPosition } from './bannerFocus'
+import { shareLink } from '../clipboard'
 import { coverSet } from '../images'
+import { useToast } from './toast'
 import { useAuth, useMediaServer, useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
 import type { SheetAction } from './ActionSheet'
@@ -569,6 +571,7 @@ function SeriesCard({
   const { t } = useTranslation()
   const source = cur.source || 'anilist'
   const goTo = useNavigate()
+  const toast = useToast()
 
   // Rendered in steps, so the first frame (the one a morph snapshots) is the
   // head alone: the episodes and the sync explanation follow a frame later
@@ -758,6 +761,20 @@ function SeriesCard({
             label: t('series.openAt', { site: own.label }),
             icon: <ExternalLink aria-hidden size="1em" />,
             onClick: () => window.open(own.href, '_blank', 'noreferrer'),
+          },
+        ]
+      : []),
+    ...(media
+      ? [
+          {
+            key: 'share',
+            label: t('common.share'),
+            icon: <Share2 aria-hidden size="1em" />,
+            onClick: () =>
+              void shareLink(
+                `${window.location.origin}${titleUrl({ source, id: media.id, n: 0 })}`,
+                cur.title || mediaTitle(media, ''),
+              ).then((r) => r === 'copied' && toast({ message: t('common.linkCopied') })),
           },
         ]
       : []),

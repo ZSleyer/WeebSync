@@ -19,6 +19,7 @@ import { filesLink } from './playLinks'
 import { PANELS, useSettingsGroups } from '../pages/settings/SettingsLayout'
 import { useSuggestionGroups } from '../pages/discoverGroups'
 import { DISCOVER_BASE, legacyDiscoverPath } from '../discoverRoutes'
+import { PALETTE_SEARCH_EVENT } from '../share'
 import './palette.css'
 
 export interface PalettePage {
@@ -112,11 +113,30 @@ export default function CommandPalette({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onOpenChange])
+  // a shared text (the /share route) opens it with the field filled
+  const [prefill, setPrefill] = useState('')
+  useEffect(() => {
+    const onSearch = (e: Event) => {
+      setPrefill(String((e as CustomEvent).detail ?? ''))
+      onOpenChange(true)
+    }
+    window.addEventListener(PALETTE_SEARCH_EVENT, onSearch)
+    return () => window.removeEventListener(PALETTE_SEARCH_EVENT, onSearch)
+  }, [onOpenChange])
   // the lists behind it load only while it is open
-  return open ? <Palette pages={pages} onClose={() => onOpenChange(false)} /> : null
+  return open ? (
+    <Palette
+      pages={pages}
+      initial={prefill}
+      onClose={() => {
+        setPrefill('')
+        onOpenChange(false)
+      }}
+    />
+  ) : null
 }
 
-function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void }) {
+function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: string; onClose: () => void }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { open: openSeries } = useSeriesModal()
@@ -129,7 +149,7 @@ function Palette({ pages, onClose }: { pages: PalettePage[]; onClose: () => void
     queryFn: () => api.get('/api/servers'),
   })
   const colors = new Map(servers.map((x) => [x.id, x.color]))
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState(initial)
   const [at, setAt] = useState(0)
   const listId = useId()
   // the indexes are asked a beat after typing stops, not per keystroke

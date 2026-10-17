@@ -16,6 +16,7 @@ import {
   type Watch,
 } from '../api'
 import { upcomingAirings } from '../airings'
+import { useAppBadge } from '../appBadge'
 import { jobLabel } from '../jobs'
 import { WIDE_MQ } from '../components/PageActions'
 import { useTransfers } from '../components/transfers'
@@ -82,6 +83,8 @@ export default function Dashboard() {
   const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose }).filter(
     (n) => !hidden.has(n.print),
   ).length
+  // the installed app's icon carries what waits for the user
+  useAppBadge(needCount)
   const next = upcomingAirings(watches, now, 7).find((a) => a.at * 1000 > now)
   const nextAt = next
     ? new Date(next.at * 1000).toLocaleString(i18n.language, {

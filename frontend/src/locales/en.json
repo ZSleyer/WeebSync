@@ -36,6 +36,8 @@
     "confirm": "Confirm",
     "cancel": "Cancel",
     "close": "Close",
+    "share": "Share",
+    "linkCopied": "Link copied to the clipboard.",
     "example": "e.g. {{value}}",
     "confirmTitle": "Confirm",
     "discard": "Discard",

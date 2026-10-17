@@ -36,6 +36,8 @@
     "confirm": "Bestätigen",
     "cancel": "Abbrechen",
     "close": "Schließen",
+    "share": "Teilen",
+    "linkCopied": "Link in die Zwischenablage kopiert.",
     "example": "z. B. {{value}}",
     "confirmTitle": "Bestätigen",
     "discard": "Verwerfen",

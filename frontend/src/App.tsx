@@ -325,6 +325,7 @@ const screen =
     }
   }
 const files = () => import('./pages/Files')
+const share = () => import('./pages/Share')
 const history = () => import('./pages/History')
 const discover = () => import('./pages/Suggestions')
 const assistant = () => import('./pages/Assistant')
@@ -344,6 +345,8 @@ export const router = createBrowserRouter(
         {/* a title card's own URL, opened from a link or a reload: the card
           stands over the dashboard (SeriesModalProvider reads the path) */}
         <Route path={TITLE_PATH} element={<Dashboard />} handle={h('nav.dashboard')} />
+        {/* the installed app's share target (manifest share_target) */}
+        <Route path="/share" lazy={screen(share, (m) => m.default)} handle={h('nav.dashboard')} />
         <Route path="/files" lazy={screen(files, (m) => m.FilesJump)} handle={h('nav.files')} />
         {/* the remote and local browsers merged into /files; their links keep
           the folder they pointed at */}
