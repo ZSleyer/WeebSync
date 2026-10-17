@@ -5,14 +5,6 @@ version: "2"
 
 linters:
   default: standard # govet, staticcheck, unused, ineffassign, errcheck
-  disable:
-    # This codebase deliberately discards errors from writes whose failure
-    # changes nothing it could do differently: a Close on a connection that is
-    # being torn down anyway, a `d.Exec` recording a timestamp, a Scan whose
-    # zero value is the intended fallback. The writes that MUST NOT be lost go
-    # through Manager.execRetry instead, which retries and logs. Turning
-    # errcheck on would report fifty of those and hide anything else.
-    - errcheck
   enable:
     # database/sql: a Rows loop that never checks rows.Err() treats a
     # mid-iteration failure as "no more rows"; an unclosed Rows leaks a
@@ -85,9 +77,34 @@ linters:
       # generated Swagger output and the bundled Swagger UI
       - docs
     rules:
+      # errcheck policy: see the note on the errcheck exclusions below.
+      # Teardown and best-effort output stay out of scope: a Close (files,
+      # connections, rows, response bodies, transactions already committed),
+      # a write to an http.ResponseWriter or a log/terminal stream, a
+      # fire-and-forget syscall on a connection that is going away anyway.
+      # What errcheck keeps checking is state that matters: database writes
+      # and reads (Exec, Scan, SetSetting, persistMatch), json decoding of
+      # stored data, file writes/renames/removals, and calls to our own
+      # services. A deliberate ignore there is written `_ = f()` with the
+      # reason next to it, not added to this list.
+      - linters:
+          - errcheck
+        text: "Error return value of `[^`]*\\.(Close|Rollback|Serve|Quit|SetDeadline|SetWriteDeadline|Reject|Reply|WriteString|Write|PrintfLine)` is not checked"
+      - linters:
+          - errcheck
+        text: "Error return value of `(fmt\\.(Fprint|Fprintf|Fprintln)|io\\.WriteString|binary\\.Write)` is not checked"
+      # Not triaged yet (about 55 sites): json decoding of stored data, os
+      # removals and chtimes, directory walks, calls into the metadata
+      # providers and the transfer manager. Each is a candidate for the same
+      # treatment as the database calls; take a class off this list, fix or
+      # mark its findings, repeat.
+      - linters:
+          - errcheck
+        text: "Error return value of `(s\\.(Tvdb|Tmdb|Anilist|Transfers|Push)\\.[A-Za-z]+|s\\.(trashFile|startMediaJob)|json\\.Unmarshal|\\(\\*encoding/json\\.Decoder\\)\\.Decode|os\\.(Remove|RemoveAll|Chtimes)|local\\.Root\\.[A-Za-z]+|fs\\.WalkDir|filepath\\.WalkDir|provider\\.Claims|xml\\.EscapeText|unix\\.IoctlSetTermios|\\(\\*os/exec\\.Cmd\\)\\.Run)` is not checked"
       # tests repeat themselves by design
       - path: _test\.go
         linters:
+          - errcheck
           - dupl
           - bodyclose
           - gosec
