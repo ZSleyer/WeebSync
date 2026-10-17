@@ -9,6 +9,7 @@ import Loading from '../components/Loading'
 import Setup from './Setup'
 import Brand from '../components/Brand'
 import { MIN_PASSWORD } from './authLimits'
+import { rememberReturn } from '../returnTo'
 import './auth.css'
 
 interface AuthConfig {
@@ -127,6 +128,7 @@ export default function Login() {
   useEffect(() => {
     // not while setting up: the wizard sends the first sign-in itself, with the setup code
     if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect && !cfg.setupNeeded) {
+      rememberReturn()
       window.location.href = oidcHref(readRemember())
     }
   }, [cfg])
@@ -321,7 +323,10 @@ export default function Login() {
                 variant="primary"
                 className="ws-login-go"
                 href={oidcHref(remember)}
-                onClick={() => setWaiting('sso')}
+                onClick={() => {
+                  rememberReturn()
+                  setWaiting('sso')
+                }}
               >
                 <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                 <Slot step={waiting === 'sso' ? 1 : 0}>{waiting === 'sso' ? ssoWaiting : oidcLabel}</Slot>
@@ -495,7 +500,14 @@ export default function Login() {
                     </Button>
                   )}
                   {cfg.oidc && (
-                    <ButtonLink className="ws-login-alt" href={oidcHref(remember)} onClick={() => setWaiting('sso')}>
+                    <ButtonLink
+                      className="ws-login-alt"
+                      href={oidcHref(remember)}
+                      onClick={() => {
+                        rememberReturn()
+                        setWaiting('sso')
+                      }}
+                    >
                       <LogIn aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
                       <Slot step={waiting === 'sso' ? 1 : 0}>{waiting === 'sso' ? ssoWaiting : oidcLabel}</Slot>
                     </ButtonLink>

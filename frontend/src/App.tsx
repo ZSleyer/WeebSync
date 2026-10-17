@@ -53,6 +53,7 @@ import { AppBarActions, ShellFooter, ShellToolbar, TitleActions, WIDE_MQ } from 
 import { LiveProvider } from './components/liveState'
 import { BackLink } from './components/BackLink'
 import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
+import { useRestoreReturn } from './returnTo'
 import { FINISHING_KEY } from './pages/setupState'
 import Dashboard from './pages/Dashboard'
 import { LegacySuggestions } from './components/DiscoverRedirect'
@@ -188,6 +189,7 @@ function RootLayout() {
   // an account held for an upgrade reaches nothing but the upgrade itself
   const live = !!user && !user.upgradeRequired
   useEvents(live)
+  useRestoreReturn(live)
   useSpeedSampler(live)
   useMediaServer(live)
 
