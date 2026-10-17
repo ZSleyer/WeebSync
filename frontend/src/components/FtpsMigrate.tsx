@@ -60,7 +60,7 @@ export default function FtpsMigrateDialog({ server, onClose }: { server: ServerI
     : ''
 
   return (
-    <Dialog onClose={onClose} width="max-w-md" aria-labelledby={titleId}>
+    <Dialog onClose={onClose} width="max-w-lg" aria-labelledby={titleId}>
       <div className="dialog-body form-dlg">
         <h2 id={titleId} className="form-dlg-h">
           {t('servers.migrate.title', { name: server.name })}
@@ -96,7 +96,7 @@ export default function FtpsMigrateDialog({ server, onClose }: { server: ServerI
             )}
           </div>
         </div>
-        <footer className="dlg-foot">
+        <footer className="dlg-foot ftps-foot">
           {phase === 'done' && (
             <Button variant="primary" onClick={onClose}>
               {t('common.close')}

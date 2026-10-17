@@ -623,6 +623,16 @@
   padding: 0.5rem 1rem;
 }
 
+/* the migration dialog's actions: stacked and full width on a phone, the main one on top */
+@media (width < 30rem) {
+  .ftps-foot {
+    flex-direction: column-reverse;
+  }
+  .ftps-foot > * {
+    width: 100%;
+  }
+}
+
 /* the notice above the server list while a plain-FTP server is left */
 .srv-ftp {
   margin-bottom: 1rem;
