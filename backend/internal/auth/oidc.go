@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -127,6 +128,15 @@ func (m *Manager) Reload(ctx context.Context) error {
 		// claim usually needs its scope requested (e.g. VoidAuth "groups")
 		scopes = append(scopes, claim)
 	}
+	// the access allowlist: an unreadable setting must not read as "no
+	// allowlist", which would let in every identity the provider vouches for
+	userValues := os.Getenv("OIDC_USER_VALUES")
+	if userValues == "" {
+		var uerr error
+		if userValues, uerr = db.SettingErr(m.DB, "oidc_user_values"); uerr != nil {
+			return fmt.Errorf("oidc allowlist: %w", uerr)
+		}
+	}
 	o := &OIDC{
 		config: oauth2.Config{
 			ClientID:     clientID,
@@ -138,7 +148,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 		verifier:    newIDTokenVerifier(ctx, provider, issuer, &oidc.Config{ClientID: clientID}),
 		claim:       claim,
 		adminValues: splitCSV(db.SettingOrEnv(m.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES")),
-		userValues:  splitCSV(db.SettingOrEnv(m.DB, "oidc_user_values", "OIDC_USER_VALUES")),
+		userValues:  splitCSV(userValues),
 		pkce:        slices.Contains(disc.Methods, "S256"),
 	}
 	m.mu.Lock()
@@ -150,11 +160,22 @@ func (m *Manager) Reload(ctx context.Context) error {
 // AuthMode: "password" (default, password + optional OIDC button),
 // "oidc-only" (no password form), "oidc-auto" (login page redirects).
 func AuthMode(d *sql.DB) string {
-	switch v := db.Setting(d, "auth_mode"); v {
+	mode, _ := AuthModeErr(d)
+	return mode
+}
+
+// AuthModeErr is AuthMode for the callers that gate on it: a setting that
+// cannot be read is an error, not the permissive default "password".
+func AuthModeErr(d *sql.DB) (string, error) {
+	v, err := db.SettingErr(d, "auth_mode")
+	if err != nil {
+		return "password", err
+	}
+	switch v {
 	case "oidc-only", "oidc-auto":
-		return v
+		return v, nil
 	default:
-		return "password"
+		return "password", nil
 	}
 }
 

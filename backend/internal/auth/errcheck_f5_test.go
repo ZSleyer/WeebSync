@@ -53,3 +53,19 @@ func TestDestroySessionReportsFailure(t *testing.T) {
 		t.Error("cookie not cleared")
 	}
 }
+
+func TestAuthModeErrReportsReadFailure(t *testing.T) {
+	d := dbtest.Open(t)
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('auth_mode', 'oidc-only')`)
+	if m, err := AuthModeErr(d); err != nil || m != "oidc-only" {
+		t.Fatalf("%q, %v", m, err)
+	}
+	d.Exec(`DELETE FROM settings`)
+	if m, err := AuthModeErr(d); err != nil || m != "password" {
+		t.Fatalf("unset: %q, %v", m, err)
+	}
+	d.Exec(`DROP TABLE settings`)
+	if _, err := AuthModeErr(d); err == nil {
+		t.Fatal("a failed read was reported as the default mode")
+	}
+}

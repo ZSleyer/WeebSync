@@ -88,7 +88,12 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	// in an OIDC-only/-auto instance there is no password login: users onboard
 	// by signing in through the identity provider, so manual creation (which
 	// mints a password account) is disabled.
-	if auth.AuthMode(s.DB) != "password" {
+	mode, err := auth.AuthModeErr(s.DB)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	if mode != "password" {
 		writeErr(w, http.StatusConflict, "manual user creation is disabled in OIDC mode; users onboard via the identity provider")
 		return
 	}

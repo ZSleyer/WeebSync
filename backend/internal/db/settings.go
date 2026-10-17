@@ -17,6 +17,17 @@ func Setting(d *sql.DB, key string) string {
 	return v
 }
 
+// SettingErr is Setting for the caller that must tell "unset" ("", nil) from
+// "could not be read" ("", err), because the wrong guess opens something up.
+func SettingErr(d *sql.DB, key string) (string, error) {
+	var v string
+	err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	return v, err
+}
+
 // SettingOrEnv reads a settings key with an env override - a set env var
 // wins over the DB value (the UI shows such fields as locked).
 func SettingOrEnv(d *sql.DB, key, envVar string) string {
