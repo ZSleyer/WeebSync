@@ -104,6 +104,12 @@ func (s *Service) Send(to, subject, text, html string) error {
 }
 
 func sendSMTP(c config, auth smtp.Auth, to string, msg []byte) error {
+	// an unknown value must not silently mean "no encryption"
+	switch c.security {
+	case "starttls", "tls", "none":
+	default:
+		return fmt.Errorf("unknown smtp_security %q (use starttls, tls or none)", c.security)
+	}
 	conn, err := netguard.SafeDial(context.Background(), "tcp", c.host, c.port, 15*time.Second)
 	if err != nil {
 		return err
