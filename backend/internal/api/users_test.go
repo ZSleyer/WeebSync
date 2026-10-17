@@ -29,7 +29,7 @@ func setupUsersTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.
 		return rec.Result().Cookies()[0]
 	}
 
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	return mux, s, cookieFor(adminID), cookieFor(userID), adminID, userID

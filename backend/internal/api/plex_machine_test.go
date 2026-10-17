@@ -28,7 +28,7 @@ func (m *machineServer) DeepLink(machineID, key string) string { return machineI
 
 // A dead server costs one lookup per 30 s, not one per link on a page.
 func TestPlexLinkForRemembersAFailedMachineID(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	c := &machineServer{fail: true}
 	for range 5 {
 		if l := s.plexLinkFor(c, "1"); l != "" {

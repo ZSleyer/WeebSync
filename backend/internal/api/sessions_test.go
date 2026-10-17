@@ -16,7 +16,7 @@ import (
 // second account's sessions are never listed or touched.
 func TestSessions(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (id, email, is_admin) VALUES (1, 'a@example.com', 1), (2, 'b@example.com', 0)`)

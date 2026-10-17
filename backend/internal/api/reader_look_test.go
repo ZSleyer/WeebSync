@@ -71,7 +71,7 @@ func TestReadEntryLook(t *testing.T) {
 	chapter := `<html><head><title>c</title></head><body><p>text</p></body></html>`
 	os.WriteFile(filepath.Join(dir, "c.xhtml"), []byte(chapter), 0o644)
 	os.WriteFile(filepath.Join(dir, "s.css"), []byte("p{color:red}"), 0o644)
-	s := &Server{}
+	s := testServer(t, &Server{})
 	b := &book{key: "k", token: "tok", dir: dir, kind: "epub", used: time.Now()}
 	s.books.byKey, s.books.byToken = map[string]*book{"k": b}, map[string]*book{"tok": b}
 	mux := http.NewServeMux()

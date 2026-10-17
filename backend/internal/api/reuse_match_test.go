@@ -8,7 +8,7 @@ import (
 
 func TestReuseMatch(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	add := func(serverID int64, folder string, mediaID, manual int, source string) {
 		if _, err := d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
 			VALUES (?, ?, ?, ?, ?)`, serverID, folder, mediaID, manual, source); err != nil {

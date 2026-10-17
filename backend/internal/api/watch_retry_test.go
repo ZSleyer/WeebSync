@@ -28,6 +28,7 @@ func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
 	}
 	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, dial, root)}
+	drainJobsAtCleanup(t, s)
 
 	// the queue must not start anything: this test is about the check, and a
 	// download running into the temp directory races its cleanup
@@ -99,7 +100,7 @@ func TestWatchBackoffDoublesUpToTheInterval(t *testing.T) {
 	d := dbtest.Open(t)
 	// 10 minutes, so the ceiling sits inside the doubling rather than beyond it
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('watch_interval_min', '10')`)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	for _, tc := range []struct {
 		attempts int

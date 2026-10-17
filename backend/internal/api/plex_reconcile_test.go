@@ -80,7 +80,7 @@ func TestSeriesProviderAcceptsPlexAndImdb(t *testing.T) {
 // hangs on the series, so any provider id that resolves to it finds the link.
 func TestPlexRatingKeyForFindsItThroughTheSeries(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'jojo','JoJo')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES
 		('anilist',20474,1), ('tvdb',83950,1), ('tvdb',262954,1), ('tmdb:tv',7842,1), ('plex',64259,1)`)

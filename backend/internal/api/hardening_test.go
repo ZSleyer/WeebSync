@@ -33,7 +33,7 @@ func TestVerifyLinkExpires(t *testing.T) {
 	d.Exec(`INSERT INTO users (id, email, password_hash, email_verified, verify_token, verify_sent_at) VALUES
 		(1, 'old@example.com', 'x', 0, 'old', datetime('now', '-25 hours')),
 		(2, 'new@example.com', 'x', 0, 'new', datetime('now', '-1 hour'))`)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	if rec := doReq(mux, "GET", "/api/auth/verify?token=old", "", nil); rec.Header().Get("Location") != "/?verify=invalid" {

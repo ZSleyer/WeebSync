@@ -25,6 +25,7 @@ func TestWatchUpdateMovesFiles(t *testing.T) {
 	}
 	s := &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, root)}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

@@ -12,7 +12,7 @@ import (
 
 func TestScopeForAndHandler(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Tmdb: tmdb.New(d)}
+	s := testServer(t, &Server{DB: d, Tmdb: tmdb.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
@@ -83,7 +83,7 @@ func TestScopeForAndHandler(t *testing.T) {
 // with a fresh automatic match, which is how corrections used to vanish.
 func TestManualMatchSourceFollowsFilmKind(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Tmdb: tmdb.New(d)}
+	s := testServer(t, &Server{DB: d, Tmdb: tmdb.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
@@ -119,7 +119,7 @@ func TestManualMatchSourceFollowsFilmKind(t *testing.T) {
 // local folder answered "server not found" while listing and scoping worked.
 func TestManualMatchOnLocalLibrary(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Tmdb: tmdb.New(d)}
+	s := testServer(t, &Server{DB: d, Tmdb: tmdb.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

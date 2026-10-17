@@ -35,7 +35,7 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 	}))
 	defer srv.Close()
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	db.SetSetting(d, "jellyfin_url", srv.URL)
 	db.SetSetting(d, "jellyfin_token", "key")
 	db.SetSetting(d, "plex_roots", "/media/anime => /mnt/a/anime")

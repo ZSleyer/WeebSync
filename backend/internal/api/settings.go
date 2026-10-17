@@ -700,7 +700,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// the library); refresh the transfer manager's copy so downloads there pass,
 	// and re-detect the auto roots from Plex in case the connection just changed
 	s.Transfers.Roots = s.localRoots()
-	go s.refreshPlexRoots()
+	s.spawn(s.refreshPlexRoots)
 	s.Transfers.SettingsChanged()
 	// rebuild the OIDC provider; the client sees the effective config + error
 	out := s.settingsState()

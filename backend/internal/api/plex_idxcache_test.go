@@ -42,7 +42,7 @@ func TestPlexIndexRequestPathsNeverWaitOnPlex(t *testing.T) {
 	defer free()
 
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	db.SetSetting(d, "plex_url", srv.URL)
 	db.SetSetting(d, "plex_token", "tok")
 
@@ -104,7 +104,7 @@ func eventually(t *testing.T, ok func() bool) {
 // served the last copy meanwhile.
 func TestPlexIndexCacheSharesOneBuildAndServesTheLastCopy(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	var x plexIndexCache[map[string]string]
 	const key = "plex:test"
 
@@ -147,7 +147,7 @@ func TestPlexIndexCacheSharesOneBuildAndServesTheLastCopy(t *testing.T) {
 // A failed build is not retried for plexIndexRetry, and the last copy stays.
 func TestPlexIndexCacheRemembersAFailure(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	var x plexIndexCache[map[string]string]
 	var builds atomic.Int32
 	build := func() (map[string]string, bool) { builds.Add(1); return map[string]string{}, false }

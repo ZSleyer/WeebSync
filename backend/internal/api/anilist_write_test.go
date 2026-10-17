@@ -72,7 +72,7 @@ func linkedServer(t *testing.T) (*Server, *http.ServeMux, *http.Cookie, *fakeAni
 		t.Fatal(err)
 	}
 	d := dbtest.Open(t)
-	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)})
 	fake := &fakeAnilist{}
 	s.Anilist.HTTP = &http.Client{Transport: fake}
 	s.Anilist.WithoutRateLimit()

@@ -37,6 +37,7 @@ func TestWatchCRUD(t *testing.T) {
 		DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, t.TempDir()),
 	}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 
@@ -216,7 +217,7 @@ func TestEnsureWatchMatchQueuesOnlyUnmatchedFolders(t *testing.T) {
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 	db.SetSetting(d, "jobs_paused", "m") // decide only, search nothing
 	if !s.ensureWatchMatch(1, "/x/Show", "/media/lib/Show") {
 		t.Fatal("an unmatched folder should be queued")
@@ -246,7 +247,7 @@ func TestBackfillWatchMatches(t *testing.T) {
 		d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, ?, '/lib')`, f)
 	}
 	d.Exec(`INSERT INTO catalog_matches (server_id, folder, source, media_id) VALUES (1, '/x/B', 'anilist', 0), (1, '/x/C', 'anilist', 5)`)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 	db.SetSetting(d, "jobs_paused", "m") // decide only, search nothing
 	if n := s.BackfillWatchMatches(); n != 2 {
 		t.Fatalf("first start: queued %d, want 2", n)
@@ -263,7 +264,7 @@ func TestBackfillWatchMatches(t *testing.T) {
 // writes into, and a season folder is searched by its show's name.
 func TestWatchMatchQuery(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	db.SetSetting(d, "plex_lib_scopes", "/media/series\ttv\n/media/anime\tanime\n/media/anime/films\tmovie")
 	tests := []struct {
 		folder, local, name, scope string

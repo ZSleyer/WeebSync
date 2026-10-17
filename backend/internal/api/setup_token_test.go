@@ -26,7 +26,7 @@ func TestMain(m *testing.M) {
 // from the internet owns nothing.
 func TestFirstRunNeedsSetupToken(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	post := func(path, body, token string) *httptest.ResponseRecorder {

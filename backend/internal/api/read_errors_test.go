@@ -12,7 +12,7 @@ import (
 // list makes Sonarr give a job up, an empty requeue list loses folders.
 func TestDecidingReadsFailLoudly(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Close()
 	if _, err := s.pendingRemotePaths(1); err == nil {
 		t.Error("pendingRemotePaths: no error")

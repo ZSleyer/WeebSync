@@ -22,6 +22,7 @@ func TestOwnershipLookupFailureIs500(t *testing.T) {
 		DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, t.TempDir()),
 	}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 	if _, err := d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`); err != nil {

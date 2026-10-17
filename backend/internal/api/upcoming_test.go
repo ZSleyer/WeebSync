@@ -47,7 +47,7 @@ func TestUpcomingOf(t *testing.T) {
 
 func TestElsewhereFor(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 	// 20: continuation of 10, which the server keeps under its first season
 	// (twice: the later season folder wins); 30: matched itself elsewhere;
 	// 40: nothing on this server, its prequel only on another one

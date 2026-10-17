@@ -20,7 +20,7 @@ import (
 // not depend on that.
 func TestProbeCacheHitsOnlyOnAnUnchangedFolder(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	want := FolderQuality{ResRank: 1080, Dub: []string{"jpn"}, Sub: []string{"ger"}, Soft: []string{"ger"}, Probed: probeMeasured}
 	s.probeCachePut("/media/Show/Season 01", "12:5000:1700000000", want)

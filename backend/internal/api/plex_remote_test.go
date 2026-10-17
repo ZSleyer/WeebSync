@@ -16,7 +16,7 @@ import (
 func TestPlexFilmReachesTvdbThroughItsImdbID(t *testing.T) {
 	d := dbtest.Open(t)
 	db.SetSetting(d, "tvdb_api_key", "test-key")
-	s := &Server{DB: d, Anilist: anilist.New(d), Tvdb: tvdb.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Tvdb: tvdb.New(d)})
 	// keyed as the index keys it: the folded title
 	seedGuidIndex(t, s, `{"yor name":{"tmdb":372058,"imdb":5311514,"year":2016,"ratingKey":"7","movie":true}}`)
 	// what /search/remoteid answered, already cached
@@ -35,7 +35,7 @@ func TestPlexFilmReachesTvdbThroughItsImdbID(t *testing.T) {
 func TestTvdbFromRemotePicksTheKind(t *testing.T) {
 	d := dbtest.Open(t)
 	db.SetSetting(d, "tvdb_api_key", "test-key")
-	s := &Server{DB: d, Tvdb: tvdb.New(d)}
+	s := testServer(t, &Server{DB: d, Tvdb: tvdb.New(d)})
 	s.cacheSet("tvdb:remoteid:131378", `{"Series":408850,"Movie":193127}`)
 	if got := s.tvdbFromRemote(plexGuid{TMDB: 131378}, false); got != 408850 {
 		t.Errorf("series: %d", got)

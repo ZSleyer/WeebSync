@@ -22,7 +22,7 @@ func callLocal(t *testing.T, h http.HandlerFunc, method, body string) int {
 
 func TestRenameLocal(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{DownloadRoot: root}
+	s := testServer(t, &Server{DownloadRoot: root})
 	if err := os.WriteFile(filepath.Join(root, "a.mkv"), []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestRenameLocalRelativeRoot(t *testing.T) {
 	if err := os.WriteFile("data/downloads/season/e01.mkv", []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DownloadRoot: "data/downloads"}
+	s := testServer(t, &Server{DownloadRoot: "data/downloads"})
 	if code := callLocal(t, s.handleRenameLocal, http.MethodPost, `{"path":"/season/e01.mkv","name":"e02.mkv"}`); code != http.StatusOK {
 		t.Fatalf("rename: got %d, want 200", code)
 	}
@@ -75,7 +75,7 @@ func TestRenameLocalRelativeRoot(t *testing.T) {
 
 func TestDeleteLocal(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{DownloadRoot: root}
+	s := testServer(t, &Server{DownloadRoot: root})
 	full := filepath.Join(root, "season")
 	if err := os.MkdirAll(full, 0o755); err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestDeleteLocal(t *testing.T) {
 // local listing leaves it out, and the catalog's counts do not include it
 func TestBrowseLocalHidesTrash(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{DownloadRoot: root}
+	s := testServer(t, &Server{DownloadRoot: root})
 	for _, f := range []string{"Show/e01.mkv", "Show/" + trashDir + "/e01.old.mkv"} {
 		full := filepath.Join(root, f)
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {

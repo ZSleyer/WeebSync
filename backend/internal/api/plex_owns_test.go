@@ -22,7 +22,7 @@ func ownMedia(id int, romaji, english, native string) anilist.Media {
 // spell the same film differently often enough that titles alone miss it.
 func TestPlexOwnedMatchesTitleAndTmdbID(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	// both indexes are read from the cache table, so the check runs without a
 	// Plex server behind it
 	s.cacheSet("plex:titleidx:v2", `{"sword art online":"11","ソードアート・オンライン":"11"}`)

@@ -15,7 +15,7 @@ func pendingFixture(t *testing.T) (*Server, string) {
 	t.Helper()
 	d := dbtest.Open(t)
 	root := t.TempDir()
-	s := &Server{DB: d, DownloadRoot: root}
+	s := testServer(t, &Server{DB: d, DownloadRoot: root})
 	d.Exec(`INSERT INTO users (id, email, is_admin, locale) VALUES (1,'a@example.com',1,'de')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'s','sftp','h',22,'u',x'00')`)

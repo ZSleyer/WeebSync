@@ -18,7 +18,7 @@ import (
 func TestCrossOriginGuard(t *testing.T) {
 	d := dbtest.Open(t)
 	db.SetSetting(d, "base_url", "https://weebsync.example.com")
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	h := s.CrossOrigin(mux)
@@ -70,7 +70,7 @@ func TestCrossOriginGuard(t *testing.T) {
 func TestCrossOriginGuardForgetsOldOrigin(t *testing.T) {
 	d := dbtest.Open(t)
 	db.SetSetting(d, "base_url", "https://old.example.com")
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	h := s.CrossOrigin(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	post := func(origin string) int {
 		req := httptest.NewRequest("POST", "/api/auth/logout", nil)
@@ -96,7 +96,7 @@ func TestCrossOriginGuardForgetsOldOrigin(t *testing.T) {
 // Only a write that went through drops the unwatched listings; a refused one
 // (no session) and the auth routes leave them alone.
 func TestForgetLocalOnWriteOnlyAfterSuccess(t *testing.T) {
-	s := &Server{}
+	s := testServer(t, &Server{})
 	flushedAfter := func(method, path string, status int) bool {
 		s.localCache.mu.Lock()
 		before := s.localCache.gen

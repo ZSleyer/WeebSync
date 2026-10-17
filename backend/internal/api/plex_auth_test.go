@@ -12,7 +12,7 @@ import (
 // as the UI cannot change it.
 func TestPlexAuth(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	db.SetSetting(d, "plex_token", "enc:v1:x")
 	if got := s.plexAuth("plex"); got != "token" {
 		t.Errorf("pasted: %q", got)
@@ -32,7 +32,7 @@ func TestPlexAuth(t *testing.T) {
 // hand overrides that, and losing the chosen one falls back to the other.
 func TestMediaServerPrecedence(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	kind := func() string {
 		s.syncMediaServer() // what every connect and settings save runs
 		if c := s.plexClient(); c != nil {
@@ -64,7 +64,7 @@ func TestMediaServerPrecedence(t *testing.T) {
 
 	// two connected at once: nothing is chosen for the admin, neither runs
 	d2 := dbtest.Open(t)
-	s2 := &Server{DB: d2}
+	s2 := testServer(t, &Server{DB: d2})
 	for k, v := range map[string]string{"plex_url": "http://p", "plex_token": "t", "jellyfin_url": "http://j", "jellyfin_token": "k"} {
 		db.SetSetting(d2, k, v)
 	}

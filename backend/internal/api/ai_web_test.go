@@ -109,7 +109,7 @@ func TestAiFetchPageRefusesLocalTargets(t *testing.T) {
 		w.Write([]byte("secret"))
 	}))
 	t.Cleanup(web.Close)
-	s := &Server{}
+	s := testServer(t, &Server{})
 	out, _ := s.aiFetchPage(context.Background(), newAiWebScope(web.URL), web.URL).(map[string]any)
 	if out["error"] == nil || out["text"] != nil {
 		t.Fatalf("loopback page was read: %v", out)
@@ -130,7 +130,7 @@ func TestAiFetchPageScopeAndCleaning(t *testing.T) {
 	prev := aiPageHTTP
 	aiPageHTTP = web.Client()
 	t.Cleanup(func() { aiPageHTTP = prev })
-	s := &Server{}
+	s := testServer(t, &Server{})
 
 	// nothing named it: refused before any request goes out
 	out, _ := s.aiFetchPage(context.Background(), newAiWebScope("read https://example.com/a."), web.URL+"/x?leak=1").(map[string]any)

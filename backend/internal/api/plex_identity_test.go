@@ -14,7 +14,7 @@ func identityDB(t *testing.T) (*sql.DB, *Server) {
 	// bundled first, and a tvdb match that arrived on its own
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'clevatess','Clevatess'), (2,'clevatess ii','Clevatess II')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist',1,1), ('tvdb',451793,2)`)
-	return d, &Server{DB: d}
+	return d, testServer(t, &Server{DB: d})
 }
 
 func seriesOf(t *testing.T, d *sql.DB, source string, id int) int64 {

@@ -14,7 +14,7 @@ import (
 
 func TestSeriesLocalTitle(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1, 'k1', 'raw'), (2, 'k2', 'raw2'), (3, 'k3', 'raw3')`)
 
 	// locale chain: de beats en beats x-jat
@@ -66,7 +66,7 @@ func TestRefreshSeriesTitlesManual(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { d.Close() })
-	s := &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d), Tvdb: tvdb.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d), Tvdb: tvdb.New(d)})
 	s.refreshSeriesTitles(context.Background(), 25)
 	var series, titles int
 	d.QueryRow(`SELECT COUNT(DISTINCT series_id), COUNT(*) FROM series_titles`).Scan(&series, &titles)

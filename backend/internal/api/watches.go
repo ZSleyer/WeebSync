@@ -1894,7 +1894,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if in.MediaID <= 0 {
 		s.ensureWatchMatch(in.ServerID, in.RemotePath, in.LocalPath)
 	}
-	go s.runWatch(id) // first sync right away
+	s.spawn(func() { s.runWatch(id) }) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
 
@@ -2007,7 +2007,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		s.ensureWatchMatch(serverID, in.RemotePath, in.LocalPath)
 	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
-		go s.runWatch(id) // paths changed: check the new folder right away
+		s.spawn(func() { s.runWatch(id) }) // paths changed: check the new folder right away
 	}
 	// The queue only ever covers downloads that come AFTER the preference was
 	// set, so changing it used to do nothing at all to the episodes already in
@@ -2317,7 +2317,7 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, s.runWatch(id))
 		return
 	}
-	go s.runWatch(id)
+	s.spawn(func() { s.runWatch(id) })
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
 }
 

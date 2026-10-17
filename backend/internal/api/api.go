@@ -65,6 +65,9 @@ type Server struct {
 	matchJobs map[string]context.CancelFunc
 	matchCh   chan matchJob
 	matchOnce sync.Once
+	// bg counts the fire-and-forget goroutines handlers start (see spawn), so
+	// Shutdown can wait for them
+	bg atomic.Int64
 
 	// the player: loopback for remote sources, transcode sessions (play.go)
 	playLoop playLoop

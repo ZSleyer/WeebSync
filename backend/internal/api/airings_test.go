@@ -21,7 +21,7 @@ import (
 // table stores what the provider counted.
 func TestPastAiringsFillTheCalendarWeek(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 
 	now := time.Now()
 	soon := now.Add(48 * time.Hour).Unix()
@@ -92,7 +92,7 @@ func TestPastAiringsFillTheCalendarWeek(t *testing.T) {
 // release that has been seen stands as it is, whatever the lag says.
 func TestDubSlotsProjectTheObservedLag(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 
 	now := time.Now()
 	day := int64(86400)
@@ -208,7 +208,7 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	defer srv.Close()
 
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d), Crunchyroll: crunchyroll.NewAt(srv.URL)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Crunchyroll: crunchyroll.NewAt(srv.URL)})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
@@ -265,7 +265,7 @@ func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
 	d := dbtest.Open(t)
 	as := animeschedule.New(d)
 	as.BaseURL = srv.URL
-	s := &Server{DB: d, Anilist: anilist.New(d), Animeschedule: as}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Animeschedule: as})
 	d.Exec(`INSERT INTO settings (key, value) VALUES ('animeschedule_token', 'tok')`)
 
 	if n := s.recordDubTimetable(context.Background(), 5, "en"); n != 1 {
@@ -289,7 +289,7 @@ func TestRecordDubTimetableFromAnimeschedule(t *testing.T) {
 // rather than none.
 func TestSimuldubProjectsAtZeroLag(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 	now := time.Now().Unix()
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -375,7 +375,7 @@ func TestDubStanding(t *testing.T) {
 // forecast plus the grace has passed, the same watch is overdue.
 func TestDubWatchWaitsInsteadOfBehind(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 
 	now := time.Now()
 	day := int64(86400)

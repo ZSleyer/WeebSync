@@ -33,7 +33,7 @@ func digestTestServer(t *testing.T) *Server {
 		VALUES (1, 1, 'srv', 'sftp', 'example.com', 22, 'u', x'00')`); err != nil {
 		t.Fatal(err)
 	}
-	return &Server{DB: d, Push: p}
+	return testServer(t, &Server{DB: d, Push: p})
 }
 
 // insertDownload adds a row in the given status; the digest only ever looks at

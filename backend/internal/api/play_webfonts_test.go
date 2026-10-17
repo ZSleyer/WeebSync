@@ -34,7 +34,7 @@ func TestWebFonts(t *testing.T) {
 	defer func(a, b, c string) { webFontMetaURL, webFontCSSURL, webFontFilePrefix = a, b, c }(webFontMetaURL, webFontCSSURL, webFontFilePrefix)
 	webFontMetaURL, webFontCSSURL, webFontFilePrefix = google.URL+"/meta", google.URL+"/css2", google.URL+"/files/"
 
-	s := &Server{}
+	s := testServer(t, &Server{})
 	rec := httptest.NewRecorder()
 	s.handlePlayWebFonts(rec, httptest.NewRequest("GET", "/api/play/webfonts?family=Calibri&family=Hey+Gorgeous&family=open+sans", nil))
 	var got map[string]WebFont

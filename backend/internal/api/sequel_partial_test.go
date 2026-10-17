@@ -47,7 +47,7 @@ func TestFixSequelPicksUsesPartialRelations(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(string(raw))), Header: http.Header{}}, nil
 	})}
 	cl.WithoutRateLimit()
-	s := &Server{Anilist: cl}
+	s := testServer(t, &Server{Anilist: cl})
 
 	const n = 12
 	infos := make([]match.Info, n)

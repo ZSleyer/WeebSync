@@ -43,7 +43,7 @@ func TestUnpackComic(t *testing.T) {
 		t.Error("entry escaped the book folder")
 	}
 
-	s := &Server{}
+	s := testServer(t, &Server{})
 	b := &book{key: "k", token: "tok", dir: out, kind: "comic", used: time.Now()}
 	s.books.byKey, s.books.byToken = map[string]*book{"k": b}, map[string]*book{"tok": b}
 	mux := http.NewServeMux()

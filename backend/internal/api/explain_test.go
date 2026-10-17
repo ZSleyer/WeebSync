@@ -38,7 +38,7 @@ func TestWaitReason(t *testing.T) {
 // and the stored match and the scope mark come along.
 func TestExplainFolder(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
@@ -94,7 +94,7 @@ func TestExplainFolder(t *testing.T) {
 // says nothing, and the older copy an upgrade moved into the trash.
 func TestWatchExplainLastSteps(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, DownloadRoot: t.TempDir()}
+	s := testServer(t, &Server{DB: d, DownloadRoot: t.TempDir()})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

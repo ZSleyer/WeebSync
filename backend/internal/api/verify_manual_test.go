@@ -35,6 +35,7 @@ func TestVerifyUnits(t *testing.T) {
 		DB: database, LocalRoots: roots,
 		Anilist: anilist.New(database), Tmdb: tmdb.New(database), Tvdb: tvdb.New(database),
 	}
+	drainJobsAtCleanup(t, s)
 
 	// 1. Fribb mapping
 	s.refreshAnimeIDs()

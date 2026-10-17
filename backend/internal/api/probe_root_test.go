@@ -29,7 +29,7 @@ func TestProbeQualityStaysInsideRoot(t *testing.T) {
 		seen = append(seen, filepath.Base(f.Name()))
 		return []probeStream{{CodecType: "video", Height: 1080}}, true
 	}
-	s := &Server{DownloadRoot: root, LocalRoots: []string{root}}
+	s := testServer(t, &Server{DownloadRoot: root, LocalRoots: []string{root}})
 	if _, ok := s.probeQuality(show); !ok {
 		t.Fatal("in-root video was not probed")
 	}

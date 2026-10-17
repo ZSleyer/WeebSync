@@ -195,7 +195,7 @@ func (s *Server) handleJellyfinServerLinkPoll(w http.ResponseWriter, r *http.Req
 	}
 	slog.Info("jellyfin server connected", "url", logSafe(sg.url), "user", logSafe(user.Name))
 	s.Transfers.Roots = s.localRoots()
-	go s.refreshPlexRoots()
+	s.spawn(s.refreshPlexRoots)
 	writeJSON(w, http.StatusOK, jellyfinPollResponse{Linked: true, User: user.Name})
 }
 

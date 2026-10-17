@@ -17,7 +17,7 @@ func entry(p string, dir bool, size int64, mod time.Time) remote.Entry {
 
 func TestIndexDirAndSearch(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
@@ -81,7 +81,7 @@ func jsonHasResult(b []byte) bool {
 
 func TestNextCrawlDirs(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
@@ -122,7 +122,7 @@ func TestNextCrawlDirs(t *testing.T) {
 // one step - not one level per failed listing slot.
 func TestIndexDirDropsVanishedSubtree(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
@@ -154,7 +154,7 @@ func TestIndexDirDropsVanishedSubtree(t *testing.T) {
 // and not one a LIKE would have caught through the "_" in the folder's name.
 func TestRemoteSubtreeRange(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
@@ -174,7 +174,7 @@ func TestRemoteSubtreeRange(t *testing.T) {
 // listed itself. And a directory past the depth cap is never queued.
 func TestNextCrawlDirsOwnStampAndDepth(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)

@@ -38,6 +38,7 @@ func linkFixture(t *testing.T) (*sql.DB, *http.ServeMux, *http.Cookie) {
 	}
 	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, t.TempDir())}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 
@@ -146,7 +147,7 @@ func TestPlexPinTokenStatusAndDecode(t *testing.T) {
 	old := plexTVBase
 	plexTVBase = fake.URL
 	defer func() { plexTVBase = old }()
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 
 	if tok, err := s.plexPinToken("1"); err != nil || tok != "tok" {
 		t.Fatalf("claimed: %q, %v", tok, err)

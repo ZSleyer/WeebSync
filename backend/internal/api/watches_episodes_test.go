@@ -138,7 +138,7 @@ func TestSpanEpisodes(t *testing.T) {
 func TestWatchEpisodesOwnershipAndDegradation(t *testing.T) {
 	d := dbtest.Open(t)
 	// no Tvdb/Tmdb client: the handler must degrade instead of reaching out
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (id, email, is_admin) VALUES (1,'a@example.com',1), (2,'b@example.com',0)`)

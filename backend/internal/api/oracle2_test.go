@@ -57,7 +57,7 @@ func TestUnverifiedAccountIsNoPasswordOracle(t *testing.T) {
 // A setup code from the environment of one repeated character is no code.
 func TestTrivialEnvSetupTokenIgnored(t *testing.T) {
 	t.Setenv("WEEBSYNC_SETUP_TOKEN", "aaaaaaaaaaaaaaaaaaaaaaaa")
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	if tok := s.ensureSetupToken(); tok == "aaaaaaaaaaaaaaaaaaaaaaaa" || tok == "" {
 		t.Errorf("trivial env token taken or none minted: %q", tok)
 	}

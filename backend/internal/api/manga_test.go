@@ -23,7 +23,7 @@ func TestMangaScope(t *testing.T) {
 	seed("/Books/M/Monster", "Monster 02.cbr")
 	seed("/Anime/Monster", "Monster - 01.mkv")
 	d.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/Books', 'manga')`)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	// the letter shelf takes the mark of the folder above it, a title does not
 	if got := s.scopeFor(1, "/Books/M"); got != "manga" {

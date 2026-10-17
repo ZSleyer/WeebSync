@@ -15,7 +15,7 @@ func (f roundTripperFunc) RoundTrip(r *http.Request) (*http.Response, error) { r
 
 func TestMediaExtras(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)})
 	// no network in tests: every miss is a failure, so a cached answer must
 	// never touch the client and a miss must surface as 502
 	s.Anilist.HTTP = &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {

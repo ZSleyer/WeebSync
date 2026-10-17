@@ -89,7 +89,7 @@ func TestPlayInfoRefusesPlaylistsInDisguise(t *testing.T) {
 	real, _ := os.ReadFile(secret)
 	os.WriteFile(filepath.Join(root, "real.mkv"), real, 0o644)
 
-	s := &Server{DownloadRoot: root, LocalRoots: []string{root}}
+	s := testServer(t, &Server{DownloadRoot: root, LocalRoots: []string{root}})
 	ctx := context.Background()
 	if info, err := s.playInfo(ctx, playSource{path: "/real.mkv"}); err != nil || info.Video == nil {
 		t.Fatalf("a real mkv must open: %v %+v", err, info)

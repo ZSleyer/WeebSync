@@ -66,6 +66,7 @@ func TestWatchCheckDoesNotRequeueHopelessDownload(t *testing.T) {
 	}
 	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, dial, root)}
+	drainJobsAtCleanup(t, s)
 
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
 	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
@@ -139,6 +140,7 @@ func TestWatchSaveRejectsUnwritableTarget(t *testing.T) {
 	}
 	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, root)}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

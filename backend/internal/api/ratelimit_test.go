@@ -22,7 +22,7 @@ import (
 // long the pause is; inside a trusted network there is no count.
 func TestLoginRefusedCountsAttempts(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	if rec := doReq(mux, "POST", "/api/auth/register", `{"email":"a@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusCreated {
@@ -95,7 +95,7 @@ func TestDeviceCookieBeatsLockout(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	if rec := doReq(mux, "POST", "/api/auth/register", `{"email":"a@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusCreated {
@@ -146,7 +146,7 @@ func TestDeviceCookieBeatsLockout(t *testing.T) {
 // owner's way back in.
 func TestAccountLimiter(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	if rec := doReq(mux, "POST", "/api/auth/register", `{"email":"a@example.com","password":"longenough123"}`, nil); rec.Code != http.StatusCreated {

@@ -18,7 +18,7 @@ func TestLoginPendingIsConsumedOnce(t *testing.T) {
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	token, err := s.newLoginPending(1, false)
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestLoginPendingDropsAfterMaxFailures(t *testing.T) {
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	token, err := s.newLoginPending(1, false)
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func totpFixture(t *testing.T) (*http.ServeMux, *Server, string, string) {
 	if _, err := d.Exec(`INSERT INTO user_totp (user_id, secret_enc, confirmed_at) VALUES (1, ?, datetime('now'))`, enc); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	token, err := s.newLoginPending(1, false)
@@ -114,7 +114,7 @@ func TestRecoveryCodeRedeemsOnce(t *testing.T) {
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	codes, err := s.confirmTotp(1)
 	if err != nil || len(codes) != 10 {
 		t.Fatalf("codes=%d err=%v", len(codes), err)

@@ -32,7 +32,7 @@ func applyRenames(t *testing.T, s *Server, body string) []renamePair {
 // descend into a subfolder - but never climb out of the directory.
 func TestRenameApplySubfolderStaysInRoot(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{DownloadRoot: root}
+	s := testServer(t, &Server{DownloadRoot: root})
 	for _, n := range []string{"ep1.mkv", "ep2.mkv", "ep3.mkv", "ep4.mkv"} {
 		if err := os.WriteFile(filepath.Join(root, n), []byte("x"), 0o644); err != nil {
 			t.Fatal(err)
@@ -68,7 +68,7 @@ func TestRenameApplySubfolderStaysInRoot(t *testing.T) {
 
 func TestRenameApplyRejectsSourceWithSeparator(t *testing.T) {
 	root := t.TempDir()
-	s := &Server{DownloadRoot: root}
+	s := testServer(t, &Server{DownloadRoot: root})
 	if err := os.MkdirAll(filepath.Join(root, "sub"), 0o755); err != nil {
 		t.Fatal(err)
 	}

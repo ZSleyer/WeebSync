@@ -615,6 +615,6 @@ func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, status, err.Error())
 		return
 	}
-	go s.indexDir(id, dir, entries) // free index feed, no extra remote requests
+	s.spawn(func() { s.indexDir(id, dir, entries) }) // free index feed, no extra remote requests
 	writeJSON(w, http.StatusOK, entries)
 }

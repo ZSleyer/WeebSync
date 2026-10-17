@@ -29,7 +29,7 @@ func TestJobFamilyStripsIds(t *testing.T) {
 // and a setting that only lived in memory would let it come straight back.
 func TestPausedFamilyDoesNotStart(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	ran := make(chan string, 4)
 	s.runJob("plex:index", func(context.Context) { ran <- "first" })
@@ -63,7 +63,7 @@ func TestPausedFamilyDoesNotStart(t *testing.T) {
 // its own business, so the test asserts the signal, not a deadline.
 func TestStopJobCancelsTheContext(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	started, done := make(chan struct{}), make(chan struct{})
 	s.runJobFor("plex:index", time.Minute, func(ctx context.Context) {

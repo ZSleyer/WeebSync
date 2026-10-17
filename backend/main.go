@@ -218,6 +218,7 @@ func main() {
 	if err := httpSrv.Shutdown(shutCtx); err != nil {
 		httpSrv.Close()
 	}
+	srv.Shutdown(shutCtx)           // stop background jobs, wait for those that write the database
 	srv.Transfers.Shutdown(shutCtx) // requeue active downloads, wait for workers
 	srv.Conns.Close()               // tear down pooled SSH/FTP connections
 	slog.Info("shutdown complete")

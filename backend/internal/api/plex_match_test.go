@@ -8,7 +8,7 @@ import (
 
 func TestAnilistFromSeries(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 
 	series := func(id int64, key string) {
 		if _, err := d.Exec(`INSERT INTO series (id, key) VALUES (?, ?)`, id, key); err != nil {
@@ -59,7 +59,7 @@ func TestAnilistFromSeries(t *testing.T) {
 
 func TestAnilistFromAnimeIDs(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	add := func(anilistID, tvdb, tvdbSeason, tmdb int, kind string) {
 		if _, err := d.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind) VALUES (?, ?, ?, ?, ?)`,
 			anilistID, tvdb, tvdbSeason, tmdb, kind); err != nil {

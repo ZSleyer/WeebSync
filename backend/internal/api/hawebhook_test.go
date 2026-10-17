@@ -19,7 +19,7 @@ import (
 // changes - the fingerprint keeps a quiet instance quiet.
 func TestHaWebhook(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 
 	var got atomic.Value
 	var calls atomic.Int32

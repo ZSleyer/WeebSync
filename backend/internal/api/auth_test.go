@@ -13,7 +13,7 @@ import (
 
 func TestSetupNeeded(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 
@@ -42,7 +42,7 @@ func TestSetupNeeded(t *testing.T) {
 
 func TestSetupOIDC(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 
@@ -73,7 +73,7 @@ func TestSetupOIDC(t *testing.T) {
 
 func TestOIDCDiscover(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 

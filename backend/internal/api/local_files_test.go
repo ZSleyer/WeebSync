@@ -35,7 +35,7 @@ func TestLocalFilesWatched(t *testing.T) {
 	show := filepath.Join(root, "Show")
 	os.MkdirAll(filepath.Join(show, "Season 01"), 0o755)
 	os.WriteFile(filepath.Join(show, "Season 01", "S01E01.mkv"), []byte("x"), 0o644)
-	s := &Server{DownloadRoot: root, LocalRoots: []string{root}}
+	s := testServer(t, &Server{DownloadRoot: root, LocalRoots: []string{root}})
 
 	if n := s.countVideos("Show", 0); n != 1 {
 		t.Fatalf("first look: %d", n)

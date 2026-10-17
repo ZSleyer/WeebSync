@@ -57,7 +57,7 @@ func (x *plexIndexCache[T]) get(s *Server, key string, wait bool, build func() (
 	if ch == nil {
 		ch = make(chan struct{})
 		x.building = ch
-		go x.run(s, key, build, ch)
+		s.spawn(func() { x.run(s, key, build, ch) })
 	}
 	x.mu.Unlock()
 	if !wait {

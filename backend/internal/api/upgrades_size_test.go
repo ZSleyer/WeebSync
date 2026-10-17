@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -16,8 +17,7 @@ func sizeTestServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	root := t.TempDir()
 	d := dbtest.Open(t)
-	s := &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d)}
-	drainJobsAtCleanup(t, s)
+	s := testServer(t, &Server{DB: d, DownloadRoot: root, LocalRoots: []string{root}, Anilist: anilist.New(d)})
 	d.Exec(`INSERT INTO users (id, email, upgrade_dims) VALUES (1,'u@e.test','res,sub,dub,soft')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1,1,'seedbox','sftp','h',22,'u',x'00')`)
@@ -186,25 +186,27 @@ func TestAddMissingUnitsSkipsFilesAlreadyOnDisk(t *testing.T) {
 	}
 }
 
-// drainJobsAtCleanup stops the background jobs a test started and waits for
-// them: one still writing to the database when the test returns races the
-// removal of its temp dir. Registered after the database's own cleanup, so it
-// runs before it.
+// drainJobsAtCleanup stops the background work a test's server started and
+// waits for it: work still writing to the database when the test returns races
+// the removal of its temp dir. Registered after the database's own cleanup, so
+// it runs before it.
 func drainJobsAtCleanup(t *testing.T, s *Server) {
 	t.Helper()
 	t.Cleanup(func() {
-		deadline := time.Now().Add(10 * time.Second)
-		for time.Now().Before(deadline) {
-			s.matchMu.Lock()
-			for _, cancel := range s.matchJobs {
-				cancel()
-			}
-			n := len(s.matchJobs)
-			s.matchMu.Unlock()
-			if n == 0 {
-				return
-			}
-			time.Sleep(5 * time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		s.Shutdown(ctx)
+		if s.Transfers != nil {
+			s.Transfers.Shutdown(ctx)
 		}
 	})
+}
+
+// testServer registers the drain for a server a test built, whatever it is
+// wired with, and hands the server back. Build the server after the database
+// (dbtest.Open) so the drain runs first.
+func testServer(t *testing.T, s *Server) *Server {
+	t.Helper()
+	drainJobsAtCleanup(t, s)
+	return s
 }

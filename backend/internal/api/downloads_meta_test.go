@@ -44,7 +44,7 @@ func metaTestServer(t *testing.T) *Server {
 	d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (2, 'b@example.com', '')`)
 	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
 		VALUES (1, 1, 'srv', 'sftp', 'example.com', 22, 'u', x'00')`)
-	return &Server{DB: d, Anilist: anilist.New(d)}
+	return testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 }
 
 func addDownload(t *testing.T, s *Server, userID int64, remote, local string) int64 {

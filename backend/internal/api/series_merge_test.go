@@ -10,7 +10,7 @@ import (
 func mergeTestServer(t *testing.T) *Server {
 	t.Helper()
 	d := dbtest.Open(t)
-	return &Server{DB: d, Anilist: anilist.New(d)}
+	return testServer(t, &Server{DB: d, Anilist: anilist.New(d)})
 }
 
 func seedAnilistMedia(t *testing.T, s *Server, id int, title string, year int) {

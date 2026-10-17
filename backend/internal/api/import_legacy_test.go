@@ -22,6 +22,7 @@ func TestLegacyImport(t *testing.T) {
 	}
 	s := &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d),
 		Transfers: transfer.NewManager(d, offline, root)}
+	drainJobsAtCleanup(t, s)
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
@@ -88,7 +89,7 @@ func TestLegacyImport(t *testing.T) {
 // A commit without a server must not silently create one.
 func TestLegacyImportNeedsServer(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)}
+	s := testServer(t, &Server{DB: d, DownloadRoot: t.TempDir(), Anilist: anilist.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)

@@ -8,7 +8,7 @@ import (
 )
 
 func TestSafeLocalNeverEscapesRoot(t *testing.T) {
-	s := &Server{DownloadRoot: "/data/downloads"}
+	s := testServer(t, &Server{DownloadRoot: "/data/downloads"})
 	for _, in := range []string{"", ".", "a/b", "../../etc/passwd", "/abs/path", "a/../..", "..", "foo/../../etc"} {
 		p, err := s.safeLocal(in)
 		if err != nil {

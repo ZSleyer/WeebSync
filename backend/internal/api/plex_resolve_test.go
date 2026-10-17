@@ -18,7 +18,7 @@ func seedGuidIndex(t *testing.T, s *Server, payload string) {
 // says today - on the reference server 9 of 255 shows had been renumbered.
 func TestPlexRatingKeyResolvePrefersTheLiveGuid(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'rezero','Re:ZERO')`)
 	// the stored address is stale: Plex has since re-added the show
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb',305089,1), ('plex',58605,1)`)
@@ -38,7 +38,7 @@ func TestPlexRatingKeyResolvePrefersTheLiveGuid(t *testing.T) {
 // The automatic passes correct each other; a person's choice they do not touch.
 func TestPlexRatingKeyResolveKeepsAManualLink(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'rezero','Re:ZERO')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id, manual) VALUES ('tvdb',305089,1,0), ('plex',58605,1,1)`)
 	seedGuidIndex(t, s, `{"rezero":{"tvdb":305089,"ratingKey":"62755"}}`)
@@ -57,7 +57,7 @@ func TestPlexRatingKeyResolveKeepsAManualLink(t *testing.T) {
 // we already knew - a stale address still beats no address.
 func TestPlexRatingKeyResolveFallsBackWhenPlexIsSilent(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'rezero','Re:ZERO')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb',305089,1), ('plex',58605,1)`)
 	seedGuidIndex(t, s, `{}`)
@@ -75,7 +75,7 @@ func TestPlexRatingKeyResolveFallsBackWhenPlexIsSilent(t *testing.T) {
 // is filed as "Das Band der Unterwelt" on the reference server.
 func TestPlexRatingKeyResolveNeedsNoTitle(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'yomi no tsugai','Yomi no Tsugai')`)
 	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist',171018,1), ('tvdb',452711,1)`)
 	// Plex knows the show under a German title and has no plex row on the series

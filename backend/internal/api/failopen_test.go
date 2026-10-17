@@ -141,7 +141,7 @@ func TestUserInsertErrorsAreNotConflicts(t *testing.T) {
 // The wizard does not answer ok with half a configuration.
 func TestSetupOIDCWriteFailure(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)}
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	refuseWrites(t, s, "no_settings", "INSERT ON settings")

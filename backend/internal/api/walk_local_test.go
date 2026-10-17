@@ -18,7 +18,7 @@ func TestWalkLocalRefusesEscapingSymlink(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, "Real", "Season 01"), 0o755)
 	os.WriteFile(filepath.Join(root, "Real", "Season 01", "S01E01.mkv"), []byte("x"), 0o644)
 
-	s := &Server{DownloadRoot: root, LocalRoots: []string{root}}
+	s := testServer(t, &Server{DownloadRoot: root, LocalRoots: []string{root}})
 	if n := s.countVideos("Show/Season 01", 0); n != 0 {
 		t.Fatalf("escaping symlink counted %d videos", n)
 	}

@@ -26,7 +26,7 @@ func TestFolderKind(t *testing.T) {
 	// a series by structure: season subfolders, no direct videos
 	seed("/Show", "Season 01", 1)
 
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	cases := []struct{ folder, name, want string }{
 		{"/Movie27", "Gyakuten Saiban", "movie"}, // neutral name → count path (1 video)
 		{"/Conan", "Detektiv Conan", "series"},
@@ -63,7 +63,7 @@ func TestFolderKindSingleEpisode(t *testing.T) {
 		VALUES (1,1,'s','sftp','h',22,'u',x'00')`); err != nil {
 		t.Fatal(err)
 	}
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	for file, want := range map[string]string{
 		"Choujun! Choujou Senpai E01 [1080p][AAC][JapDub][GerEngSub][Web-DL].mkv": "series",
 		"Kill Ao - 01 [1080p].mkv":                                         "series",

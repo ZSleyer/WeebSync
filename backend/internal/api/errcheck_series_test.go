@@ -19,7 +19,7 @@ func abortOn(t *testing.T, s *Server, event, table string) {
 
 func TestStoreSeriesTitleReportsFailure(t *testing.T) {
 	d := dbtest.Open(t)
-	s := &Server{DB: d}
+	s := testServer(t, &Server{DB: d})
 	if err := s.storeSeriesTitle(1, "tvdb", "de", "x"); err == nil {
 		t.Fatal("storing into a missing series should fail on the foreign key")
 	}
@@ -29,7 +29,7 @@ func TestStoreSeriesTitleReportsFailure(t *testing.T) {
 }
 
 func TestSeriesByProviderErrSeparatesNoneFromFailure(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	if id, err := s.seriesByProviderErr("tvdb", 1); id != 0 || err != nil {
 		t.Fatalf("no row: got %d, %v", id, err)
 	}
@@ -42,7 +42,7 @@ func TestSeriesByProviderErrSeparatesNoneFromFailure(t *testing.T) {
 }
 
 func TestSeriesInFribbReportsFailedRead(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	refs := []providerRef{{Source: "tvdb", MediaID: 5}}
 	if ok, err := s.seriesInFribb(refs); ok || err != nil {
 		t.Fatalf("unmapped id: got %v, %v", ok, err)
@@ -56,7 +56,7 @@ func TestSeriesInFribbReportsFailedRead(t *testing.T) {
 }
 
 func TestDetachProviderKeepsProviderWhenMappingCheckFails(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	s.DB.Exec(`INSERT INTO series (id, key, title) VALUES (1, 'k', 'T')`)
 	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 5, 1)`)
 	if _, err := s.DB.Exec(`DROP TABLE anime_ids`); err != nil {
@@ -73,7 +73,7 @@ func TestDetachProviderKeepsProviderWhenMappingCheckFails(t *testing.T) {
 }
 
 func TestDropAnimeLeftoversKeepsIdsWhenReadFails(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	s.DB.Exec(`INSERT INTO series (id, key, title) VALUES (1, 'k', 'T')`)
 	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id) VALUES (9, 5)`)
 	s.DB.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb', 5, 1)`)
@@ -101,7 +101,7 @@ func TestLinkSeriesStopsWhenProviderNotStored(t *testing.T) {
 }
 
 func TestClearStaleSuggestionCacheKeepsFlagUnsetOnFailure(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	abortOn(t, s, "DELETE", "anilist_cache")
 	s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('suggestions:1', '{}')`)
 	s.ClearStaleSuggestionCache()
@@ -111,7 +111,7 @@ func TestClearStaleSuggestionCacheKeepsFlagUnsetOnFailure(t *testing.T) {
 }
 
 func TestBackfillUnitsKeepsFlagUnsetOnFailure(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	// a count that cannot be read must not pass for "nothing to fix"
 	if _, err := s.DB.Exec(`DROP TABLE catalog_variants`); err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestBackfillUnitsKeepsFlagUnsetOnFailure(t *testing.T) {
 }
 
 func TestBackfillUnitsKeepsFlagUnsetWhenStaleRowsStay(t *testing.T) {
-	s := &Server{DB: dbtest.Open(t)}
+	s := testServer(t, &Server{DB: dbtest.Open(t)})
 	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder) VALUES (0, '/lib/x')`)
 	abortOn(t, s, "DELETE", "catalog_variants")
 	s.BackfillUnits()

@@ -9,7 +9,7 @@ import (
 // An address pasted with stray whitespace unblocks the same bucket as the
 // bare one.
 func TestRateLimitResetTrimsAddress(t *testing.T) {
-	s := &Server{authLimiter: newIPLimiter(1, 1, nil), accountLimiter: newIPLimiter(1, 1, nil)}
+	s := testServer(t, &Server{authLimiter: newIPLimiter(1, 1, nil), accountLimiter: newIPLimiter(1, 1, nil)})
 	for _, ip := range []string{"203.0.113.9", "2001:db8:1:2::5"} {
 		for _, l := range []*ipLimiter{s.authLimiter, s.accountLimiter} {
 			l.take(limitKey(ip))

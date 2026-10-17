@@ -106,7 +106,7 @@ func setupAiTest(t *testing.T, fp *fakeProvider) (*http.ServeMux, *Server, *http
 		db.SetSetting(d, "ai_base_url", fp.URL+"/v1")
 		db.SetSetting(d, "ai_model", "fake")
 	}
-	s := &Server{DB: d, Anilist: anilist.New(d), AI: ai.New(d), DownloadRoot: t.TempDir()}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), AI: ai.New(d), DownloadRoot: t.TempDir()})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	return mux, s, cookieForUser(t, d, 1)

@@ -12,7 +12,7 @@ import (
 // A path with a NUL is malformed, not a missing directory: 400 on the listing
 // and on the rename preview.
 func TestMalformedLocalPathIs400(t *testing.T) {
-	s := &Server{DownloadRoot: t.TempDir()}
+	s := testServer(t, &Server{DownloadRoot: t.TempDir()})
 	w := httptest.NewRecorder()
 	s.handleBrowseLocal(w, httptest.NewRequest(http.MethodGet, "/api/browse/local?path=a%00b", nil))
 	if w.Code != http.StatusBadRequest {
@@ -29,7 +29,7 @@ func TestMalformedLocalPathIs400(t *testing.T) {
 
 // A regex pattern over 4 KiB is refused on every route that takes one.
 func TestRenamePatternLimit(t *testing.T) {
-	s := &Server{DownloadRoot: t.TempDir()}
+	s := testServer(t, &Server{DownloadRoot: t.TempDir()})
 	long := strings.Repeat("a", rename.MaxPattern+1)
 	body := `{"path":"","names":["x"],"mode":"regex","pattern":"` + long + `"}`
 	for name, h := range map[string]http.HandlerFunc{"preview": s.handleRenamePreview, "names": s.handleRenameNames} {

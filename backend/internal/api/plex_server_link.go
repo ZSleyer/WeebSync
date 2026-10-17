@@ -196,6 +196,6 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 	plexServerSignins.Unlock()
 	forgetLinkFlow(plexServerFlow, in.ID)
 	slog.Info("plex server connected", "server", logSafe(server.Name), "url", logSafe(addr))
-	go s.refreshPlexRoots() // the libraries and their roots, as after a settings change
+	s.spawn(s.refreshPlexRoots) // the libraries and their roots, as after a settings change
 	writeJSON(w, http.StatusOK, plexServerConnectResponse{Name: server.Name, URL: addr})
 }

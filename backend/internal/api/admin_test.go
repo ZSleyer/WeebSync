@@ -22,7 +22,7 @@ func setupAdminTest(t *testing.T) (*http.ServeMux, *Server, *http.Cookie, *http.
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('admin@example.com', 1)`)
 	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('user@example.com', 0)`)
 
-	s := &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d)}
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Tmdb: tmdb.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	return mux, s, cookieForUser(t, d, 1), cookieForUser(t, d, 2)
