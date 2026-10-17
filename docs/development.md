@@ -20,6 +20,25 @@ every page change; reports and screenshots land in `<data>/mobile-debug/`.
 The binary logs a warning at start. Never deploy it: images and releases
 are built without the tag, and CI checks the image for it.
 
+## The image
+
+The runtime image is [distroless](https://github.com/GoogleContainerTools/distroless) on Debian 13 (glibc): the Go binary is static, but ffmpeg is not, and NVIDIA's container runtime injects glibc driver libraries a musl image cannot load. ffmpeg comes from Debian's own source package (`apt-get source ffmpeg`, so the archive's patches and security fixes come with every rebuild), configured in the `ffmpeg` stage of the `Dockerfile` for what the player uses: all native demuxers, decoders and filters, libx264, libass, libdav1d, VA-API, the NVENC headers (the driver itself comes from the host at run time) and the `lavfi` input for the encoder probe. Network is off except the `http` and `tcp` protocols the player's loopback listener needs for remote sources; every run also passes `-protocol_whitelist` and `-format_whitelist`. `ffmpeg -protocols` lists what is in. The `rootfs` stage copies exactly the libraries `ldd` reports for ffmpeg, ffprobe and the VA-API drivers and fails the build on a `not found`. If the player starts using a protocol or codec library that is missing, add it to the `configure` line.
+
+Sizes: the amd64 image is about 325 MB, 120 MB with `--build-arg VAAPI_AMD=0`; arm64 is about 106 MB.
+
+The image has no shell and no package manager. To look inside, use a throwaway container:
+
+```bash
+# a shell with the data volume next to the real thing
+docker run --rm -it --entrypoint "" -v weebsync_data:/data debian:trixie-slim bash
+# run the image's own ffmpeg/ffprobe
+docker run --rm --entrypoint /usr/local/bin/ffmpeg ghcr.io/zsleyer/weebsync:nightly -encoders
+# take the filesystem out to poke at it
+docker create --name ws-look ghcr.io/zsleyer/weebsync:nightly && docker cp ws-look:/ ./rootfs && docker rm ws-look
+```
+
+`docker compose exec weebsync /weebsync reset-password ...` still works, it needs no shell.
+
 ## Checks
 
 CI runs the same steps; run them before you push.

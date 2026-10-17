@@ -66,7 +66,14 @@ What the browser cannot play, the player transcodes. With a GPU that writes 1080
   group_add: ["989"] # your render group id
   ```
 
-- **NVIDIA** (NVENC): only where WeebSync runs outside the container with an ffmpeg built with NVENC. The image is Alpine (musl) and cannot load NVIDIA's driver libraries.
+  Building the image yourself, `--build-arg VAAPI_AMD=0` leaves out mesa's AMD driver (about 200 MB); Intel and NVIDIA are not affected.
+
+- **NVIDIA** (NVENC): the image is Debian (glibc) with an ffmpeg that has `h264_nvenc`, so the NVIDIA container toolkit can inject the driver libraries. Install the toolkit on the host and give the container the GPU:
+
+  ```yaml
+  gpus: all   # or deploy.resources.reservations.devices with driver: nvidia
+  ```
+
 - **arm64** (Raspberry Pi): no hardware encoder; transcodes run in software.
 
 ## File ownership
