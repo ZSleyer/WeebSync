@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -339,4 +340,106 @@ func TestDialHostKeyPinning(t *testing.T) {
 		t.Fatalf("correct pin: %v", err)
 	}
 	conn.Close()
+}
+
+// startRejectingSSH is an SSH server that refuses every password and counts
+// the TCP connections it was asked to take.
+func startRejectingSSH(t *testing.T) (remote.Config, *atomic.Int32) {
+	t.Helper()
+	_, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := ssh.NewSignerFromSigner(priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	var accepted atomic.Int32
+	cfg := &ssh.ServerConfig{PasswordCallback: func(ssh.ConnMetadata, []byte) (*ssh.Permissions, error) {
+		return nil, errors.New("denied")
+	}}
+	cfg.AddHostKey(signer)
+	go func() {
+		for {
+			nc, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			accepted.Add(1)
+			go func() {
+				defer nc.Close()
+				if sc, _, _, err := ssh.NewServerConn(nc, cfg); err == nil {
+					sc.Close()
+				}
+			}()
+		}
+	}()
+	rc := remote.Config{
+		Protocol: "sftp", Host: "127.0.0.1", Port: ln.Addr().(*net.TCPAddr).Port,
+		Username: "u", Password: "wrong", MaxConns: 3,
+		HostKey: base64.StdEncoding.EncodeToString(signer.PublicKey().Marshal()),
+	}
+	return rc, &accepted
+}
+
+func TestAuthBreakerStopsDialing(t *testing.T) {
+	cfg, accepted := startRejectingSSH(t)
+	p := New()
+	defer p.Close()
+
+	_, err := p.Lease(context.Background(), 1, cfg, PriHigh)
+	if !errors.Is(err, remote.ErrAuthRejected) {
+		t.Fatalf("first lease error = %v, want an auth rejection", err)
+	}
+	if got := accepted.Load(); got != 1 {
+		t.Fatalf("dials after first lease = %d, want 1", got)
+	}
+
+	// further leases fail fast with the same error and never reach the network
+	for i := 0; i < 5; i++ {
+		_, err2 := p.Lease(context.Background(), 1, cfg, PriHigh)
+		if !errors.Is(err2, remote.ErrAuthRejected) || err2.Error() != err.Error() {
+			t.Fatalf("lease %d error = %v, want the original rejection", i, err2)
+		}
+	}
+	if got := accepted.Load(); got != 1 {
+		t.Errorf("dials with the breaker open = %d, want 1", got)
+	}
+
+	// a connection test resets the breaker: the next lease dials again
+	p.ResetAuth(1)
+	if _, err := p.Lease(context.Background(), 1, cfg, PriHigh); !errors.Is(err, remote.ErrAuthRejected) {
+		t.Fatalf("lease after reset error = %v", err)
+	}
+	if got := accepted.Load(); got != 2 {
+		t.Errorf("dials after reset = %d, want 2", got)
+	}
+
+	// so does reconfiguring the server (Evict forgets the whole entry)
+	p.Evict(1)
+	p.Lease(context.Background(), 1, cfg, PriHigh)
+	if got := accepted.Load(); got != 3 {
+		t.Errorf("dials after evict = %d, want 3", got)
+	}
+}
+
+func TestAuthBreakerExpires(t *testing.T) {
+	cfg, accepted := startRejectingSSH(t)
+	old := authBackoff
+	authBackoff = 50 * time.Millisecond
+	defer func() { authBackoff = old }()
+	p := New()
+	defer p.Close()
+
+	p.Lease(context.Background(), 1, cfg, PriHigh)
+	time.Sleep(80 * time.Millisecond)
+	p.Lease(context.Background(), 1, cfg, PriHigh)
+	if got := accepted.Load(); got != 2 {
+		t.Errorf("dials after the backoff = %d, want 2", got)
+	}
 }

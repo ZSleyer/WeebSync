@@ -112,6 +112,11 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		if hkErr != nil {
 			return nil, hkErr
 		}
+		// x/crypto has no typed error for a refused login; its text is the
+		// only marker ("ssh: unable to authenticate, attempted methods ...")
+		if strings.Contains(err.Error(), "unable to authenticate") {
+			return nil, &authError{err}
+		}
 		return nil, err
 	}
 	return ssh.NewClient(sc, chans, reqs), nil

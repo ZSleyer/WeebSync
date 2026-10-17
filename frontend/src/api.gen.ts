@@ -3386,7 +3386,8 @@ export interface Schemas {
     error?: string
     /**
      * ErrorCode classifies Error into a stable machine-readable reason
-     * (see classifyError); empty when the failure is not one we recognize.
+     * (see classifyError): permission_denied, disk_full, read_only, rename_failed,
+     * auth_failed; empty when the failure is not one we recognize.
      */
     errorCode?: string
     /**

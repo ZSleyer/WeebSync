@@ -347,6 +347,8 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// a test is the user asking again: let it through a tripped auth breaker
+	s.Conns.ResetAuth(id)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
 		writeDialErr(w, err)

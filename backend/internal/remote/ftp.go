@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"net"
+	"net/textproto"
 	"path"
 	"strconv"
 	"sync/atomic"
@@ -80,6 +82,11 @@ func dialFTPTLS(cfg Config, roots *x509.CertPool, implicit bool) (Client, error)
 	}
 	if err := conn.Login(cfg.Username, cfg.Password); err != nil {
 		conn.Quit()
+		// 530 is "not logged in": the server refused the credentials
+		var perr *textproto.Error
+		if errors.As(err, &perr) && perr.Code == ftp.StatusNotLoggedIn {
+			return nil, &authError{err}
+		}
 		return nil, err
 	}
 	return &ftpClient{conn: conn}, nil

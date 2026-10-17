@@ -43,7 +43,8 @@ type Download struct {
 	Status      string `json:"status" enums:"queued,running,paused,done,error,canceled"`
 	Error       string `json:"error,omitempty"`
 	// ErrorCode classifies Error into a stable machine-readable reason
-	// (see classifyError); empty when the failure is not one we recognize.
+	// (see classifyError): permission_denied, disk_full, read_only, rename_failed,
+	// auth_failed; empty when the failure is not one we recognize.
 	ErrorCode   string `json:"errorCode,omitempty"`
 	RateLimit   int64  `json:"rateLimit"`
 	BytesPerSec int64  `json:"bytesPerSec,omitempty"`
@@ -1042,6 +1043,7 @@ const (
 	ErrCodeDiskFull         = "disk_full"         // no space left on the target device
 	ErrCodeReadOnly         = "read_only"         // target mounted read-only
 	ErrCodeRenameFailed     = "rename_failed"     // the finished file cannot take its final name
+	ErrCodeAuthFailed       = "auth_failed"       // the remote server rejected the login
 )
 
 // classifyError maps a transfer failure onto one of the error codes above.
@@ -1062,6 +1064,8 @@ func classifyError(err error) string {
 		return ErrCodeDiskFull
 	case errors.Is(err, syscall.EROFS):
 		return ErrCodeReadOnly
+	case errors.Is(err, remote.ErrAuthRejected):
+		return ErrCodeAuthFailed
 	}
 	// A refused rename is its own cause and needs its own answer: the directory
 	// took every byte of the download, only the final swap was denied. Calling
@@ -1085,13 +1089,14 @@ func classifyError(err error) string {
 }
 
 // RetryableCode reports whether a failure with this error code is worth queuing
-// again on its own. Permission, space, read-only and a refused rename are not:
-// they last until a human changes something on the host, and repeating them
-// only buries the real problem under identical entries. An unclassified failure
+// again on its own. Permission, space, read-only, a refused rename and a
+// rejected login are not: they last until a human changes something, and
+// repeating them only buries the real problem under identical entries (a
+// rejected login also counts against the server's intrusion protection). An unclassified failure
 // (a dropped connection, a short read, a target another process holds open) is
 // retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed}, code)
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed}, code)
 }
 
 // CheckWritableAt reports whether a download can finish in local.Name, as the

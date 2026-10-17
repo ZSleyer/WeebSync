@@ -14,6 +14,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/remote"
 	"golang.org/x/crypto/ssh"
@@ -36,6 +37,13 @@ const (
 // the common sshd MaxSessions default of 10. Lowered adaptively per server when
 // the server rejects a channel earlier than that.
 const defaultChannelsPerConn = 8
+
+// authBackoff is how long a server that refused the login is left alone. A
+// rejected password does not fix itself, and every retry is one more failed
+// login on the server's books - enough of them and intrusion protection bans
+// the address, which turns a credential problem into a dead connection.
+// A var so tests can shorten it.
+var authBackoff = 5 * time.Minute
 
 // Pool owns the per-server connection state.
 type Pool struct {
@@ -61,6 +69,42 @@ type serverPool struct {
 	conns    []*sshConn // SFTP connections
 	ftpInUse int        // FTP: open connections
 	hiWait   int        // high-priority waiters (low yields to them)
+
+	// auth circuit breaker: the login failure and when dialing may resume
+	authErr   error
+	authUntil time.Time
+}
+
+// authBlocked returns the stored login failure while the breaker is open, so
+// the caller fails without touching the network. Caller holds mu.
+func (sp *serverPool) authBlocked() error {
+	if sp.authErr != nil && time.Now().Before(sp.authUntil) {
+		return sp.authErr
+	}
+	return nil
+}
+
+// noteDialErr opens the breaker when a dial was refused for its credentials.
+func (sp *serverPool) noteDialErr(err error) {
+	if !errors.Is(err, remote.ErrAuthRejected) {
+		return
+	}
+	sp.mu.Lock()
+	sp.authErr, sp.authUntil = err, time.Now().Add(authBackoff)
+	sp.mu.Unlock()
+}
+
+// ResetAuth closes the breaker for a server so the next dial goes out: the
+// user asked for a connection test, which is how a fixed password is proven.
+func (p *Pool) ResetAuth(serverID int64) {
+	p.mu.Lock()
+	sp := p.servers[serverID]
+	p.mu.Unlock()
+	if sp != nil {
+		sp.mu.Lock()
+		sp.authErr = nil
+		sp.mu.Unlock()
+	}
 }
 
 func (p *Pool) get(serverID int64, proto string, maxConns int) *serverPool {
@@ -193,11 +237,16 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 			// from each dialing past maxConns while an earlier dial is in flight
 			// (a mid-dial conn has ssh==nil, so connWithRoom skips it).
 			if len(sp.conns) < sp.maxConns {
+				if err := sp.authBlocked(); err != nil {
+					sp.mu.Unlock()
+					return nil, err
+				}
 				c := &sshConn{open: 1}
 				sp.conns = append(sp.conns, c)
 				sp.mu.Unlock()
 				conn, err := remote.DialSSH(cfg)
 				if err != nil {
+					sp.noteDialErr(err)
 					sp.mu.Lock()
 					sp.dropLocked(c)
 					sp.wake()
@@ -306,10 +355,15 @@ func (sp *serverPool) leaseFTP(ctx context.Context, cfg remote.Config, prio Prio
 		free := sp.maxConns - sp.ftpInUse
 		ok := free > reserve(prio, sp.maxConns) && (prio == PriHigh || sp.hiWait == 0)
 		if ok {
+			if err := sp.authBlocked(); err != nil {
+				sp.mu.Unlock()
+				return nil, err
+			}
 			sp.ftpInUse++
 			sp.mu.Unlock()
 			cl, err := remote.Dial(cfg)
 			if err != nil {
+				sp.noteDialErr(err)
 				sp.mu.Lock()
 				sp.ftpInUse--
 				sp.wake()

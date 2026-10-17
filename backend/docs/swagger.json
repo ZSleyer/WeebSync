@@ -7705,7 +7705,7 @@
                         "type": "string"
                     },
                     "errorCode": {
-                        "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError); empty when the failure is not one we recognize.",
+                        "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError): permission_denied, disk_full, read_only, rename_failed,\nauth_failed; empty when the failure is not one we recognize.",
                         "type": "string"
                     },
                     "finishedAt": {

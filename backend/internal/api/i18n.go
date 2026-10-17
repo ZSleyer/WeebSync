@@ -256,6 +256,10 @@ var catalog = map[string]map[string]string{
 		"en": "the target directory is mounted read-only",
 		"de": "das Zielverzeichnis ist schreibgeschützt eingehängt",
 	},
+	"fsError.auth_failed": {
+		"en": "the server rejected the login, check the username and password in the server settings",
+		"de": "der Server hat die Anmeldung abgelehnt, bitte Benutzername und Passwort in den Servereinstellungen prüfen",
+	},
 	"fsError.rename_failed": {
 		"en": "downloaded in full, but the target refuses to be replaced (a network share, a merged mount, or a copy that belongs to someone else)",
 		"de": "vollständig geladen, aber das Ziel lässt sich nicht ersetzen (Netzfreigabe, zusammengesetzter Mount oder eine Kopie, die jemand anderem gehört)",

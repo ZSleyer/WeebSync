@@ -25,6 +25,19 @@ func (e *HostKeyError) Error() string {
 	return "ssh host key mismatch - server changed or MITM"
 }
 
+// ErrAuthRejected marks a login the server refused: wrong or revoked
+// credentials. Repeating it cannot succeed and, against a server with
+// intrusion protection, gets the client's address banned.
+var ErrAuthRejected = errors.New("authentication rejected")
+
+// authError carries the library's own text (kept for the log and the UI's
+// detail line) while matching ErrAuthRejected through errors.Is.
+type authError struct{ err error }
+
+func (e *authError) Error() string        { return e.err.Error() }
+func (e *authError) Unwrap() error        { return e.err }
+func (e *authError) Is(target error) bool { return target == ErrAuthRejected }
+
 type Entry struct {
 	Name    string    `json:"name"`
 	Path    string    `json:"path"`

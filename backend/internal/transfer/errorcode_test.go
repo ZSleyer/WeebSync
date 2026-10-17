@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
+
+	"github.com/ch4d1/weebsync/internal/remote"
 )
 
 // A real permission failure must classify, not just a hand-built sentinel: the
@@ -160,5 +162,15 @@ func TestCheckWritableAtUnwritableDirectory(t *testing.T) {
 	defer local.Close()
 	if code, _ := CheckWritableAt(local); code != ErrCodePermissionDenied {
 		t.Errorf("CheckWritableAt = %q, want %q", code, ErrCodePermissionDenied)
+	}
+}
+
+func TestClassifyAuthRejected(t *testing.T) {
+	err := fmt.Errorf("dial: %w", remote.ErrAuthRejected)
+	if got := classifyError(err); got != ErrCodeAuthFailed {
+		t.Errorf("classifyError = %q, want %q", got, ErrCodeAuthFailed)
+	}
+	if RetryableCode(ErrCodeAuthFailed) {
+		t.Error("a rejected login must not be retried")
 	}
 }
