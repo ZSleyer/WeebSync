@@ -106,3 +106,11 @@ func FuzzRead(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, s string) { Read(s) })
 }
+
+func TestIsSmallNumNoSign(t *testing.T) {
+	for s, want := range map[string]bool{"5": true, "99": true, "+5": false, "-5": false, "100": false, "0": false, "": false, "x": false} {
+		if got := isSmallNum(s); got != want {
+			t.Errorf("isSmallNum(%q) = %v, want %v", s, got, want)
+		}
+	}
+}

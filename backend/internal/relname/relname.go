@@ -431,6 +431,9 @@ func hard(end *int, i int) {
 }
 
 func isSmallNum(s string) bool {
+	if s == "" || s[0] < '0' || s[0] > '9' { // Atoi would take a sign
+		return false
+	}
 	n, err := strconv.Atoi(s)
 	return err == nil && n > 0 && n < 100
 }

@@ -238,3 +238,23 @@ func TestForcedTitle(t *testing.T) {
 		}
 	}
 }
+
+func TestIDFromGuid(t *testing.T) {
+	for _, c := range []struct {
+		guid, provider string
+		want           int
+	}{
+		{"tvdb://72454", "tvdb", 72454},
+		{"themoviedb://30983", "tmdb", 30983}, // legacy agent spelling
+		{"tmdb://30983", "tmdb", 30983},
+		{"com.plexapp.agents.thetvdb://72454?lang=en", "tvdb", 72454},
+		{"TVDB://7", "tvdb", 7},
+		{"\u0130tvdb://5", "tvdb", 5},              // lowercasing U+0130 changes the byte length
+		{"tmdb://99999999999999999999", "tmdb", 0}, // overflow is no id
+		{"tvdb://72454", "tmdb", 0},
+	} {
+		if got := idFromGuid(c.guid, c.provider); got != c.want {
+			t.Errorf("idFromGuid(%q, %q) = %d, want %d", c.guid, c.provider, got, c.want)
+		}
+	}
+}

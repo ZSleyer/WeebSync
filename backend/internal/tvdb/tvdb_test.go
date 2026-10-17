@@ -207,3 +207,19 @@ func TestNameTranslations(t *testing.T) {
 		}
 	}
 }
+
+func TestSeasonTokenMapStopsAtNine(t *testing.T) {
+	eps := []Episode{{SeasonNumber: 1, Number: 10, AbsoluteNumber: 10}}
+	for n := 1; n <= 6; n++ {
+		eps = append(eps, Episode{SeasonNumber: 0, Number: n, AirsAfterSeason: 1})
+	}
+	m := SeasonTokenMap(eps)
+	for _, tok := range []string{"10.5", "10.6", "10.7", "10.8", "10.9"} {
+		if _, ok := m[tok]; !ok {
+			t.Errorf("missing %s", tok)
+		}
+	}
+	if _, ok := m["10.10"]; ok {
+		t.Error("token 10.10 cannot be carried by a file name")
+	}
+}

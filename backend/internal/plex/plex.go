@@ -388,11 +388,15 @@ func (r rawShow) toShow() Show {
 // "com.plexapp.agents.thetvdb://72454?lang=en"), or 0 when it isn't that
 // provider's guid. Matching "tmdb" also catches "themoviedb".
 func idFromGuid(guid, provider string) int {
-	i := strings.Index(strings.ToLower(guid), provider)
+	guid = asciiLower(guid) // keeps byte offsets; Unicode lowercasing can change them
+	i, plen := strings.Index(guid, provider), len(provider)
+	if provider == "tmdb" && i < 0 {
+		i, plen = strings.Index(guid, "themoviedb"), len("themoviedb")
+	}
 	if i < 0 {
 		return 0
 	}
-	rest := guid[i+len(provider):]
+	rest := guid[i+plen:]
 	start := strings.IndexFunc(rest, func(r rune) bool { return r >= '0' && r <= '9' })
 	if start < 0 {
 		return 0
@@ -401,8 +405,21 @@ func idFromGuid(guid, provider string) int {
 	if end := strings.IndexFunc(rest, func(r rune) bool { return r < '0' || r > '9' }); end >= 0 {
 		rest = rest[:end]
 	}
-	n, _ := strconv.Atoi(rest)
+	n, err := strconv.Atoi(rest)
+	if err != nil { // overflow is no id, not the clamped maximum
+		return 0
+	}
 	return n
+}
+
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'A' && c <= 'Z' {
+			b[i] = c + 'a' - 'A'
+		}
+	}
+	return string(b)
 }
 
 // ShowMedia is the quality of a show's local copy, read from a representative

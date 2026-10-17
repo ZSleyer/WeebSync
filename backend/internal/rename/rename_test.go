@@ -235,3 +235,15 @@ func TestTemplateNameSurvivesAnEpisodesTitle(t *testing.T) {
 		t.Errorf("got %q, want %q", got, want)
 	}
 }
+
+func TestTemplateFirstResolutionWins(t *testing.T) {
+	got, err := New("Some Show - 05 [AAC,720p][x265,1080p].mkv", Options{
+		Mode: "template", Template: "{title} {resolution}",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "Some Show 720p.mkv" {
+		t.Errorf("got %q", got)
+	}
+}

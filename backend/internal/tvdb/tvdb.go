@@ -339,6 +339,9 @@ func SeasonTokenMap(eps []Episode) map[string][2]int {
 		if base == 0 {
 			continue // can't place it relative to a regular episode
 		}
+		if slot[base] > 4 {
+			continue // a release name carries one decimal digit: ".9" is the last token
+		}
 		m[fmt.Sprintf("%d.%d", base, 5+slot[base])] = [2]int{0, e.Number}
 		slot[base]++
 	}

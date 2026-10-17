@@ -237,11 +237,12 @@ func templateName(name string, o Options) (string, error) {
 		vars["season"] = strconv.Itoa(parsed.Season)
 	}
 	if vars["resolution"] == "" { // none parsed: a resolution further inside a tag list
+	groups:
 		for _, g := range tokenRe.FindAllStringSubmatch(name, -1) {
 			for _, tok := range strings.Split(g[1], ",") {
 				if tok = strings.TrimSpace(tok); resRe.MatchString(tok) {
 					vars["resolution"] = tok
-					break
+					break groups // the first one wins
 				}
 			}
 		}
