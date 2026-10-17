@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { SaveBar, useSettingsForm } from './useSettingsForm'
 import { SettingsPanel, TextSetting } from './ui'
+import HwAccelPanel from './HwAccel'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 
 // The server stores these as whole numbers and refuses a JSON float, so a
@@ -66,6 +67,7 @@ export default function Transfers() {
           onChange={(v) => set('watchIntervalMin', toInt(v))}
         />
       </SettingsPanel>
+      <HwAccelPanel />
       <SaveBar form={form} save={save} saved={saved} dirty={dirty} reset={reset} />
     </>
   )

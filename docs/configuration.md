@@ -28,7 +28,7 @@ A fresh instance takes its first account only with the setup code it writes to t
 | `WEEBSYNC_SECRET` | auto-generated | Key for stored credentials. Without it, `$WEEBSYNC_DATA/secret.key` is created on first start. **Back it up** - a lost key makes stored passwords unreadable |
 | `WEEBSYNC_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error` |
 | `WEEBSYNC_SETUP_TOKEN` | random, logged | The code the setup wizard asks for while no account exists |
-| `WEEBSYNC_HWACCEL` | `auto` | GPU encoder for the player's transcodes: `auto` tries NVENC, then VA-API on each `/dev/dri/renderD*`, and falls back to software; `nvenc`, `vaapi` or `none` pick one. A GPU writes 1080p, software 720p. The log says which one is used (`player transcodes on the GPU`). See [Hardware transcoding](#hardware-transcoding) |
+| `WEEBSYNC_HWACCEL` | `auto` | GPU encoder for the player's transcodes: `auto` tries NVENC, then VA-API on each `/dev/dri/renderD*`, and falls back to software; `nvenc`, `vaapi` or `none` pick one. A GPU writes 1080p, software 720p. The log says which one is used (`player transcodes on the GPU`), and so does Settings, Transfers. See [Hardware transcoding](#hardware-transcoding) |
 | `SSL_CERT_FILE`, `SSL_CERT_DIR` | system roots | A CA bundle file or directory to trust for outgoing TLS (mail, FTPS, OIDC, Plex, Jellyfin, the AI endpoint) - for services with a certificate from your own CA. Certificates are always verified; there is no switch to skip that |
 
 ### Also settable in the UI
@@ -75,6 +75,8 @@ What the browser cannot play, the player transcodes. With a GPU that writes 1080
   ```
 
 - **arm64** (Raspberry Pi): no hardware encoder; transcodes run in software.
+
+**Check it in the app.** Settings, Transfers, "Hardware transcoding" (admins) shows the encoder in use and, for each candidate, whether it works and why not: no GPU passed in, a render node the server's user may not open (with the group id to add to `group_add`), a driver that fails its test encode (an NVIDIA card's render node is no VA-API device), or no NVIDIA GPU visible. "Test again" runs the probe on demand and replaces the choice made at the first transcode; `GET /api/admin/hwaccel` and `POST /api/admin/hwaccel/probe` return the same.
 
 ## File ownership
 

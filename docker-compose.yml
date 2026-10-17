@@ -11,6 +11,18 @@ services:
     # them (`getent group render`) to group_add above - the nonroot user has
     # no other way in. The log names the encoder it picked.
     # devices: ["/dev/dri:/dev/dri"]
+    # NVIDIA (NVENC, amd64 image) instead: needs the NVIDIA container toolkit
+    # on the host.
+    # gpus: all
+    # or, the long form:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    # Settings, Transfers shows which one is in use and why another is not.
     ports:
       # plain HTTP - bind to loopback and put a TLS proxy in front. Use
       # "8080:8080" only on a trusted host you fully control.

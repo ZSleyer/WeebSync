@@ -2307,6 +2307,69 @@ export interface Schemas {
      */
     shape?: string
   }
+  'api.hwCandidate': {
+    code: "ok" | "no_render_nodes" | "render_node_no_access" | "vaapi_driver_failed" | "no_nvidia_device" | "nvenc_failed" | "skipped_by_mode"
+    /**
+     * the render node, for vaapi
+     */
+    device?: string
+    encoder: "nvenc" | "vaapi"
+    params: Schemas['api.hwParams']
+  }
+  /**
+   * absent until probed
+   */
+  'api.hwChoice': {
+    device?: string
+    encoder: "nvenc" | "vaapi" | "software"
+    maxHeight: number
+  }
+  'api.hwIssue': {
+    code: "arch_no_encoder" | "forced_mode_failed"
+    params: Schemas['api.hwParams']
+  }
+  'api.hwParams': {
+    /**
+     * *_failed: a short excerpt of the error
+     */
+    error?: string
+    /**
+     * render_node_no_access: the node's group id
+     */
+    gid?: number
+    /**
+     * render_node_no_access: the process's groups
+     */
+    groups?: number[]
+    /**
+     * forced_mode_failed: the WEEBSYNC_HWACCEL value
+     */
+    mode?: string
+    /**
+     * render_node_no_access: the device node
+     */
+    node?: string
+  }
+  'api.hwReport': {
+    arch: string
+    candidates: Schemas['api.hwCandidate'][]
+    /**
+     * absent until probed
+     */
+    choice?: Schemas['api.hwChoice']
+    issues: Schemas['api.hwIssue'][]
+    /**
+     * auto, nvenc, vaapi, none
+     */
+    mode: string
+    modeFromEnv: boolean
+    probed: boolean
+    /**
+     * RFC 3339
+     */
+    probedAt?: string
+    probing: boolean
+  }
   'api.ipStatus': {
     /**
      * no tokens left right now

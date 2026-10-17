@@ -70,6 +70,7 @@ export const PANELS = [
   { to: 'integrations#ai', key: 'settings.ai' },
   { to: 'integrations#homeassistant', key: 'settings.homeAssistant' },
   { to: 'integrations#email', key: 'settings.email' },
+  { to: 'transfers#hardware', key: 'settings.hw.title' },
   { to: 'jobs#log', key: 'settings.jobs.logs.title' },
   { to: 'data#import', key: 'legacy.title' },
 ]

@@ -52,6 +52,10 @@ export type DiskUsage = Schemas['api.statusDisk']
 // see THAT work is running; pausing and stopping are admin-only endpoints.
 export type JobsStatus = Schemas['api.JobsStatus']
 
+// The hardware transcoding probe: the encoder in use and a diagnosis per candidate.
+export type HwReport = Schemas['api.hwReport']
+export type HwCandidate = Schemas['api.hwCandidate']
+
 export type Download = Schemas['transfer.Download']
 
 export type Media = Schemas['anilist.Media']

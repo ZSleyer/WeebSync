@@ -176,3 +176,28 @@
   padding: 0;
   list-style: none;
 }
+
+/* hardware transcoding: the compose lines that fix it, and the actions */
+.hw-fix {
+  margin-top: 0.75rem;
+}
+.hw-fix pre {
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+  border-radius: var(--r-item);
+  background: var(--bg-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+}
+.hw-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+}
+.hw-doc {
+  color: var(--accent);
+  text-decoration: underline;
+}
