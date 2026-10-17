@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Plus, Server } from 'lucide-react'
+import { Plus, Server, ShieldAlert } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Dialog, Field, Input, RowAction, Segmented, Select, SettingsField } from 'fluid-lycoris'
 import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import FtpsMigrateDialog from '../../components/FtpsMigrate'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
 import { useAuth } from '../../hooks'
 import { SettingsPanel } from './ui'
@@ -32,6 +33,7 @@ export default function Servers() {
   // mount-to-open, like every other dialog in the app: the state IS the dialog
   const [editing, setEditing] = useState<ServerInfo | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [migrating, setMigrating] = useState<ServerInfo | null>(null)
   const [testResult, setTestResult] = useState<Record<number, string>>({})
 
   const openDialog = (s: ServerInfo | null) => {
@@ -83,9 +85,32 @@ export default function Servers() {
     )
   }
   const sftp = servers.filter((s) => s.protocol === 'sftp')
+  const ftp = servers.filter((s) => s.protocol === 'ftp')
 
   return (
     <>
+      {/* plain FTP is gone: every such server is listed with the one action that fixes it */}
+      {ftp.length > 0 && (
+        <section className="srv-ftp" role="alert" aria-labelledby="srv-ftp-h">
+          <h2 id="srv-ftp-h">
+            <ShieldAlert aria-hidden size="1.1em" />
+            {t('servers.ftpBannerTitle', { count: ftp.length })}
+          </h2>
+          <p>{t('servers.ftpBannerBody')}</p>
+          <ul>
+            {ftp.map((s) => (
+              <li key={s.id}>
+                <span>
+                  <strong>{s.name}</strong> <span className="font-mono">{s.host}</span>
+                </span>
+                <Button size="sm" variant="primary" onClick={() => setMigrating(s)}>
+                  {t('servers.migrate.act')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <SettingsPanel title={t('nav.servers')}>
         {servers.length === 0 && <p className="sf-note">{t('servers.none')}</p>}
         {servers.map((s) => (
@@ -110,6 +135,11 @@ export default function Servers() {
               </p>
             )}
             <div className="sf-acts">
+              {s.protocol === 'ftp' && (
+                <Button size="sm" variant="primary" onClick={() => setMigrating(s)}>
+                  {t('servers.migrate.act')}
+                </Button>
+              )}
               <Button size="sm" onClick={() => test(s.id)} disabled={testResult[s.id] === '…'}>
                 {testResult[s.id] === '…' ? t('servers.testing') : t('servers.test')}
               </Button>
@@ -200,6 +230,7 @@ export default function Servers() {
 
       {/* an admin finds the folder rules with the index and the matches */}
       {!user?.isAdmin && <ScopeRules />}
+      {migrating && <FtpsMigrateDialog server={migrating} onClose={() => setMigrating(null)} />}
       {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
     </>
   )

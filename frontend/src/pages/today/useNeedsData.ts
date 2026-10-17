@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { api, type Download, type DownloadMeta, type PlexMe, type ScopeHint, type Watch } from '../../api'
+import {
+  api,
+  type Download,
+  type DownloadMeta,
+  type PlexMe,
+  type ScopeHint,
+  type ServerInfo,
+  type Watch,
+} from '../../api'
 import { useAuth, useNow, usePersistedQuery } from '../../hooks'
 import { buildNeeds, hiddenNeeds } from './needs'
 
@@ -43,15 +51,21 @@ export function useNeedsData() {
   })
   const plexToken = !!plexMe?.configured && plexMe.auth === 'token' && plexMe.kind !== 'jellyfin'
   const mediaChoose = !!plexMe?.choose
-  return { now, downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose }
+  const { data: servers = [] } = useQuery<ServerInfo[]>({
+    queryKey: ['servers'],
+    queryFn: () => api.get('/api/servers'),
+    staleTime: 60_000,
+  })
+  const ftpServers = servers.filter((x) => x.protocol === 'ftp')
+  return { now, downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose, ftpServers }
 }
 
 /** How many rows the Today page's needs list shows, hidden ones left out. */
 export function useNeedCount(): number {
   const { t } = useTranslation()
-  const { now, downloads, meta, watches, hints, plexToken, mediaChoose } = useNeedsData()
+  const { now, downloads, meta, watches, hints, plexToken, mediaChoose, ftpServers } = useNeedsData()
   const hidden = hiddenNeeds()
-  return buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose }).filter(
+  return buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, ftpServers }).filter(
     (n) => !hidden.has(n.print),
   ).length
 }

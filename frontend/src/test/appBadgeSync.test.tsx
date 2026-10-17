@@ -35,6 +35,7 @@ const wire = (downloads: Download[]) => {
     if (path === '/api/downloads/meta') return { items: {}, groups: [] } as never
     if (path === '/api/watches') return [] as never
     if (path === '/api/catalog/scope-hints') return [] as never
+    if (path === '/api/servers') return [] as never
     return {} as never
   })
   return get

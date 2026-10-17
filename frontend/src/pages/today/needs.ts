@@ -8,7 +8,7 @@ type T = (key: string, opts?: Record<string, unknown>) => string
 // downloads, auto-syncs that wait on something, new folders that look like
 // marked ones. Each row says what, why in one line, and offers one action.
 
-export type NeedKind = 'failed' | 'watch' | 'hint' | 'plex'
+export type NeedKind = 'failed' | 'watch' | 'hint' | 'plex' | 'ftp'
 
 export interface Need {
   /** stable per thing: the row's React key and its place in the list */
@@ -41,6 +41,9 @@ export interface Need {
   hint?: ScopeHint
 }
 
+/** key and fingerprint prefix of the plain-FTP rows, which are only ever hidden for the session */
+const FTP_PREFIX = 'ftp-'
+
 /** how far back a failed download still asks for a hand */
 export const FAILED_DAYS = 7
 
@@ -57,6 +60,7 @@ export function buildNeeds(
     plexToken,
     mediaChoose,
     serverNames,
+    ftpServers,
   }: {
     downloads: Download[]
     meta?: DownloadMeta
@@ -69,9 +73,25 @@ export function buildNeeds(
     mediaChoose?: boolean
     /** server names by id, for the failures' "<server>: <cause>" line */
     serverNames?: Record<number, string>
+    /** servers still on the retired plain FTP: nothing works for them until they move to FTPS */
+    ftpServers?: { id: number; name: string }[]
   },
 ): Need[] {
   const out: Need[] = []
+  // first: such a server cannot connect at all, so its transfers fail too
+  for (const sv of ftpServers ?? []) {
+    out.push({
+      key: `${FTP_PREFIX}${sv.id}`,
+      print: `${FTP_PREFIX}${sv.id}`,
+      kind: 'ftp',
+      tone: 'err',
+      title: t('today.needFtp', { name: sv.name }),
+      sub: t('today.needFtpSub'),
+      act: t('today.needFtpAct'),
+      why: false,
+      serverId: sv.id,
+    })
+  }
   if (mediaChoose) {
     out.push({
       key: 'media-choose',
@@ -227,16 +247,39 @@ const HIDDEN_KEY = 'weebsync.today.hidden'
 
 /** The rows the user swiped away on this browser, by fingerprint. */
 export function hiddenNeeds(): Set<string> {
+  const out = new Set<string>()
+  for (const [store, key] of [
+    [localStorage, HIDDEN_KEY],
+    [sessionStorage, HIDDEN_KEY],
+  ] as const) {
+    try {
+      for (const p of JSON.parse(store.getItem(key) ?? '[]') as string[]) out.add(p)
+    } catch {
+      /* unreadable or blocked: nothing hidden from this store */
+    }
+  }
+  return out
+}
+
+/** Hides a row until the tab closes: for rows whose condition holds until it is fixed. */
+export function hideForSession(print: string) {
   try {
-    return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]') as string[])
+    const now = new Set(JSON.parse(sessionStorage.getItem(HIDDEN_KEY) ?? '[]') as string[])
+    sessionStorage.setItem(HIDDEN_KEY, JSON.stringify([...now.add(print)]))
   } catch {
-    return new Set()
+    /* storage blocked: the row comes back on the next render */
   }
 }
 
+/** Whether a row may only be hidden for the session. */
+export const sessionOnly = (n: Need) => n.kind === 'ftp'
+
 /** Keeps the hidden set to the rows that still exist, so it never grows without end. */
 export function saveHidden(hidden: Set<string>, live: Need[]) {
-  const keep = live.map((n) => n.print).filter((p) => hidden.has(p))
+  const keep = live
+    .filter((n) => !sessionOnly(n))
+    .map((n) => n.print)
+    .filter((p) => hidden.has(p))
   try {
     localStorage.setItem(HIDDEN_KEY, JSON.stringify(keep))
   } catch {

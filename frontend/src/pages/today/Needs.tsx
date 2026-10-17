@@ -2,17 +2,18 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
-import { CircleAlert, FolderPlus, Info, KeyRound, RotateCcw, Server, Trash2, X } from 'lucide-react'
+import { CircleAlert, FolderPlus, Info, KeyRound, RotateCcw, Server, ShieldAlert, Trash2, X } from 'lucide-react'
 import { haptic, IconButton, SectionHeading } from 'fluid-lycoris'
 import { api, type Download, type DownloadMeta, type ScopeHint, type ServerInfo, type Watch } from '../../api'
 import ActionMenu from '../../components/ActionMenu'
+import FtpsMigrateDialog from '../../components/FtpsMigrate'
 import type { SheetAction } from '../../components/ActionSheet'
 import { filesLink } from '../../components/playLinks'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { useToast } from '../../components/toast'
 import { scopeChanged } from '../../components/useCatalogView'
 import { useNow } from '../../hooks'
-import { buildNeeds, hiddenNeeds, moreLink, saveHidden, type Need } from './needs'
+import { buildNeeds, hiddenNeeds, hideForSession, moreLink, saveHidden, sessionOnly, type Need } from './needs'
 import { seriesTarget, useFold, useRiseOnData } from './shared'
 
 /** rows shown before "N more" */
@@ -116,7 +117,7 @@ function useCommitSwipe(onCommit: (side: 'act' | 'hide') => void) {
   return { onPointerDown, onClickCapture }
 }
 
-const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus, plex: KeyRound }
+const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus, plex: KeyRound, ftp: ShieldAlert }
 
 function NeedRow({
   n,
@@ -209,7 +210,9 @@ export function Needs({
   const [hidden, setHidden] = useState(hiddenNeeds)
   // rows that left and wait for their toast to run out
   const [gone, setGone] = useState<Set<string>>(new Set())
-  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, serverNames })
+  const ftpServers = servers.filter((x) => x.protocol === 'ftp')
+  const [migrating, setMigrating] = useState<ServerInfo | null>(null)
+  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, serverNames, ftpServers })
   const live = all.filter((n) => !hidden.has(n.print))
   const shown = live.filter((n) => !gone.has(n.key))
   const body = useRef<HTMLDivElement>(null)
@@ -281,6 +284,10 @@ export function Needs({
     leaveFailed(n, t('today.removedFailed', { count: n.group?.length ?? 1 }), (ds) => discard.mutateAsync(ds))
   const checkServer = () => navigate('/settings/servers')
   const act = (n: Need) => {
+    if (n.kind === 'ftp') {
+      setMigrating(ftpServers.find((x) => x.id === n.serverId) ?? null)
+      return
+    }
     if (n.kind === 'plex') {
       // the sign-in and the choice live with the servers; the row goes once done
       navigate(n.key === 'media-choose' ? '/settings/integrations#media' : '/settings/integrations#plex')
@@ -308,7 +315,9 @@ export function Needs({
       : leave(n, t('today.hidden'), () =>
           setHidden((h) => {
             const next = new Set(h).add(n.print)
-            saveHidden(next, all)
+            // a plain-FTP row only steps aside for this tab: the server stays broken
+            if (sessionOnly(n)) hideForSession(n.print)
+            else saveHidden(next, all)
             return next
           }),
         )
@@ -373,6 +382,7 @@ export function Needs({
           </Link>
         )}
       </div>
+      {migrating && <FtpsMigrateDialog server={migrating} onClose={() => setMigrating(null)} />}
     </section>
   )
 }
