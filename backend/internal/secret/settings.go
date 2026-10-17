@@ -46,14 +46,14 @@ func decodeSetting(value string) (string, error) {
 // SettingOrEnv reads an encrypted setting with the same environment override
 // semantics as db.SettingOrEnv. Invalid ciphertext is treated as unset; startup
 // migration reports the actual error before services are constructed.
-func SettingOrEnv(d *sql.DB, key, envVar string) string {
+func SettingOrEnv(d *sql.DB, name, envVar string) string {
 	if value := os.Getenv(envVar); value != "" {
 		return value
 	}
 	var value string
 	// unset reads as "", the callers' default; a real failure is logged
-	if err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		slog.Warn("secret setting not read", "key", key, "err", err)
+	if err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, name).Scan(&value); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Warn("secret setting not read", "setting", name, "err", err)
 	}
 	plain, _ := decodeSetting(value)
 	return plain
