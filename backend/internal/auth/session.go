@@ -275,13 +275,17 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 	})
 }
 
-func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) {
+// DestroySession deletes the request's session and clears its cookie. The
+// cookie goes either way; the error says the session row is still there.
+func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) error {
+	var delErr error
 	if c, err := r.Cookie("weebsync_session"); err == nil {
-		d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
+		_, delErr = d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
 	}
 	SetCookie(w, r, &http.Cookie{
 		Name: "weebsync_session", Value: "", Path: "/", MaxAge: -1,
 	})
+	return delErr
 }
 
 // touchSession reports whether a session is still in use, and stamps it as
@@ -296,7 +300,8 @@ func touchSession(d *sql.DB, token, lastSeen string, remember bool, now time.Tim
 			return true
 		}
 	}
-	d.Exec(`UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), hashToken(token))
+	// a missed stamp only means the next request stamps again
+	_, _ = d.Exec(`UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), hashToken(token))
 	return true
 }
 
@@ -351,7 +356,9 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 						next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKey{}, &u)))
 						return
 					}
-					d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
+					// the request is refused below either way; a leftover
+					// expired row is swept with the next login
+					_, _ = d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
 				}
 			}
 			if required {

@@ -329,7 +329,11 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	// the provider vouches for who it is, an admin for whether they may in
 	var approved bool
-	m.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&approved)
+	if err := m.DB.QueryRow(`SELECT approved FROM users WHERE id = ?`, userID).Scan(&approved); err != nil {
+		slog.Error("oidc approval lookup failed", "err", err)
+		callbackFail(w, r, "session_error")
+		return
+	}
 	if !approved {
 		if created && m.OnPending != nil {
 			m.OnPending(email)
@@ -424,11 +428,15 @@ func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (
 					return id, false, nil
 				}
 			}
-			d.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, *admin, id)
+			if _, err := d.Exec(`UPDATE users SET is_admin = ? WHERE id = ?`, *admin, id); err != nil {
+				return 0, false, err
+			}
 			// the provider's groups make it an admin: nobody else could
 			// approve it more surely
 			if *admin {
-				d.Exec(`UPDATE users SET approved = 1 WHERE id = ?`, id)
+				if _, err := d.Exec(`UPDATE users SET approved = 1 WHERE id = ?`, id); err != nil {
+					return 0, false, err
+				}
 			}
 		}
 		return id, false, nil

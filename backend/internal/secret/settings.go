@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -50,7 +51,10 @@ func SettingOrEnv(d *sql.DB, key, envVar string) string {
 		return value
 	}
 	var value string
-	d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value)
+	// unset reads as "", the callers' default; a real failure is logged
+	if err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&value); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Warn("secret setting not read", "key", key, "err", err)
+	}
 	plain, _ := decodeSetting(value)
 	return plain
 }

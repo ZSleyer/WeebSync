@@ -113,8 +113,9 @@ const compactAt = 0.2
 // Best effort - short of disk space it fails and the file stays as it was.
 func compact(d *sql.DB) {
 	var pages, free int64
-	d.QueryRow(`PRAGMA page_count`).Scan(&pages)
-	d.QueryRow(`PRAGMA freelist_count`).Scan(&free)
+	// a failed read leaves 0 pages, which skips the compaction
+	_ = d.QueryRow(`PRAGMA page_count`).Scan(&pages)
+	_ = d.QueryRow(`PRAGMA freelist_count`).Scan(&free)
 	if pages == 0 || float64(free)/float64(pages) < compactAt {
 		return
 	}

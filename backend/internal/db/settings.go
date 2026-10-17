@@ -2,13 +2,18 @@ package db
 
 import (
 	"database/sql"
+	"errors"
+	"log/slog"
 	"os"
 )
 
 // Setting reads a settings key; empty string when unset.
 func Setting(d *sql.DB, key string) string {
 	var v string
-	d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&v)
+	// unset reads as "", the callers' default; a real failure is logged
+	if err := d.QueryRow(`SELECT value FROM settings WHERE key = ?`, key).Scan(&v); err != nil && !errors.Is(err, sql.ErrNoRows) {
+		slog.Warn("setting not read", "key", key, "err", err)
+	}
 	return v
 }
 
