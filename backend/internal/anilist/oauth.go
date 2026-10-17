@@ -102,7 +102,8 @@ const listTTL = time.Hour
 func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) ([]ListEntry, error) {
 	cacheKey := fmt.Sprintf("alist2:%d", anilistUserID)
 	var payload, fetched string
-	c.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, cacheKey).Scan(&payload, &fetched)
+	// no cached row (or an unreadable one) leaves fetched empty: refetch
+	_ = c.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, cacheKey).Scan(&payload, &fetched)
 	if t, err := time.Parse("2006-01-02 15:04:05", fetched); err == nil && time.Since(t) <= listTTL {
 		var list []ListEntry
 		if json.Unmarshal([]byte(payload), &list) == nil {
@@ -137,13 +138,15 @@ func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) 
 
 // InvalidateUserList drops the cached list (after progress mutations).
 func (c *Client) InvalidateUserList(anilistUserID int) {
-	c.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID))
+	// a failed drop leaves the list to age out on its TTL
+	_, _ = c.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID))
 }
 
 // CachedUserList returns the cached list without fetching (may be stale).
 func (c *Client) CachedUserList(anilistUserID int) []ListEntry {
 	var payload string
-	c.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID)).Scan(&payload)
+	// no cached row reads as an empty list, which is what "without fetching" means
+	_ = c.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID)).Scan(&payload)
 	var list []ListEntry
 	json.Unmarshal([]byte(payload), &list)
 	return list

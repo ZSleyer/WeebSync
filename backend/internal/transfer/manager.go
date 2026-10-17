@@ -305,7 +305,8 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if err != nil {
 		return err
 	}
-	m.DB.Exec(`UPDATE downloads SET size = ? WHERE id = ?`, size, d.ID)
+	// progress columns for display; the terminal status goes through execRetry
+	_, _ = m.DB.Exec(`UPDATE downloads SET size = ? WHERE id = ?`, size, d.ID)
 	d.Size = size
 
 	// self-heal a stale queue: a watch check runs minutes before its downloads
@@ -320,7 +321,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	}
 	defer local.Close()
 	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Size() == size {
-		m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
+		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
 		// self-heal skip: file already present at full size (stale queue)
 		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
 		return nil
@@ -383,7 +384,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		if now := time.Now(); now.Sub(lastReport) >= time.Second {
 			bps := int64(float64(transferred-lastBytes) / now.Sub(lastReport).Seconds())
 			lastReport, lastBytes = now, transferred
-			m.DB.Exec(`UPDATE downloads SET transferred = ?, updated_at = datetime('now') WHERE id = ?`, transferred, d.ID)
+			_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ?, updated_at = datetime('now') WHERE id = ?`, transferred, d.ID)
 			m.mu.Lock()
 			r.bps = bps
 			m.mu.Unlock()
@@ -407,7 +408,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if err := dst.Close(); err != nil {
 		return err
 	}
-	m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, transferred, d.ID)
+	_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, transferred, d.ID)
 	// a dropped connection can surface as plain EOF (FTP data channel):
 	// never rename a short file into place as if it were complete
 	if transferred < size {
@@ -827,7 +828,8 @@ func logSafe(s string) string {
 // answer for the duration of one Enqueue, so a season folder costs one probe.
 func (m *Manager) blocked(userID, serverID int64, remotePath, dir string, probed map[string]string) bool {
 	var code, localPath string
-	m.DB.QueryRow(`SELECT error_code, local_path FROM downloads
+	// no failed attempt (or an unreadable one) leaves the code empty: not blocked
+	_ = m.DB.QueryRow(`SELECT error_code, local_path FROM downloads
 		WHERE user_id = ? AND server_id = ? AND remote_path = ? AND status = 'error'
 		ORDER BY id DESC LIMIT 1`, userID, serverID, remotePath).Scan(&code, &localPath)
 	if RetryableCode(code) {

@@ -35,7 +35,9 @@ func New(d *sql.DB) (*Service, error) {
 		if err != nil {
 			return nil, err
 		}
-		db.SetSetting(d, "vapid_public", pub)
+		if err := db.SetSetting(d, "vapid_public", pub); err != nil {
+			return nil, err
+		}
 		if err := secret.SetSetting(d, "vapid_private", priv); err != nil {
 			return nil, err
 		}
@@ -138,7 +140,8 @@ func (s *Service) Notify(userID int64, n Notification) {
 	for _, x := range subs {
 		u, err := url.Parse(x.endpoint)
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
-			s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
+			// a malformed endpoint is dropped again on the next notification
+			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
 			continue
 		}
 		if err := netguard.PublicAllowed(u.Hostname()); err != nil {
@@ -164,7 +167,8 @@ func (s *Service) Notify(userID int64, n Notification) {
 			slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(x.endpoint))
 		}
 		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
-			s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?`, x.endpoint)
+			// a gone endpoint answers 404/410 again on the next notification
+			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?`, x.endpoint)
 		}
 		resp.Body.Close()
 	}

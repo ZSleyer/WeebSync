@@ -147,7 +147,8 @@ func threadKey(id, page, viewer int) string {
 // user, after a reply or a like changed it. A key range, not LIKE, so the
 // primary key index answers it.
 func (c *Client) InvalidateThread(id int) {
-	c.DB.Exec(`DELETE FROM anilist_cache WHERE key >= ? AND key < ?`,
+	// a failed drop leaves the pages to age out on their TTL
+	_, _ = c.DB.Exec(`DELETE FROM anilist_cache WHERE key >= ? AND key < ?`,
 		fmt.Sprintf("thread1:%d:", id), fmt.Sprintf("thread1:%d;", id))
 }
 

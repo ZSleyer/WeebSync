@@ -28,7 +28,8 @@ func (c *Client) cacheTTL() time.Duration {
 }
 
 func (c *Client) store(key, payload string) {
-	c.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, datetime('now'))
+	// a cache write: the next lookup fetches again
+	_, _ = c.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, datetime('now'))
 		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, key, payload)
 }
 

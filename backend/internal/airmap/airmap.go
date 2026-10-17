@@ -235,12 +235,17 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 		// it with nothing would unfile every following episode, and it is also
 		// the only basis Guess has to count from.
 		var had int
-		r.DB.QueryRow(`SELECT COUNT(*) FROM season_maps WHERE server_id=? AND folder=?`,
-			s.ServerID, s.Folder).Scan(&had)
+		if err := r.DB.QueryRow(`SELECT COUNT(*) FROM season_maps WHERE server_id=? AND folder=?`,
+			s.ServerID, s.Folder).Scan(&had); err != nil {
+			// not knowing whether a map exists is not "no map": leave it alone
+			slog.Warn("airmap rebuild", "folder", folder, "err", err)
+			return
+		}
 		if had > 0 {
 			slog.Warn("airmap empty", "folder", folder, "provider", logProvider,
 				"ordering", logOrdering, "kept", had, "reason", "provider returned nothing, keeping the previous map")
-			r.DB.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at)
+			// the stamp only backs off the next attempt; a lost one retries sooner
+			_, _ = r.DB.Exec(`INSERT INTO season_maps_meta (server_id, folder, source, updated_at)
 				VALUES (?,?,?,datetime('now'))
 				ON CONFLICT(server_id, folder) DO UPDATE SET source=excluded.source, updated_at=excluded.updated_at`,
 				s.ServerID, s.Folder, source)
