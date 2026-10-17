@@ -5,7 +5,7 @@
 <h1 align="center">WeebSync</h1>
 
 <p align="center">
-  Download and sync anime and series from your own S/FTP servers - with a catalog, auto-sync and a rename engine.
+  Download and sync anime and series from your own SFTP and FTPS servers - with a catalog, auto-sync and a rename engine.
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
 
 ## Features
 
-- **Your servers** - SFTP, FTPS and FTP behind one file browser, host keys pinned on first use
+- **Your servers** - SFTP and FTPS (explicit or implicit TLS) behind one file browser, host keys pinned on first use
 - **Download manager** - parallel downloads, live speed limits, resume, a trash for replaced copies
 - **Auto-sync** - watch a folder and new episodes arrive on their own, with dub/sub filters and a release calendar
 - **Catalog** - AniList, TMDB and TVDB metadata, folders matched to titles, suggestions for what is missing
