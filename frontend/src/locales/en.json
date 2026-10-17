@@ -63,6 +63,7 @@
     "updateCheckToggle": "Automatically check for updates (GitHub)"
   },
   "app": {
+    "skipToContent": "Skip to content",
     "pullHint": "Pull to refresh",
     "pullRelease": "Release to refresh",
     "refreshed": "Up to date",

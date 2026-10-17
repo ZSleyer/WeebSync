@@ -38,6 +38,7 @@ import Loading from './components/Loading'
 import UpdateToast from './components/UpdateToast'
 import Tips from './components/Tips'
 import ScrollMemory from './components/ScrollMemory'
+import RouteFocus from './components/RouteFocus'
 import PageScroll from './components/PageScroll'
 import CommandPalette from './components/CommandPalette'
 import { LiveActivity } from './components/LiveActivity'
@@ -862,6 +863,7 @@ function Shell({ email }: { email: string }) {
                         aside={<div ref={setAside} className="contents" />}
                         before={
                           <>
+                            <RouteFocus title={screenTitle} />
                             <RouteTitle />
                             <ScrollMemory />
                             <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />

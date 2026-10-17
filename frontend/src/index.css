@@ -579,3 +579,25 @@ main:has(.page-fill) {
 .t-setup-bar { transition: transform var(--dur-3) var(--ease-out); }
 :root[data-motion="off"] .t-setup-bar { transition: none; }
 @media (prefers-reduced-motion: reduce) { .t-setup-bar { transition: none; } }
+
+/* Skip link: out of sight until the keyboard reaches it, first in the tab order */
+.ws-skip {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 1000;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  transform: translateY(-200%);
+}
+.ws-skip:focus-visible {
+  transform: none;
+}
+/* focus moved here by the router, not by the user: no ring on the heading or the page */
+.app-shell > main:focus,
+.app-shell > main h1:focus {
+  outline: none;
+}
