@@ -139,6 +139,15 @@ func vapid(endpoint, subscriber, public, private string, now time.Time) (string,
 	if err != nil {
 		return "", fmt.Errorf("push: vapid private key: %w", err)
 	}
+	// a pair that does not belong together would sign a token the push
+	// service rejects after the round trip; say so here
+	ek, err := key.ECDH()
+	if err != nil {
+		return "", fmt.Errorf("push: vapid private key: %w", err)
+	}
+	if pub, err := decodeKey(public); err != nil || !bytes.Equal(pub, ek.PublicKey().Bytes()) {
+		return "", errors.New("push: vapid private key does not belong to the public key")
+	}
 	claims, _ := json.Marshal(map[string]any{
 		"aud": u.Scheme + "://" + u.Host,
 		"exp": now.Add(12 * time.Hour).Unix(), // the RFC caps it at 24h
