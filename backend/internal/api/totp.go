@@ -6,6 +6,8 @@ import (
 	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
+	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -37,16 +39,17 @@ func (s *Server) newLoginPending(userID int64, remember bool) (string, error) {
 
 // pendingFlags is what the password step left for the second: the "stay
 // signed in" choice, and whether the password was one the policy refuses.
-func (s *Server) pendingFlags(token string) (remember, weak bool) {
-	s.DB.QueryRow(`SELECT remember, weak FROM login_pending WHERE token_hash = ?`, hashToken(token)).Scan(&remember, &weak)
-	return remember, weak
+func (s *Server) pendingFlags(token string) (remember, weak bool, err error) {
+	err = s.DB.QueryRow(`SELECT remember, weak FROM login_pending WHERE token_hash = ?`, hashToken(token)).Scan(&remember, &weak)
+	return remember, weak, err
 }
 
 // holdForPassword holds the account until it sets a password the policy
 // accepts. It takes precedence over a passkey hold, which SetPassword puts
 // back while a passkey to replace is left.
-func (s *Server) holdForPassword(userID int64) {
-	s.DB.Exec(`UPDATE users SET auth_upgrade = 'password' WHERE id = ?`, userID)
+func (s *Server) holdForPassword(userID int64) error {
+	_, err := s.DB.Exec(`UPDATE users SET auth_upgrade = 'password' WHERE id = ?`, userID)
+	return err
 }
 
 func hashToken(t string) string {
@@ -259,13 +262,18 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
-	remember, weak := s.pendingFlags(in.Token)
+	remember, weak, err := s.pendingFlags(in.Token)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
+	}
 	if !s.consumeLoginPending(in.Token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
-	if weak {
-		s.holdForPassword(userID)
+	if weak && s.holdForPassword(userID) != nil {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
@@ -380,19 +388,34 @@ func (s *Server) useRecoveryCode(userID int64, code string) bool {
 	return false
 }
 
+// codeAlphabet has 31 symbols, so a random byte cannot be reduced modulo its
+// length without favouring the first eight.
+const codeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
+
+// randSymbols draws n symbols of codeAlphabet from src by rejection sampling:
+// bytes from 248 up (the incomplete last round of 31) are dropped.
+func randSymbols(src io.Reader, n int) ([]byte, error) {
+	const limit = 256 / len(codeAlphabet) * len(codeAlphabet)
+	out := make([]byte, 0, n)
+	buf := make([]byte, n)
+	for len(out) < n {
+		if _, err := io.ReadFull(src, buf[:n-len(out)]); err != nil {
+			return nil, err
+		}
+		for _, v := range buf[:n-len(out)] {
+			if int(v) < limit {
+				out = append(out, codeAlphabet[int(v)%len(codeAlphabet)])
+			}
+		}
+	}
+	return out, nil
+}
+
 // recoveryCode returns a random "xxxxx-xxxxx" code (crockford-ish base32).
 func recoveryCode() (string, error) {
-	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
-	b := make([]byte, 10)
-	if _, err := rand.Read(b); err != nil {
+	sym, err := randSymbols(rand.Reader, 10)
+	if err != nil {
 		return "", err
 	}
-	out := make([]byte, 0, 11)
-	for i, v := range b {
-		if i == 5 {
-			out = append(out, '-')
-		}
-		out = append(out, alphabet[int(v)%len(alphabet)])
-	}
-	return string(out), nil
+	return string(sym[:5]) + "-" + string(sym[5:]), nil
 }

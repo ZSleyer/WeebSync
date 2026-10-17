@@ -4,6 +4,7 @@ package db
 import (
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -11,8 +12,20 @@ import (
 	"sort"
 	"time"
 
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
+
+// IsUnique reports whether err is a violated UNIQUE (or primary key)
+// constraint, as opposed to any other failure of a write.
+func IsUnique(err error) bool {
+	var se *sqlite.Error
+	if !errors.As(err, &se) {
+		return false
+	}
+	c := se.Code()
+	return c == sqlite3.SQLITE_CONSTRAINT_UNIQUE || c == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY
+}
 
 //go:embed migrations/*.sql
 var migrations embed.FS

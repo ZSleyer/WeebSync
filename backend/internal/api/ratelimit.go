@@ -258,18 +258,19 @@ func (s *Server) handleRateLimitReset(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
+	ip := strings.TrimSpace(in.IP)
 	for _, l := range []*ipLimiter{s.authLimiter, s.accountLimiter} {
 		if l == nil {
 			continue
 		}
 		if in.All {
 			l.resetAll()
-		} else if in.IP != "" {
-			l.reset(resetKey(in.IP))
-			l.reset(accountKey(strings.ToLower(strings.TrimSpace(in.IP))))
+		} else if ip != "" {
+			l.reset(resetKey(ip))
+			l.reset(accountKey(strings.ToLower(ip)))
 			// an unknown address shows as "?" and the start of its hash
-			if strings.HasPrefix(in.IP, "?") {
-				l.resetPrefix("a:" + in.IP[1:])
+			if strings.HasPrefix(ip, "?") {
+				l.resetPrefix("a:" + ip[1:])
 			}
 		}
 	}

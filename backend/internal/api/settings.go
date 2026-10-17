@@ -164,10 +164,11 @@ func envLocked(key string) bool {
 
 // setSetting writes a settings key unless it is env-locked - a DB write
 // would be shadowed by the env value and silently resurface after unset.
-func setSetting(d *sql.DB, key, value string) {
-	if !envLocked(key) {
-		db.SetSetting(d, key, value)
+func setSetting(d *sql.DB, key, value string) error {
+	if envLocked(key) {
+		return nil
 	}
+	return db.SetSetting(d, key, value)
 }
 
 func setSecretSetting(d *sql.DB, key, value string) error {

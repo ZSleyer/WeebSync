@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 	"github.com/go-webauthn/webauthn/webauthn"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -342,6 +343,12 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	// go-webauthn parses the key itself only for some attestation formats; a
+	// key off the curve would be stored and could never sign in
+	if _, err := webauthncose.ParsePublicKey(cred.PublicKey); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid credential public key: "+err.Error())
+		return
+	}
 	name := r.Header.Get("X-WA-Name")
 	if name == "" {
 		name = "Passkey"
@@ -459,18 +466,28 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// what this ceremony did, not the credential's latched flag
 	unverified := false
 	if parsed.Response.AuthenticatorData.Flags.HasUserVerified() {
-		s.DB.Exec(`UPDATE webauthn_credentials SET uv_required = 1 WHERE credential_id = ?`, cred.ID)
+		if _, err := s.DB.Exec(`UPDATE webauthn_credentials SET uv_required = 1 WHERE credential_id = ?`, cred.ID); err != nil {
+			writeErr(w, http.StatusInternalServerError, "login error")
+			return
+		}
 	} else {
 		var uvRequired int
-		s.DB.QueryRow(`SELECT uv_required FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&uvRequired)
+		if err := s.DB.QueryRow(`SELECT uv_required FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&uvRequired); err != nil {
+			writeErr(w, http.StatusInternalServerError, "login error")
+			return
+		}
 		if uvRequired == 1 {
 			writeErr(w, http.StatusUnauthorized, "this passkey must verify you with a PIN or biometrics")
 			return
 		}
 		// registered before the rule: in, but only onto the page that asks
 		// for a passkey that verifies (auth.Middleware holds the account)
-		s.DB.Exec(`UPDATE webauthn_credentials SET replace_due = 1 WHERE credential_id = ?`, cred.ID)
-		s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ? AND auth_upgrade = ''`, matched.id)
+		_, err1 := s.DB.Exec(`UPDATE webauthn_credentials SET replace_due = 1 WHERE credential_id = ?`, cred.ID)
+		_, err2 := s.DB.Exec(`UPDATE users SET auth_upgrade = 'passkey' WHERE id = ? AND auth_upgrade = ''`, matched.id)
+		if err1 != nil || err2 != nil {
+			writeErr(w, http.StatusInternalServerError, "login error")
+			return
+		}
 		unverified = true
 	}
 	s.updateCredential(cred)
@@ -577,13 +594,18 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
-	remember, weak := s.pendingFlags(token)
+	remember, weak, err := s.pendingFlags(token)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
+	}
 	if !s.consumeLoginPending(token, userID) {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
 	}
-	if weak {
-		s.holdForPassword(userID)
+	if weak && s.holdForPassword(userID) != nil {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
 	}
 	s.updateCredential(cred)
 	if err := auth.CreateSession(s.DB, w, r, userID, remember); err != nil {

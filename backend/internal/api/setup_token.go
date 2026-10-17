@@ -97,15 +97,16 @@ func (s *Server) handleSetupOIDCStart(w http.ResponseWriter, r *http.Request) {
 // newSetupToken is 20 characters from an alphabet without look-alikes, in
 // groups of four: about 98 bits, easy to copy from a log line.
 func newSetupToken() string {
-	const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"
-	b := make([]byte, 20)
-	rand.Read(b)
+	sym, err := randSymbols(rand.Reader, 20)
+	if err != nil {
+		panic("setup token: " + err.Error())
+	}
 	var out strings.Builder
-	for i, v := range b {
+	for i, c := range sym {
 		if i > 0 && i%4 == 0 {
 			out.WriteByte('-')
 		}
-		out.WriteByte(alphabet[int(v)%len(alphabet)])
+		out.WriteByte(c)
 	}
 	return out.String()
 }

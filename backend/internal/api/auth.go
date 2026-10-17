@@ -127,8 +127,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	approved := existing == 0
 	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, is_admin, email_verified, verify_token, verify_sent_at, locale, upgrade_dims, approved)
 		VALUES (?, ?, (SELECT COUNT(*) = 0 FROM users), ?, ?, CASE WHEN ? = '' THEN '' ELSE datetime('now') END, ?, 'res,sub,dub,soft', ?)`, c.Email, hash, verified, stored, stored, validLocale(c.Locale), approved)
-	if err != nil {
+	if db.IsUnique(err) {
 		writeErr(w, http.StatusConflict, "email already registered")
+		return
+	}
+	if err != nil {
+		dbErr(w)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -327,13 +331,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if weak {
-			s.DB.Exec(`UPDATE login_pending SET weak = 1 WHERE token_hash = ?`, hashToken(token))
+			if _, err := s.DB.Exec(`UPDATE login_pending SET weak = 1 WHERE token_hash = ?`, hashToken(token)); err != nil {
+				writeErr(w, http.StatusInternalServerError, "login error")
+				return
+			}
 		}
 		writeJSON(w, http.StatusOK, LoginResponse{TwoFactorRequired: true, Token: token, Totp: totpOn, Webauthn: keyOn})
 		return
 	}
-	if weak {
-		s.holdForPassword(id)
+	if weak && s.holdForPassword(id) != nil {
+		writeErr(w, http.StatusInternalServerError, "login error")
+		return
 	}
 	if err := auth.CreateSession(s.DB, w, r, id, c.Remember); err != nil {
 		writeErr(w, http.StatusInternalServerError, "session error")
@@ -467,20 +475,37 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "baseUrl must be an absolute http(s) URL")
 			return
 		}
-		setSetting(s.DB, "base_url", o)
+		if err := setSetting(s.DB, "base_url", o); err != nil {
+			dbErr(w)
+			return
+		}
 	}
 	// setSetting skips env-locked keys: env-provided OIDC config wins
-	setSetting(s.DB, "oidc_provider_name", in.OidcProviderName)
-	setSetting(s.DB, "oidc_issuer", in.OidcIssuer)
-	setSetting(s.DB, "oidc_client_id", in.OidcClientID)
+	for _, kv := range [][2]string{
+		{"oidc_provider_name", in.OidcProviderName},
+		{"oidc_issuer", in.OidcIssuer},
+		{"oidc_client_id", in.OidcClientID},
+	} {
+		if err := setSetting(s.DB, kv[0], kv[1]); err != nil {
+			dbErr(w)
+			return
+		}
+	}
 	if err := setSecretSetting(s.DB, "oidc_client_secret", in.OidcClientSecret); err != nil {
 		writeErr(w, http.StatusInternalServerError, "encrypt error")
 		return
 	}
-	setSetting(s.DB, "oidc_redirect_url", in.OidcRedirectURL)
-	setSetting(s.DB, "oidc_claim", in.OidcClaim)
-	setSetting(s.DB, "oidc_admin_values", in.OidcAdminValues)
-	setSetting(s.DB, "oidc_user_values", in.OidcUserValues)
+	for _, kv := range [][2]string{
+		{"oidc_redirect_url", in.OidcRedirectURL},
+		{"oidc_claim", in.OidcClaim},
+		{"oidc_admin_values", in.OidcAdminValues},
+		{"oidc_user_values", in.OidcUserValues},
+	} {
+		if err := setSetting(s.DB, kv[0], kv[1]); err != nil {
+			dbErr(w)
+			return
+		}
+	}
 	out := SetupOIDCResponse{}
 	if err := s.OIDC.Reload(r.Context()); err != nil {
 		out.OidcError = err.Error()
@@ -490,7 +515,10 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	// not a password form nobody can use. A broken provider later falls back
 	// to the password form on its own (passwordAuthBlocked).
 	if out.OidcEnabled {
-		setSetting(s.DB, "auth_mode", "oidc-only")
+		if err := setSetting(s.DB, "auth_mode", "oidc-only"); err != nil {
+			dbErr(w)
+			return
+		}
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -610,7 +638,10 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 		mode = "password" // never lock the UI on a broken OIDC config
 	}
 	var users int
-	s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users)
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
+		dbErr(w)
+		return
+	}
 	// oidcEnvLocked: which OIDC fields the setup wizard must lock (this
 	// endpoint is unauthenticated, the wizard has no /api/settings yet)
 	oidcLocked := []string{}

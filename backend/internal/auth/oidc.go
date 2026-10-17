@@ -500,7 +500,8 @@ func validSetupProof(r *http.Request) bool {
 		return false
 	}
 	at, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || time.Since(time.Unix(at, 0)) > 10*time.Minute {
+	// a stamp from the future never ages out, so only a little clock skew passes
+	if age := time.Since(time.Unix(at, 0)); err != nil || age > 10*time.Minute || age < -time.Minute {
 		return false
 	}
 	sig := parts[2]

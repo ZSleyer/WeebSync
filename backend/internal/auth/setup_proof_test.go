@@ -44,4 +44,12 @@ func TestSetupProof(t *testing.T) {
 	if with(at + ".abc." + hex.EncodeToString(mac)) {
 		t.Error("an expired proof passed")
 	}
+	// stamped in the future: never ages out, so it is refused beyond the skew
+	for off, want := range map[time.Duration]bool{30 * time.Second: true, 2 * time.Minute: false, 24 * time.Hour: false} {
+		at := strconv.FormatInt(time.Now().Add(off).Unix(), 10)
+		mac, _ := secret.MAC("oidc-setup|" + at + "|abc")
+		if got := with(at + ".abc." + hex.EncodeToString(mac)); got != want {
+			t.Errorf("proof stamped %s ahead: got %v, want %v", off, got, want)
+		}
+	}
 }

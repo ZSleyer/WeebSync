@@ -110,8 +110,12 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	// verification mail that could confirm it - unverified, its login was
 	// refused with "email not verified" and nothing could ever change that
 	res, err := s.DB.Exec(`INSERT INTO users (email, password_hash, email_verified, upgrade_dims) VALUES (?, ?, 1, 'res,sub,dub,soft')`, c.Email, hash)
-	if err != nil {
+	if db.IsUnique(err) {
 		writeErr(w, http.StatusConflict, "email already registered")
+		return
+	}
+	if err != nil {
+		dbErr(w)
 		return
 	}
 	id, _ := res.LastInsertId()
