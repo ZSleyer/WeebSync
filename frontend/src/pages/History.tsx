@@ -1,10 +1,10 @@
-import { useRef, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Input, PageHeader, Segmented, useEnterPage } from 'fluid-lycoris'
 import { api, downloadLabel, fmtBytes, type Download, type DownloadMeta, type Watch } from '../api'
 import { useNow, usePersistedQuery } from '../hooks'
+import { useUrlState } from '../hooks/useUrlState'
 import { coverSet } from '../images'
 import { CoverImg } from '../components/SmartImg'
 import { useSeriesModal } from '../components/SeriesModal'
@@ -49,10 +49,11 @@ export default function History() {
     staleTime: 0,
   })
   const { data: watches = [] } = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'))
-  // the dashboard's "+N more" arrives here as ?filter=fail
-  const [params] = useSearchParams()
-  const [filter, setFilter] = useState<HistFilter>(() => FILTERS.find((f) => f === params.get('filter')) ?? 'all')
-  const [query, setQuery] = useState('')
+  // the dashboard's "+N more" arrives here as ?filter=fail; the search is
+  // ?q=. Both live in the address, a change replaces the entry.
+  const [filterParam, setFilter] = useUrlState('filter', 'all')
+  const filter: HistFilter = FILTERS.find((f) => f === filterParam) ?? 'all'
+  const [query, setQuery] = useUrlState('q')
   const list = useRef<HTMLDivElement>(null)
   useEnterPage(list, `${filter}|${isLoading}`)
   const { open } = useSeriesModal()

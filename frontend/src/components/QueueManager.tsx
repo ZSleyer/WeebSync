@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ArrowRight,
   ArrowUpToLine,
@@ -42,6 +42,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
+import { useLeaveParams, useUrlState } from '../hooks/useUrlState'
 import {
   ActionBar,
   Badge,
@@ -207,11 +208,19 @@ export function QueueManager() {
   }, [downloads, meta, qc])
   // active queue and history filter independently: searching the queue must
   // not reshuffle the history and vice versa
-  const [query, setQuery] = useState('')
-  const [historyQuery, setHistoryQuery] = useState('')
+  // all three in the address (tq, th, ts: the sheet sits over any page, so
+  // the names stay clear of the page's own), replaced as they change
+  const [query, setQuery] = useUrlState('tq')
+  const [historyQuery, setHistoryQuery] = useUrlState('th')
+  const [statusParam, setStatusParam] = useUrlState('ts')
+  const statusFilter = useMemo(
+    () => new Set(HISTORY_STATUSES.filter((st) => statusParam.split(',').includes(st))),
+    [statusParam],
+  )
+  const setStatusFilter = (next: Set<Download['status']>) => setStatusParam([...next].join(','))
+  useLeaveParams(['tq', 'th', 'ts'])
   const [showAllHistory, setShowAllHistory] = useState(false)
   const [showAllQueue, setShowAllQueue] = useState(false)
-  const [statusFilter, setStatusFilter] = useState<Set<Download['status']>>(new Set())
   const filtering = query.trim() !== ''
   const historyFiltering = historyQuery.trim() !== '' || statusFilter.size > 0
   const nameMatch = (d: Download, q: string) =>
@@ -518,12 +527,10 @@ export function QueueManager() {
   const openRowSheet = (d: Download) => setSheet(rowActions(d))
 
   const toggleStatus = (st: Download['status']) => {
-    setStatusFilter((prev) => {
-      const next = new Set(prev)
-      if (next.has(st)) next.delete(st)
-      else next.add(st)
-      return next
-    })
+    const next = new Set(statusFilter)
+    if (next.has(st)) next.delete(st)
+    else next.add(st)
+    setStatusFilter(next)
   }
 
   // the bulk controls earn their row from the second download on: select-all,

@@ -6,6 +6,7 @@ import { Link, Navigate, useNavigate, useParams } from 'react-router'
 import { Badge, Button, Dialog, Modal, Row, RowAction, Rows, Switch } from 'fluid-lycoris'
 import { api, fmtBytes } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { useUrlState } from '../../hooks/useUrlState'
 import { useToast } from '../../components/toast'
 import LegacyImport from '../../components/LegacyImport'
 import Loading from '../../components/Loading'
@@ -253,7 +254,7 @@ function StoreView({ store, onGone }: { store: DataStore; onGone: () => void }) 
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
-  const [q, setQ] = useState('')
+  const [q, setQ] = useUrlState('q')
   const [offset, setOffset] = useState(0)
   const dq = useDebounced(q, () => setOffset(0))
   const [error, setError] = useState('')
