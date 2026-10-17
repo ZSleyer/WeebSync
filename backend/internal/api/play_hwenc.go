@@ -70,7 +70,9 @@ func encoderWorks(e videoEncoder) bool {
 		"-vf", e.filter(), "-force_key_frames", "expr:gte(t,n_forced*0.25)")
 	args = append(args, e.args...)
 	args = append(args, "-f", "null", "-")
-	out, err := exec.CommandContext(ctx, "ffmpeg", args...).CombinedOutput()
+	cmd := exec.CommandContext(ctx, "ffmpeg", args...)
+	cmd.Env = ffEnv(os.Environ())
+	out, err := cmd.CombinedOutput()
 	if err != nil {
 		slog.Debug("player: encoder unavailable", "encoder", e.name, "device", e.device, "ffmpeg", logSafe(string(out)))
 	}

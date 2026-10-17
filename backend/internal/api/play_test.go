@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -116,5 +117,41 @@ func TestLoopTokenCountsOnlyUnbrokenReads(t *testing.T) {
 	tok.cover(70, 100)
 	if !tok.whole() {
 		t.Fatal("an unbroken read of every byte did not count")
+	}
+}
+
+// The ffmpeg children get the allowlisted variables and nothing else: the
+// server's secrets are in its environment.
+func TestFFEnvKeepsOnlyTheAllowlist(t *testing.T) {
+	got := ffEnv([]string{"PATH=/bin", "TZ=UTC", "LIBVA_DRIVER_NAME=radeonsi", "CUDA_VISIBLE_DEVICES=0",
+		"WEEBSYNC_SMTP_PASSWORD=hunter2", "OIDC_CLIENT_SECRET=x", "HOME=/root", "LANG=de_DE.UTF-8"})
+	want := []string{"LANG=C.UTF-8", "PATH=/bin", "TZ=UTC", "LIBVA_DRIVER_NAME=radeonsi", "CUDA_VISIBLE_DEVICES=0"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("env = %v, want %v", got, want)
+	}
+}
+
+// The folder probe opens files as fd 3 and names the player's demuxers as the
+// player does, so a file ffprobe would sniff as something else stays shut.
+func TestFolderProbeNamesItsDemuxers(t *testing.T) {
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not installed")
+	}
+	dir := t.TempDir()
+	good := filepath.Join(dir, "real.mkv")
+	if out, err := exec.Command("ffmpeg", "-v", "error", "-f", "lavfi", "-i", "testsrc=d=1:s=64x64",
+		"-c:v", "ffv1", good).CombinedOutput(); err != nil {
+		t.Skipf("make sample: %v %s", err, out)
+	}
+	// a container outside the player's list, which ffprobe reads fine
+	other := filepath.Join(dir, "other.mkv")
+	if out, err := exec.Command("ffmpeg", "-v", "error", "-i", good, "-c:v", "flv1", "-f", "flv", other).CombinedOutput(); err != nil {
+		t.Skipf("make flv: %v %s", err, out)
+	}
+	if streams, ok := ffprobeFile(context.Background(), good); !ok || len(streams) == 0 {
+		t.Fatal("a real mkv must open")
+	}
+	if streams, ok := ffprobeFile(context.Background(), other); ok && len(streams) > 0 {
+		t.Fatalf("a demuxer outside the whitelist opened: %+v", streams)
 	}
 }

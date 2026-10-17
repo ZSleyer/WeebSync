@@ -401,8 +401,28 @@ func ffCommand(ctx context.Context, bin string, in *ffInput, before, after []str
 	args = append(args, "-i", in.url)
 	args = append(args, after...)
 	cmd := exec.CommandContext(ctx, bin, args...)
+	cmd.Env = ffEnv(os.Environ())
 	cmd.ExtraFiles = in.files
 	return cmd
+}
+
+// ffEnvAllow is what ffmpeg/ffprobe may see of the server's environment:
+// the lookup path, the zone, and the knobs hardware acceleration reads (the
+// VA-API driver pick, the NVENC device pick). Everything else, API keys and
+// passwords included, stays with the server.
+var ffEnvAllow = []string{"PATH", "TZ", "LIBVA_DRIVER_NAME", "LIBVA_DRIVERS_PATH", "CUDA_VISIBLE_DEVICES"}
+
+// ffEnv rebuilds a child environment from env: the allowlisted variables that
+// are set, and a pinned locale.
+func ffEnv(env []string) []string {
+	out := []string{"LANG=C.UTF-8"}
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if slices.Contains(ffEnvAllow, name) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }
 
 // ── loopback: remote files for ffmpeg ────────────────────────────────────────

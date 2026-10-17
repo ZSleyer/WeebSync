@@ -404,9 +404,10 @@ func ffprobeFile(ctx context.Context, file string, extra ...string) ([]probeStre
 var probeOpenFile = ffprobeOpenFile
 
 func ffprobeOpenFile(ctx context.Context, file *os.File, extra ...string) ([]probeStream, bool) {
-	args := append([]string{"-v", "quiet", "-protocol_whitelist", "file,pipe", "-print_format", "json", "-show_streams"}, extra...)
+	args := append([]string{"-v", "quiet", "-protocol_whitelist", "file,pipe", "-format_whitelist", playDemuxers, "-print_format", "json", "-show_streams"}, extra...)
 	args = append(args, "/proc/self/fd/3")
 	cmd := exec.CommandContext(ctx, "ffprobe", args...)
+	cmd.Env = ffEnv(os.Environ())
 	cmd.ExtraFiles = []*os.File{file}
 	out, err := cmd.Output()
 	if err != nil {
