@@ -135,7 +135,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 			RedirectURL:  redirectURL,
 			Scopes:       scopes,
 		},
-		verifier:    provider.Verifier(&oidc.Config{ClientID: clientID}),
+		verifier:    newIDTokenVerifier(ctx, provider, issuer, &oidc.Config{ClientID: clientID}),
 		claim:       claim,
 		adminValues: splitCSV(db.SettingOrEnv(m.DB, "oidc_admin_values", "OIDC_ADMIN_VALUES")),
 		userValues:  splitCSV(db.SettingOrEnv(m.DB, "oidc_user_values", "OIDC_USER_VALUES")),
