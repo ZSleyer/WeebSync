@@ -43,7 +43,7 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	if bearer {
 		req.Header.Set("Authorization", "Bearer "+key)
 	}
-	resp, err := c.HTTP.Do(req)
+	resp, err := c.do(req)
 	if err != nil {
 		return err
 	}

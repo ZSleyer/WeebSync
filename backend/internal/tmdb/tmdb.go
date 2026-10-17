@@ -107,7 +107,7 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 	// query parameters are user-near, and c.HTTP is the netguard client, so a
 	// mirror cannot be pointed at a metadata endpoint either
 	for attempt := 0; ; attempt++ {
-		resp, err := c.HTTP.Do(req)
+		resp, err := c.do(req)
 		if err != nil {
 			return err
 		}
