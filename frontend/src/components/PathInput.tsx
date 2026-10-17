@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Input } from 'fluid-lycoris'
+import { Input, useCloseWatcher } from 'fluid-lycoris'
 import { api, type Entry } from '../api'
 
 // Split a root-relative partial path into its parent dir and the last segment,
@@ -75,6 +75,7 @@ export default function PathInput({
   const options = suggestDirs(value, entries)
   // hide a single exact-match suggestion (nothing left to complete)
   const showList = open && options.length > 0 && !(options.length === 1 && options[0] === value)
+  useCloseWatcher(() => setOpen(false), showList)
 
   const commit = (p: string) => {
     setOpen(false)

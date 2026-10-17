@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Input, Select, Switch } from 'fluid-lycoris'
+import { Badge, Button, Input, Select, Switch, useCloseWatcher } from 'fluid-lycoris'
 import { api, type Media } from '../api'
 
 // Every two-column row of the watch dialog - here and in WatchDialog itself -
@@ -66,6 +66,8 @@ export const isSeasonFolder = (name: string) => SEASON_FOLDER.test(name)
 export function Hint({ text }: { text: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const [pos, setPos] = useState<{ top: number; left: number; container: Element } | null>(null)
+  // a tap on the ? shows it on focus; the back gesture puts it away
+  useCloseWatcher(() => setPos(null), !!pos)
   const show = () => {
     const r = ref.current?.getBoundingClientRect()
     if (!r) return

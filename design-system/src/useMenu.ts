@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react'
+import { useCloseWatcher } from './useCloseWatcher'
 
 /**
  * Open/close state for a dropdown, with the two behaviours every menu needs and
@@ -23,6 +24,9 @@ export function useMenu<T extends HTMLElement = HTMLDivElement>() {
   // characters (":r1:" in React 18, "«r1»" in 19).
   const anchor = `--menu-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`
   const anchorStyle: CSSProperties = { anchorName: anchor }
+
+  // the back gesture closes the open menu instead of leaving the page
+  useCloseWatcher(() => setOpen(false), open)
 
   useEffect(() => {
     if (!open) return

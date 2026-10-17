@@ -2,7 +2,7 @@ import { Trash2 } from 'lucide-react'
 import { useId, useMemo, useState, type KeyboardEvent } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Button, Input } from 'fluid-lycoris'
+import { Button, Input, useCloseWatcher } from 'fluid-lycoris'
 import { api } from '../api'
 import { Hint } from './RenameOptions'
 
@@ -71,6 +71,7 @@ export default function PlexShowField({
     setActive(-1)
     setQ(null)
   }
+  useCloseWatcher(reset, open)
   const pick = async (ratingKey: string) => {
     setError('')
     setBusy(true)
