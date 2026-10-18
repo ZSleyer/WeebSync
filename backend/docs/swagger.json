@@ -3610,7 +3610,7 @@
                         "type": "string"
                     },
                     "upcoming": {
-                        "description": "dated in the future, so its absence is not a gap",
+                        "description": "not out yet (dated in the future or behind such an episode), so its absence is not a gap",
                         "type": "boolean"
                     }
                 },

@@ -22,7 +22,7 @@ type WatchEpisode struct {
 	Title    string `json:"title,omitempty"`
 	Aired    string `json:"aired,omitempty"` // YYYY-MM-DD, "" when the provider has no date
 	Have     bool   `json:"have"`
-	Upcoming bool   `json:"upcoming,omitempty"` // dated in the future, so its absence is not a gap
+	Upcoming bool   `json:"upcoming,omitempty"` // not out yet (dated in the future or behind such an episode), so its absence is not a gap
 }
 
 // WatchEpisodesResponse is one watch's episode list. Episodes is never null:
@@ -375,18 +375,7 @@ func (s *Server) handleWatchEpisodes(w http.ResponseWriter, r *http.Request) {
 	default:
 		resp.Episodes = markBySeason(eps, nums, seasonAlias(seasons, eps, p.Season))
 	}
-	// an episode that has not aired yet cannot be missing - counting it would
-	// make every currently running series look half broken
-	today := time.Now().Format("2006-01-02")
-	for i, e := range resp.Episodes {
-		if e.Aired > today {
-			resp.Episodes[i].Upcoming = true
-			continue
-		}
-		if !e.Have {
-			resp.Missing++
-		}
-	}
+	resp.Missing = flagUpcoming(resp.Episodes, time.Now().Format("2006-01-02"))
 	if p.SeriesID != 0 {
 		// cached provider media: carries the title and the stable provider URL
 		// the footer links to, so no second place builds those
@@ -395,4 +384,37 @@ func (s *Server) handleWatchEpisodes(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// flagUpcoming marks the episodes that are not out yet and returns how many of
+// the rest the folder lacks. An episode counts as missing only when it has
+// aired, or when it is undated and a later episode is local or has aired (a
+// gap in the middle). Everything behind a future-dated episode, and an undated
+// tail after the last aired or local one, has not come out either, so it is
+// flagged upcoming instead of missing.
+func flagUpcoming(eps []WatchEpisode, today string) int {
+	// reached: a later episode is local or has aired
+	reached := make([]bool, len(eps))
+	later := false
+	for i := len(eps) - 1; i >= 0; i-- {
+		reached[i] = later
+		later = later || eps[i].Have || (eps[i].Aired != "" && eps[i].Aired <= today)
+	}
+	missing := 0
+	future := false // an earlier episode is dated in the future
+	for i, e := range eps {
+		if e.Aired > today {
+			future = true
+		}
+		switch {
+		case e.Have:
+		case future || e.Aired > today:
+			eps[i].Upcoming = true
+		case e.Aired == "" && !reached[i]:
+			eps[i].Upcoming = true
+		default:
+			missing++
+		}
+	}
+	return missing
 }

@@ -436,9 +436,9 @@ export default function EpisodeList({
                           <span data-tone="acc">
                             {t('series.ep.airs', { day: dayWord(t, air.at * 1000, now), time: hm(air.at * 1000) })}
                           </span>
-                        ) : (
+                        ) : e.aired ? (
                           <span>{t('series.ep.noDate')}</span>
-                        )
+                        ) : null
                       ) : e.have ? (
                         <span>{e.aired ?? ''}</span>
                       ) : (

@@ -158,3 +158,34 @@ func TestWatchEpisodesOwnershipAndDegradation(t *testing.T) {
 		t.Errorf("want a degraded but complete answer, got %s", body)
 	}
 }
+
+func TestFlagUpcoming(t *testing.T) {
+	ep := func(n int, aired string, have bool) WatchEpisode {
+		return WatchEpisode{Season: 2, Episode: n, Aired: aired, Have: have}
+	}
+	eps := []WatchEpisode{
+		ep(1, "2026-09-01", true), ep(2, "2026-09-08", false), ep(3, "2026-09-15", true),
+		ep(4, "2026-10-24", false), ep(5, "2026-10-31", false),
+		ep(6, "", false), ep(7, "", false),
+	}
+	if got := flagUpcoming(eps, "2026-10-18"); got != 1 {
+		t.Errorf("missing = %d, want 1 (only E2)", got)
+	}
+	for i, wantUp := range []bool{false, false, false, true, true, true, true} {
+		if eps[i].Upcoming != wantUp {
+			t.Errorf("E%d upcoming = %v, want %v", i+1, eps[i].Upcoming, wantUp)
+		}
+	}
+
+	// undated: a gap before a local episode is missing, the tail is not
+	eps = []WatchEpisode{ep(1, "", true), ep(2, "", false), ep(3, "", true), ep(4, "", false)}
+	if got := flagUpcoming(eps, "2026-10-18"); got != 1 || eps[1].Upcoming || !eps[3].Upcoming {
+		t.Errorf("undated gap/tail: missing=%d, E2 up=%v, E4 up=%v", got, eps[1].Upcoming, eps[3].Upcoming)
+	}
+
+	// aired but not downloaded stays missing, an undated one before an aired one too
+	eps = []WatchEpisode{ep(1, "2026-09-01", true), ep(2, "2026-09-08", false), ep(3, "", false), ep(4, "2026-09-22", false)}
+	if got := flagUpcoming(eps, "2026-10-18"); got != 3 {
+		t.Errorf("aired not downloaded: missing = %d, want 3", got)
+	}
+}
