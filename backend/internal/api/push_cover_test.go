@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -53,6 +54,11 @@ func TestPushCoverEndpoint(t *testing.T) {
 
 	cover := "https://img.example.com/c.jpg"
 	link := s.pushCoverURL(cover)
+	// the link warms the crop in the background; every request below is a cache hit
+	s.Shutdown(context.Background())
+	if calls != 1 {
+		t.Fatalf("warmed with %d fetches", calls)
+	}
 	u, err := url.Parse(link)
 	if err != nil || u.Host != "weebsync.example.com" || u.Path != "/api/push/cover" || u.Query().Get("u") != cover {
 		t.Fatalf("link %q", link)

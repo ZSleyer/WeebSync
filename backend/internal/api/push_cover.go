@@ -30,6 +30,7 @@ const (
 	pushCoverMaxSide  = 3000    // widest/tallest decoded poster (TMDB originals are 2000x3000); 36 MB as RGBA
 	pushCoverTopBias  = 0.3     // share of a portrait's spare height cut from the top; faces sit above the middle
 	pushCoverAge      = 30 * 24 * time.Hour
+	pushCoverFailAge  = 30 * time.Second
 	pushCoverJPEGQ    = 85
 	pushCoverKeyPref  = "push-cover:v1:"
 )
@@ -61,6 +62,9 @@ func (s *Server) pushCoverURL(cover string) string {
 	if sig == "" {
 		return cover
 	}
+	// cut it now: the system asks for the icon as soon as the push lands, and
+	// that request should find it ready rather than wait on the poster's host
+	s.spawn(func() { s.pushCoverJPEG(cover) })
 	return base + "/api/push/cover?u=" + url.QueryEscape(cover) + "&sig=" + sig
 }
 
@@ -107,6 +111,10 @@ func (s *Server) pushCoverJPEG(u string) ([]byte, bool) {
 			return b, true
 		}
 	}
+	// a poster that just failed is not asked for again on every request
+	if raw, ok := s.cacheGet(key+":fail", pushCoverFailAge); ok && raw != "" {
+		return nil, false
+	}
 	select {
 	case pushCoverSlots <- struct{}{}:
 		defer func() { <-pushCoverSlots }()
@@ -116,6 +124,7 @@ func (s *Server) pushCoverJPEG(u string) ([]byte, bool) {
 	src, err := pushCoverFetch(u)
 	if err != nil {
 		slog.Debug("push cover", "err", err)
+		s.cacheSet(key+":fail", "1")
 		return nil, false
 	}
 	var buf bytes.Buffer
