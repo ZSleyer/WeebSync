@@ -32,6 +32,19 @@ func (s *Server) hintFor(serverID int64, folder string) *matchHint {
 	return &h
 }
 
+// hasManualMatch reports whether the user set the folder's match (or its
+// "no match") by hand. A read that fails counts as yes: an automatic pass
+// must not overwrite what it cannot tell is the user's.
+func (s *Server) hasManualMatch(serverID int64, folder string) bool {
+	var n int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 1`,
+		serverID, folder).Scan(&n); err != nil {
+		slog.Warn("manual match not read", "server", serverID, "folder", logSafe(folder), "err", err)
+		return true
+	}
+	return n > 0
+}
+
 // clearHint drops a folder's hint row, whatever its state: the folder has a
 // match now, or the user unmatched it by hand.
 func (s *Server) clearHint(serverID int64, folder string) {

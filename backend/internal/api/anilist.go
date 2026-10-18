@@ -361,6 +361,11 @@ func (s *Server) matchBatch(batch []matchJob) {
 	s.fixSequelPicks(ctx, infos, picked, rescue)
 	var unmatched []int
 	for i, b := range batch {
+		// a match the user set stays, whatever source it is from: only an
+		// explicit re-match (force) is a choice against it
+		if !b.force && s.hasManualMatch(b.serverID, b.folder) {
+			continue
+		}
 		mediaID := 0
 		if picked[i] != nil {
 			mediaID = picked[i].ID
@@ -758,6 +763,12 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		err := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches
 			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual, &rowSource)
 		switch {
+		case err == nil && manual == 1 && mediaID != 0 && rowSource != itemSource:
+			// the user matched this folder against another provider than its
+			// scope's (a pasted link, a TMDB hint taken in an AniList folder):
+			// it stays what they chose and shows as that
+			item.Source = rowSource
+			item.Media, item.Pending = s.sourceMedia(rowSource, mediaID)
 		case err != nil || rowSource != itemSource:
 			// an identically named folder elsewhere (another server, or the
 			// local copy of what was synced from one) already resolved to a
