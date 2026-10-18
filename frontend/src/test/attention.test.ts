@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { langLabel, type Watch } from '../api'
-import { attentionInfo, behindLabel, dubOverdueLabel, dubWaitingLabel } from '../attention'
+import { attentionInfo, behindLabel, dubOverdueLabel, dubProgressLabel, dubWaitingLabel } from '../attention'
 
 // the i18n layer is not under test: t returns key plus options, so every
 // assertion reads which key spoke and with what
@@ -60,5 +60,12 @@ describe('attentionInfo', () => {
   it('speaks the plex miss in words', () => {
     const chips = attentionInfo(t, watch({ attention: ['plexStreamMiss'], plexStreamMiss: 'audio,sub' }))
     expect(chips[0].text).toBe('watch.plexMiss {"what":"watch.plexAudio, watch.plexSub"}')
+  })
+
+  it('tells a dub forecast from a dub already out', () => {
+    const p = { lang: 'Ger', have: 10, total: 14, next: { s: 3, e: 11 }, expectedAt: 1_790_000_000 }
+    expect(dubProgressLabel(t, watch({ dubProgress: p }))).toMatch(/^watch\.dubProgress \{/)
+    expect(dubProgressLabel(t, watch({ dubProgress: { ...p, released: true } }))).toMatch(/^watch\.dubProgressOut \{/)
+    expect(dubProgressLabel(t, watch({ dubProgress: { ...p, expectedAt: 0 } }))).toMatch(/^watch\.dubProgressNoDate /)
   })
 })

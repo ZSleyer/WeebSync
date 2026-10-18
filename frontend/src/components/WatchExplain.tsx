@@ -84,7 +84,10 @@ export function WatchExplain({ watch: w, now }: { watch: Watch; now: number }) {
     : wait.reason === 'until_slot'
       ? t('explain.wait.until_slot', { ep: wait.episode, when: soon(wait.slot ?? wait.at) })
       : wait.reason === 'finished_idle'
-        ? t('explain.wait.finished_idle', { when: soon(wait.stale || wait.at) })
+        ? // every episode is there, but a trailing dub is not done: its re-releases come with the re-check
+          t(w.dubProgress ? 'explain.wait.finished_dub' : 'explain.wait.finished_idle', {
+            when: soon(wait.stale || wait.at),
+          })
         : wait.reason === 'lang_backlog'
           ? t('explain.wait.lang_backlog', { count: wait.filtered, min: wait.intervalMin, when: soon(wait.at) })
           : wait.reason === 'retry_backoff'

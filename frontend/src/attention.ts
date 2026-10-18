@@ -73,7 +73,8 @@ export function missingLabel(t: T, w: Watch): string {
 export function dubProgressLabel(t: T, w: Watch): string {
   const p = w.dubProgress!
   const opts = { lang: `${p.lang}-Dub`, have: p.have, total: p.total, ep: epLabel(w, p.next.e, p.next.s) }
-  if (p.expectedAt) return t('watch.dubProgress', { ...opts, date: fmtDay(p.expectedAt) })
+  if (p.expectedAt)
+    return t(p.released ? 'watch.dubProgressOut' : 'watch.dubProgress', { ...opts, date: fmtDay(p.expectedAt) })
   return t('watch.dubProgressNoDate', opts)
 }
 
