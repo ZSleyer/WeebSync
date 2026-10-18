@@ -122,3 +122,29 @@ func TestSecurityCheckHAWebhookInternal(t *testing.T) {
 		t.Error("public host not flagged")
 	}
 }
+
+// The OIDC issuer is where the browser sends the user's own login, over any
+// network it is on, so an internal name is no excuse there; Plex is a call of
+// this server and fine on one.
+func TestSecurityCheckOIDCStaysStrict(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("OIDC_ISSUER", "http://auth.lan/application/o/weebsync/")
+	t.Setenv("OIDC_CLIENT_SECRET", "s")
+	t.Setenv("PLEX_URL", "http://plex:32400")
+	t.Setenv("PLEX_TOKEN", "t")
+	mux, _, adminC, _, _, _ := setupUsersTest(t)
+	rec := doReq(mux, "GET", "/api/admin/security-check", "", adminC)
+	var got []SecurityCheck
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	ids := map[string]bool{}
+	for _, c := range got {
+		ids[c.ID] = true
+	}
+	if !ids["oidc_http"] || ids["plex_http"] {
+		t.Errorf("oidc_http %v (want true), plex_http %v (want false)", ids["oidc_http"], ids["plex_http"])
+	}
+}

@@ -128,14 +128,24 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 	if ftp > 0 {
 		add("ftp_cleartext", "warn", ftp, "")
 	}
-	for _, c := range []struct{ id, key, env, secretSetting, secretSettingEnv string }{
-		{"oidc_http", "oidc_issuer", "OIDC_ISSUER", "oidc_client_secret", "OIDC_CLIENT_SECRET"},
-		{"ai_http", "ai_base_url", "AI_BASE_URL", "ai_api_key", "AI_API_KEY"},
-		{"plex_http", "plex_url", "PLEX_URL", "plex_token", "PLEX_TOKEN"},
-		{"jellyfin_http", "jellyfin_url", "JELLYFIN_URL", "jellyfin_token", "JELLYFIN_TOKEN"},
+	// browser: the user's own login travels to it, over whatever network the
+	// browser is on, so only loopback is safe; the others are calls of this
+	// server, safe on an internal network
+	for _, c := range []struct {
+		id, key, env, secretSetting, secretSettingEnv string
+		browser                                       bool
+	}{
+		{"oidc_http", "oidc_issuer", "OIDC_ISSUER", "oidc_client_secret", "OIDC_CLIENT_SECRET", true},
+		{"ai_http", "ai_base_url", "AI_BASE_URL", "ai_api_key", "AI_API_KEY", false},
+		{"plex_http", "plex_url", "PLEX_URL", "plex_token", "PLEX_TOKEN", false},
+		{"jellyfin_http", "jellyfin_url", "JELLYFIN_URL", "jellyfin_token", "JELLYFIN_TOKEN", false},
 	} {
 		u := db.SettingOrEnv(s.DB, c.key, c.env)
-		if strings.HasPrefix(u, "http://") && !isInternalURL(u) && secret.SettingOrEnv(s.DB, c.secretSetting, c.secretSettingEnv) != "" {
+		safe := isInternalURL(u)
+		if c.browser {
+			safe = isLoopbackURL(u)
+		}
+		if strings.HasPrefix(u, "http://") && !safe && secret.SettingOrEnv(s.DB, c.secretSetting, c.secretSettingEnv) != "" {
 			add(c.id, "warn", 0, hostOf(u))
 		}
 	}
