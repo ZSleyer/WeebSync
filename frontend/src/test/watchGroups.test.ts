@@ -48,6 +48,16 @@ describe('Auto-Sync sections', () => {
     ])
   })
 
+  it('files a finished title by the date its dub is expected, unless that date is gone', () => {
+    const p = (at: number) => ({ lang: 'Ger', have: 15, total: 19, next: { s: 4, e: 16 }, expectedAt: at })
+    const s = [
+      w(1, { dubProgress: p(at('2026-10-15T09:00:00')) }),
+      w(2, { dubExpectedAt: at('2026-10-18T09:00:00') }),
+      w(3, { dubProgress: p(at('2026-09-30T09:00:00')) }),
+    ]
+    expect(keys('next', s)).toEqual(['tomorrow:1', 'week:2', 'none:3'])
+  })
+
   it('turns sections and order around for descending, but keeps what needs a hand on top', () => {
     expect(keys('next', list, 'desc')[0]).toBe('attention:6')
     expect(keys('next', list, 'desc')[1]).toBe('complete:5')

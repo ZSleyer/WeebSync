@@ -30,7 +30,9 @@ const startOfDay = (ms: number) => {
   return d.getTime()
 }
 const lastOf = (w: Watch) => Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') || 0
-const nextOf = (w: Watch) => (w.nextAiringAt ? w.nextAiringAt * 1000 : w.nextCheck * 1000)
+// a title with no episode ahead but a dub still coming waits on the dub's date
+const dubAt = (w: Watch) => w.dubExpectedAt || w.dubProgress?.expectedAt || 0
+const nextOf = (w: Watch) => (w.nextAiringAt || dubAt(w) || w.nextCheck) * 1000
 const seasonOf = (w: Watch) => Number(w.template.match(/S(\d+)E/i)?.[1] ?? 0)
 const nameKey = (w: Watch) => watchName(w).toLocaleLowerCase()
 const needsHand = (w: Watch) => (w.attention?.length ?? 0) > 0
@@ -92,8 +94,9 @@ function slotOf(sort: WatchSort, w: Watch, now: number): Slot {
     }
     default: {
       if (w.complete) return [5, 'complete', 'watch.group.complete', undefined, 'accent-2']
-      if (!w.nextAiringAt) return [4, 'none', 'watch.group.none', undefined, 'accent-2']
-      const at = w.nextAiringAt * 1000
+      // a dub date already gone is overdue, not today
+      const at = w.nextAiringAt ? w.nextAiringAt * 1000 : dubAt(w) * 1000 >= today ? dubAt(w) * 1000 : 0
+      if (!at) return [4, 'none', 'watch.group.none', undefined, 'accent-2']
       if (at < today + DAY) return [0, 'today', 'watch.group.today', undefined, 'accent-2']
       if (at < today + 2 * DAY) return [1, 'tomorrow', 'watch.group.tomorrow', undefined, 'accent-2']
       if (at < today + 7 * DAY) return [2, 'week', 'watch.group.week', undefined, 'accent-2']
