@@ -139,6 +139,7 @@ func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name st
 		score int
 	}
 	var best *cand
+	var cands []cand
 	for _, kind := range []string{"tv", "movie"} {
 		list, err := s.Tmdb.Search(ctx, kind, query, 0)
 		if err != nil {
@@ -159,8 +160,20 @@ func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name st
 			if (kind == "movie") == info.Movie {
 				c.score += 2
 			}
+			cands = append(cands, c)
 			if best == nil || c.score > best.score || (c.score == best.score && m.Popularity > best.m.Popularity) {
 				best = &c
+			}
+		}
+	}
+	// several entries that are the folder's title equally well ("Treasure
+	// Island" has a dozen) and no year to tell them apart: a guess among them
+	// is no hint
+	if best != nil && info.Year == 0 {
+		for _, c := range cands {
+			if c.score == best.score && (c.kind != best.kind || c.m.ID != best.m.ID) {
+				best = nil
+				break
 			}
 		}
 	}

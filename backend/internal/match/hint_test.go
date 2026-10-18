@@ -35,22 +35,28 @@ func TestHintAccept(t *testing.T) {
 		{"Pacific Rim - The Black [EngDub,NF]", HintStrong, tmdbCand("Pacific Rim: The Black", "Pacific Rim: The Black", 2021, 400, "TV"), true},
 		// the candidate has words the folder lacks
 		{"Star Wars [EngDub]", HintStrong, tmdbCand("Star Wars Rebels", "Star Wars Rebels", 2014, 2000, "TV"), false},
+		// a lone letter tells a sequel from the show
+		{"Dragon Ball [EngDub]", HintStrong, tmdbCand("Dragonball Z", "Dragonball Z", 1989, 2000, "TV"), false},
+		{"Dragon Ball Z [EngDub]", HintStrong, tmdbCand("Dragonball Z", "Dragonball Z", 1989, 2000, "TV"), true},
 		// the folder has words the candidate lacks
 		{"Neo Yokio Nights [EngDub]", HintStrong, tmdbCand("Neo Yokio", "Neo Yokio", 2017, 300, "TV"), false},
 		// a one-word name without any tag vouching for it
 		{"Castlevania", HintNormal, tmdbCand("Castlevania", "Castlevania", 2017, 5000, "TV"), false},
 		// a one-word name, but nobody rated the candidate
 		{"Castlevania [EngDub]", HintStrong, tmdbCand("Castlevania", "Castlevania", 2017, 25, "TV"), false},
+		// a folder that says Movie is not the series sharing the title
+		{"Example Story Movie [EngDub]", HintStrong, tmdbCand("Example Story", "Example Story", 2017, 500, "TV"), false},
+		{"Example Story Movie [EngDub]", HintStrong, tmdbCand("Example Story", "Example Story", 2019, 500, "MOVIE"), true},
 		// numbers must match
-		{"Example Show 2 [EngDub]", HintStrong, tmdbCand("Example Show", "Example Show", 2017, 500, "TV"), false},
-		{"Example Show [EngDub]", HintStrong, tmdbCand("Example Show 3", "Example Show 3", 2017, 500, "TV"), false},
+		{"Example Story 2 [EngDub]", HintStrong, tmdbCand("Example Story", "Example Story", 2017, 500, "TV"), false},
+		{"Example Story [EngDub]", HintStrong, tmdbCand("Example Story 3", "Example Story 3", 2017, 500, "TV"), false},
 		// a stub: neither poster nor overview
 		{"Neo Yokio [EngDub]", HintStrong, stub, false},
 		// the folder's year rules out a remake from another decade
-		{"Example Show (2021) [EngDub]", HintStrong, tmdbCand("Example Show", "Example Show", 1995, 500, "TV"), false},
+		{"Example Story (2021) [EngDub]", HintStrong, tmdbCand("Example Story", "Example Story", 1995, 500, "TV"), false},
 		// Japanese audio: no folder word may be missing from the title
-		{"Example Show Extra Words Here [JapDub]", HintStrict, tmdbCand("Example Show Extra Words", "Example Show Extra Words", 2017, 500, "TV"), false},
-		{"Example Show Extra Words [JapDub]", HintStrict, tmdbCand("Example Show Extra Words", "Example Show Extra Words", 2017, 500, "TV"), true},
+		{"Example Story Extra Words Here [JapDub]", HintStrict, tmdbCand("Example Story Extra Words", "Example Story Extra Words", 2017, 500, "TV"), false},
+		{"Example Story Extra Words [JapDub]", HintStrict, tmdbCand("Example Story Extra Words", "Example Story Extra Words", 2017, 500, "TV"), true},
 	}
 	for _, c := range cases {
 		info, q := hintInfo(c.name)

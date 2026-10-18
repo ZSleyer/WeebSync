@@ -1,7 +1,9 @@
 package match
 
 import (
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 )
@@ -95,6 +97,13 @@ func HintQuery(info Info) string {
 	return q
 }
 
+// hintWords splits a title into comparison words like gateWords, but keeps
+// lone letters: they tell "Dragon Ball" from "Dragon Ball Z".
+func hintWords(s string) []string {
+	s = strings.NewReplacer("'", "", "’", "").Replace(s)
+	return strings.FieldsFunc(Normalize(s), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) })
+}
+
 // HintAccept reports whether candidate m, found by searching query on TMDB,
 // is the folder's show, for a hint. See the package comment above for the rules.
 func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
@@ -103,6 +112,10 @@ func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
 	}
 	if info.Season > 1 || info.OVA {
 		return false // TMDB keeps one entry per show: a season or a special is not it
+	}
+	// a folder that says Movie is not the series sharing the title
+	if info.Movie && m.Format != "MOVIE" {
+		return false
 	}
 	qw := gateWords(query)
 	// a one-word name is a hint only when the tags vouch for a show or the
@@ -121,18 +134,31 @@ func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
 	if !relaxedAccept(info, query, m, tier == HintStrict) {
 		return false
 	}
+	// the query lost the folder's trailing numbers with its markers ("Rocky
+	// 2"): a number the candidate's titles do not have names another entry
+	have := map[string]bool{}
+	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+		for _, d := range digitsRe.FindAllString(t, -1) {
+			have[strings.TrimLeft(d, "0")] = true
+		}
+	}
+	for _, d := range digitsRe.FindAllString(info.Full, -1) {
+		if n := strings.TrimLeft(d, "0"); !have[n] && n != strconv.Itoa(info.Season) {
+			return false
+		}
+	}
 	// the candidate's own title must be nothing but what the folder says
 	extra := 1
 	if tier == HintStrict {
 		extra = 0
 	}
 	for _, t := range []string{m.Title.Romaji, m.Title.English} {
-		tw := gateWords(t)
+		tw := hintWords(t)
 		if len(tw) == 0 {
 			continue
 		}
 		ok := make([]bool, len(tw))
-		explained(tw, qw, ok)
+		explained(tw, hintWords(query), ok)
 		miss := 0
 		for _, o := range ok {
 			if !o {

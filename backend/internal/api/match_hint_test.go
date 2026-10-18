@@ -23,6 +23,10 @@ func fakeTmdb(t *testing.T, calls *int) *httptest.Server {
 		switch strings.ToLower(r.URL.Query().Get("query")) {
 		case "neo yokio":
 			w.Write([]byte(`{"results":[{"id":11,"name":"Neo Yokio","original_name":"Neo Yokio","first_air_date":"2017-09-22","poster_path":"/n.jpg","overview":"x","vote_count":300}]}`))
+		case "treasure story":
+			w.Write([]byte(`{"results":[
+				{"id":21,"name":"Treasure Story","original_name":"Treasure Story","first_air_date":"1990-01-01","poster_path":"/a.jpg","overview":"x","vote_count":100},
+				{"id":22,"name":"Treasure Story","original_name":"Treasure Story","first_air_date":"2012-01-01","poster_path":"/b.jpg","overview":"x","vote_count":100}]}`))
 		case "software", "ordinary folder":
 			w.Write([]byte(`{"results":[{"id":12,"name":"Software","original_name":"Software","first_air_date":"2000-01-01","poster_path":"/s.jpg","overview":"x","vote_count":900}]}`))
 		default:
@@ -33,7 +37,10 @@ func fakeTmdb(t *testing.T, calls *int) *httptest.Server {
 		*calls++
 		w.Write([]byte(`{"results":[]}`))
 	})
-	mux.HandleFunc("/tv/11", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/tv/22", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"id":22,"name":"Treasure Story","original_name":"Treasure Story","first_air_date":"2012-01-01","poster_path":"/b.jpg","overview":"x","number_of_episodes":4}`))
+	})
+	mux.HandleFunc("/tv/11",func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":11,"name":"Neo Yokio","original_name":"Neo Yokio","first_air_date":"2017-09-22","poster_path":"/n.jpg","overview":"x","number_of_episodes":6,"seasons":[{"season_number":1,"episode_count":6}]}`))
 	})
 	srv := httptest.NewServer(mux)
@@ -100,6 +107,20 @@ func TestHintRefusesNonShows(t *testing.T) {
 	}
 	if *calls != 0 {
 		t.Errorf("%d TMDB calls for folders that name no show", *calls)
+	}
+}
+
+// Several entries with the folder's exact title are a guess, unless the
+// folder's year picks one.
+func TestHintAmbiguousTitle(t *testing.T) {
+	s, _ := hintServer(t)
+	lookup(t, s, "/Area/Treasure Story [EngDub]", false)
+	if h := s.hintFor(1, "/Area/Treasure Story [EngDub]"); h != nil {
+		t.Fatalf("hint among equals: %+v", h)
+	}
+	lookup(t, s, "/Area/Treasure Story (2012) [EngDub]", false)
+	if h := s.hintFor(1, "/Area/Treasure Story (2012) [EngDub]"); h == nil || h.MediaID != 22 {
+		t.Fatalf("the year should pick the entry: %+v", h)
 	}
 }
 
