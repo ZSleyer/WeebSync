@@ -82,7 +82,7 @@ addTranslation('de', De)
 // no frame, so the watchdog below has the last word.
 const DIRECT_CONTAINERS = new Set(['mkv', 'mp4', 'm4v', 'webm', 'mov'])
 const DIRECT_AUDIO = new Set(['aac', 'mp3', 'opus', 'vorbis', 'flac'])
-const RATES = [0.5, 0.75, 1, 1.25, 1.5, 2]
+const RATES = [0.5, 1, 1.25, 1.5, 1.75, 2]
 // the subtitle size: a factor on the script's own font sizes, never a CSS
 // scale on the drawn layer, so a sign keeps its place
 const SUB_SIZES = { s: 0.8, m: 1, l: 1.25 } as const
