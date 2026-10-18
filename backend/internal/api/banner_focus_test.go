@@ -11,7 +11,7 @@ import (
 // The focus endpoint answers a cached map and refuses any host but AniList's.
 func TestBannerFocusEndpoint(t *testing.T) {
 	mux, s, adminC, _, _, _ := setupUsersTest(t)
-	u := "https://s4.anilist.co/file/banner/1.jpg"
+	u := "https://s4.anilist.co/file/anilistcdn/media/anime/banner/1.jpg"
 	raw, _ := json.Marshal(bannerFocus{W: 4, H: 1, Cols: []int{1, 2, 3, 4}, Rows: []int{5}})
 	s.cacheSet(focusKey(u), string(raw))
 
@@ -20,9 +20,16 @@ func TestBannerFocusEndpoint(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 || got.Focus == nil || got.Focus.W != 4 {
 		t.Errorf("cached: %d %s", rec.Code, rec.Body)
 	}
-	rec = doReq(mux, "GET", "/api/media/banner-focus?url="+url.QueryEscape("https://example.com/b.jpg"), "", adminC)
-	if rec.Code != 400 {
-		t.Errorf("foreign host: %d, want 400", rec.Code)
+	for _, bad := range []string{
+		"https://example.com/b.jpg",
+		u + "?v=2",
+		"https://s4.anilist.co/other/1.jpg",
+		"http://s4.anilist.co/file/anilistcdn/media/anime/banner/1.jpg",
+	} {
+		rec = doReq(mux, "GET", "/api/media/banner-focus?url="+url.QueryEscape(bad), "", adminC)
+		if rec.Code != 400 {
+			t.Errorf("%s: %d, want 400", bad, rec.Code)
+		}
 	}
 }
 

@@ -242,7 +242,10 @@ type bannerFocusResponse struct {
 //	@Router			/api/media/banner-focus [get]
 func (s *Server) handleBannerFocus(w http.ResponseWriter, r *http.Request) {
 	u := r.URL.Query().Get("url")
-	if !anilistImage(u) {
+	// only a media picture as AniList hands it out: every other spelling of
+	// a URL (a query, another path) would be a fetch and a cache row of its own
+	if p, err := url.Parse(u); err != nil || !anilistImage(u) || p.RawQuery != "" || p.Fragment != "" ||
+		!strings.HasPrefix(p.Path, "/file/anilistcdn/media/") {
 		writeErr(w, http.StatusBadRequest, "not an AniList image")
 		return
 	}
