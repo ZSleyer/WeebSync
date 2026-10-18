@@ -487,6 +487,19 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 			infos[i].Season = n
 		}
 	}
+	// the paren alias carries the season too ("(Fire Force S2)"): search its
+	// base title, the season stays in infos for scoring and the sequel walk
+	var altBase []int
+	for i, b := range batch {
+		if alt := GuessAltTitle(b.name); len(results[i]) == 0 && alt != "" {
+			if base := match.StripFolderMarkers(alt); base != "" && normTitle(base) != normTitle(alt) {
+				altBase = append(altBase, i)
+			}
+		}
+	}
+	runFallback("stripped-markers", altBase, func(i int) anilist.SearchReq {
+		return anilist.SearchReq{Query: match.StripFolderMarkers(GuessAltTitle(batch[i].name)), Force: reqs[i].Force, Manga: reqs[i].Manga}
+	})
 	return results, infos, trace, nil
 }
 
