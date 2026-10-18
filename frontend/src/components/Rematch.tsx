@@ -6,6 +6,7 @@ import { Search, Trash2, X } from 'lucide-react'
 import { Button, Cover, Dialog, Input } from 'fluid-lycoris'
 import { api, mediaTitle, type CatalogItem, type Media } from '../api'
 import type { CardViewProps } from './SeriesModal'
+import { MatchHint } from './MatchHint'
 
 // The match search of a catalog folder: the catalogue's own correction, and
 // the one an auto-sync uses for its folder, so both write the same match.
@@ -146,6 +147,12 @@ export function RematchForm({
           {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}
         </p>
       )}
+      <MatchHint
+        serverId={serverId}
+        item={item}
+        variant="dialog"
+        onTaken={() => (onPicked ? onPicked(item.hint?.mediaId ?? 0) : onClose())}
+      />
       <div className="mb-1 flex gap-2">
         <label className="sr-only" htmlFor="rematch-q">
           {t('remote.search')}

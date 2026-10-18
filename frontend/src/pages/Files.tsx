@@ -31,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SeriesCardView, useSeriesModal, type CardViewProps, type SeriesAction } from '../components/SeriesModal'
 import { useToast } from '../components/toast'
 import { RematchDialog, RematchForm, rematchTitle } from '../components/Rematch'
+import { MatchHint } from '../components/MatchHint'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router'
 import ActionSheet from '../components/ActionSheet'
@@ -1669,7 +1670,12 @@ export function CatalogGrid({
                         <span className="break-words">{folderName(it.entry.name)}</span>
                       )
                     }
-                    sub={t('catalog.noMatchSub')}
+                    sub={
+                      <>
+                        {t('catalog.noMatchSub')}
+                        {canCurate && <MatchHint serverId={serverId} item={it} variant="row" />}
+                      </>
+                    }
                     trailing={
                       <span className="flex shrink-0 items-center">
                         <RowAction tone="accent-2" onClick={() => setWhy(it)}>
