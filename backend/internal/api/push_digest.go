@@ -137,10 +137,11 @@ func truncRunes(s string, max int) string {
 
 type pushEp struct{ season, ep int }
 
-// runsLabel writes episodes compactly: "S04E16-18, S04E20", or "E16-18" for
-// a show without seasons ("Episode 16-18" when long). Each season's run of
-// consecutive numbers collapses; past pushMaxRuns the rest is elided.
-func runsLabel(locale string, eps []pushEp, long bool) string {
+// runsLabel writes episodes for a notification: "Season 4 - Episodes 16-18, 20",
+// or "Episodes 16-18" for a show without seasons. Each season's run of
+// consecutive numbers collapses and seasons are separated by "; ". Past
+// pushMaxRuns runs the rest is elided.
+func runsLabel(locale string, eps []pushEp) string {
 	eps = uniqueEps(eps)
 	sort.Slice(eps, func(i, j int) bool {
 		if eps[i].season != eps[j].season {
@@ -148,35 +149,61 @@ func runsLabel(locale string, eps []pushEp, long bool) string {
 		}
 		return eps[i].ep < eps[j].ep
 	})
-	var runs []string
-	for i := 0; i < len(eps); {
-		j := i
-		for j+1 < len(eps) && eps[j+1].season == eps[i].season && eps[j+1].ep-eps[j].ep == 1 {
-			j++
+	var parts []string
+	runs, cut := 0, false
+	for i := 0; i < len(eps) && !cut; {
+		season := eps[i].season
+		var nums []string
+		single := true
+		for i < len(eps) && eps[i].season == season {
+			j := i
+			for j+1 < len(eps) && eps[j+1].season == season && eps[j+1].ep-eps[j].ep == 1 {
+				j++
+			}
+			if runs == pushMaxRuns {
+				cut = true
+				break
+			}
+			runs++
+			nums = append(nums, numRange(eps[i].ep, eps[j].ep))
+			single = single && i == j
+			i = j + 1
 		}
-		runs = append(runs, runLabel(locale, eps[i], eps[j].ep, long && len(runs) == 0))
-		i = j + 1
+		if len(nums) > 0 {
+			parts = append(parts, seasonLabel(locale, season, nums, single && len(nums) == 1))
+		}
 	}
-	if len(runs) > pushMaxRuns {
-		runs = append(runs[:pushMaxRuns], "…")
+	out := strings.Join(parts, "; ")
+	if cut {
+		out += ", …"
 	}
-	return strings.Join(runs, ", ")
+	return out
 }
 
-func runLabel(locale string, first pushEp, last int, long bool) string {
-	var head string
-	switch {
-	case first.season > 0:
-		head = fmt.Sprintf("S%02dE%02d", first.season, first.ep)
-	case long:
-		head = tr(locale, "push.episodeNo", first.ep)
-	default:
-		head = "E" + strconv.Itoa(first.ep)
+func numRange(first, last int) string {
+	if last > first {
+		return strconv.Itoa(first) + "-" + strconv.Itoa(last)
 	}
-	if last > first.ep {
-		head += "-" + strconv.Itoa(last)
+	return strconv.Itoa(first)
+}
+
+// seasonLabel is "Season 4 - Episodes 16-18, 20"; season 0 means the show has
+// none. one picks the singular for a lone episode.
+func seasonLabel(locale string, season int, nums []string, one bool) string {
+	key := "push.episodesNo"
+	if one {
+		key = "push.episodeNo"
 	}
-	return head
+	label := tr(locale, key, strings.Join(nums, ", "))
+	if season > 0 {
+		return tr(locale, "push.seasonNo", season) + " - " + label
+	}
+	return label
+}
+
+// runLabel names one episode, "Season 4 - Episode 16".
+func runLabel(locale string, e pushEp) string {
+	return runsLabel(locale, []pushEp{e})
 }
 
 func uniqueEps(eps []pushEp) []pushEp {
@@ -198,12 +225,12 @@ type pushGroup struct {
 	n     int
 }
 
-// summary is "Series S04E16-18" - the series and what of it, in a line.
+// summary is "Series Season 4 - Episodes 16-18" - the series and what of it.
 func (g pushGroup) summary(locale string) string {
 	if len(g.eps) == 0 {
 		return g.first.title
 	}
-	return g.first.title + " " + runsLabel(locale, g.eps, false)
+	return g.first.title + " " + runsLabel(locale, g.eps)
 }
 
 // buildDownloadPush words the push for a digest of finished (done) or failed
@@ -286,7 +313,7 @@ func buildDownloadPush(locale string, done bool, items []pushItem) push.Notifica
 func oneSeriesBody(locale string, g *pushGroup, one pushItem) string {
 	switch {
 	case g.n == 1 && one.ep > 0:
-		label := runLabel(locale, pushEp{one.season, one.ep}, 0, true)
+		label := runLabel(locale, pushEp{one.season, one.ep})
 		if one.epName != "" {
 			return label + " · " + one.epName
 		}
@@ -294,7 +321,7 @@ func oneSeriesBody(locale string, g *pushGroup, one pushItem) string {
 	case g.n == 1:
 		return one.name
 	case len(g.eps) > 0:
-		return tr(locale, "push.itemDone", runsLabel(locale, g.eps, true))
+		return tr(locale, "push.itemDone", runsLabel(locale, g.eps))
 	default:
 		return tr(locale, "push.filesDone", g.n)
 	}

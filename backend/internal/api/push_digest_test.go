@@ -19,7 +19,7 @@ func TestPushSingleEpisode(t *testing.T) {
 	it.epName = "The Gate"
 	it.local = "/dl/Re:Zero/S04E16.mkv"
 	n := buildDownloadPush("en", true, []pushItem{it})
-	if n.Title != "Re:Zero" || n.Body != "S04E16 · The Gate" {
+	if n.Title != "Re:Zero" || n.Body != "Season 4 - Episode 16 · The Gate" {
 		t.Fatalf("got %q / %q", n.Title, n.Body)
 	}
 	if n.URL != "/title/anilist/7?ep=16&s=4" || n.Icon == "" || n.Urgency != "low" {
@@ -35,7 +35,7 @@ func TestPushSingleEpisode(t *testing.T) {
 	}
 	// without an episode title, and in German
 	it.epName = ""
-	if n := buildDownloadPush("de", true, []pushItem{it}); n.Body != "S04E16 geladen" || n.Actions[0].Title != "Abspielen" {
+	if n := buildDownloadPush("de", true, []pushItem{it}); n.Body != "Staffel 4 - Folge 16 geladen" || n.Actions[0].Title != "Abspielen" {
 		t.Fatalf("de: %+v", n)
 	}
 	// a show without seasons
@@ -48,7 +48,7 @@ func TestPushSingleEpisode(t *testing.T) {
 func TestPushOneSeriesSeveralEpisodes(t *testing.T) {
 	items := []pushItem{ep("g", "Re:Zero", 4, 16), ep("g", "Re:Zero", 4, 17), ep("g", "Re:Zero", 4, 18), ep("g", "Re:Zero", 4, 20)}
 	n := buildDownloadPush("en", true, items)
-	if n.Title != "Re:Zero" || n.Body != "S04E16-18, S04E20 downloaded" {
+	if n.Title != "Re:Zero" || n.Body != "Season 4 - Episodes 16-18, 20 downloaded" {
 		t.Fatalf("got %q / %q", n.Title, n.Body)
 	}
 	if n.URL != "/title/anilist/7" || len(n.Actions) != 0 {
@@ -58,7 +58,7 @@ func TestPushOneSeriesSeveralEpisodes(t *testing.T) {
 	for i := range items {
 		items[i].season = 0
 	}
-	if n := buildDownloadPush("de", true, items[:3]); n.Body != "Folge 16-18 geladen" {
+	if n := buildDownloadPush("de", true, items[:3]); n.Body != "Folgen 16-18 geladen" {
 		t.Fatalf("absolute run: %q", n.Body)
 	}
 }
@@ -66,7 +66,7 @@ func TestPushOneSeriesSeveralEpisodes(t *testing.T) {
 func TestPushSeveralSeries(t *testing.T) {
 	items := []pushItem{ep("a", "Re:Zero", 4, 16), ep("a", "Re:Zero", 4, 17), ep("b", "Frieren", 2, 3), ep("c", "Slime", 4, 1), ep("d", "Dandadan", 2, 2)}
 	n := buildDownloadPush("en", true, items)
-	if n.Title != "5 episodes downloaded" || n.Body != "Re:Zero S04E16-17, Frieren S02E03, Slime S04E01, +1" {
+	if n.Title != "5 episodes downloaded" || n.Body != "Re:Zero Season 4 - Episodes 16-17, Frieren Season 2 - Episode 3, Slime Season 4 - Episode 1, +1" {
 		t.Fatalf("got %q / %q", n.Title, n.Body)
 	}
 	if n.URL != "/history" || n.Icon != "" || len(n.Actions) != 0 {
@@ -78,7 +78,7 @@ func TestPushFailed(t *testing.T) {
 	it := ep("g", "Re:Zero", 4, 16)
 	it.id, it.reason = 42, "disk full"
 	n := buildDownloadPush("en", false, []pushItem{it})
-	if n.Title != "Download failed" || n.Body != "Re:Zero S04E16: disk full" || n.Urgency != "normal" {
+	if n.Title != "Download failed" || n.Body != "Re:Zero Season 4 - Episode 16: disk full" || n.Urgency != "normal" {
 		t.Fatalf("got %+v", n)
 	}
 	if n.URL != "/history" || n.Data["retry"] != "/api/downloads/42/resume" || n.Actions[0].Action != "retry" {
@@ -86,7 +86,7 @@ func TestPushFailed(t *testing.T) {
 	}
 	// a batch: no reason, no retry button (it would be ambiguous)
 	n = buildDownloadPush("de", false, []pushItem{it, ep("g", "Re:Zero", 4, 17), ep("h", "Frieren", 2, 3)})
-	if n.Title != "3 Downloads fehlgeschlagen" || n.Body != "Re:Zero S04E16-17, Frieren S02E03" || len(n.Actions) != 0 {
+	if n.Title != "3 Downloads fehlgeschlagen" || n.Body != "Re:Zero Staffel 4 - Folgen 16-17, Frieren Staffel 2 - Folge 3" || len(n.Actions) != 0 {
 		t.Fatalf("batch: %+v", n)
 	}
 }
@@ -150,5 +150,34 @@ func TestPushItemsFallbackWithoutMatch(t *testing.T) {
 	n := buildDownloadPush("en", true, items[:1])
 	if n.Title != "Frieren" || n.Body != "Episode 3 downloaded" || n.URL != "/history" {
 		t.Fatalf("got %+v", n)
+	}
+}
+
+func TestRunsLabel(t *testing.T) {
+	eps := func(pairs ...int) []pushEp {
+		var out []pushEp
+		for i := 0; i < len(pairs); i += 2 {
+			out = append(out, pushEp{pairs[i], pairs[i+1]})
+		}
+		return out
+	}
+	for _, c := range []struct {
+		locale string
+		in     []pushEp
+		want   string
+	}{
+		{"de", eps(1, 1), "Staffel 1 - Folge 1"},
+		{"de", eps(1, 1, 1, 2), "Staffel 1 - Folgen 1-2"},
+		{"en", eps(1, 2, 1, 1), "Season 1 - Episodes 1-2"},
+		{"en", eps(1, 1, 1, 2, 1, 5), "Season 1 - Episodes 1-2, 5"},
+		{"de", eps(1, 12, 2, 1, 2, 2), "Staffel 1 - Folge 12; Staffel 2 - Folgen 1-2"},
+		{"de", eps(0, 3), "Folge 3"},
+		{"en", eps(0, 3, 0, 4, 0, 9), "Episodes 3-4, 9"},
+		{"en", eps(1, 1, 1, 3, 1, 5, 1, 7), "Season 1 - Episodes 1, 3, 5, …"},
+		{"en", eps(1, 1, 1, 3, 1, 5, 2, 1), "Season 1 - Episodes 1, 3, 5, …"},
+	} {
+		if got := runsLabel(c.locale, c.in); got != c.want {
+			t.Errorf("%v: got %q, want %q", c.in, got, c.want)
+		}
 	}
 }

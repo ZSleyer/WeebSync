@@ -204,8 +204,16 @@ var catalog = map[string]map[string]string{
 		"de": "%d Dateien geladen",
 	},
 	"push.episodeNo": {
-		"en": "Episode %d",
-		"de": "Folge %d",
+		"en": "Episode %s",
+		"de": "Folge %s",
+	},
+	"push.episodesNo": {
+		"en": "Episodes %s",
+		"de": "Folgen %s",
+	},
+	"push.seasonNo": {
+		"en": "Season %d",
+		"de": "Staffel %d",
 	},
 	"push.actionPlay": {
 		"en": "Play",
