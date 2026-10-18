@@ -198,6 +198,21 @@ func TestDubProgressFromDownloadSources(t *testing.T) {
 	if p := list[0].DubProgress; p == nil || p.ExpectedAt != out || !p.Released {
 		t.Errorf("dubProgress = %+v, want episode 3 released at %d", p, out)
 	}
+	// the calendar carries the trailing dub as well, though the watch has no
+	// dub filter: episode 3 out (the local copy still lacks it), episode 4
+	// projected from its original weeks back at the observed lag (21 days)
+	dub := map[int]Airing{}
+	for _, a := range list[0].Airings {
+		if a.Dub == "de" {
+			dub[a.Episode] = a
+		}
+	}
+	if a, ok := dub[3]; !ok || a.At != out || a.Est || a.Have {
+		t.Errorf("dub slot 3 = %+v, %v; want released at %d, not had", a, ok, out)
+	}
+	if a, ok := dub[4]; !ok || a.At != orig+4*7*day+21*day || !a.Est {
+		t.Errorf("dub slot 4 = %+v, %v; want projected at %d", a, ok, orig+4*7*day+21*day)
+	}
 }
 
 func TestBehindLate(t *testing.T) {

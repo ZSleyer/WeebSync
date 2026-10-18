@@ -1398,7 +1398,18 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 				it.BehindLate = behindLate(it.Behind, it.Airings, behindTrack, now)
 			}
 			if p := it.DubProgress; p != nil {
-				_, fc := s.dubSlots(it.MediaSource, it.MediaID, dubLang(p.Lang), 0, slots, from, offset, start)
+				lang := dubLang(p.Lang)
+				// every recorded original, not just the calendar's week: a
+				// finished title's next dubbed episode aired weeks before it
+				orig := append(s.langAirings(it.MediaSource, it.MediaID, ""), slots...)
+				dubbed, fc := s.dubSlots(it.MediaSource, it.MediaID, lang, 0, orig, from, offset, start)
+				// the calendar shows the trailing dub too; a slot is had once
+				// the local file of that episode carries the dub
+				for i := range dubbed {
+					dubbed[i].Have = hasDub(dubTags[epKey(p.Next.Season, dubbed[i].Episode)], lang)
+				}
+				it.Airings = append(it.Airings, dubbed...)
+				sort.SliceStable(it.Airings, func(i, j int) bool { return it.Airings[i].At < it.Airings[j].At })
 				// out already: the source is what lags, not the dub
 				for _, a := range fc.Released {
 					if a.Episode == p.Next.Episode-offset && a.At <= now.Unix() {
@@ -1791,6 +1802,17 @@ func dubProgressOf(tags map[int]string) *DubProgress {
 		}
 	}
 	return p
+}
+
+// hasDub reports whether a name's dub tags (as dubProgressOf reads them)
+// carry the dub of a language (de, en, ...).
+func hasDub(tags, lang string) bool {
+	for _, c := range rename.Codes(tags) {
+		if dubLang(c) == lang {
+			return true
+		}
+	}
+	return false
 }
 
 // localSeasons lists the seasons among season-encoded keys, specials left out.
