@@ -134,7 +134,8 @@
   "nav": {
     "dashboard": "Heute",
     "watches": "Auto-Sync",
-    "rules": "Regeln",
+    "accountMenu": "Konto-Menü für {{email}}",
+    "appearance": "Darstellung und Sprache",
     "calendar": "Kalender",
     "servers": "Server",
     "rename": "Umbenennen",

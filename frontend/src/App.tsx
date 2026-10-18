@@ -9,13 +9,12 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react'
-import { ArrowLeft, BookOpen, Compass, RefreshCw, Search, Settings } from 'lucide-react'
+import { ArrowLeft, Compass, RefreshCw, Search, Settings } from 'lucide-react'
 import { DashboardIcon, FolderIcon } from './components/NavIcons'
 import {
   createBrowserRouter,
   createRoutesFromElements,
   Link,
-  NavLink,
   Navigate,
   Outlet,
   Route,
@@ -30,7 +29,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { AppShell, EmptyState, enterPage, Kbd, TabBar, useMediaQuery } from 'fluid-lycoris'
 import { api, type Download } from './api'
 import { bugReport } from './bugReport'
-import { updateText, useAuth, useEvents, useKeyboardUp, useMediaServer, useUpdateHint } from './hooks'
+import { useAuth, useEvents, useKeyboardUp, useMediaServer } from './hooks'
 import Brand from './components/Brand'
 import Logo from './components/Logo'
 import { useSpeedSampler } from './speedHistory'
@@ -48,6 +47,7 @@ import { TransfersProvider } from './components/TransferSheet'
 import { AudioProvider, MiniPlayer } from './components/AudioPlayer'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
+import { AccountMenu, AccountSheetButton } from './components/AccountMenu'
 import RedirectWithQuery from './components/RedirectWithQuery'
 import { AppBarActions, ShellFooter, ShellToolbar, TitleActions, WIDE_MQ } from './components/PageActions'
 import { LiveProvider } from './components/liveState'
@@ -76,7 +76,7 @@ const TABS = [
 ]
 const PHONE_TABS = TABS
 // the rules sit beside settings on a desktop: read more often than the rest
-const RULES = { to: '/rules', key: 'nav.rules', icon: BookOpen, motion: 'open' }
+const RULES_TO = '/rules'
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings, motion: 'turn' }
 const NAV = [...TABS, SETTINGS]
 // the sync side of the colour code: their entries light up teal, not red
@@ -457,7 +457,7 @@ export const router = createBrowserRouter(
         {/* the rules have a page of their own, reached from the sidebar and
           from settings; on a phone it stacks on settings */}
         <Route
-          path={RULES.to}
+          path={RULES_TO}
           lazy={screen(rules, (m) => m.default)}
           handle={{ title: 'settings.nav.rules', back: '/settings', backHistory: true }}
         />
@@ -638,11 +638,6 @@ function Shell({ email }: { email: string }) {
   // beside <main> on a desktop: where the title card docks
   const [aside, setAside] = useState<HTMLElement | null>(null)
   const [palette, setPalette] = useState(false)
-  // a newer build out: a dot on the Settings entry (the gear on a phone) and
-  // a line in the rail's foot, so an admin sees it without opening Settings;
-  // the About panel has the details
-  const update = useUpdateHint()
-  const updateLine = update && updateText(t, update)
 
   // How the screen changes, decided once per navigation (a plain re-render
   // must not replay it). <main> is keyed on the top-level page, so it only
@@ -705,20 +700,8 @@ function Shell({ email }: { email: string }) {
   // red for Heute and Entdecken, teal for the sync side: Auto-Sync, Dateien
   const tone = (n: NavEntry) => (TEAL.includes(n.to) ? 'teal' : undefined)
   const icon = (n: NavEntry) => <n.icon aria-hidden className="t-nav-icon" data-nav={n.motion} />
-  // the dot sits on the icon's corner, so it works in a row and in a stacked tab
-  const dotted = (node: ReactNode, show: boolean) =>
-    show ? (
-      <span className="ws-dot">
-        {node}
-        <i aria-hidden />
-        <span className="sr-only">{t('app.updateHint')}</span>
-      </span>
-    ) : (
-      node
-    )
   const screenTitle = title ? t(title) : 'WeebSync'
 
-  const settingsOpen = onPath(SETTINGS, location.pathname)
   const sidebar = (
     <aside className="ws-side" aria-label={t('nav.side')}>
       <div className="ws-brand">
@@ -760,24 +743,9 @@ function Shell({ email }: { email: string }) {
         <MiniPlayer variant="rail" />
         <LiveActivity variant="rail" />
         <PhoneHint />
-        <NavLink to={RULES.to} className="ws-side-link">
-          {icon(RULES)}
-          {t(RULES.key)}
-        </NavLink>
-        <Link to={SETTINGS.to} aria-current={settingsOpen ? 'page' : undefined} className="ws-side-link">
-          {dotted(icon(SETTINGS), !!update)}
-          {t(SETTINGS.key)}
-        </Link>
-        {update && (
-          <Link to="/settings/about" className="ws-update">
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-warn" />
-            <span className="min-w-0 truncate">{updateLine}</span>
-          </Link>
-        )}
-        {/* who is signed in; signing out lives in the account card in settings */}
-        <p className="ws-who" title={email}>
-          {email}
-        </p>
+        {/* settings, the account and the way out in one menu; a newer build
+            out puts a dot on the button and on the About entry */}
+        <AccountMenu email={email} />
       </div>
     </aside>
   )
@@ -811,13 +779,10 @@ function Shell({ email }: { email: string }) {
         </span>
       </h1>
       <div ref={setActions} className="flex items-center gap-1" />
-      {/* the gear on every top-level page; a stacked screen has its back
-          link instead, and Settings itself needs no way into itself */}
-      {!back && !onPath(SETTINGS, location.pathname) && (
-        <Link to={SETTINGS.to} aria-label={t(SETTINGS.key)} className="ws-iconbtn">
-          {dotted(<Settings aria-hidden />, !!update)}
-        </Link>
-      )}
+      {/* the gear on every top-level page, opening the account menu as a
+          sheet; a stacked screen has its back link instead, and Settings
+          itself needs no way into itself */}
+      {!back && !onPath(SETTINGS, location.pathname) && <AccountSheetButton email={email} />}
       {/* how far the page below has been read; PageScroll moves it */}
       <span aria-hidden className="t-scroll-line" />
     </header>
