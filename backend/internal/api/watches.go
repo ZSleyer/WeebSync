@@ -1602,12 +1602,14 @@ func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
 // in the caller's form (rel joined with the path below it) and its size.
 // downloadSources maps each local file below rel to the remote path of the
 // last finished download that wrote it; empty when nothing did or the
-// history was cleared.
+// history was cleared. The history stores absolute paths while a watch may
+// keep its folder relative to a root, so the keys are spelled like rel.
 //
 // ponytail: no index on downloads.local_path, a range scan over the history
 // per watch; add one if the history ever grows past a few thousand rows.
 func (s *Server) downloadSources(userID int64, rel string) map[string]string {
-	under, args := subtreeCond("local_path", rel)
+	abs := strings.TrimRight(s.localAbs(rel), "/")
+	under, args := subtreeCond("local_path", abs)
 	rows, err := s.DB.Query(`SELECT local_path, remote_path FROM downloads
 		WHERE user_id = ? AND status = 'done' AND `+under+` ORDER BY id`, append([]any{userID}, args...)...)
 	if err != nil {
@@ -1620,7 +1622,7 @@ func (s *Server) downloadSources(userID int64, rel string) map[string]string {
 		if rows.Scan(&l, &r) != nil {
 			return nil
 		}
-		src[l] = r // a later replacement wins
+		src[filepath.Join(rel, strings.TrimPrefix(l, abs))] = r // a later replacement wins
 	}
 	if rows.Err() != nil {
 		return nil // a half-read list is none at all

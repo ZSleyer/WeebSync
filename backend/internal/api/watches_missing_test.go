@@ -157,7 +157,8 @@ func TestDubProgressFromDownloadSources(t *testing.T) {
 			t.Fatal(err)
 		}
 		d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status) VALUES (1, 1, ?, ?, 'done')`,
-			fmt.Sprintf("/x/Show/Show S1 E%02d [%s].mkv", e, tag), "Show/"+name)
+			// the history keeps absolute paths, the watch a root-relative one
+			fmt.Sprintf("/x/Show/Show S1 E%02d [%s].mkv", e, tag), filepath.Join(root, "Show", name))
 	}
 	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template)
 		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - S01E{episode:02}')`)
