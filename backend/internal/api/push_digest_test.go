@@ -2,9 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/ch4d1/weebsync/internal/anilist"
 )
 
 func ep(group, title string, season, n int) pushItem {
@@ -116,6 +119,22 @@ func TestPushTruncatesOnRunes(t *testing.T) {
 }
 
 // Nothing matched: the release name carries the show and the episode.
+// A matched series goes by the name its watch gives it, not the catalog's
+// full romaji: on a phone that title would push the episode out of the line.
+func TestPushItemsUseTheWatchName(t *testing.T) {
+	s := digestTestServer(t)
+	s.Anilist = anilist.New(s.DB)
+	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, title_override)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - S04E{episode:02}', 'Re:Zero')`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/x/Show', 5, 'anilist')`)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('media:5', ?)`,
+		fmt.Sprintf(`{"id":5,"schema":%d,"status":"FINISHED","title":{"romaji":"Re:Zero kara Hajimeru Isekai Seikatsu 4th Season"}}`, anilist.MediaSchema))
+	items := s.pushItems(1, "en", []digestItem{{serverID: 1, remotePath: "/x/Show/Re Zero S4 E16 [JapDub].mkv", localPath: "/dl/Show - S04E16.mkv", id: 5}})
+	if items[0].title != "Re:Zero" || items[0].ep != 16 || items[0].source != "anilist" {
+		t.Fatalf("got %+v", items[0])
+	}
+}
+
 func TestPushItemsFallbackWithoutMatch(t *testing.T) {
 	s := digestTestServer(t)
 	items := s.pushItems(1, "en", []digestItem{

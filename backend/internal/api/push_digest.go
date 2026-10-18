@@ -67,6 +67,14 @@ func (s *Server) pushItems(userID int64, locale string, items []digestItem) []pu
 			f.source, f.media = s.folderMatch(it.serverID, show)
 			if f.source != "" && f.media != 0 {
 				f.g, f.titles = s.downloadGroup(userID, dlMetaRow{id: it.id, serverID: it.serverID, remotePath: it.remotePath, localPath: it.localPath}, show, bySrc, bySeries, locale)
+				// the name the app shows: a watch's own title beats the catalog's
+				// full romaji, which would push the episode out of the line
+				if f.g.WatchID != 0 {
+					var name string
+					if s.DB.QueryRow(`SELECT title_override FROM watches WHERE id = ?`, f.g.WatchID).Scan(&name) == nil && strings.TrimSpace(name) != "" {
+						f.g.Title = strings.TrimSpace(name)
+					}
+				}
 			}
 			byDir[fk] = f
 		}
