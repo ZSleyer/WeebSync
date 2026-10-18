@@ -2,7 +2,7 @@ import { useRef, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Trans, useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
-import { Progress, SectionHeading, useMediaQuery } from 'fluid-lycoris'
+import { Progress, SectionHeading } from 'fluid-lycoris'
 import {
   api,
   downloadLabel,
@@ -14,7 +14,6 @@ import {
 } from '../api'
 import { upcomingAirings } from '../airings'
 import { jobLabel } from '../jobs'
-import { WIDE_MQ } from '../components/PageActions'
 import { useTransfers } from '../components/transfers'
 import { useAuth } from '../hooks'
 import { Agenda } from './today/Agenda'
@@ -29,7 +28,7 @@ import './today/today.css'
 /**
  * Heute: the page the app opens on. A manga page of the user's series with
  * the date and what is going on, what landed this week, what needs a hand,
- * what transfers right now (desktop; a phone has the live pill), what airs
+ * what transfers right now (a phone also has the live pill), what airs
  * next and how full the disks are. Managing the queue lives in the
  * transfers sheet or panel.
  */
@@ -60,7 +59,6 @@ export default function Dashboard() {
     work,
   ].filter(Boolean)
   const date = new Date(now).toLocaleDateString(i18n.language, { weekday: 'long', day: 'numeric', month: 'long' })
-  const wide = useMediaQuery(WIDE_MQ)
   const loading = isLoading || watchesLoading
   // the hero and the shelf first; the rest a frame later (useAfterFirstPaint)
   const late = useAfterFirstPaint()
@@ -82,7 +80,7 @@ export default function Dashboard() {
               loading={loading}
             />
           )}
-          {late && wide && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
+          {late && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
         </div>
         <div className="td-aside">
           {late && (
@@ -98,7 +96,7 @@ export default function Dashboard() {
 }
 
 /**
- * "Übertragung" (desktop): what runs right now, a row each with the wave;
+ * "Übertragung": what runs right now, a row each with the wave;
  * the rest of the queue is in the transfers panel behind "Details".
  */
 function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?: DownloadMeta; loading: boolean }) {
