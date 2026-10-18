@@ -187,8 +187,16 @@ func TestDubProgressFromDownloadSources(t *testing.T) {
 		d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, ?, 'de')`, orig+int64(e)*7*day+21*day, e)
 	}
 	list, _ = s.watchesFor(1)
-	if p := list[0].DubProgress; p == nil || p.ExpectedAt != orig+3*7*day+21*day {
+	if p := list[0].DubProgress; p == nil || p.ExpectedAt != orig+3*7*day+21*day || p.Released {
 		t.Errorf("dubProgress = %+v, want episode 3 expected 21 days after its original", p)
+	}
+	// the dub of episode 3 came out but the source has not caught up: the
+	// real release, not the forecast
+	out := orig + 3*7*day + 7*day // two days ago
+	d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, 3, 'de')`, out)
+	list, _ = s.watchesFor(1)
+	if p := list[0].DubProgress; p == nil || p.ExpectedAt != out || !p.Released {
+		t.Errorf("dubProgress = %+v, want episode 3 released at %d", p, out)
 	}
 }
 

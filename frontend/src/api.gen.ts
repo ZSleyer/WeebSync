@@ -489,6 +489,10 @@ export interface Schemas {
      */
     next: Schemas['api.EpRef']
     /**
+     * Next's dub is out already, ExpectedAt is when
+     */
+    released?: boolean
+    /**
      * local episodes
      */
     total: number

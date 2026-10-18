@@ -1037,6 +1037,10 @@
                         "$ref": "#/components/schemas/api.EpRef",
                         "description": "first episode after the last dubbed one"
                     },
+                    "released": {
+                        "description": "Next's dub is out already, ExpectedAt is when",
+                        "type": "boolean"
+                    },
                     "total": {
                         "description": "local episodes",
                         "type": "integer"

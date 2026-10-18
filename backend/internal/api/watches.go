@@ -1399,7 +1399,13 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			}
 			if p := it.DubProgress; p != nil {
 				_, fc := s.dubSlots(it.MediaSource, it.MediaID, dubLang(p.Lang), 0, slots, from, offset, start)
-				if at, ok := fc.OrigAt[p.Next.Episode-offset]; ok && fc.Known {
+				// out already: the source is what lags, not the dub
+				for _, a := range fc.Released {
+					if a.Episode == p.Next.Episode-offset && a.At <= now.Unix() {
+						p.ExpectedAt, p.Released = a.At, true
+					}
+				}
+				if at, ok := fc.OrigAt[p.Next.Episode-offset]; ok && fc.Known && !p.Released {
 					p.ExpectedAt = at + fc.Lag
 				}
 			}
@@ -1717,6 +1723,7 @@ type DubProgress struct {
 	Total      int    `json:"total"`                // local episodes
 	Next       EpRef  `json:"next"`                 // first episode after the last dubbed one
 	ExpectedAt int64  `json:"expectedAt,omitempty"` // forecast of Next's dub; 0 = no date known
+	Released   bool   `json:"released,omitempty"`   // Next's dub is out already, ExpectedAt is when
 }
 
 // dubProgressOf reads the dub tags of a folder's names (episode key -> tags)
