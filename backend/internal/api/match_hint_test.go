@@ -40,7 +40,7 @@ func fakeTmdb(t *testing.T, calls *int) *httptest.Server {
 	mux.HandleFunc("/tv/22", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":22,"name":"Treasure Story","original_name":"Treasure Story","first_air_date":"2012-01-01","poster_path":"/b.jpg","overview":"x","number_of_episodes":4}`))
 	})
-	mux.HandleFunc("/tv/11",func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/tv/11", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"id":11,"name":"Neo Yokio","original_name":"Neo Yokio","first_air_date":"2017-09-22","poster_path":"/n.jpg","overview":"x","number_of_episodes":6,"seasons":[{"season_number":1,"episode_count":6}]}`))
 	})
 	srv := httptest.NewServer(mux)
