@@ -4819,6 +4819,14 @@
                 ],
                 "type": "object"
             },
+            "api.bannerFocusResponse": {
+                "properties": {
+                    "focus": {
+                        "$ref": "#/components/schemas/api.bannerFocus"
+                    }
+                },
+                "type": "object"
+            },
             "api.catalogExplainResponse": {
                 "properties": {
                     "bundle": {
@@ -15707,6 +15715,53 @@
                     }
                 ],
                 "summary": "Media backdrop",
+                "tags": [
+                    "Suggestions"
+                ]
+            }
+        },
+        "/api/media/banner-focus": {
+            "get": {
+                "description": "Where the detail of an AniList banner lies, per column and row. Empty until the server has read the picture.",
+                "parameters": [
+                    {
+                        "description": "AniList banner URL",
+                        "in": "query",
+                        "name": "url",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.bannerFocusResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Banner focus",
                 "tags": [
                     "Suggestions"
                 ]

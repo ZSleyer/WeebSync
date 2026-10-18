@@ -363,6 +363,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/media/reviews", authed(http.HandlerFunc(s.handleMediaReviews)))
 	mux.Handle("GET /api/media/extras", authed(http.HandlerFunc(s.handleMediaExtras)))
 	mux.Handle("GET /api/media/backdrop", authed(http.HandlerFunc(s.handleMediaBackdrop)))
+	mux.Handle("GET /api/media/banner-focus", authed(http.HandlerFunc(s.handleBannerFocus)))
 	mux.Handle("GET /api/plex/me", authed(adminOnly(http.HandlerFunc(s.handlePlexMe))))
 	mux.Handle("GET /api/plex/sections", authed(adminOnly(http.HandlerFunc(s.handlePlexSections))))
 	mux.Handle("GET /api/plex/suggestions", authed(http.HandlerFunc(s.handlePlexSuggestions)))

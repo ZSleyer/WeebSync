@@ -2089,6 +2089,9 @@ export interface Schemas {
     rows: number[]
     w: number
   }
+  'api.bannerFocusResponse': {
+    focus?: Schemas['api.bannerFocus']
+  }
   'api.catalogExplainResponse': {
     /**
      * other folders in the same directory with the same series: one card

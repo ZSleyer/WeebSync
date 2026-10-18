@@ -1,10 +1,30 @@
 package api
 
 import (
+	"encoding/json"
 	"image"
 	"image/color"
+	"net/url"
 	"testing"
 )
+
+// The focus endpoint answers a cached map and refuses any host but AniList's.
+func TestBannerFocusEndpoint(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	u := "https://s4.anilist.co/file/banner/1.jpg"
+	raw, _ := json.Marshal(bannerFocus{W: 4, H: 1, Cols: []int{1, 2, 3, 4}, Rows: []int{5}})
+	s.cacheSet(focusKey(u), string(raw))
+
+	rec := doReq(mux, "GET", "/api/media/banner-focus?url="+url.QueryEscape(u), "", adminC)
+	var got bannerFocusResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != 200 || got.Focus == nil || got.Focus.W != 4 {
+		t.Errorf("cached: %d %s", rec.Code, rec.Body)
+	}
+	rec = doReq(mux, "GET", "/api/media/banner-focus?url="+url.QueryEscape("https://example.com/b.jpg"), "", adminC)
+	if rec.Code != 400 {
+		t.Errorf("foreign host: %d, want 400", rec.Code)
+	}
+}
 
 func TestFocusProfileFindsTheDetail(t *testing.T) {
 	// a flat sky on the left two thirds, line art on the right third

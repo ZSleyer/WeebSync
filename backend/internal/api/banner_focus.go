@@ -221,3 +221,30 @@ func fetchFocus(ctx context.Context, u string) (bannerFocus, error) {
 	}
 	return focusProfile(img), nil
 }
+
+// bannerFocusResponse is the map of one banner, absent while it is being read.
+type bannerFocusResponse struct {
+	Focus *bannerFocus `json:"focus,omitempty"`
+}
+
+// handleBannerFocus answers where a banner's detail lies, for the title page
+// to cut its banner and trailer picture like the Today page does. The first
+// ask queues the read and answers empty; the page asks again shortly.
+//
+//	@Summary		Banner focus
+//	@Description	Where the detail of an AniList banner lies, per column and row. Empty until the server has read the picture.
+//	@Tags			Suggestions
+//	@Produce		json
+//	@Param			url	query		string	true	"AniList banner URL"
+//	@Success		200	{object}	bannerFocusResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Security		CookieAuth
+//	@Router			/api/media/banner-focus [get]
+func (s *Server) handleBannerFocus(w http.ResponseWriter, r *http.Request) {
+	u := r.URL.Query().Get("url")
+	if !anilistImage(u) {
+		writeErr(w, http.StatusBadRequest, "not an AniList image")
+		return
+	}
+	writeJSON(w, http.StatusOK, bannerFocusResponse{Focus: s.cachedFocus(u)})
+}
