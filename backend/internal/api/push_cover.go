@@ -27,7 +27,7 @@ import (
 const (
 	pushCoverSide     = 256     // longest edge we send; smaller posters stay as they are
 	pushCoverMaxBytes = 8 << 20 // largest poster we read
-	pushCoverMaxSide  = 6000    // widest/tallest decoded poster
+	pushCoverMaxSide  = 3000    // widest/tallest decoded poster (TMDB originals are 2000x3000); 36 MB as RGBA
 	pushCoverTopBias  = 0.3     // share of a portrait's spare height cut from the top; faces sit above the middle
 	pushCoverAge      = 30 * 24 * time.Hour
 	pushCoverJPEGQ    = 85
