@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -137,8 +138,47 @@ func Marks(name string) []Mark {
 	add("final", folderFinal, func(sub []string) string { return sub[0] })
 	add("movie", movieRe, func(sub []string) string { return sub[0] })
 	add("ova", ovaRe, func(sub []string) string { return sub[0] })
-	add("year", yearRe, func(sub []string) string { return sub[0] })
+	for _, ix := range yearRe.FindAllStringIndex(name, -1) {
+		y, _ := strconv.Atoi(name[ix[0]:ix[1]])
+		if releaseYear(y) != 0 && !yearIsTitleNumber(name, ix[1]) {
+			out = append(out, Mark{Kind: "year", Value: name[ix[0]:ix[1]], Start: ix[0], End: ix[1]})
+		}
+	}
 	return out
+}
+
+// releaseYear is y when it can be the year a release aired, else 0. A number
+// beyond next year is part of a title ("Night Head 2041", "Maou 2099",
+// "Koukaku Kidoutai SAC_2045"), and the year veto would kill its real entry.
+func releaseYear(y int) int {
+	if y > time.Now().Year()+1 {
+		return 0
+	}
+	return y
+}
+
+// yearIsTitleNumber reports whether the number ending at byte end of name is
+// part of a title rather than a year: "Maji Love 2000%".
+func yearIsTitleNumber(name string, end int) bool {
+	return end < len(name) && name[end] == '%'
+}
+
+// YearVeto reports whether the folder's year rules the candidate out: it aired
+// more than two years away, and its own titles do not carry the folder's year
+// as a number ("Tokyo 2020" is the entry named so, whenever it aired).
+func YearVeto(info Info, m anilist.Media) bool {
+	if info.Year == 0 || m.SeasonYear == 0 || abs(m.SeasonYear-info.Year) <= 2 {
+		return false
+	}
+	y := strconv.Itoa(info.Year)
+	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+		for _, w := range strings.Fields(Normalize(t)) {
+			if w == y {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // ParseName extracts matching hints from a raw folder name plus the already
@@ -167,10 +207,15 @@ func ParseName(name, title, alt string) Info {
 	}
 	if m := parenYearRe.FindAllStringSubmatch(name, -1); m != nil {
 		info.Year, _ = strconv.Atoi(m[len(m)-1][1])
-	} else if parsed.Year != 0 {
-		info.Year = parsed.Year
-	} else if m := yearRe.FindString(name); m != "" {
-		info.Year, _ = strconv.Atoi(m)
+	} else if y := releaseYear(parsed.Year); y != 0 {
+		info.Year = y
+	} else {
+		for _, ix := range yearRe.FindAllStringIndex(name, -1) {
+			if y, _ := strconv.Atoi(name[ix[0]:ix[1]]); releaseYear(y) != 0 && !yearIsTitleNumber(name, ix[1]) {
+				info.Year = y
+				break
+			}
+		}
 	}
 	if info.Season == 0 {
 		info.Season = seasonMarker(full)
@@ -420,7 +465,7 @@ func PickExplain(info Info, list []anilist.Media) (int, bool, []Scored) {
 		// a folder that names its year ("Skyscraper (2018)", "One Piece (2022)")
 		// is not the entry that aired decades away, however well the title
 		// fits: that is how a live-action film got filed under an anime
-		if info.Year != 0 && m.SeasonYear != 0 && abs(m.SeasonYear-info.Year) > 2 {
+		if YearVeto(info, m) {
 			out = append(out, Scored{Index: i, Vetoed: true, Signals: []Signal{{Code: "year_veto", Arg: strconv.Itoa(m.SeasonYear)}}})
 			continue
 		}

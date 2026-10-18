@@ -104,7 +104,7 @@ func (s *Server) RevalidateMatches() {
 func matchStale(folder, source string, m anilist.Media) string {
 	base := path.Base(folder)
 	info := match.ParseName(base, GuessTitle(base), GuessAltTitle(base))
-	if info.Year != 0 && m.SeasonYear != 0 && absInt(m.SeasonYear-info.Year) > 2 {
+	if match.YearVeto(info, m) {
 		return "year"
 	}
 	// pickLive takes no entry without a year for a folder with one; the first
