@@ -344,6 +344,28 @@
   padding-block: 0;
 }
 
+.set-about-credits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.set-about-credits li {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+.set-about-credits li > a {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.set-about-credits .sf-note {
+  margin: 0;
+}
+
 /* a note in prose, the actions under a panel, two fields side by side */
 .sf-note {
   margin: 0.5rem 0 0;

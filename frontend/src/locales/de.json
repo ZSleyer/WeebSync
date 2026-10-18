@@ -46,6 +46,9 @@
     "unsavedMsg": "Es gibt ungespeicherte Änderungen. Verwerfen und fortfahren?"
   },
   "about": {
+    "creditsTitle": "Datenanbieter",
+    "tvdbNote": "Metadaten von TheTVDB. Bitte ergänze fehlende Angaben oder erwäge ein Abonnement.",
+    "anilistNote": "Anime-Daten und Bilder von AniList.",
     "licenseLine": "Freie Software unter",
     "dev": "Dev-Version",
     "stable": "Stable",

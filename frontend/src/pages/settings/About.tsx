@@ -5,6 +5,7 @@ import { Badge } from 'fluid-lycoris'
 import { api } from '../../api'
 import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'
+import { ProviderMark } from '../../components/SourceLine'
 import { SettingsPanel, SwitchSetting } from './ui'
 
 // read once per page load; the year does not change during a session
@@ -72,6 +73,28 @@ export default function About() {
         {' · '}
         {copyright}
       </p>
+
+      <ul className="set-about-credits" aria-label={t('about.creditsTitle')}>
+        <li>
+          <a href="https://www.themoviedb.org" target="_blank" rel="noreferrer">
+            <ProviderMark name="TMDB" />
+          </a>
+          {/* TMDB's terms prescribe this wording */}
+          <span className="sf-note">This product uses the TMDB API but is not endorsed or certified by TMDB.</span>
+        </li>
+        <li>
+          <a href="https://thetvdb.com" target="_blank" rel="noreferrer">
+            <ProviderMark name="TVDB" />
+          </a>
+          <span className="sf-note">{t('about.tvdbNote')}</span>
+        </li>
+        <li>
+          <a href="https://anilist.co" target="_blank" rel="noreferrer">
+            <ProviderMark name="AniList" />
+          </a>
+          <span className="sf-note">{t('about.anilistNote')}</span>
+        </li>
+      </ul>
 
       {user?.isAdmin && data && (
         <SwitchSetting

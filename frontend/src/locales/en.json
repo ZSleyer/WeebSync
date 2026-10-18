@@ -46,6 +46,9 @@
     "unsavedMsg": "You have unsaved changes. Discard them and continue?"
   },
   "about": {
+    "creditsTitle": "Data providers",
+    "tvdbNote": "Metadata provided by TheTVDB. Please consider adding missing information or subscribing.",
+    "anilistNote": "Anime data and artwork from AniList.",
     "licenseLine": "Free software under",
     "dev": "Dev version",
     "stable": "Stable",
