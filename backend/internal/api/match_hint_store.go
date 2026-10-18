@@ -6,12 +6,12 @@ import (
 	"log/slog"
 )
 
-// matchHint is TMDB's candidate for a folder AniList could not match: a
+// matchHint is TVDB's or TMDB's candidate for a folder AniList could not match: a
 // suggestion the user confirms through the ordinary manual match (PUT
 // catalog/match with this source and id) or drops. It is stored apart from
 // the matches (see migration 097), so nothing that counts matches sees it.
 type matchHint struct {
-	Source  string `json:"source" enums:"tmdb:tv,tmdb:movie"`
+	Source  string `json:"source" enums:"tmdb:tv,tmdb:movie,tvdb,tvdb:movie"`
 	MediaID int    `json:"mediaId"`
 	Title   string `json:"title"`
 	Year    int    `json:"year,omitempty"`

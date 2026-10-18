@@ -129,8 +129,8 @@ func TestHintNotAskedTwice(t *testing.T) {
 	f := "/Area/Nothing Known Here [EngDub]"
 	lookup(t, s, f, false)
 	first := *calls
-	if first != 2 {
-		t.Fatalf("one tv and one movie search expected, got %d", first)
+	if first != 1 {
+		t.Fatalf("one search on the series list (TMDB tv) expected, got %d", first)
 	}
 	lookup(t, s, f, false)
 	if *calls != first {

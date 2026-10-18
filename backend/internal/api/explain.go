@@ -32,7 +32,7 @@ type explainParse struct {
 
 // explainScope says where the folder's metadata source came from.
 type explainScope struct {
-	Kind string `json:"kind"` // "" | anime | manga | tv | movie | tvdb
+	Kind string `json:"kind"` // "" | anime | manga | tv | movie | tvdb | auto
 	// marked: a mark on the folder itself; shelf: the mark of the folder
 	// above an alphabet shelf; rule: a rule on the parent; none: no source
 	Origin   string `json:"origin" enums:"marked,shelf,rule,none"`

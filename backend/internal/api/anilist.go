@@ -245,6 +245,9 @@ type matchJob struct {
 	name     string
 	force    bool // bypass the search cache (user-triggered re-match)
 	manga    bool // search AniList's MANGA catalogue, stored as anilist:manga
+	// a folder under an "automatic" mark: what to do with the pick (see
+	// auto_match.go); nil for every other scope
+	auto *autoPlan
 }
 
 // seasonDirRe matches season folders like "2026-3 Summer" (quarter 1-4).
@@ -267,6 +270,12 @@ func seasonFromPath(p string) (string, int) {
 // request per batch). Persists only on a successful search so failures are
 // retried by a later catalog poll.
 func (s *Server) queueMatch(serverID int64, folder, name string, force, manga bool) {
+	s.enqueueMatch(matchJob{serverID: serverID, folder: folder, name: name, force: force, manga: manga})
+}
+
+// enqueueMatch puts one folder into the AniList batch queue.
+func (s *Server) enqueueMatch(job matchJob) {
+	serverID, folder := job.serverID, job.folder
 	key := fmt.Sprintf("m:%d:%s", serverID, folder)
 	if s.jobPaused(key) {
 		return
@@ -288,7 +297,7 @@ func (s *Server) queueMatch(serverID int64, folder, name string, force, manga bo
 		go s.matchWorker()
 	})
 	select {
-	case s.matchCh <- matchJob{serverID, folder, name, force, manga}:
+	case s.matchCh <- job:
 	default: // queue full: drop, the next poll re-queues
 		s.dropJob(key)
 	}
@@ -359,6 +368,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	s.fixSequelPicks(ctx, infos, picked, rescue)
+	gateAutoPicks(batch, infos, picked)
 	var unmatched []int
 	for i, b := range batch {
 		// a match the user set stays, whatever source it is from: only an
@@ -374,6 +384,14 @@ func (s *Server) matchBatch(batch []matchJob) {
 		src := "anilist"
 		if b.manga {
 			src = mangaSource
+		}
+		if mediaID == 0 && b.auto != nil && len(b.auto.rest) > 0 {
+			// AniList had no confident answer: the next provider is asked
+			if asrc, aid := s.autoFallback(ctx, b, infos[i]); aid != 0 {
+				if s.persistMatch(b.serverID, b.folder, aid, false, asrc) == nil {
+					continue
+				}
+			}
 		}
 		// persistMatch logs a failure; the folder is matched again on a later pass
 		_ = s.persistMatch(b.serverID, b.folder, mediaID, false, src)
@@ -667,8 +685,11 @@ var (
 
 // catalogResponse is the enriched folder listing returned by handleCatalog.
 type catalogResponse struct {
-	Scope string        `json:"scope"` // "" | anime | tv | movie
-	Items []catalogItem `json:"items"`
+	Scope string `json:"scope"` // "" | anime | tv | movie
+	// MatchingOff: the mark's provider is switched off for matching (settings),
+	// so the folders below that have no match are not being looked up
+	MatchingOff bool          `json:"matchingOff,omitempty"`
+	Items       []catalogItem `json:"items"`
 	// Upcoming: series of a season folder's season that the folder lacks
 	// because they have not aired yet (or only just started). Anime scope,
 	// season folders and fully matched listings only.
@@ -731,6 +752,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 	}
 
 	scope := s.scopeFor(serverID, dir)
+	matchable := s.scopeMatchable(scope)
 	items := []catalogItem{}
 	for _, e := range entries {
 		if !e.IsDir {
@@ -756,12 +778,24 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		itemScope := scopeForItem(scope, item.Kind)
-		itemSource := sourceForScope(itemScope)
-		item.Source = itemSource
 		var mediaID, manual int
 		var rowSource string
 		err := s.DB.QueryRow(`SELECT media_id, manual, source FROM catalog_matches
 			WHERE server_id = ? AND folder = ?`, serverID, e.Path).Scan(&mediaID, &manual, &rowSource)
+		// under an automatic mark the folder's source is the one its match
+		// has: the scope names no provider
+		itemSource := expectedSource(itemScope, rowSource)
+		item.Source = itemSource
+		if !matchable {
+			// matching is switched off for this provider: what is stored is
+			// shown, nothing is looked up, nothing is pending
+			if err == nil && mediaID != 0 {
+				item.Source = rowSource
+				item.Media, item.Pending = s.sourceMedia(rowSource, mediaID)
+			}
+			items = append(items, item)
+			continue
+		}
 		switch {
 		case err == nil && manual == 1 && mediaID != 0 && rowSource != itemSource:
 			// the user matched this folder against another provider than its
@@ -805,7 +839,7 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 		}
 		items = append(items, item)
 	}
-	resp := catalogResponse{Scope: scope, Items: items}
+	resp := catalogResponse{Scope: scope, Items: items, MatchingOff: scope != "" && !matchable}
 	resp.Upcoming, resp.Missing = s.upcomingFor(r.Context(), dir, scope, items)
 	resp.Elsewhere = s.elsewhereFor(r.Context(), serverID, append(resp.Upcoming, resp.Missing...))
 	writeJSON(w, http.StatusOK, resp)
@@ -948,14 +982,22 @@ func (s *Server) reuseMatch(serverID int64, name, source string) (int, bool) {
 
 // queueScopedMatch dispatches folder matching to the scope's metadata source.
 func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, force bool) {
+	if !s.scopeMatchable(scope) {
+		return // the scope's provider is switched off for matching
+	}
 	// local library: try Plex's authoritative tvdb/tmdb id first (also drains
 	// the sweep this way); an explicit rematch (force) still does a title search
 	if serverID == localServerID && !force && scope != "manga" {
-		src := sourceForScope(scope)
-		if id, ok := s.matchLocalByPlexID(folder, src); ok {
-			_ = s.persistMatch(serverID, folder, id, false, src) // logged; the sweep tries again
-			return
+		for _, src := range s.plexSourcesFor(scope) {
+			if id, ok := s.matchLocalByPlexID(folder, src); ok {
+				_ = s.persistMatch(serverID, folder, id, false, src) // logged; the sweep tries again
+				return
+			}
 		}
+	}
+	if scope == scopeAuto {
+		s.queueAutoMatch(serverID, folder, name, force)
+		return
 	}
 	if scope == "" || scope == "anime" || scope == "manga" {
 		s.queueMatch(serverID, folder, name, force, scope == "manga")
@@ -1048,10 +1090,15 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		cond = ""
 	}
 	// films inside a tv scope carry the movie source, so both tags qualify
+	// every source a folder under an automatic mark may have been matched on
+	src1, src2 := sourceForScope(scope), sourceForScope(scopeForItem(scope, "movie"))
+	if scope == scopeAuto {
+		src1, src2 = "anilist", "tmdb:tv"
+	}
 	rows, err := s.DB.Query(`SELECT folder FROM catalog_matches
-		WHERE server_id = ? AND manual = 0 AND source IN (?, ?) `+cond+`
-		AND folder >= ? AND folder < ?`,
-		serverID, sourceForScope(scope), sourceForScope(scopeForItem(scope, "movie")),
+		WHERE server_id = ?1 AND manual = 0 AND (source IN (?2, ?3) OR (?4 AND source IN ('tmdb:movie', 'tvdb', 'tvdb:movie'))) `+cond+`
+		AND folder >= ?5 AND folder < ?6`,
+		serverID, src1, src2, scope == scopeAuto,
 		strings.TrimRight(in.Path, "/")+"/", strings.TrimRight(in.Path, "/")+"0")
 	if err != nil {
 		dbErr(w)
@@ -1097,18 +1144,22 @@ func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
 	if scope == "" || serverID == localServerID {
 		return 0 // the local library has no index; its listing matches
 	}
-	rows, err := s.DB.Query(`SELECT ri.path, ri.name, COALESCE(cm.source, '') FROM remote_index ri
+	rows, err := s.DB.Query(`SELECT ri.path, ri.name, COALESCE(cm.source, ''), COALESCE(cm.media_id, 0), COALESCE(cm.manual, 0)
+		FROM remote_index ri
 		LEFT JOIN catalog_matches cm ON cm.server_id = ri.server_id AND cm.folder = ri.path
 		WHERE ri.server_id = ? AND ri.is_dir = 1 AND ri.parent = ?`, serverID, dir)
 	if err != nil {
 		return 0
 	}
 	defer rows.Close()
-	type child struct{ path, name, source string }
+	type child struct {
+		path, name, source string
+		mediaID, manual    int
+	}
 	var kids []child
 	for rows.Next() {
 		var c child
-		if rows.Scan(&c.path, &c.name, &c.source) == nil {
+		if rows.Scan(&c.path, &c.name, &c.source, &c.mediaID, &c.manual) == nil {
 			kids = append(kids, c)
 		}
 	}
@@ -1121,7 +1172,14 @@ func (s *Server) queueScopeChildren(serverID int64, dir, scope string) int {
 			continue
 		}
 		itemScope := scopeForItem(scope, s.itemKind(serverID, c.path, c.name))
-		if c.source == sourceForScope(itemScope) {
+		if scope == scopeAuto {
+			// the mark names no provider, so no match is on the wrong one:
+			// only the folders with none are asked, and a manual match,
+			// unmatch included, is the user's
+			if c.manual == 1 || c.mediaID != 0 {
+				continue
+			}
+		} else if c.source == sourceForScope(itemScope) {
 			continue
 		}
 		s.queueScopedMatch(serverID, c.path, c.name, itemScope, c.source != "")

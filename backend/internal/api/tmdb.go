@@ -60,7 +60,7 @@ func isHelperDir(name string) bool {
 
 // scopeResponse reports the metadata scope of a catalog path.
 type scopeResponse struct {
-	Scope string `json:"scope"` // "" | anime | manga | tv | movie | tvdb
+	Scope string `json:"scope"` // "" | anime | manga | tv | movie | tvdb | auto
 	// the name shape a rule made from this folder would cover; "" when its
 	// name has nothing that varies (no number, no season) or it is the root
 	RuleShape string `json:"ruleShape"`
@@ -119,7 +119,9 @@ const mangaSource = "anilist:manga"
 // 'anime' is an explicit override mark below a TMDB/TVDB-scoped folder.
 func sourceForScope(kind string) string {
 	switch kind {
-	case "", "anime":
+	case "", "anime", scopeAuto:
+		// an automatic mark names no provider of its own (expectedSource
+		// reads it off the match); AniList is where a folder starts
 		return "anilist"
 	case "manga":
 		return mangaSource
@@ -135,7 +137,7 @@ type scopeRequest struct {
 	Path string `json:"path"`
 	// "" clears the mark; "none" stores "no mark", which keeps a scope rule
 	// and the hints off this folder
-	Kind string `json:"kind"` // "" | none | anime | manga | tv | movie | tvdb
+	Kind string `json:"kind"` // "" | none | anime | manga | tv | movie | tvdb | auto
 	// also mark new folders beside this one whose name has the same shape
 	// (numbers and season names vary); needs a kind and a name that varies
 	Rule bool `json:"rule,omitempty"`
@@ -169,7 +171,7 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch in.Kind {
-	case "", scopeNone, "anime", "manga", "tv", "movie", "tvdb":
+	case "", scopeNone, scopeAuto, "anime", "manga", "tv", "movie", "tvdb":
 	default:
 		writeErr(w, http.StatusBadRequest, "invalid kind")
 		return

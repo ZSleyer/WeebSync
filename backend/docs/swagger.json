@@ -4989,6 +4989,10 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "matchingOff": {
+                        "description": "MatchingOff: the mark's provider is switched off for matching (settings),\nso the folders below that have no match are not being looked up",
+                        "type": "boolean"
+                    },
                     "missing": {
                         "description": "Missing: series of that season already on air for longer than the\ngrace period that the folder still lacks.",
                         "items": {
@@ -5234,7 +5238,7 @@
             "api.explainScope": {
                 "properties": {
                     "kind": {
-                        "description": "\"\" | anime | manga | tv | movie | tvdb",
+                        "description": "\"\" | anime | manga | tv | movie | tvdb | auto",
                         "type": "string"
                     },
                     "origin": {
@@ -5642,7 +5646,9 @@
                     "source": {
                         "enum": [
                             "tmdb:tv",
-                            "tmdb:movie"
+                            "tmdb:movie",
+                            "tvdb",
+                            "tvdb:movie"
                         ],
                         "type": "string"
                     },
@@ -5657,6 +5663,50 @@
                     "source",
                     "mediaId",
                     "title"
+                ],
+                "type": "object"
+            },
+            "api.matchRouting": {
+                "description": "MatchRouting: which providers matching asks, and in which order (see match_routing.go)",
+                "properties": {
+                    "animeMovie": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.routeEntry"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "animeSeries": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.routeEntry"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "movie": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.routeEntry"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "providers": {
+                        "$ref": "#/components/schemas/api.routeSwitches"
+                    },
+                    "series": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.routeEntry"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    }
+                },
+                "required": [
+                    "providers",
+                    "animeSeries",
+                    "animeMovie",
+                    "series",
+                    "movie"
                 ],
                 "type": "object"
             },
@@ -6567,6 +6617,45 @@
                 ],
                 "type": "object"
             },
+            "api.routeEntry": {
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "provider": {
+                        "enum": [
+                            "anilist",
+                            "tvdb",
+                            "tmdb"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "provider",
+                    "enabled"
+                ],
+                "type": "object"
+            },
+            "api.routeSwitches": {
+                "properties": {
+                    "anilist": {
+                        "type": "boolean"
+                    },
+                    "tmdb": {
+                        "type": "boolean"
+                    },
+                    "tvdb": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "anilist",
+                    "tvdb",
+                    "tmdb"
+                ],
+                "type": "object"
+            },
             "api.scopeHint": {
                 "properties": {
                     "kind": {
@@ -6641,7 +6730,7 @@
                         "type": "string"
                     },
                     "scope": {
-                        "description": "\"\" | anime | manga | tv | movie | tvdb",
+                        "description": "\"\" | anime | manga | tv | movie | tvdb | auto",
                         "type": "string"
                     }
                 },
@@ -7029,6 +7118,10 @@
                     "jellyfinUrl": {
                         "type": "string"
                     },
+                    "matchRouting": {
+                        "$ref": "#/components/schemas/api.matchRouting",
+                        "description": "MatchRouting: which providers matching asks, and in which order (see match_routing.go)"
+                    },
                     "maxConcurrent": {
                         "type": "integer"
                     },
@@ -7177,6 +7270,7 @@
                     }
                 },
                 "required": [
+                    "matchRouting",
                     "baseUrl",
                     "maxConcurrent",
                     "globalRateLimit",

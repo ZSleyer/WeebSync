@@ -10,6 +10,7 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -181,6 +182,8 @@ func setSecretSetting(d *sql.DB, key, value string) error {
 // Secrets are write-only: GET reports only whether they are set, PUT with
 // an empty string keeps the stored value, "-" clears it.
 type settingsPayload struct {
+	// MatchRouting: which providers matching asks, and in which order (see match_routing.go)
+	MatchRouting          matchRouting   `json:"matchRouting"`
 	BaseURL               string         `json:"baseUrl"` // public origin of this instance, used in email links
 	MaxConcurrent         int64          `json:"maxConcurrent"`
 	GlobalRateLimit       int64          `json:"globalRateLimit"`  // bytes/s, 0 = unlimited
@@ -302,6 +305,7 @@ func (s *Server) settingsState() settingsPayload {
 	limit, _ := strconv.ParseInt(db.Setting(s.DB, "global_rate_limit"), 10, 64)
 	smtpPort, _ := strconv.ParseInt(db.SettingOrEnv(s.DB, "smtp_port", "SMTP_PORT"), 10, 64)
 	p := settingsPayload{
+		MatchRouting:          s.routing(),
 		BaseURL:               db.SettingOrEnv(s.DB, "base_url", "WEEBSYNC_BASE_URL"),
 		MaxConcurrent:         conc,
 		GlobalRateLimit:       limit,
@@ -465,6 +469,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// written before the failing check.
 	cur := s.settingsState()
 	in := cur
+	in.MatchRouting = cur.MatchRouting.clone() // the lists would be decoded into cur's own
 	if !readJSON(w, r, &in) {
 		return
 	}
@@ -482,6 +487,12 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	if in.WatchIntervalMin != cur.WatchIntervalMin && (in.WatchIntervalMin < 5 || in.WatchIntervalMin > 1440) {
 		bad("watchIntervalMin", "must be 5-1440")
 		return
+	}
+	if !reflect.DeepEqual(in.MatchRouting, cur.MatchRouting) {
+		if err := validateRouting(in.MatchRouting); err != nil {
+			bad("matchRouting", err.Error())
+			return
+		}
 	}
 	in.OidcIssuer = strings.TrimSpace(in.OidcIssuer)
 	if in.AuthMode != cur.AuthMode || in.OidcIssuer != cur.OidcIssuer {
@@ -606,6 +617,14 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 
 	var writes settingWrites
 	writes.set("base_url", baseURL)
+	if !reflect.DeepEqual(in.MatchRouting, cur.MatchRouting) {
+		raw, err := json.Marshal(in.MatchRouting)
+		if err != nil {
+			writeErr(w, http.StatusInternalServerError, "encode error")
+			return
+		}
+		writes.set(matchRoutingKey, string(raw))
+	}
 	writes.set("ai_base_url", aiURL)
 	writes.set("ai_search_url", searchURL)
 	writes.set("ha_webhook_url", haURL)

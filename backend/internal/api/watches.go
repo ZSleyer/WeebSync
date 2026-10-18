@@ -2171,13 +2171,13 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 		scope = "manga" // a manga stays a manga; its tree often carries no mark
 	}
 	// no mark and no library says nothing about the source: what is stored stays
-	foreign := stored && scope != "" && sourceForScope(scope) != source && (manual == 0 || overrule) &&
+	foreign := stored && scope != "" && expectedSource(scope, source) != source && (manual == 0 || overrule) &&
 		!s.anilistAgreesWithPlex(mediaID, source, localPath)
 	if stored && !foreign && (mediaID != 0 || manual == 1) {
 		return false
 	}
 	if foreign {
-		slog.Info("watch folder matched again", "folder", logSafe(folder), "from", source, "to", sourceForScope(scope), "manual", manual == 1)
+		slog.Info("watch folder matched again", "folder", logSafe(folder), "from", source, "to", expectedSource(scope, source), "manual", manual == 1)
 		// the index row carries the show key of the old match
 		if _, err := s.DB.Exec(`DELETE FROM catalog_variants WHERE server_id = ? AND folder = ?`, serverID, folder); err != nil {
 			slog.Warn("stale index row kept", "folder", logSafe(folder), "err", err)
@@ -2194,20 +2194,20 @@ func (s *Server) matchWatch(serverID int64, folder, localPath string, overrule b
 // source its match has.
 func (s *Server) folderSource(serverID int64, folder string) string {
 	name := path.Base(folder)
-	if scope := s.scopeFor(serverID, path.Dir(folder)); scope != "" {
-		return sourceForScope(scopeForItem(scope, s.itemKind(serverID, folder, name)))
-	}
 	var stored string
 	var mediaID int
 	// no stored match (or no read): the folder counts as unmatched
 	_ = s.DB.QueryRow(`SELECT source, media_id FROM catalog_matches WHERE server_id = ? AND folder = ?`,
 		serverID, folder).Scan(&stored, &mediaID)
+	if scope := s.scopeFor(serverID, path.Dir(folder)); scope != "" {
+		return expectedSource(scopeForItem(scope, s.itemKind(serverID, folder, name)), stored)
+	}
 	var local string
 	if s.DB.QueryRow(`SELECT local_path FROM watches WHERE server_id = ? AND remote_path = ? LIMIT 1`,
 		serverID, folder).Scan(&local) == nil {
 		if _, scope := s.watchMatchQuery(serverID, folder, local); scope != "" &&
 			stored != mangaSource && !s.anilistAgreesWithPlex(mediaID, stored, local) {
-			return sourceForScope(scope)
+			return expectedSource(scope, stored)
 		}
 	}
 	if stored != "" {

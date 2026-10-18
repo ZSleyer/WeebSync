@@ -171,6 +171,9 @@ func (s *Server) sweepServer(ctx context.Context, serverID int64, budget int) {
 		marks = append(marks, scope{m[0], m[1]})
 	}
 
+	if s.matchingOff() {
+		marks = nil // every provider is switched off for matching: nothing is asked
+	}
 	queued := 0
 	for _, m := range marks {
 		if queued >= budget {

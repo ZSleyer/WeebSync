@@ -12,6 +12,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
+	"github.com/ch4d1/weebsync/internal/tvdb"
 )
 
 // hintRecheck is how long a folder that got no hint is left alone before the
@@ -84,10 +85,56 @@ func (s *Server) isContainerFolder(serverID int64, folder string) bool {
 	return rows.Err() == nil && titled >= 3
 }
 
+// hintProviders lists, in the order the routing setting gives them for the
+// non-anime list of the folder's kind, the sources a folder's hint may come from: TVDB's and TMDB's
+// shows for a series, their films for a film. AniList is the match, never a
+// hint.
+func (s *Server) hintProviders(movie bool) []string {
+	var out []string
+	for _, p := range s.providerSequence(false, movie) {
+		switch {
+		case p == "tvdb" && movie:
+			out = append(out, tvdbMovieSource)
+		case p == "tvdb":
+			out = append(out, "tvdb")
+		case p == "tmdb" && movie:
+			out = append(out, "tmdb:movie")
+		case p == "tmdb":
+			out = append(out, "tmdb:tv")
+		}
+	}
+	return out
+}
+
+// hintCandidates searches one provider for the folder's name.
+func (s *Server) hintCandidates(ctx context.Context, source, query string) ([]anilist.Media, error) {
+	switch source {
+	case "tmdb:tv", "tmdb:movie":
+		return s.Tmdb.Search(ctx, strings.TrimPrefix(source, "tmdb:"), query, 0)
+	case "tvdb", tvdbMovieSource:
+		var hits []tvdb.Hit
+		var err error
+		if source == tvdbMovieSource {
+			hits, err = s.Tvdb.SearchMovies(ctx, query, "", 0)
+		} else {
+			hits, err = s.Tvdb.SearchHits(ctx, query, "")
+		}
+		if err != nil {
+			return nil, err
+		}
+		out := make([]anilist.Media, 0, len(hits))
+		for _, h := range hits {
+			out = append(out, h.Media)
+		}
+		return out, nil
+	}
+	return nil, nil
+}
+
 // hintBatch looks up the folders of a match batch that stayed unmatched, the
 // ones tagged as western or streamed releases first.
 func (s *Server) hintBatch(ctx context.Context, batch []matchJob, infos []match.Info, idx []int) {
-	if s.Tmdb == nil || !s.Tmdb.Enabled() || len(idx) == 0 {
+	if len(idx) == 0 || (len(s.hintProviders(false)) == 0 && len(s.hintProviders(true)) == 0) {
 		return
 	}
 	order := make([]int, 0, len(idx))
@@ -111,10 +158,10 @@ func (s *Server) hintBatch(ctx context.Context, batch []matchJob, infos []match.
 	}
 }
 
-// hintFolder looks one folder up on TMDB - one tv search, one movie search -
-// and stores what passes the gate (match.HintAccept) as the folder's hint. A
-// dismissed hint is never replaced; a failed lookup stores nothing, so the
-// next pass retries.
+// hintFolder looks one folder up - on the providers its kind routes to, one
+// search each, the first that has a candidate passing the gate (match.HintAccept)
+// wins - and stores that as the folder's hint. A dismissed hint is never
+// replaced; a failed lookup stores nothing, so the next pass retries.
 func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name string, info match.Info, force bool) error {
 	var state string
 	var checked int64
@@ -133,60 +180,66 @@ func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name st
 		return nil
 	}
 	tier := hintTierOf(name)
-	type cand struct {
-		kind  string
-		m     anilist.Media
-		score int
-	}
-	var best *cand
-	var cands []cand
-	for _, kind := range []string{"tv", "movie"} {
-		list, err := s.Tmdb.Search(ctx, kind, query, 0)
+	h := matchHint{}
+	for _, source := range s.hintProviders(s.autoMovie(serverID, folder, name, info)) {
+		list, err := s.hintCandidates(ctx, source, query)
 		if err != nil {
 			return err
 		}
+		type cand struct {
+			m     anilist.Media
+			score int
+		}
+		var best *cand
+		var cands []cand
 		for _, m := range list {
-			if !match.HintAccept(info, query, m, tier) {
+			if !match.HintAcceptFrom(info, query, m, tier, source != "tvdb" && source != tvdbMovieSource) {
 				continue
 			}
-			c := cand{kind: kind, m: m}
-			// the entry whose title is the folder's, then the kind the
-			// folder says, then the one most people rated
+			c := cand{m: m}
+			// the entry whose title is the folder's, then the one most people rated
 			for _, t := range []string{m.Title.Romaji, m.Title.English} {
 				if t != "" && match.Normalize(t) == match.Normalize(query) {
 					c.score = 4
 				}
-			}
-			if (kind == "movie") == info.Movie {
-				c.score += 2
 			}
 			cands = append(cands, c)
 			if best == nil || c.score > best.score || (c.score == best.score && m.Popularity > best.m.Popularity) {
 				best = &c
 			}
 		}
-	}
-	// several entries that are the folder's title equally well ("Treasure
-	// Island" has a dozen) and no year to tell them apart: a guess among them
-	// is no hint
-	if best != nil && info.Year == 0 {
-		for _, c := range cands {
-			if c.score == best.score && (c.kind != best.kind || c.m.ID != best.m.ID) {
-				best = nil
-				break
+		// several entries that are the folder's title equally well ("Treasure
+		// Island" has a dozen) and no year to tell them apart: a guess among them
+		// is no hint
+		if best != nil && info.Year == 0 {
+			for _, c := range cands {
+				if c.score == best.score && c.m.ID != best.m.ID {
+					best = nil
+					break
+				}
 			}
 		}
-	}
-	h := matchHint{}
-	if best != nil {
+		if best == nil {
+			continue
+		}
 		// the details show what a search result does not: a series with no
 		// episode is a placeholder, and the poster/overview must still be there
-		full, err := s.Tmdb.Media(ctx, best.kind, best.m.ID)
+		var full *anilist.Media
+		switch source {
+		case "tvdb":
+			full, err = s.Tvdb.Media(ctx, best.m.ID)
+		case tvdbMovieSource:
+			full, err = s.Tvdb.Movie(ctx, best.m.ID)
+		default:
+			full, err = s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), best.m.ID)
+		}
 		if err != nil {
 			return err
 		}
-		if (best.kind == "movie" || full.Episodes > 0) && (full.CoverImage.Large != "" || strings.TrimSpace(full.Description) != "") {
-			h = matchHint{Source: "tmdb:" + best.kind, MediaID: best.m.ID, Title: displayTitle(*full, "tmdb:"+best.kind), Year: full.SeasonYear}
+		movie := source == "tmdb:movie" || source == tvdbMovieSource
+		if (movie || full.Episodes > 0) && (full.CoverImage.Large != "" || strings.TrimSpace(full.Description) != "") {
+			h = matchHint{Source: source, MediaID: best.m.ID, Title: displayTitle(*full, source), Year: full.SeasonYear}
+			break
 		}
 	}
 	st := "none"
