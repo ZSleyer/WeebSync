@@ -97,6 +97,11 @@ var (
 	folderFinal  = regexp.MustCompile(`(?i)\bfinal\b`)
 	movieRe      = regexp.MustCompile(`(?i)\bmovies?\b`)
 	ovaRe        = regexp.MustCompile(`(?i)\b(?:ova|oad|specials?)\b`)
+	// "Part 2", "Dai Hachi Gakari 2nd" and "Symphogear -2- G" name a later
+	// installment without the word "season"
+	partRe    = regexp.MustCompile(`(?i)\bpart\s*(\d{1,2})\b`)
+	ordTailRe = regexp.MustCompile(`(?i)\s(\d{1,2})(?:st|nd|rd|th)\s*$`)
+	dashNumRe = regexp.MustCompile(`(?:^|\s)-(\d{1,2})-(?:\s|$)`)
 	// a free word after the last tag group: "Title [JapDub,EngSub] dropped"
 	tailWordsRe = regexp.MustCompile(`^\p{L}[\p{L} '-]*$`)
 	tailMarkRe  = regexp.MustCompile(`(?i)\b(?:movies?|films?|ova|oad|specials?|seasons?|staffel|part|final|arc|tv)\b`)
@@ -123,6 +128,14 @@ func seasonMarker(s string) int {
 	}
 	if m := romanTailRe.FindStringSubmatch(s); m != nil {
 		return romanNum[m[1]]
+	}
+	// last: a later installment only when it says so with a number >= 2
+	for _, re := range []*regexp.Regexp{dashNumRe, partRe} {
+		if m := re.FindStringSubmatch(s); m != nil {
+			if n, _ := strconv.Atoi(m[1]); n >= 2 {
+				return n
+			}
+		}
 	}
 	return 0
 }
@@ -157,6 +170,13 @@ func Marks(name string) []Mark {
 	add("season", wordSeasonRe, num)
 	add("season", spelledOrdRe, func(sub []string) string { return strconv.Itoa(spelledNum[strings.ToLower(sub[1])]) })
 	add("season", romanTailRe, func(sub []string) string { return strconv.Itoa(romanNum[sub[1]]) })
+	for _, re := range []*regexp.Regexp{dashNumRe, partRe} {
+		for _, ix := range re.FindAllStringSubmatchIndex(name, -1) {
+			if n, _ := strconv.Atoi(name[ix[2]:ix[3]]); n >= 2 {
+				out = append(out, Mark{Kind: "season", Value: strconv.Itoa(n), Start: ix[0], End: ix[1]})
+			}
+		}
+	}
 	add("final", folderFinal, func(sub []string) string { return sub[0] })
 	add("movie", movieRe, func(sub []string) string { return sub[0] })
 	add("ova", ovaRe, func(sub []string) string { return sub[0] })
@@ -329,6 +349,39 @@ func StripMarkers(s string) string {
 		}
 	}
 	return strings.TrimSpace(s)
+}
+
+// TrailingOrdinal reads a bare trailing "2nd"/"3rd" of a folder title, 0 when
+// there is none. It is no marker in ParseName - "Major 2nd" is a title - but
+// the fallback search may take it for one when the title as written finds
+// nothing ("Dai Hachi Gakari 2nd").
+func TrailingOrdinal(s string) int {
+	if m := ordTailRe.FindStringSubmatch(s); m != nil {
+		if n, _ := strconv.Atoi(m[1]); n >= 2 {
+			return n
+		}
+	}
+	return 0
+}
+
+// partNumber reads the N of a "Part N" in a title, 0 when there is none.
+func partNumber(s string) int {
+	if m := partRe.FindStringSubmatch(s); m != nil {
+		n, _ := strconv.Atoi(m[1])
+		return n
+	}
+	return 0
+}
+
+// StripFolderMarkers is StripMarkers for a folder's title, which also drops
+// the markers only folders use: "Part 2", a trailing "2nd" and "-2-".
+// AniList's own titles are not read this way, so StripMarkers stays the
+// comparison fold for candidates.
+func StripFolderMarkers(s string) string {
+	for _, re := range []*regexp.Regexp{partRe, dashNumRe, ordTailRe} {
+		s = re.ReplaceAllString(s, " ")
+	}
+	return StripMarkers(s)
 }
 
 // StripSeason removes the markers of ONE known season from a title, leaving
@@ -543,6 +596,14 @@ func PickExplain(info Info, list []anilist.Media) (int, bool, []Scored) {
 		// a strictly equal title overrides a season contradiction: the
 		// folder "K-On!!" IS the entry titled "K-ON!!"/"K-ON! Season 2"
 		have := SeasonOf(m)
+		// a folder that names a later installment finds it in a TV entry
+		// called "Part 2". Only for such folders: "Gaiden Part 2" films and
+		// "Part 2" specials are no seasons of a folder without a marker.
+		if have == 0 && info.Season >= 2 && m.Format == "TV" {
+			if n := max(partNumber(m.Title.Romaji), partNumber(m.Title.English)); n >= 2 {
+				have = n
+			}
+		}
 		if ss := seasonScore(info, have); ss > 0 || !strict {
 			add("season", ss, strconv.Itoa(have))
 		}
@@ -556,6 +617,11 @@ func PickExplain(info Info, list []anilist.Media) (int, bool, []Scored) {
 		}
 		if info.OVA && ovaFormats[m.Format] {
 			add("ova_format", 25, m.Format)
+		}
+		// "Part 2" names the entry that is called Part 2 (its sibling "Season 2"
+		// shares more words with a folder that says Season-like things)
+		if fp := partNumber(info.Full); fp >= 2 && have == info.Season && (partNumber(m.Title.Romaji) == fp || partNumber(m.Title.English) == fp) {
+			add("part", 25, strconv.Itoa(fp))
 		}
 		if info.Year != 0 && m.SeasonYear != 0 && abs(m.SeasonYear-info.Year) <= 1 {
 			add("year", 10, strconv.Itoa(m.SeasonYear))

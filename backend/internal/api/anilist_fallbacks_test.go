@@ -105,7 +105,9 @@ func TestMatchBatchFallbacks(t *testing.T) {
 		want   int // 0 = stays unmatched
 	}{
 		// each fallback the folder needs
-		{"Mewkledreamy [JapDub,EngSub,Yumi] dropped", 9}, // free text after the tags
+		{"Spy x Family Part 2 [JapDub,GerEngSub,CR]", 3},             // x for the times sign, Part 2 entry
+		{"Mewkledreamy [JapDub,EngSub,Yumi] dropped", 9},             // free text after the tags
+		{"Senki Zesshou Symphogear -2- G [JapDub,GerEngSub,CR]", 11}, // -2- infix
 		// siblings and collections that must stay unmatched
 	}
 	var batch []matchJob

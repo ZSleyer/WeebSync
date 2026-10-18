@@ -2763,6 +2763,7 @@
         "seasonFinal": "Finale Staffel",
         "movie_format": "Format {{arg}}",
         "ova_format": "Format {{arg}}",
+        "part": "Teil {{arg}}",
         "year": "Jahr {{arg}} passt",
         "promo": "Trailer oder Werbung",
         "music": "Musikvideo",

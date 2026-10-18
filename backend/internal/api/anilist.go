@@ -471,15 +471,22 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 	})
 	var stripped []int
 	for i := range results {
-		if len(results[i]) == 0 && (infos[i].Season >= 2 || infos[i].OVA) {
-			if base := match.StripMarkers(reqs[i].Query); base != "" && normTitle(base) != normTitle(reqs[i].Query) {
+		if len(results[i]) == 0 && (infos[i].Season >= 2 || infos[i].OVA || match.TrailingOrdinal(reqs[i].Query) >= 2) {
+			if base := match.StripFolderMarkers(reqs[i].Query); base != "" && normTitle(base) != normTitle(reqs[i].Query) {
 				stripped = append(stripped, i)
 			}
 		}
 	}
 	runFallback("stripped-markers", stripped, func(i int) anilist.SearchReq {
-		return anilist.SearchReq{Query: match.StripMarkers(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
+		return anilist.SearchReq{Query: match.StripFolderMarkers(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
+	// "Dai Hachi Gakari 2nd" is read as season 2 only now that the title as
+	// written found nothing: "Major 2nd" is a title, and keeps its meaning
+	for _, i := range stripped {
+		if n := match.TrailingOrdinal(reqs[i].Query); len(results[i]) > 0 && infos[i].Season == 0 && n >= 2 {
+			infos[i].Season = n
+		}
+	}
 	return results, infos, trace, nil
 }
 
