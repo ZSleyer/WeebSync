@@ -10,8 +10,11 @@ import { LocalPicker } from '../../components/FileBrowser'
 import PathInput, { trimSlashes } from '../../components/PathInput'
 import { PRESETS, TITLE_LANGS } from '../../components/RenameOptions'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
-import { SaveBarView } from './useSettingsForm'
+import { SaveBarView, useSettingsForm } from './useSettingsForm'
 import { SettingsPanel, SwitchSetting, TextSetting } from './ui'
+
+// The server stores the interval as a whole number and refuses a JSON float
+const toInt = (v: string) => Math.trunc(Number(v)) || 0
 
 const KINDS = ['anime-series', 'anime-movie', 'series', 'movie'] as const
 type Kind = (typeof KINDS)[number]
@@ -51,6 +54,9 @@ export default function SyncDefaults() {
     queryKey: ['watch-defaults'],
     queryFn: () => api.get('/api/auth/watch-defaults'),
   })
+  // the check interval is an instance setting, not a per-user default: the
+  // admin's half of this page, saved through the settings form
+  const inst = useSettingsForm({ enabled: isAdmin })
   const caps = useProviders()
   // what the form shows until the first edit: the stored defaults, filled up
   const stored = data
@@ -62,7 +68,9 @@ export default function SyncDefaults() {
   const [kind, setKind] = useState<Kind>('anime-series')
   const [browse, setBrowse] = useState(false)
   const [saved, setSaved] = useState(false)
-  const dirty = !!stored && !!edited && JSON.stringify(edited) !== JSON.stringify(stored)
+  const defaultsDirty = !!stored && !!edited && JSON.stringify(edited) !== JSON.stringify(stored)
+  const instForm = isAdmin ? inst.form : null
+  const dirty = defaultsDirty || (!!instForm && inst.dirty)
   // a path still carrying the slash the picker appends is stored clean
   const tidy = (d: WatchDefaults): WatchDefaults => ({
     ...d,
@@ -258,15 +266,37 @@ export default function SyncDefaults() {
         <p className="sf-note">{t('settings.sync.langHint')}</p>
       </SettingsPanel>
 
+      {instForm && (
+        <SettingsPanel title={t('settings.sync.schedule')}>
+          <TextSetting
+            label={t('settings.watchInterval')}
+            mono
+            narrow
+            type="number"
+            inputMode="numeric"
+            min={5}
+            max={1440}
+            step={1}
+            value={instForm.watchIntervalMin}
+            onChange={(v) => inst.set('watchIntervalMin', toInt(v))}
+          />
+        </SettingsPanel>
+      )}
+
       <SaveBarView
         dirty={dirty}
-        saved={saved}
-        pending={save.isPending}
-        error={save.error?.message}
-        onSave={() => save.mutate(form)}
+        saved={saved || inst.saved}
+        pending={save.isPending || inst.save.isPending}
+        error={save.error?.message ?? inst.save.error?.message}
+        onSave={() => {
+          if (defaultsDirty) save.mutate(form)
+          if (instForm && inst.dirty) inst.save.mutate(instForm)
+        }}
         onDiscard={() => {
           save.reset()
           setForm(null)
+          inst.save.reset()
+          inst.reset()
         }}
       />
     </>

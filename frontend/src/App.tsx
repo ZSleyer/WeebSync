@@ -309,6 +309,13 @@ const unloaded = <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType, fir
     )
   }
 }
+// /settings/transfers was split: the hardware panel moved to Wiedergabe, the
+// rest is Downloads. Old bookmarks and search links keep landing on theirs.
+function TransfersRedirect() {
+  const { hash } = useLocation()
+  return <RedirectWithQuery to={hash === '#hardware' ? '/settings/playback#hardware' : '/settings/downloads'} />
+}
+
 const screen =
   <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType, admin = false) =>
   async () => {
@@ -506,14 +513,24 @@ export const router = createBrowserRouter(
             )}
             handle={inSettings('nav.servers')}
           />
+          <Route path="transfers" element={<TransfersRedirect />} />
           <Route
-            path="transfers"
+            path="downloads"
             lazy={screen(
-              () => import('./pages/settings/Transfers'),
+              () => import('./pages/settings/Downloads'),
               (m) => m.default,
               true,
             )}
-            handle={inSettings('settings.nav.transfers')}
+            handle={inSettings('settings.nav.downloads')}
+          />
+          <Route
+            path="playback"
+            lazy={screen(
+              () => import('./pages/settings/Playback'),
+              (m) => m.default,
+              true,
+            )}
+            handle={inSettings('settings.nav.playback')}
           />
           <Route
             path="security"

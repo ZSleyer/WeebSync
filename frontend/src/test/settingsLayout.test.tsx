@@ -74,4 +74,27 @@ describe('SettingsLayout', () => {
     await new Promise((r) => setTimeout(r, 20))
     expect(screen.queryByRole('link', { name: /settings\.plex/ })).toBeNull()
   })
+
+  // Transfers was split: downloads, and the player's hardware under Wiedergabe
+  it('lists Downloads and Wiedergabe for admins only, and finds the hardware panel there', async () => {
+    app('/settings/general', true)
+    expect(await screen.findByRole('link', { name: /settings.nav.downloads/ })).toHaveAttribute(
+      'href',
+      '/settings/downloads',
+    )
+    expect(screen.getByRole('link', { name: /settings.nav.playback/ })).toHaveAttribute('href', '/settings/playback')
+    expect(screen.queryByRole('link', { name: /settings.nav.transfers/ })).toBeNull()
+    fireEvent.change(screen.getByRole('searchbox'), { target: { value: 'settings.hw' } })
+    expect(await screen.findByRole('link', { name: /settings\.hw\.title/ })).toHaveAttribute(
+      'href',
+      '/settings/playback#hardware',
+    )
+  })
+
+  it('hides Downloads and Wiedergabe from a user', async () => {
+    app('/settings/general')
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByRole('link', { name: /settings.nav.downloads/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /settings.nav.playback/ })).toBeNull()
+  })
 })

@@ -2,11 +2,12 @@ import { useId, useState, type ReactNode } from 'react'
 import {
   Bell,
   BookOpen,
-  Gauge,
+  Download,
   HardDrive,
   Info,
   Link2,
   ListChecks,
+  MonitorPlay,
   Paintbrush,
   Plug,
   RefreshCw,
@@ -51,7 +52,8 @@ const INTEGRATIONS: SectionItem[] = [
   { to: 'integrations', key: 'settings.nav.integrations', icon: Plug, hint: 'settings.hub.integrations' },
 ]
 const SYSTEM: SectionItem[] = [
-  { to: 'transfers', key: 'settings.nav.transfers', icon: Gauge, hint: 'settings.hub.transfers' },
+  { to: 'downloads', key: 'settings.nav.downloads', icon: Download, hint: 'settings.hub.downloads' },
+  { to: 'playback', key: 'settings.nav.playback', icon: MonitorPlay, hint: 'settings.hub.playback' },
   { to: 'security', key: 'settings.nav.security', icon: Shield, hint: 'settings.hub.security' },
   { to: 'jobs', key: 'settings.nav.jobs', icon: ListChecks, hint: 'settings.hub.jobs' },
   { to: 'data', key: 'settings.nav.data', icon: HardDrive, hint: 'settings.hub.data' },
@@ -70,7 +72,7 @@ export const PANELS = [
   { to: 'integrations#ai', key: 'settings.ai' },
   { to: 'integrations#homeassistant', key: 'settings.homeAssistant' },
   { to: 'integrations#email', key: 'settings.email' },
-  { to: 'transfers#hardware', key: 'settings.hw.title' },
+  { to: 'playback#hardware', key: 'settings.hw.title' },
   { to: 'jobs#log', key: 'settings.jobs.logs.title' },
   { to: 'data#import', key: 'legacy.title' },
 ]

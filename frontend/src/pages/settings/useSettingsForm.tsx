@@ -95,11 +95,14 @@ const BLANK_SECRETS = {
 // leaves out and checks only what changed, so a stale tab no longer reverts
 // another tab's save, and a value on another page that went bad since does
 // not block this one.
-export function useSettingsForm() {
+export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) {
   const qc = useQueryClient()
+  // `enabled: false` for a page that also opens for non-admins: GET
+  // /api/settings is admin-only
   const { data } = useQuery<SettingsState>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
+    enabled,
   })
   // what the form shows until the first edit: the fetched state, secrets blanked
   const seeded = data ? { ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' } : null

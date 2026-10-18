@@ -188,6 +188,18 @@ export default function Security() {
           </p>
         )}
       </SettingsPanel>
+      <SettingsPanel title={t('settings.instance')}>
+        <TextSetting
+          label={t('settings.baseUrl')}
+          hint={t('settings.baseUrlHint')}
+          env={locked('baseUrl')}
+          mono
+          type="url"
+          placeholder="https://weebsync.example.com"
+          value={form.baseUrl}
+          onChange={(v) => set('baseUrl', v)}
+        />
+      </SettingsPanel>
       <ApiTokenSection />
       <RateLimitSection />
       {/* the user list has no form of its own and reads the saved settings,
