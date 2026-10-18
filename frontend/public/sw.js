@@ -53,7 +53,6 @@ async function offline(res) {
   return page || res || Response.error()
 }
 
-
 self.addEventListener('push', (event) => {
   let data = { title: 'WeebSync', body: '' }
   try {
@@ -64,7 +63,8 @@ self.addEventListener('push', (event) => {
   const opts = {
     body: data.body,
     icon: data.icon || '/icon-192.png',
-    badge: '/icon-192.png',
+    // Android draws the badge as a silhouette from its alpha: a one-colour mark
+    badge: '/badge-96.png',
     // same tag replaces the earlier notification instead of stacking a
     // folder sync's worth of them; renotify still alerts on the replacement
     tag: data.tag,
