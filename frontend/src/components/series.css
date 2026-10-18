@@ -485,7 +485,7 @@ html[data-overlay] .app-shell > main > * {
   outline-offset: 2px;
 }
 
-/* ── cast and posters: a snap row on a phone, a wrapping grid on desktop ── */
+/* ── cast and posters: a scrolling row on a phone, a wrapping grid on desktop ── */
 .ws-d-cast,
 .ws-d-posters {
   list-style: none;
@@ -498,6 +498,14 @@ html[data-overlay] .app-shell > main > * {
   scroll-snap-type: x mandatory;
   scroll-padding: var(--d-pad);
   scrollbar-width: thin;
+}
+/* no snap under a finger: Chrome caps a fling at the next snap point, so the
+   row braked after a tile instead of coasting (see .t-shelf) */
+@media (hover: none) {
+  .ws-d-cast,
+  .ws-d-posters {
+    scroll-snap-type: none;
+  }
 }
 .ws-d-cast {
   grid-auto-columns: 5.75rem;
