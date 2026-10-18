@@ -340,6 +340,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/push/subscribe", authed(http.HandlerFunc(s.handlePushSubscribe)))
 	mux.Handle("DELETE /api/push/subscribe", authed(http.HandlerFunc(s.handlePushUnsubscribe)))
 	mux.Handle("POST /api/push/test", authed(http.HandlerFunc(s.handlePushTest)))
+	// the system fetches notification icons without cookies: signed instead
+	mux.HandleFunc("GET /api/push/cover", s.handlePushCover)
 
 	// watches (persistent auto-sync)
 	mux.Handle("GET /api/watches", authed(http.HandlerFunc(s.handleWatchesList)))

@@ -17125,6 +17125,57 @@
                 ]
             }
         },
+        "/api/push/cover": {
+            "get": {
+                "description": "Fetches the signed https poster URL, cuts the largest square out of it (upper part of a portrait) and serves it as a JPEG of at most 256 px. The signature is issued by the server inside the push payload.",
+                "parameters": [
+                    {
+                        "description": "Poster URL (https)",
+                        "in": "query",
+                        "name": "u",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Signature of u",
+                        "in": "query",
+                        "name": "sig",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "image/jpeg": {
+                                "schema": {
+                                    "type": "file"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "404": {
+                        "content": {
+                            "image/jpeg": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    }
+                },
+                "summary": "Square-cropped cover for a push notification",
+                "tags": [
+                    "Push"
+                ]
+            }
+        },
         "/api/push/key": {
             "get": {
                 "description": "Returns the VAPID public key browsers use to subscribe to push notifications.",

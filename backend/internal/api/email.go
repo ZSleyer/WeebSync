@@ -285,7 +285,7 @@ func (s *Server) notifyQuiet(userID int64) time.Duration {
 // suggestion/upgrade notifications ever get chatty enough to need a digest.
 func (s *Server) NotifyEvent(userID int64, category, title, body, url, icon string) {
 	if s.Push != nil && s.pushAllowed(userID, category) {
-		n := push.Notification{Title: title, Body: body, Tag: category, URL: url, Icon: httpsOnly(icon)}
+		n := push.Notification{Title: title, Body: body, Tag: category, URL: url, Icon: s.pushCoverURL(httpsOnly(icon))}
 		s.Push.Notify(userID, n)
 	}
 	locale := s.userLocale(userID)
@@ -436,6 +436,7 @@ func (s *Server) pushDigest(userID int64, category, locale string, items []diges
 	}
 	n := buildDownloadPush(locale, category == "download_done", s.pushItems(userID, locale, items))
 	n.Tag = category // finished and failed collapse separately
+	n.Icon = s.pushCoverURL(n.Icon)
 	n.Timestamp = time.Now().UnixMilli()
 	s.Push.Notify(userID, n)
 }
