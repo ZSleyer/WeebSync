@@ -87,6 +87,9 @@ type catalogItem struct {
 	// Local: what the folder holds on disk. Only set for the local catalog,
 	// where the question is "what do I have", not "what can I fetch".
 	Local *LocalStat `json:"local,omitempty"`
+	// Hint: a suggestion from TMDB for a folder AniList found nothing for.
+	// Not a match: the user confirms it through the match endpoint or drops it.
+	Hint *matchHint `json:"hint,omitempty"`
 }
 
 // folderKind classifies a catalog folder as a film or a series. The primary
@@ -783,6 +786,9 @@ func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
 			// searched before, nothing found: display "no match" but retry
 			// quietly (search cache makes this cheap); manual unmatch is final
 			s.queueScopedMatch(serverID, e.Path, e.Name, itemScope, false)
+			if manual == 0 && itemSource == "anilist" {
+				item.Hint = s.hintFor(serverID, e.Path)
+			}
 		case mediaID != 0:
 			item.Media, item.Pending = s.sourceMedia(itemSource, mediaID)
 		}

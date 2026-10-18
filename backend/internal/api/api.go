@@ -373,6 +373,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("GET /api/servers/{id}/rename-profile", authed(http.HandlerFunc(s.handleRenameProfile)))
 	mux.Handle("GET /api/servers/{id}/catalog", authed(http.HandlerFunc(s.handleCatalog)))
 	mux.Handle("PUT /api/servers/{id}/catalog/match", authed(http.HandlerFunc(s.handleCatalogMatch)))
+	mux.Handle("POST /api/servers/{id}/catalog/hint/dismiss", authed(http.HandlerFunc(s.handleCatalogHintDismiss)))
 	mux.Handle("POST /api/servers/{id}/catalog/rematch", authed(http.HandlerFunc(s.handleCatalogRematch)))
 	mux.Handle("GET /api/servers/{id}/catalog/explain", authed(http.HandlerFunc(s.handleCatalogExplain)))
 	mux.Handle("POST /api/explain/name", authed(http.HandlerFunc(s.handleExplainName)))

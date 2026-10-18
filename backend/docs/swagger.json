@@ -4924,6 +4924,10 @@
                     "entry": {
                         "$ref": "#/components/schemas/remote.Entry"
                     },
+                    "hint": {
+                        "$ref": "#/components/schemas/api.matchHint",
+                        "description": "Hint: a suggestion from TMDB for a folder AniList found nothing for.\nNot a match: the user confirms it through the match endpoint or drops it."
+                    },
                     "kind": {
                         "description": "Kind: heuristic movie/series classification, so films mixed into a series\nlibrary are told apart. \"\" when nothing is conclusive.",
                         "type": "string"
@@ -5258,6 +5262,17 @@
                 "required": [
                     "kind",
                     "origin"
+                ],
+                "type": "object"
+            },
+            "api.hintDismissRequest": {
+                "properties": {
+                    "folder": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "folder"
                 ],
                 "type": "object"
             },
@@ -5615,6 +5630,33 @@
                 },
                 "required": [
                     "level"
+                ],
+                "type": "object"
+            },
+            "api.matchHint": {
+                "description": "Hint: a suggestion from TMDB for a folder AniList found nothing for.\nNot a match: the user confirms it through the match endpoint or drops it.",
+                "properties": {
+                    "mediaId": {
+                        "type": "integer"
+                    },
+                    "source": {
+                        "enum": [
+                            "tmdb:tv",
+                            "tmdb:movie"
+                        ],
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "year": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "source",
+                    "mediaId",
+                    "title"
                 ],
                 "type": "object"
             },
@@ -18364,6 +18406,103 @@
                     }
                 ],
                 "summary": "Explain a catalog match",
+                "tags": [
+                    "Catalog"
+                ]
+            }
+        },
+        "/api/servers/{id}/catalog/hint/dismiss": {
+            "post": {
+                "description": "Drop the TMDB hint offered for an unmatched folder; it is not offered again.",
+                "parameters": [
+                    {
+                        "description": "Server id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.hintDismissRequest",
+                                        "description": "Folder",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "Folder",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Dismiss match hint",
                 "tags": [
                     "Catalog"
                 ]

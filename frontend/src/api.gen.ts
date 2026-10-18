@@ -2137,6 +2137,11 @@ export interface Schemas {
   'api.catalogItem': {
     entry: Schemas['remote.Entry']
     /**
+     * Hint: a suggestion from TMDB for a folder AniList found nothing for.
+     * Not a match: the user confirms it through the match endpoint or drops it.
+     */
+    hint?: Schemas['api.matchHint']
+    /**
      * Kind: heuristic movie/series classification, so films mixed into a series
      * library are told apart. "" when nothing is conclusive.
      */
@@ -2319,6 +2324,9 @@ export interface Schemas {
      */
     shape?: string
   }
+  'api.hintDismissRequest': {
+    folder: string
+  }
   'api.hwCandidate': {
     code: "ok" | "no_render_nodes" | "render_node_no_access" | "vaapi_driver_failed" | "no_nvidia_device" | "nvenc_failed" | "skipped_by_mode"
     /**
@@ -2441,6 +2449,16 @@ export interface Schemas {
   }
   'api.logLevelRequest': {
     level: string
+  }
+  /**
+   * Hint: a suggestion from TMDB for a folder AniList found nothing for.
+   * Not a match: the user confirms it through the match endpoint or drops it.
+   */
+  'api.matchHint': {
+    mediaId: number
+    source: "tmdb:tv" | "tmdb:movie"
+    title: string
+    year?: number
   }
   'api.mediaExtrasResponse': {
     characters: Schemas['anilist.Character'][]
