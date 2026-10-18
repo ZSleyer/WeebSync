@@ -437,45 +437,56 @@ var yearRe = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 // No batching: TMDB's rate limit is generous and the client paces itself.
 func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force bool) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		// what Plex identified under this name and year wins over a search
-		mediaID, _ := s.matchLocalByPlexID(folder, "tmdb:"+kind)
-		year, _ := strconv.Atoi(yearRe.FindString(name))
-		for _, lq := range s.liveQueries(serverID, folder, name) {
-			if mediaID != 0 {
-				break
-			}
-			var list []anilist.Media
-			for _, y := range []int{year, 0} {
-				if y == 0 && year != 0 && len(list) > 0 {
-					break // the year search answered; without it only strangers join
-				}
-				if force {
-					// a stale entry that stays only costs the refresh
-					_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
-						tmdb.SearchCacheKey(kind, lq.q, y))
-				}
-				l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
-				if err != nil {
-					return // retried by the next catalog poll
-				}
-				list = append(list, l...)
-				if year == 0 {
-					break
-				}
-			}
-			// the localized name and the original, as the adapter maps them
-			cands := make([]liveCand, 0, len(list))
-			for _, m := range list {
-				cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID)})
-			}
-			mediaID = pickLive(name, lq.accept, cands)
-		}
-		if mediaID != 0 {
-			s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
+		mediaID, err := s.tmdbLookup(ctx, serverID, folder, name, kind, force)
+		if err != nil {
+			return // retried by the next catalog poll
 		}
 		// persistMatch logs a failure; the next catalog poll retries
 		_ = s.persistMatch(serverID, folder, mediaID, false, "tmdb:"+kind)
 	})
+}
+
+// tmdbLookup finds the TMDB entry of kind (tv | movie) a folder names, 0 when
+// none carries one of the folder's names. An error means the search itself
+// failed: nothing is known, nothing should be stored.
+func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, kind string, force bool) (int, error) {
+	// what Plex identified under this name and year wins over a search
+	mediaID, _ := s.matchLocalByPlexID(folder, "tmdb:"+kind)
+	year, _ := strconv.Atoi(yearRe.FindString(name))
+	for _, lq := range s.liveQueries(serverID, folder, name) {
+		if mediaID != 0 {
+			break
+		}
+		var list []anilist.Media
+		for _, y := range []int{year, 0} {
+			if y == 0 && year != 0 && len(list) > 0 {
+				break // the year search answered; without it only strangers join
+			}
+			if force {
+				// a stale entry that stays only costs the refresh
+				_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`,
+					tmdb.SearchCacheKey(kind, lq.q, y))
+			}
+			l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
+			if err != nil {
+				return 0, err
+			}
+			list = append(list, l...)
+			if year == 0 {
+				break
+			}
+		}
+		// the localized name and the original, as the adapter maps them
+		cands := make([]liveCand, 0, len(list))
+		for _, m := range list {
+			cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID)})
+		}
+		mediaID = pickLive(name, lq.accept, cands)
+	}
+	if mediaID != 0 {
+		s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
+	}
+	return mediaID, nil
 }
 
 // queueTmdbFetch refreshes missing/stale TMDB media in the background.

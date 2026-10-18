@@ -20,40 +20,50 @@ import (
 // queueTvdbMatch resolves one folder against TVDB in the background.
 func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		// Plex has already identified a show of this name and year: its id
-		// beats any title search (12 of 12 against a search that missed some)
-		mediaID, _ := s.matchLocalByPlexID(folder, "tvdb")
-		year, _ := strconv.Atoi(yearRe.FindString(name))
-		for _, q := range s.liveQueries(serverID, folder, name) {
-			if mediaID != 0 {
-				break
-			}
-			var hits []tvdb.Hit
-			if year != 0 {
-				// the year finds what popularity buries ("Squid Game" 2021)
-				h, err := s.Tvdb.SearchYear(ctx, q.q, year)
-				if err != nil {
-					return // retried by the next catalog poll
-				}
-				hits = h
-			}
-			h, err := s.Tvdb.SearchHits(ctx, q.q, "")
-			if err != nil {
-				return
-			}
-			hits = append(hits, h...)
-			cands := make([]liveCand, 0, len(hits))
-			for _, h := range hits {
-				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles, anime: s.inAnimeIDs("tvdb", h.Media.ID)})
-			}
-			mediaID = pickLive(name, q.accept, cands)
-		}
-		if mediaID != 0 {
-			s.Tvdb.Media(ctx, mediaID) // full details into the cache first
+		mediaID, err := s.tvdbLookup(ctx, serverID, folder, name)
+		if err != nil {
+			return // retried by the next catalog poll
 		}
 		// persistMatch logs a failure; the next catalog poll retries
 		_ = s.persistMatch(serverID, folder, mediaID, false, "tvdb")
 	})
+}
+
+// tvdbLookup finds the TVDB series a folder names, 0 when none carries one of
+// the folder's names. An error means the search itself failed.
+func (s *Server) tvdbLookup(ctx context.Context, serverID int64, folder, name string) (int, error) {
+	// Plex has already identified a show of this name and year: its id
+	// beats any title search (12 of 12 against a search that missed some)
+	mediaID, _ := s.matchLocalByPlexID(folder, "tvdb")
+	year, _ := strconv.Atoi(yearRe.FindString(name))
+	for _, q := range s.liveQueries(serverID, folder, name) {
+		if mediaID != 0 {
+			break
+		}
+		var hits []tvdb.Hit
+		if year != 0 {
+			// the year finds what popularity buries ("Squid Game" 2021)
+			h, err := s.Tvdb.SearchYear(ctx, q.q, year)
+			if err != nil {
+				return 0, err
+			}
+			hits = h
+		}
+		h, err := s.Tvdb.SearchHits(ctx, q.q, "")
+		if err != nil {
+			return 0, err
+		}
+		hits = append(hits, h...)
+		cands := make([]liveCand, 0, len(hits))
+		for _, h := range hits {
+			cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles, anime: s.inAnimeIDs("tvdb", h.Media.ID)})
+		}
+		mediaID = pickLive(name, q.accept, cands)
+	}
+	if mediaID != 0 {
+		s.Tvdb.Media(ctx, mediaID) // full details into the cache first
+	}
+	return mediaID, nil
 }
 
 // queueTvdbMovieMatch resolves a film folder against TVDB's films, the way
@@ -61,38 +71,47 @@ func (s *Server) queueTvdbMatch(serverID int64, folder, name string, force bool)
 // carry one of the folder's names, the year as a veto beyond two.
 func (s *Server) queueTvdbMovieMatch(serverID int64, folder, name string) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		mediaID, _ := s.matchLocalByPlexID(folder, tvdbMovieSource)
-		year, _ := strconv.Atoi(yearRe.FindString(name))
-		for _, q := range s.liveQueries(serverID, folder, name) {
-			if mediaID != 0 {
-				break
-			}
-			var hits []tvdb.Hit
-			if year != 0 {
-				h, err := s.Tvdb.SearchMovies(ctx, q.q, "", year)
-				if err != nil {
-					return // retried by the next catalog poll
-				}
-				hits = h
-			}
-			h, err := s.Tvdb.SearchMovies(ctx, q.q, "", 0)
-			if err != nil {
-				return
-			}
-			hits = append(hits, h...)
-			cands := make([]liveCand, 0, len(hits))
-			for _, h := range hits {
-				cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles,
-					anime: slices.Contains(h.Media.Genres, "Anime")})
-			}
-			mediaID = pickLive(name, q.accept, cands)
-		}
-		if mediaID != 0 {
-			s.Tvdb.Movie(ctx, mediaID) // full details into the cache first
+		mediaID, err := s.tvdbMovieLookup(ctx, serverID, folder, name)
+		if err != nil {
+			return // retried by the next catalog poll
 		}
 		// persistMatch logs a failure; the next catalog poll retries
 		_ = s.persistMatch(serverID, folder, mediaID, false, tvdbMovieSource)
 	})
+}
+
+// tvdbMovieLookup is tvdbLookup for TVDB's films.
+func (s *Server) tvdbMovieLookup(ctx context.Context, serverID int64, folder, name string) (int, error) {
+	mediaID, _ := s.matchLocalByPlexID(folder, tvdbMovieSource)
+	year, _ := strconv.Atoi(yearRe.FindString(name))
+	for _, q := range s.liveQueries(serverID, folder, name) {
+		if mediaID != 0 {
+			break
+		}
+		var hits []tvdb.Hit
+		if year != 0 {
+			h, err := s.Tvdb.SearchMovies(ctx, q.q, "", year)
+			if err != nil {
+				return 0, err
+			}
+			hits = h
+		}
+		h, err := s.Tvdb.SearchMovies(ctx, q.q, "", 0)
+		if err != nil {
+			return 0, err
+		}
+		hits = append(hits, h...)
+		cands := make([]liveCand, 0, len(hits))
+		for _, h := range hits {
+			cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles,
+				anime: slices.Contains(h.Media.Genres, "Anime")})
+		}
+		mediaID = pickLive(name, q.accept, cands)
+	}
+	if mediaID != 0 {
+		s.Tvdb.Movie(ctx, mediaID) // full details into the cache first
+	}
+	return mediaID, nil
 }
 
 // queueTvdbMovieFetch refreshes a missing or stale TVDB film in the background.
