@@ -55,7 +55,8 @@ func pushCoverSig(u string) string {
 // plain cover goes out instead - squeezed, but there.
 func (s *Server) pushCoverURL(cover string) string {
 	base := s.baseURL()
-	if cover == "" || !strings.HasPrefix(base, "https://") {
+	// only a provider's image host is fetched, any other cover goes out as it is
+	if _, ok := imageOrigin(cover, false); !ok || !strings.HasPrefix(base, "https://") {
 		return cover
 	}
 	sig := pushCoverSig(cover)
@@ -139,11 +140,11 @@ func (s *Server) pushCoverJPEG(u string) ([]byte, bool) {
 var pushCoverFetch = fetchPushCover
 
 func fetchPushCover(u string) (image.Image, error) {
-	pu, err := url.Parse(u)
-	if err != nil || pu.Scheme != "https" || pu.Hostname() == "" {
-		return nil, fmt.Errorf("not an https URL")
+	target, ok := imageOrigin(u, false)
+	if !ok {
+		return nil, fmt.Errorf("not a provider's image")
 	}
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return nil, err
 	}

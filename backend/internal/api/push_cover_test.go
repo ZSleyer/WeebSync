@@ -52,7 +52,7 @@ func TestPushCoverEndpoint(t *testing.T) {
 	pushCoverFetch = func(string) (image.Image, error) { calls++; return poster(230, 345), nil }
 	t.Cleanup(func() { pushCoverFetch = old })
 
-	cover := "https://img.example.com/c.jpg"
+	cover := "https://s4.anilist.co/file/anilistcdn/media/anime/cover/c.jpg"
 	link := s.pushCoverURL(cover)
 	// the link warms the crop in the background; every request below is a cache hit
 	s.Shutdown(context.Background())
@@ -81,7 +81,7 @@ func TestPushCoverEndpoint(t *testing.T) {
 		t.Fatalf("fetched %d times", calls)
 	}
 	// a link the server did not sign is refused, and nothing is fetched for it
-	other := "/api/push/cover?u=" + url.QueryEscape("https://other.example.com/x.jpg") + "&sig=" + u.Query().Get("sig")
+	other := "/api/push/cover?u=" + url.QueryEscape("https://s4.anilist.co/file/anilistcdn/media/anime/cover/x.jpg") + "&sig=" + u.Query().Get("sig")
 	if get(other).Code != 404 || get("/api/push/cover?u="+url.QueryEscape(cover)).Code != 404 || calls != 1 {
 		t.Fatalf("unsigned link served (%d fetches)", calls)
 	}
@@ -89,7 +89,7 @@ func TestPushCoverEndpoint(t *testing.T) {
 
 func TestPushCoverURLFallsBack(t *testing.T) {
 	s := digestTestServer(t)
-	cover := "https://img.example.com/c.jpg"
+	cover := "https://s4.anilist.co/file/anilistcdn/media/anime/cover/c.jpg"
 	// no base URL: the plain cover goes out
 	if got := s.pushCoverURL(cover); got != cover {
 		t.Fatalf("got %q", got)
@@ -100,5 +100,10 @@ func TestPushCoverURLFallsBack(t *testing.T) {
 	}
 	if got := s.pushCoverURL(""); got != "" {
 		t.Fatalf("empty: %q", got)
+	}
+	// a cover on any other host is not signed for a fetch
+	db.SetSetting(s.DB, "base_url", "https://weebsync.example.com")
+	if got := s.pushCoverURL("https://example.com/c.jpg"); got != "https://example.com/c.jpg" {
+		t.Fatalf("foreign host: got %q", got)
 	}
 }

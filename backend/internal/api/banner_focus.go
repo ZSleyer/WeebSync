@@ -189,10 +189,11 @@ func anilistImage(u string) bool {
 // comes from AniList's answers, and this must not become a way to make the
 // server load an arbitrary address.
 func fetchFocus(ctx context.Context, u string) (bannerFocus, error) {
-	if !anilistImage(u) {
+	target, ok := imageOrigin(u, true)
+	if !ok {
 		return bannerFocus{}, fmt.Errorf("not an AniList image")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return bannerFocus{}, err
 	}
