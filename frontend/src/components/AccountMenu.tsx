@@ -1,8 +1,7 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { BookOpen, ChevronUp, Info, LogOut, Paintbrush, Settings, UserRound } from 'lucide-react'
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 import { logout, useUpdateHint } from '../hooks'
 import ActionSheet, { type SheetAction } from './ActionSheet'
 
@@ -53,22 +52,66 @@ export function useAccountEntries(): { entries: Entry[]; update: boolean } {
 }
 
 /**
- * The sidebar foot's account button: the signed-in address, and a menu above
- * it with settings, the account, the look, the rules and the way out. The
- * address heads the menu as plain text and names it.
+ * The sidebar foot's account button, a disclosure: the signed-in address is
+ * the box's bottom row, and the entries grow out of it upward inside the same
+ * surface. Plain buttons in a group folded by height rather than a menu, so
+ * Tab walks them and the chevron says open or closed; Escape or a press
+ * outside folds it again, Escape handing focus back to the button.
  */
 export function AccountMenu({ email }: { email: string }) {
   const { t } = useTranslation()
   const { entries, update } = useAccountEntries()
-  const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
+  const [open, setOpen] = useState(false)
+  const box = useRef<HTMLDivElement>(null)
+  const button = useRef<HTMLButtonElement>(null)
+  const id = useId()
+  useEffect(() => {
+    if (!open) return
+    const away = (e: PointerEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', away)
+    return () => document.removeEventListener('pointerdown', away)
+  }, [open])
   return (
-    <div className="relative" ref={ref} style={anchorStyle}>
+    <div
+      className="ws-acct-box"
+      data-open={open}
+      ref={box}
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape' || !open) return
+        e.stopPropagation()
+        setOpen(false)
+        button.current?.focus()
+      }}
+    >
+      <div className="ws-acct-fold" id={id} role="group" aria-label={t('nav.accountMenu', { email })} inert={!open}>
+        <div className="ws-acct-list">
+          {entries.map((e) => (
+            <Fragment key={e.key}>
+              {e.key === 'logout' && <hr className="ws-acct-sep" />}
+              <button
+                type="button"
+                className="ws-acct-item"
+                onClick={() => {
+                  setOpen(false)
+                  e.onClick()
+                }}
+              >
+                {e.icon}
+                {e.label}
+              </button>
+            </Fragment>
+          ))}
+        </div>
+      </div>
       <button
+        ref={button}
         type="button"
         className="ws-acct"
         title={email}
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={id}
         onClick={() => setOpen(!open)}
       >
         <UpdateDot show={update}>
@@ -77,29 +120,6 @@ export function AccountMenu({ email }: { email: string }) {
         <span className="ws-acct-t">{email}</span>
         <ChevronUp aria-hidden size="1rem" className="ws-acct-chev" />
       </button>
-      {open && (
-        <Menu kind="menu" anchor={anchor} placement="top-start" aria-label={t('nav.accountMenu', { email })}>
-          <li aria-hidden className="ws-acct-head">
-            {email}
-          </li>
-          {entries.map((e) => (
-            <Fragment key={e.key}>
-              {e.key === 'logout' && <li role="separator" className="my-1 h-px bg-border-subtle" />}
-              <MenuItem
-                onClick={() => {
-                  setOpen(false)
-                  e.onClick()
-                }}
-              >
-                <span className="flex items-center gap-2.5">
-                  {e.icon}
-                  {e.label}
-                </span>
-              </MenuItem>
-            </Fragment>
-          ))}
-        </Menu>
-      )}
     </div>
   )
 }

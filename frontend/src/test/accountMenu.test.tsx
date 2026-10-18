@@ -46,17 +46,17 @@ const app = (ui: React.ReactElement, updateAvailable = false) => {
 }
 
 describe('AccountMenu', () => {
-  it('opens a menu with the address, the entries and the way out', () => {
+  it('unfolds the entries from the address button', () => {
     app(<AccountMenu email="a@b.c" />)
     const button = screen.getByRole('button', { name: 'a@b.c' })
-    expect(button).toHaveAttribute('aria-haspopup', 'menu')
     expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('group', { hidden: true })).toHaveAttribute('inert')
     fireEvent.click(button)
     expect(button).toHaveAttribute('aria-expanded', 'true')
-    const menu = screen.getByRole('menu', { name: 'nav.accountMenu' })
+    const group = screen.getByRole('group', { name: 'nav.accountMenu' })
     expect(
-      within(menu)
-        .getAllByRole('menuitem')
+      within(group)
+        .getAllByRole('button')
         .map((i) => i.textContent),
     ).toEqual([
       'nav.settings',
@@ -66,30 +66,41 @@ describe('AccountMenu', () => {
       'settings.nav.about',
       'app.logout',
     ])
-    expect(within(menu).getByRole('separator')).toBeInTheDocument()
+    expect(within(group).getByRole('separator')).toBeInTheDocument()
   })
 
-  it('goes to the chosen place and closes', () => {
+  it('goes to the chosen place and folds', () => {
     app(<AccountMenu email="a@b.c" />)
-    fireEvent.click(screen.getByRole('button', { name: 'a@b.c' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'settings.nav.rules' }))
+    const button = screen.getByRole('button', { name: 'a@b.c' })
+    fireEvent.click(button)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.nav.rules' }))
     expect(screen.getByLabelText('where')).toHaveTextContent('/rules')
-    expect(screen.queryByRole('menu')).toBeNull()
+    expect(button).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('closes on Escape', () => {
+  it('folds on Escape and gives focus back to the button', () => {
     app(<AccountMenu email="a@b.c" />)
-    fireEvent.click(screen.getByRole('button', { name: 'a@b.c' }))
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.queryByRole('menu')).toBeNull()
+    const button = screen.getByRole('button', { name: 'a@b.c' })
+    fireEvent.click(button)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'nav.settings' }), { key: 'Escape' })
+    expect(button).toHaveAttribute('aria-expanded', 'false')
+    expect(button).toHaveFocus()
+  })
+
+  it('folds on a press outside', () => {
+    app(<AccountMenu email="a@b.c" />)
+    const button = screen.getByRole('button', { name: 'a@b.c' })
+    fireEvent.click(button)
+    fireEvent.pointerDown(document.body)
+    expect(button).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('marks the button and the About entry while an update is out', async () => {
     app(<AccountMenu email="a@b.c" />, true)
-    const button = await screen.findByRole('button', { name: /app.updateHint/ })
+    const button = await screen.findByRole('button', { name: /a@b.c.*app.updateHint|app.updateHint.*a@b.c/ })
     fireEvent.click(button)
-    expect(screen.getByRole('menuitem', { name: /settings.nav.about/ })).toHaveTextContent('app.updateHint')
-    expect(screen.getByRole('menuitem', { name: /nav.settings$/ })).not.toHaveTextContent('app.updateHint')
+    expect(screen.getByRole('button', { name: /settings.nav.about/ })).toHaveTextContent('app.updateHint')
+    expect(screen.getByRole('button', { name: /nav.settings$/ })).not.toHaveTextContent('app.updateHint')
   })
 })
 
