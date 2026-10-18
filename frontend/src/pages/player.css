@@ -59,6 +59,7 @@
   font-family: var(--font-sans);
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none;
 
   --media-primary-color: var(--pl-fg);
   --media-secondary-color: transparent;
@@ -487,6 +488,27 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
   transition: opacity var(--dur-2) var(--ease-in), scale var(--dur-2) var(--ease-in);
 }
 .t-player-flash[data-on] {
+  opacity: 1;
+  scale: 1;
+  transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);
+}
+
+/* the 2x of a press and hold, top centre over the picture */
+.t-player-hold {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top, 0px));
+  left: 50%;
+  translate: -50% 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--pl-glass);
+  font: 600 0.875rem/1 var(--f-sans);
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.9;
+  transition: opacity var(--dur-2) var(--ease-in), scale var(--dur-2) var(--ease-in);
+}
+.t-player-hold[data-on] {
   opacity: 1;
   scale: 1;
   transition: opacity var(--dur-1) var(--ease-out), scale var(--dur-1) var(--ease-out);

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
 import { useBackEntry } from 'fluid-lycoris'
 import { usePlayerMenuBack } from './playerMenuBack'
+import { attachHold, HOLD_RATE } from './playerHold'
 import HlsPlayer from 'hls.js'
 import JASSUB from 'jassub'
 // Vite turns the query into a URL string; the linter only sees the .ts file
@@ -927,6 +928,12 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const noteHidden = (e: PointerEvent<HTMLElement>) => {
     if (e.pointerType === 'touch') wasHidden.current = e.currentTarget.hasAttribute('userinactive')
   }
+  // press and hold on the picture plays at 2x, see playerHold
+  const [holding, setHolding] = useState(false)
+  useEffect(() => {
+    const player = playerRef.current
+    return player ? attachHold(player, () => videoRef.current, setHolding) : undefined
+  }, [data])
   const [flash, setFlash] = useState<{ side: 'back' | 'fwd'; secs: number } | null>(null)
   const flashTimer = useRef(0)
   const tapSeek = (e: PointerEvent<HTMLElement>) => {
@@ -1104,6 +1111,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           {/* noautohide: a double-tap flash must show while the controls are away;
             the big play button has its own paused-only rule */}
           <div slot="centered-chrome" className="t-player-center" {...{ noautohide: '' }}>
+            <span className="t-player-hold" data-on={holding || undefined} role="status">
+              {holding && rateLabel(HOLD_RATE)}
+            </span>
             <span className="t-player-flash" data-side="back" data-on={flash?.side === 'back' || undefined} aria-hidden>
               {flash?.side === 'back' && `- ${flash.secs} s`}
             </span>
