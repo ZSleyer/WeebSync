@@ -468,8 +468,8 @@ export interface Schemas {
     ids: number[]
   }
   /**
-   * DubProgress: a dub the older files carry and the newer ones lack, on a
-   * watch without a dub filter; nil when there is none.
+   * DubProgress: a dub the older files carry and the newer ones lack, read
+   * from the names or the releases they came from; nil when there is none.
    */
   'api.DubProgress': {
     /**
@@ -1427,8 +1427,8 @@ export interface Schemas {
      */
     dubOverdue?: boolean
     /**
-     * DubProgress: a dub the older files carry and the newer ones lack, on a
-     * watch without a dub filter; nil when there is none.
+     * DubProgress: a dub the older files carry and the newer ones lack, read
+     * from the names or the releases they came from; nil when there is none.
      */
     dubProgress?: Schemas['api.DubProgress']
     /**

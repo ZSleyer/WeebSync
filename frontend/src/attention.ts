@@ -68,7 +68,7 @@ export function missingLabel(t: T, w: Watch): string {
   return t('watch.missing', { count: w.missing!.length, eps: fmtEps(w, w.missing!) })
 }
 
-// dubProgressLabel: a watch without a dub filter whose older files are
+// dubProgressLabel: a watch whose older files are
 // dubbed and newer ones are not yet - how far the dub is and what comes next.
 export function dubProgressLabel(t: T, w: Watch): string {
   const p = w.dubProgress!

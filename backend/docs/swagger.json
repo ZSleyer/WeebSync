@@ -1019,7 +1019,7 @@
                 "type": "object"
             },
             "api.DubProgress": {
-                "description": "DubProgress: a dub the older files carry and the newer ones lack, on a\nwatch without a dub filter; nil when there is none.",
+                "description": "DubProgress: a dub the older files carry and the newer ones lack, read\nfrom the names or the releases they came from; nil when there is none.",
                 "properties": {
                     "expectedAt": {
                         "description": "forecast of Next's dub; 0 = no date known",
@@ -3241,7 +3241,7 @@
                     },
                     "dubProgress": {
                         "$ref": "#/components/schemas/api.DubProgress",
-                        "description": "DubProgress: a dub the older files carry and the newer ones lack, on a\nwatch without a dub filter; nil when there is none."
+                        "description": "DubProgress: a dub the older files carry and the newer ones lack, read\nfrom the names or the releases they came from; nil when there is none."
                     },
                     "dubWaiting": {
                         "description": "DubWaiting: the watch is caught up on the dub it filters for; the\noriginal is ahead but the dub is not due yet - expected waiting, not\nsomething to look at.",

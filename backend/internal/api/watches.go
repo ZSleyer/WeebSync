@@ -112,8 +112,8 @@ type Watch struct {
 	// BehindLate: Behind holds more episodes than the last behindGrace of
 	// releases explains - the source is not just a few hours behind.
 	BehindLate bool `json:"behindLate,omitempty"`
-	// DubProgress: a dub the older files carry and the newer ones lack, on a
-	// watch without a dub filter; nil when there is none.
+	// DubProgress: a dub the older files carry and the newer ones lack, read
+	// from the names or the releases they came from; nil when there is none.
 	DubProgress *DubProgress `json:"dubProgress,omitempty"`
 	// Attention: why this watch needs a hand, ordered by severity; empty =
 	// fine. The one needs-attention source - dashboard, tile and the machine
@@ -1237,13 +1237,18 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 		// one walk for the gap list, the seasons and the dub tags of the names
 		var localNums map[int]bool
 		dubTags := map[int]string{}
+		src := s.downloadSources(userID, local)
 		s.walkEpisodes(local, minEp, func(k int, p string, _ int64) {
 			if localNums == nil {
 				localNums = map[int]bool{}
 			}
 			localNums[k] = true
-			// untagged names stay in as lacking every dub
+			// a renamed file keeps its dub in the release it came from;
+			// untagged either way, it stays in as saying nothing
 			d, _ := rename.LangTags(filepath.Base(p))
+			if d == "" {
+				d, _ = rename.LangTags(path.Base(src[p]))
+			}
 			dubTags[k] += d + ","
 		})
 		it.Missing = missingEpisodes(localNums)
@@ -1266,11 +1271,10 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 			append([]any{userID, it.ServerID}, underArgs...)...).Scan(&it.Active)
 		offset := watchOffset(it.Template)
 		it.Offset = offset
-		// No dub filter, yet the older files carry a dub the newer ones lack:
-		// the dub is still coming, so the title is not done.
-		if it.WantDub == "" {
-			it.DubProgress = dubProgressOf(dubTags)
-		}
+		// The older files carry a dub the newer ones lack: the dub is still
+		// coming, so the title is not done. A dub filter only gates the first
+		// download, it does not make the other languages stop counting.
+		it.DubProgress = dubProgressOf(dubTags)
 		it.Complete = watchComplete(it.Media, it.LocalFiles) && it.Active == 0 && it.DubProgress == nil
 		if it.Media != nil {
 			it.MediaID = it.Media.ID
@@ -1596,6 +1600,34 @@ func (s *Server) localEpisodeFiles(rel string) map[int][]DuplicateFile {
 // walkEpisodes calls fn for every video file under rel that carries an
 // SxxEyy number (only episodes >= minEp when minEp > 0), with the file's path
 // in the caller's form (rel joined with the path below it) and its size.
+// downloadSources maps each local file below rel to the remote path of the
+// last finished download that wrote it; empty when nothing did or the
+// history was cleared.
+//
+// ponytail: no index on downloads.local_path, a range scan over the history
+// per watch; add one if the history ever grows past a few thousand rows.
+func (s *Server) downloadSources(userID int64, rel string) map[string]string {
+	under, args := subtreeCond("local_path", rel)
+	rows, err := s.DB.Query(`SELECT local_path, remote_path FROM downloads
+		WHERE user_id = ? AND status = 'done' AND `+under+` ORDER BY id`, append([]any{userID}, args...)...)
+	if err != nil {
+		return nil // reads as untagged, nothing worse
+	}
+	defer rows.Close()
+	src := map[string]string{}
+	for rows.Next() {
+		var l, r string
+		if rows.Scan(&l, &r) != nil {
+			return nil
+		}
+		src[l] = r // a later replacement wins
+	}
+	if rows.Err() != nil {
+		return nil // a half-read list is none at all
+	}
+	return src
+}
+
 func (s *Server) walkEpisodes(rel string, minEp int, fn func(key int, path string, size int64)) {
 	for _, v := range s.localFiles(rel) {
 		if !videoExt[strings.ToLower(filepath.Ext(v.name))] {
@@ -1675,8 +1707,8 @@ func behindLate(behind int, airings []Airing, track string, now time.Time) bool 
 	return behind > recent
 }
 
-// DubProgress is how far a dub has come on a watch that fetches whatever
-// the source has: the older episodes are dubbed, the newer not yet.
+// DubProgress is how far a dub has come: the older episodes are dubbed, the
+// newer not yet.
 type DubProgress struct {
 	Lang       string `json:"lang"`                 // the code as the names spell it (Ger, Eng, ...)
 	Have       int    `json:"have"`                 // local episodes carrying it
@@ -1686,12 +1718,15 @@ type DubProgress struct {
 }
 
 // dubProgressOf reads the dub tags of a folder's names (episode key -> tags)
-// for a dub other than Japanese that stops partway: dubbed up to some
-// episode, missing on every one after it. The dub with the most episodes
-// wins. Names without a tag count as lacking it.
+// for a dub that stops partway: on older episodes, missing on the newest
+// tagged one. No language is assumed to be the original - whatever the
+// newest episode carries is, so Japanese for anime and English, German or
+// anything else for live action drop out alike. Of several trailing dubs the
+// one with the most episodes wins. Untagged names say nothing.
 //
-// ponytail: names only. A renamed file without a {dub} token says nothing;
-// probing the audio tracks would be the upgrade path.
+// ponytail: names only. A source switch that drops a language for good
+// (E1-10 EngJapDub, E11 on JapDub) reads as a trailing dub; probing the
+// audio tracks would be the upgrade path.
 func dubProgressOf(tags map[int]string) *DubProgress {
 	if len(tags) == 0 {
 		return nil
@@ -1704,16 +1739,18 @@ func dubProgressOf(tags map[int]string) *DubProgress {
 	}
 	sort.Ints(keys)
 	have, last, spelled := map[string]int{}, map[string]int{}, map[string]string{}
+	newest := 0 // the newest episode with any tag
 	for _, k := range keys {
 		seen := map[string]bool{}
 		for _, c := range rename.Codes(tags[k]) {
-			l := dubLang(c)
+			l := langCode(c)
 			if l == "" || seen[l] {
-				continue // Japanese is the original, not a dub
+				continue
 			}
 			seen[l] = true
 			have[l]++
 			last[l] = k
+			newest = k
 			if spelled[l] == "" {
 				spelled[l] = c
 			}
@@ -1721,12 +1758,15 @@ func dubProgressOf(tags map[int]string) *DubProgress {
 	}
 	best := ""
 	for l, n := range have {
+		if last[l] == newest {
+			continue // the original, or a dub that has caught up
+		}
 		if best == "" || n > have[best] || (n == have[best] && l < best) {
 			best = l
 		}
 	}
-	if best == "" || last[best] == keys[len(keys)-1] {
-		return nil // no dub, or it reaches the newest episode
+	if best == "" {
+		return nil
 	}
 	i := sort.SearchInts(keys, last[best]) + 1
 	se, ep := splitEpKey(keys[i])

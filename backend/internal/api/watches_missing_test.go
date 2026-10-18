@@ -1,9 +1,15 @@
 package api
 
 import (
+	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/dbtest"
 )
 
 func TestMissingEpisodes(t *testing.T) {
@@ -102,19 +108,71 @@ func TestDubProgressOf(t *testing.T) {
 		t.Errorf("with a dubbed season before = %+v, want %+v", got, want)
 	}
 	for name, m := range map[string]map[int]string{
-		"dub reaches the end": tags([2]int{1, 1}, "GerJapDub,", [2]int{1, 2}, "GerDub,"),
+		"dub reaches the end": tags([2]int{1, 1}, "GerJapDub,", [2]int{1, 2}, "JapGerDub,"),
 		"japanese only":       tags([2]int{1, 1}, "JapDub,", [2]int{1, 2}, "JapDub,"),
 		"no tags":             tags([2]int{1, 1}, "", [2]int{1, 2}, ""),
 		"specials only dub":   tags([2]int{0, 1}, "GerDub,", [2]int{1, 1}, "JapDub,"),
+		// the newest file says nothing, so nothing is known to trail
+		"newest untagged": tags([2]int{1, 1}, "GerJapDub,", [2]int{1, 2}, ""),
 	} {
 		if p := dubProgressOf(m); p != nil {
 			t.Errorf("%s: got %+v, want none", name, p)
+		}
+	}
+	// no original is assumed: live action in English or in German, with the
+	// other language trailing; De and Ger are one language
+	for name, c := range map[string]struct {
+		m    map[int]string
+		lang string
+	}{
+		"english original": {tags([2]int{1, 1}, "GerEngDub,", [2]int{1, 2}, "EngDub,"), "Ger"},
+		"german original":  {tags([2]int{1, 1}, "EngGerDub,", [2]int{1, 2}, "DeDub,"), "Eng"},
+	} {
+		if p := dubProgressOf(c.m); p == nil || p.Lang != c.lang || p.Next != (EpRef{1, 2}) {
+			t.Errorf("%s: got %+v, want %s trailing from S01E02", name, p, c.lang)
 		}
 	}
 	// across seasons: the next episode carries its season
 	ms := tags([2]int{1, 12}, "GerJapDub,", [2]int{2, 1}, "GerJapDub,", [2]int{2, 2}, "JapDub,")
 	if p := dubProgressOf(ms); p == nil || p.Next != (EpRef{2, 2}) {
 		t.Errorf("multi-season next = %+v, want S02E02", p)
+	}
+}
+
+// Re:Zero as it lay on disk: renamed without a {dub} token, so only the
+// releases the files came from say that the GerDub stops at E02 of E04.
+func TestDubProgressFromDownloadSources(t *testing.T) {
+	d := dbtest.Open(t)
+	root := t.TempDir()
+	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), DownloadRoot: root, LocalRoots: []string{root}})
+	if err := os.Mkdir(filepath.Join(root, "Show"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	for e, tag := range map[int]string{1: "GerJapDub", 2: "GerJapDub", 3: "JapDub", 4: "JapDub"} {
+		name := fmt.Sprintf("Show_-_S01E%02d.mkv", e)
+		if err := os.WriteFile(filepath.Join(root, "Show", name), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status) VALUES (1, 1, ?, ?, 'done')`,
+			fmt.Sprintf("/x/Show/Show S1 E%02d [%s].mkv", e, tag), "Show/"+name)
+	}
+	d.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - S01E{episode:02}')`)
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, '/x/Show', 5, 'anilist')`)
+	d.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('media:5', ?)`,
+		fmt.Sprintf(`{"id":5,"schema":%d,"status":"FINISHED","episodes":4}`, anilist.MediaSchema))
+
+	list, err := s.watchesFor(1)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("watches: %v, %d", err, len(list))
+	}
+	w := list[0]
+	want := &DubProgress{Lang: "Ger", Have: 2, Total: 4, Next: EpRef{1, 3}}
+	if !reflect.DeepEqual(w.DubProgress, want) || w.Complete {
+		t.Errorf("dubProgress = %+v, complete = %v; want %+v, not complete", w.DubProgress, w.Complete, want)
 	}
 }
 
