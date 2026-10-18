@@ -71,13 +71,13 @@ export function MatchHint({ serverId, item, variant, onTaken }: Props) {
   if (variant === 'row') {
     return (
       <span className="mt-1 block">
-        <span className="flex flex-wrap items-center gap-x-4">
+        <span className="flex flex-wrap items-center gap-x-2">
           <span className="min-w-0 break-words text-fg-2">{text}</span>
-          <span className="flex items-center gap-x-4">
-            <RowAction className="pl-0" disabled={busy} onClick={take}>
+          <span className="flex items-center gap-x-2">
+            <RowAction disabled={busy} onClick={take}>
               {t('catalog.hintTake')}
             </RowAction>
-            <RowAction className="pl-0" tone="accent-2" disabled={busy} onClick={drop}>
+            <RowAction tone="accent-2" disabled={busy} onClick={drop}>
               {t('catalog.hintDrop')}
             </RowAction>
           </span>
