@@ -53,6 +53,7 @@ async function offline(res) {
   return page || res || Response.error()
 }
 
+
 self.addEventListener('push', (event) => {
   let data = { title: 'WeebSync', body: '' }
   try {
@@ -60,29 +61,48 @@ self.addEventListener('push', (event) => {
   } catch {
     /* keep defaults */
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      // same tag replaces the earlier notification instead of stacking a
-      // folder sync's worth of them; renotify still alerts on the replacement
-      tag: data.tag,
-      renotify: !!data.tag,
-      data: { url: data.url || '/' },
-    }),
-  )
+  const opts = {
+    body: data.body,
+    icon: data.icon || '/icon-192.png',
+    badge: '/icon-192.png',
+    // same tag replaces the earlier notification instead of stacking a
+    // folder sync's worth of them; renotify still alerts on the replacement
+    tag: data.tag,
+    renotify: !!data.tag,
+    // per-action targets travel with the notification: url (a click), play
+    // (a link) and retry (an API path to POST)
+    data: { ...data.data, url: (data.data && data.data.url) || data.url || '/' },
+  }
+  if (data.timestamp) opts.timestamp = data.timestamp
+  if (Array.isArray(data.actions) && data.actions.length) opts.actions = data.actions.slice(0, 2)
+  event.waitUntil(self.registration.showNotification(data.title, opts))
 })
+
+// open a link in the app: focus a window and navigate it, else open one
+function openApp(url) {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) {
+      if ('focus' in c) return 'navigate' in c ? c.navigate(url).then((n) => n.focus()) : c.focus()
+    }
+    return self.clients.openWindow(url)
+  })
+}
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = (event.notification.data && event.notification.data.url) || '/'
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) {
-        if ('focus' in c) return 'navigate' in c ? c.navigate(url).then((n) => n.focus()) : c.focus()
-      }
-      return self.clients.openWindow(url)
-    }),
-  )
+  const d = event.notification.data || {}
+  const url = d.url || '/'
+  if (event.action === 'play' && d.play) {
+    event.waitUntil(openApp(d.play))
+  } else if (event.action === 'retry' && d.retry) {
+    // same origin, so the session cookie rides along; the route takes no body,
+    // so no content-type is needed. A failed retry lands on the history instead.
+    event.waitUntil(
+      fetch(d.retry, { method: 'POST', credentials: 'same-origin' })
+        .then((r) => (r.ok ? undefined : openApp(url)))
+        .catch(() => openApp(url)),
+    )
+  } else {
+    event.waitUntil(openApp(url))
+  }
 })
