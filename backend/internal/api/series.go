@@ -36,6 +36,10 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 		slog.Warn("match not stored", "server", serverID, "folder", logSafe(folder), "err", err)
 		return err
 	}
+	// a folder with a match, or one the user unmatched by hand, has no hint
+	if mediaID != 0 || manual {
+		s.clearHint(serverID, folder)
+	}
 	var left int64
 	if oldID != 0 && (oldID != mediaID || oldSource != source) {
 		left = s.detachProvider(oldSource, oldID)
