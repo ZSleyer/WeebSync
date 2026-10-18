@@ -194,6 +194,12 @@ var sequelWords = map[string]bool{
 // candidate that is another season than the folder's is out. Score alone
 // does not do this: a sibling sharing the first words scores like the show.
 func RelaxedAccept(info Info, query string, m anilist.Media) bool {
+	return relaxedAccept(info, query, m, false)
+}
+
+// relaxedAccept is RelaxedAccept; strict allows no folder word to be missing
+// from the candidate's titles, however long the folder name is.
+func relaxedAccept(info Info, query string, m anilist.Media, strict bool) bool {
 	// a folder that names its year cannot be held to an entry that has none
 	if info.Year != 0 && m.SeasonYear == 0 {
 		return false
@@ -231,7 +237,7 @@ func RelaxedAccept(info Info, query string, m anilist.Media) bool {
 	// one word may be missing from a title of four words or more, none from a
 	// shorter one: "Star Wars Rebels" is not "Star Wars"
 	allowed := 0
-	if len(mw)+len(sw) >= 4 {
+	if len(mw)+len(sw) >= 4 && !strict {
 		allowed = 1
 	}
 	for i, ok := range cover(mw) {

@@ -356,6 +356,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 	}
 	s.fixSequelPicks(ctx, infos, picked, rescue)
+	var unmatched []int
 	for i, b := range batch {
 		mediaID := 0
 		if picked[i] != nil {
@@ -368,7 +369,15 @@ func (s *Server) matchBatch(batch []matchJob) {
 		}
 		// persistMatch logs a failure; the folder is matched again on a later pass
 		_ = s.persistMatch(b.serverID, b.folder, mediaID, false, src)
+		if mediaID == 0 && !b.manga {
+			unmatched = append(unmatched, i)
+		}
 	}
+	// what AniList left over may be western animation or live action: TMDB
+	// gets a say, as a hint only (see hintFolder)
+	hctx, hcancel := context.WithTimeout(context.Background(), time.Minute)
+	defer hcancel()
+	s.hintBatch(hctx, batch, infos, unmatched)
 }
 
 // rescuable reports whether a non-confident best candidate is kept for the
