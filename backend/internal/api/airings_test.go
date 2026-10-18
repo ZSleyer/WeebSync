@@ -242,6 +242,16 @@ func TestRecordDubAiringsFromCrunchyroll(t *testing.T) {
 	if objects != 1 {
 		t.Errorf("objects fetched %d times, want once: the recorded version needs no second look", objects)
 	}
+	// a watch without a dub filter takes its dubs from the source folder's
+	// tag; Jap has no dub locale and drops out instead of being asked for
+	d.Exec(`UPDATE watches SET want_dub = '', remote_path = '/x/Show [GerJapDub,GerEngSub,CR]'`)
+	d.Exec(`UPDATE catalog_matches SET folder = '/x/Show [GerJapDub,GerEngSub,CR]'`)
+	d.Exec(`DELETE FROM airings WHERE lang = 'de'`)
+	s.recordDubAirings(context.Background())
+	d.QueryRow(`SELECT COUNT(*) FROM airings WHERE media_id = 5 AND lang = 'de'`).Scan(&n)
+	if n != 1 {
+		t.Errorf("without a dub filter recorded %d dub rows, want the GerDub from the folder tag", n)
+	}
 }
 
 // English has a published timetable: AnimeSchedule dates dub episodes weeks

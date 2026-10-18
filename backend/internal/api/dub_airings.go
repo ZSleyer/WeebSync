@@ -11,6 +11,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
+	"github.com/ch4d1/weebsync/internal/rename"
 )
 
 // how long the season a title maps to on Crunchyroll is trusted before it is
@@ -18,7 +19,10 @@ import (
 const crSeasonTTL = 7 * 24 * time.Hour
 
 // recordDubAirings writes down when Crunchyroll released the episodes of a
-// watched title in the dub its watch filters for. Only releases: Crunchyroll
+// watched title in the dub its watch filters for - or, on a watch without a
+// dub filter, in every dub its source folder's tag names, so the dub progress
+// of a title that fetches whatever comes gets a date too (the original's code
+// has no dub locale and drops out). Only releases: Crunchyroll
 // creates a language version the moment it goes live and not before, so there
 // is no schedule to read; the calendar projects what is still to come from
 // these (dubSlots). A title AniList does not link to a Crunchyroll series id
@@ -31,9 +35,9 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 	if s.Crunchyroll == nil {
 		return
 	}
-	rows, err := s.DB.Query(`SELECT DISTINCT cm.media_id, w.want_dub
+	rows, err := s.DB.Query(`SELECT DISTINCT cm.media_id, w.want_dub, w.remote_path
 		FROM watches w JOIN catalog_matches cm ON cm.server_id = w.server_id AND cm.folder = w.remote_path
-		WHERE cm.source = 'anilist' AND cm.media_id != 0 AND w.want_dub != ''`)
+		WHERE cm.source = 'anilist' AND cm.media_id != 0`)
 	if err != nil {
 		return
 	}
@@ -46,16 +50,23 @@ func (s *Server) recordDubAirings(ctx context.Context) {
 	var wants []want
 	for rows.Next() {
 		var id int
-		var code string
-		if rows.Scan(&id, &code) != nil {
+		var code, remote string
+		if rows.Scan(&id, &code, &remote) != nil {
 			continue
 		}
-		w := want{id, dubLang(code)}
-		if w.lang == "" || seen[w] {
-			continue
+		codes := []string{code}
+		if code == "" {
+			tag, _ := rename.PathLangTags(remote)
+			codes = rename.Codes(tag)
 		}
-		seen[w] = true
-		wants = append(wants, w)
+		for _, c := range codes {
+			w := want{id, dubLang(c)}
+			if w.lang == "" || seen[w] {
+				continue
+			}
+			seen[w] = true
+			wants = append(wants, w)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		slog.Warn("dub airings: read wants", "err", err)

@@ -175,6 +175,21 @@ func TestDubProgressFromDownloadSources(t *testing.T) {
 	if !reflect.DeepEqual(w.DubProgress, want) || w.Complete {
 		t.Errorf("dubProgress = %+v, complete = %v; want %+v, not complete", w.DubProgress, w.Complete, want)
 	}
+
+	// once the recorder has the originals and the dub's releases, the next
+	// dubbed episode is dated at the observed lag
+	day := int64(86400)
+	orig := time.Now().Unix() - 30*day
+	for e := 1; e <= 4; e++ {
+		d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, ?, '')`, orig+int64(e)*7*day, e)
+	}
+	for e := 1; e <= 2; e++ {
+		d.Exec(`INSERT INTO airings (source, media_id, airing_at, episode, lang) VALUES ('anilist', 5, ?, ?, 'de')`, orig+int64(e)*7*day+21*day, e)
+	}
+	list, _ = s.watchesFor(1)
+	if p := list[0].DubProgress; p == nil || p.ExpectedAt != orig+3*7*day+21*day {
+		t.Errorf("dubProgress = %+v, want episode 3 expected 21 days after its original", p)
+	}
 }
 
 func TestBehindLate(t *testing.T) {
