@@ -429,6 +429,20 @@ html[data-overlay] .app-shell > main > * {
   margin: 0 3px;
   flex: none;
 }
+.ws-d-mark {
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: var(--r-chip);
+  background: var(--lc, var(--fg-3));
+  flex: none;
+}
+.ws-d-mark img {
+  width: 1rem;
+  height: 1rem;
+  object-fit: contain;
+}
 .ws-d-trailer {
   margin-top: 1rem;
   max-width: 40rem;

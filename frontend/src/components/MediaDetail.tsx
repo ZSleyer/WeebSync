@@ -175,7 +175,7 @@ export default function MediaDetail({
         {streaming.map((x) => (
           <li key={x.url}>
             <a href={x.url} target="_blank" rel="noreferrer">
-              <span aria-hidden className="ws-d-dot" style={{ '--lc': x.color || undefined } as CSSProperties} />
+              <LinkMark link={x} dot />
               <span>{x.site}</span>
               <span className="ws-d-quiet">
                 {t('series.link.stream')}
@@ -187,7 +187,7 @@ export default function MediaDetail({
         {other.map((x) => (
           <li key={x.url}>
             <a href={x.url} target="_blank" rel="noreferrer">
-              <ExternalLink aria-hidden size="1rem" />
+              <LinkMark link={x} />
               <span>{x.site}</span>
               <span className="ws-d-quiet">
                 {x.type === 'SOCIAL' ? t('series.link.social') : t('series.link.info')}
@@ -206,6 +206,26 @@ export default function MediaDetail({
       {m.trailer?.site === 'youtube' && <Trailer id={m.trailer.id} art={m.bannerImage} />}
       {children}
     </>
+  )
+}
+
+/**
+ * The marker in front of an outbound link: AniList's brand mark (its white
+ * glyph on a square in the site's colour) when it has an icon, else a dot for
+ * a streaming link and the external-link glyph for the rest. Purely decorative.
+ */
+function LinkMark({ link, dot }: { link: NonNullable<MediaExtras['links']>[number]; dot?: boolean }) {
+  const [broken, setBroken] = useState(false)
+  if (link.icon && !broken)
+    return (
+      <span aria-hidden className="ws-d-mark" style={{ '--lc': link.color || undefined } as CSSProperties}>
+        <img src={link.icon} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
+      </span>
+    )
+  return dot ? (
+    <span aria-hidden className="ws-d-dot" style={{ '--lc': link.color || undefined } as CSSProperties} />
+  ) : (
+    <ExternalLink aria-hidden size="1rem" />
   )
 }
 
