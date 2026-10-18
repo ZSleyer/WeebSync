@@ -500,6 +500,28 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 	runFallback("stripped-markers", altBase, func(i int) anilist.SearchReq {
 		return anilist.SearchReq{Query: match.StripFolderMarkers(GuessAltTitle(batch[i].name)), Force: reqs[i].Force, Manga: reqs[i].Manga}
 	})
+	// "... - Orion no Ya Movie": AniList has the film without the word
+	var movie []int
+	for i := range results {
+		if len(results[i]) == 0 && infos[i].Movie {
+			if base := match.StripMovieWord(reqs[i].Query); base != "" && normTitle(base) != normTitle(reqs[i].Query) {
+				movie = append(movie, i)
+			}
+		}
+	}
+	runFallback("stripped-markers", movie, func(i int) anilist.SearchReq {
+		return anilist.SearchReq{Query: match.StripMovieWord(reqs[i].Query), Force: reqs[i].Force, Manga: reqs[i].Manga}
+	})
+	// a folder that says Movie is not the TV series sharing the title
+	for _, i := range movie {
+		kept := results[i][:0:0]
+		for _, m := range results[i] {
+			if m.Format != "TV" && m.Format != "TV_SHORT" {
+				kept = append(kept, m)
+			}
+		}
+		results[i] = kept
+	}
 	return results, infos, trace, nil
 }
 

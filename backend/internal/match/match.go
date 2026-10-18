@@ -384,6 +384,15 @@ func StripFolderMarkers(s string) string {
 	return StripMarkers(s)
 }
 
+var movieTailRe = regexp.MustCompile(`(?i)\s+movie$`)
+
+// StripMovieWord drops a trailing "Movie" from a folder's title ("... - Orion
+// no Ya Movie"): AniList names the film with it in front or not at all. Only
+// the singular goes: "Movies" is a collection no single entry stands for.
+func StripMovieWord(s string) string {
+	return strings.TrimSpace(movieTailRe.ReplaceAllString(strings.TrimSpace(s), ""))
+}
+
 // StripSeason removes the markers of ONE known season from a title, leaving
 // the show's name for a folder: "Mob Psycho 100 III" with season 3 becomes
 // "Mob Psycho 100". Unlike StripMarkers - a comparison fold that drops any

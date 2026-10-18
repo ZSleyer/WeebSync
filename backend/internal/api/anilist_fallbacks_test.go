@@ -107,9 +107,11 @@ func TestMatchBatchFallbacks(t *testing.T) {
 		// each fallback the folder needs
 		{"Spy x Family Part 2 [JapDub,GerEngSub,CR]", 3},                  // x for the times sign, Part 2 entry
 		{"En'en no Shouboutai Ni no Shou (Fire Force S2) [JapDub,CR]", 7}, // season in the alias
+		{"Kimi no Na wa Movie [JapDub,EngSub]", 8},                        // trailing Movie
 		{"Mewkledreamy [JapDub,EngSub,Yumi] dropped", 9},                  // free text after the tags
 		{"Senki Zesshou Symphogear -2- G [JapDub,GerEngSub,CR]", 11},      // -2- infix
 		// siblings and collections that must stay unmatched
+		{"Dr. Stone Movie [JapDub,EngSub]", 0}, // the film is not the TV series
 	}
 	var batch []matchJob
 	for _, c := range cases {
