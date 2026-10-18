@@ -2103,6 +2103,14 @@
             "name": "Kalender-Verlauf",
             "desc": "Was die Anbieter als Ausstrahlungstermin gemeldet haben, nach dem Termin festgehalten - ihre Zeitpläne geben nur die Zukunft heraus. Löschen nimmt dem Kalender die vergangene Woche dauerhaft: nachgeholt werden kann sie nirgends."
           },
+          "match-hints": {
+            "name": "TMDB-Zuordnungshinweise",
+            "desc": "Vorschläge von TMDB für Ordner, zu denen keine Serie gefunden wurde. Sie erscheinen nur am Ordner, bis du sie übernimmst oder verwirfst, und werden bei einer neuen Zuordnung des Ordners erneut gesucht."
+          },
+          "match-hint-dismissals": {
+            "name": "Verworfene Zuordnungshinweise",
+            "desc": "TMDB-Vorschläge, die du verworfen hast. Nach dem Löschen tauchen sie wieder auf."
+          },
           "catalog-decisions": {
             "name": "Deine Zuordnungen",
             "desc": "Von Hand gesetzte Zuordnungen und die Markierungen, welche Verzeichnisse überhaupt durchsucht werden. Nichts davon lässt sich automatisch wiederherstellen."

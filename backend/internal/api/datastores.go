@@ -166,6 +166,11 @@ var dataStores = []dataStore{
 	// Automatic folder -> media matches. Manual rows live in catalog-decisions.
 	{name: "catalog-matches", tables: []string{"catalog_matches"}, kind: kindDerived,
 		rebuild: "rematch-all", where: "manual = 0", needs: []string{"remote-index"}},
+	// The TMDB suggestions for folders AniList could not match. Looked up
+	// again by the re-match; the ones the user dismissed live in
+	// match-hint-dismissals.
+	{name: "match-hints", tables: []string{"match_hints"}, kind: kindDerived,
+		rebuild: "rematch-all", where: "state != 'dismissed'", needs: []string{"catalog-matches"}, timeCol: "checked_at"},
 	// The canonical series identity. Children first so the delete does not lean
 	// on ON DELETE CASCADE, which needs foreign_keys=ON to fire at all.
 	{name: "series", tables: []string{"series_titles", "series_seasons", "series_provider", "series"},
@@ -202,6 +207,8 @@ var dataStores = []dataStore{
 	// when explicitly asked to.
 	{name: "catalog-decisions", tables: []string{"catalog_matches", "catalog_scopes", "catalog_scope_rules"}, kind: kindDecision,
 		where: "manual = 1", keptOnReset: true},
+	{name: "match-hint-dismissals", tables: []string{"match_hints"}, kind: kindDecision,
+		where: "state = 'dismissed'", timeCol: "checked_at", keptOnReset: true},
 	{name: "suggestion-dismissals", tables: []string{"suggestion_dismissals"}, kind: kindDecision,
 		timeCol: "dismissed_at", keptOnReset: true},
 }

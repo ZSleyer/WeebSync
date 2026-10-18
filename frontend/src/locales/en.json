@@ -2103,6 +2103,14 @@
             "name": "Calendar history",
             "desc": "What the providers announced as airing slots, kept once they passed - their schedules only ever hand out the future. Deleting it takes the past week from the calendar for good: nothing can fetch it back."
           },
+          "match-hints": {
+            "name": "TMDB match hints",
+            "desc": "Suggestions from TMDB for folders no series was found for. They only appear next to the folder until you take or dismiss them, and are looked up again when the folder is re-matched."
+          },
+          "match-hint-dismissals": {
+            "name": "Dismissed match hints",
+            "desc": "TMDB suggestions you dismissed. They come back once this is deleted."
+          },
           "catalog-decisions": {
             "name": "Your own matches",
             "desc": "The matches you set by hand and the marks for which directories are searched at all. None of this can be restored automatically."
