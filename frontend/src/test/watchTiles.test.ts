@@ -71,6 +71,20 @@ describe('the tile line', () => {
     })
     expect(tileSub(t, op).text).toBe('watch.tile.absolute{"n":1180}')
   })
+  it('counts the dub instead of the episodes once a season is all there', () => {
+    const dubProgress = { lang: 'Ger', have: 15, total: 19, next: { s: 4, e: 16 } }
+    const rz = w({
+      seasons: [4],
+      localFiles: 19,
+      media: { episodes: 19, status: 'FINISHED' } as Watch['media'],
+      dubProgress,
+    })
+    expect(tileSub(t, rz).text).toBe(
+      'watch.tile.season{"n":4,"have":"watch.tile.dub{\\"lang\\":\\"Ger\\",\\"have\\":15,\\"total\\":19}"}',
+    )
+    // still short of episodes: the count says more than the dub
+    expect(tileSub(t, w({ dubProgress })).text).toMatch(/^watch\.tile\.season\{/)
+  })
   it('marks a running download', () => {
     expect(tileSub(t, w({ active: 1 })).loading).toBe(true)
   })
@@ -97,6 +111,9 @@ describe('the list columns', () => {
     expect(checkCell(t, w({ missing: [{ e: 1 }] as Watch['missing'] }))).toBe('watch.list.gap')
     expect(checkCell(t, w())).toBe('watch.list.waiting')
     expect(checkCell(t, w({ complete: true }))).toBe('watch.list.done')
+    const dubProgress = { lang: 'Ger', have: 15, total: 19, next: { s: 4, e: 16 } }
+    const rz = w({ media: { status: 'FINISHED' } as Watch['media'], dubProgress })
+    expect(checkCell(t, rz)).toBe('watch.list.dubOpen')
   })
   it('heads the calendar days today, tomorrow, then by weekday', () => {
     const today = new Date(2026, 9, 14)

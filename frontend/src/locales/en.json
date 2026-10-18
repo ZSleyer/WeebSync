@@ -1444,6 +1444,7 @@
       "absolute": "Episode {{n}}",
       "haveOf": "{{have}} of {{total}}",
       "season": "S{{n}} · {{have}}",
+      "dub": "{{lang}} {{have}}/{{total}}",
       "loading": "loading"
     },
     "list": {
@@ -1453,6 +1454,7 @@
       "finished": "finished",
       "noDate": "no date",
       "gap": "Gap",
+      "dubOpen": "dub pending",
       "waiting": "waiting",
       "done": "done"
     },

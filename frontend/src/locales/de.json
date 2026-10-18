@@ -1444,6 +1444,7 @@
       "absolute": "Folge {{n}}",
       "haveOf": "{{have}} von {{total}}",
       "season": "S{{n}} · {{have}}",
+      "dub": "{{lang}} {{have}}/{{total}}",
       "loading": "lädt"
     },
     "list": {
@@ -1453,6 +1454,7 @@
       "finished": "abgeschlossen",
       "noDate": "kein Termin",
       "gap": "Lücke",
+      "dubOpen": "Synchro offen",
       "waiting": "wartet",
       "done": "fertig"
     },

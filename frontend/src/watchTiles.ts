@@ -69,6 +69,13 @@ export function tileSub(t: T, w: Watch): TileSub {
   const season = w.seasons?.length === 1 ? w.seasons[0] : 0
   if (w.complete)
     return { text: season ? t('watch.tile.seasonComplete', { n: season }) : t('watch.tile.complete'), loading }
+  // every episode is there, only a dub still trails: the dub's count instead
+  // of the full episode count, as short as "S4 · 19 von 19" for a phone tile
+  const p = w.dubProgress
+  if (p && total > 0 && w.localFiles >= total) {
+    const dub = t('watch.tile.dub', { lang: p.lang, have: p.have, total: p.total })
+    return { text: season ? t('watch.tile.season', { n: season, have: dub }) : dub, loading }
+  }
   if (isAbsolute(w)) {
     const last = w.nextEpisode ? w.nextEpisode - 1 : w.localFiles
     return { text: t('watch.tile.absolute', { n: last }), loading }
@@ -107,9 +114,10 @@ export function diskName(localPath: string): string {
   return parts.find((p) => !MOUNT.has(p.toLowerCase())) ?? parts[0] ?? ''
 }
 
-/** The list's state column: a gap, waiting for the next episode, or finished. */
+/** The list's state column: a gap, a dub still coming, waiting for the next episode, or finished. */
 export function checkCell(t: T, w: Watch): string {
   if (hasGaps(w)) return t('watch.list.gap')
+  if (w.dubProgress) return t('watch.list.dubOpen')
   if (w.complete || (!isAiring(w) && w.media?.status === 'FINISHED')) return t('watch.list.done')
   return t('watch.list.waiting')
 }

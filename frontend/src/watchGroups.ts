@@ -60,7 +60,8 @@ function slotOf(sort: WatchSort, w: Watch, now: number): Slot {
     case 'status':
       if (w.active > 0) return [0, 'syncing', 'watch.group.syncing', undefined, 'accent-2']
       if (w.complete) return [4, 'complete', 'watch.group.complete', undefined, 'accent-2']
-      if (w.waiting || w.dubWaiting) return [2, 'waiting', 'watch.group.waiting', undefined, 'accent-2']
+      if (w.waiting || w.dubWaiting || w.dubProgress)
+        return [2, 'waiting', 'watch.group.waiting', undefined, 'accent-2']
       if (isAiring(w)) return [1, 'airing', 'watch.group.airing', undefined, 'accent-2']
       return [3, 'idle', 'watch.group.idle', undefined, 'accent-2']
     case 'name': {

@@ -60,8 +60,9 @@ describe('Auto-Sync sections', () => {
       w(3, { waiting: true }),
       w(4, { complete: true }),
       w(5),
+      w(6, { dubProgress: { lang: 'Ger', have: 15, total: 19, next: { s: 1, e: 16 } } }),
     ]
-    expect(keys('status', s)).toEqual(['syncing:1', 'airing:2', 'waiting:3', 'idle:5', 'complete:4'])
+    expect(keys('status', s)).toEqual(['syncing:1', 'airing:2', 'waiting:3,6', 'idle:5', 'complete:4'])
   })
 
   it('gives names their letter, accents folded, the rest under #', () => {
