@@ -152,6 +152,11 @@ export interface Schemas {
      * main studios/networks
      */
     studios?: string[]
+    /**
+     * Synonyms are the alternative titles ("Oresuki"). Read by the relaxed
+     * catalog search only; entries cached before the field existed have none.
+     */
+    synonyms?: string[]
     title: {
       english: string
       /**
@@ -2742,6 +2747,11 @@ export interface Schemas {
      * main studios/networks
      */
     studios?: string[]
+    /**
+     * Synonyms are the alternative titles ("Oresuki"). Read by the relaxed
+     * catalog search only; entries cached before the field existed have none.
+     */
+    synonyms?: string[]
     title: {
       english: string
       /**
@@ -2911,7 +2921,7 @@ export interface Schemas {
     hits: number
     query: string
     season?: string
-    stage: "search" | "unfiltered" | "alt-title" | "normalized" | "stripped-markers"
+    stage: "search" | "unfiltered" | "alt-title" | "normalized" | "stripped-markers" | "relaxed"
     year?: number
   }
   'api.seriesCandidate': {

@@ -283,6 +283,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "synonyms": {
+                        "description": "Synonyms are the alternative titles (\"Oresuki\"). Read by the relaxed\ncatalog search only; entries cached before the field existed have none.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "title": {
                         "properties": {
                             "english": {
@@ -6300,6 +6308,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "synonyms": {
+                        "description": "Synonyms are the alternative titles (\"Oresuki\"). Read by the relaxed\ncatalog search only; entries cached before the field existed have none.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "title": {
                         "properties": {
                             "english": {
@@ -6668,7 +6684,8 @@
                             "unfiltered",
                             "alt-title",
                             "normalized",
-                            "stripped-markers"
+                            "stripped-markers",
+                            "relaxed"
                         ],
                         "type": "string"
                     },

@@ -129,7 +129,10 @@ type Media struct {
 		Color string `json:"color,omitempty"`
 	} `json:"coverImage"`
 	BannerImage string `json:"bannerImage"`
-	Trailer     *struct {
+	// Synonyms are the alternative titles ("Oresuki"). Read by the relaxed
+	// catalog search only; entries cached before the field existed have none.
+	Synonyms []string `json:"synonyms,omitempty"`
+	Trailer  *struct {
 		ID        string `json:"id"`
 		Site      string `json:"site"` // "youtube" | "dailymotion"
 		Thumbnail string `json:"thumbnail"`
@@ -223,7 +226,7 @@ func (m *Media) Airings() []AiringSlot {
 	return nil
 }
 
-const mediaFields = `id title { romaji english native } coverImage { medium large extraLarge color } bannerImage
+const mediaFields = `id title { romaji english native } synonyms coverImage { medium large extraLarge color } bannerImage
 	trailer { id site thumbnail }
 	nextAiringEpisode { airingAt episode }
 	airingSchedule(notYetAired: true, perPage: 25) { nodes { airingAt episode } }

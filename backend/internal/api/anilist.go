@@ -381,7 +381,7 @@ func rescuable(info match.Info, best anilist.Media, manga bool) bool {
 // searchStep is one search of the match chain for one folder: the stage that
 // ran it, the query and how many candidates came back (-1: the request failed).
 type searchStep struct {
-	Stage  string `json:"stage" enums:"search,unfiltered,alt-title,normalized,stripped-markers"`
+	Stage  string `json:"stage" enums:"search,unfiltered,alt-title,normalized,stripped-markers,relaxed"`
 	Query  string `json:"query"`
 	Season string `json:"season,omitempty"`
 	Year   int    `json:"year,omitempty"`
@@ -522,6 +522,7 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 		}
 		results[i] = kept
 	}
+	s.relaxedSearch(batch, reqs, infos, results, runFallback)
 	return results, infos, trace, nil
 }
 

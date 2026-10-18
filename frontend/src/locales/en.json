@@ -2721,7 +2721,8 @@
         "unfiltered": "Title without season",
         "alt-title": "Alternative title",
         "normalized": "Simplified spelling",
-        "stripped-markers": "Without the season"
+        "stripped-markers": "Without the season",
+        "relaxed": "Looser search"
       },
       "hits_one": "{{count}} hit",
       "hits_other": "{{count}} hits",

@@ -92,6 +92,9 @@ var relaxedFixtures = []fakeEntry{
 	{ID: 11, Romaji: "Senki Zesshou Symphogear G", Format: "TV", Year: 2013},
 	{ID: 12, Romaji: "Made in Abyss", Format: "TV", Year: 2017},
 	{ID: 13, Romaji: "Shin Shirayukihime Densetsu Pretear", Format: "TV", Year: 2001},
+	{ID: 15, Romaji: "Some Studio: Park Special", Format: "ONA", Year: 2023},
+	{ID: 17, Romaji: "Misc Stuff Hello Music", Format: "MUSIC", Year: 2019},
+	{ID: 18, Romaji: "Some Singer: Hello, World", Format: "MUSIC", Year: 2018},
 	{ID: 14, Romaji: "Ore wo Suki nano wa Omae dake ka yo", Format: "TV", Year: 2019, Synonyms: []string{"Oresuki"}},
 }
 
@@ -105,13 +108,24 @@ func TestMatchBatchFallbacks(t *testing.T) {
 		want   int // 0 = stays unmatched
 	}{
 		// each fallback the folder needs
-		{"Spy x Family Part 2 [JapDub,GerEngSub,CR]", 3},                  // x for the times sign, Part 2 entry
-		{"En'en no Shouboutai Ni no Shou (Fire Force S2) [JapDub,CR]", 7}, // season in the alias
-		{"Kimi no Na wa Movie [JapDub,EngSub]", 8},                        // trailing Movie
-		{"Mewkledreamy [JapDub,EngSub,Yumi] dropped", 9},                  // free text after the tags
-		{"Senki Zesshou Symphogear -2- G [JapDub,GerEngSub,CR]", 11},      // -2- infix
+		{"ReZero kara Hajimeru Isekai Seikatsu [JapDub,GerEngSub,CR]", 1},           // Re: written without the colon
+		{"Spy x Family Part 2 [JapDub,GerEngSub,CR]", 3},                            // x for the times sign, Part 2 entry
+		{"En'en no Shouboutai Ni no Shou (Fire Force S2) [JapDub,CR]", 7},           // season in the alias
+		{"Kimi no Na wa Movie [JapDub,EngSub]", 8},                                  // trailing Movie
+		{"Mewkledreamy [JapDub,EngSub,Yumi] dropped", 9},                            // free text after the tags
+		{"Senki Zesshou Symphogear -2- G [JapDub,GerEngSub,CR]", 11},                // -2- infix
+		{"Shin Shirayukihime Densetsu Pretear (Pretear) [JapDub,GerEngSub,CR]", 13}, // matched by its own name
 		// siblings and collections that must stay unmatched
+		{"Dr. Stone - Ryuusu [JapGerDub,GerEngSub,CR]", 0},
 		{"Dr. Stone Movie [JapDub,EngSub]", 0}, // the film is not the TV series
+		// folders that name no show at all
+		{"Some Category - Videos", 0},
+		{"Another Category [JapDub,GerSub]", 0},
+		{"Misc Stuff [JapDub,EngSub]", 0},
+		{"Hello! [EngDub]", 0},
+		{"Some Singer x Some Studio Collaboration [JapDub,GerEngSub]", 0},
+		{"Made in Abyss Movies [JapDub,EngSub,WKN]", 0},
+		{"Made in Abyss Movies Collection [JapDub]", 0},
 	}
 	var batch []matchJob
 	for _, c := range cases {
@@ -128,5 +142,10 @@ func TestMatchBatchFallbacks(t *testing.T) {
 		if got != c.want {
 			t.Errorf("%q matched %d, want %d", c.folder, got, c.want)
 		}
+	}
+	// 12 folders in 2 batches: a batch costs one request per stage, the four
+	// relaxed rounds included, however many folders are in it
+	if n := searches.Load(); n > 24 {
+		t.Errorf("%d search requests for 2 batches", n)
 	}
 }
