@@ -2267,8 +2267,6 @@
     "maxConnectionsHint": "Obergrenze gleichzeitiger Verbindungen zum Server. SFTP bündelt mehrere Kanäle über eine Verbindung; der Index wartet, wenn Downloads sie brauchen.",
     "cancel": "Abbrechen",
     "save": "Speichern",
-    "dialogEdit": "Server bearbeiten",
-    "dialogNew": "Server hinzufügen",
     "validation": "Name, Protokoll (sftp|ftps), Host, Benutzer, Passwort erforderlich",
     "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Fingerprints vergleichen und nur akzeptieren, wenn die Änderung erwartet ist (z. B. Server neu aufgesetzt) - sonst mögliche Man-in-the-Middle-Attacke.",
     "hostKeyUnknown": "Erste Verbindung zu diesem Server. Fingerprint mit dem vom Serverbetreiber veröffentlichten vergleichen und nur bei Übereinstimmung akzeptieren.",

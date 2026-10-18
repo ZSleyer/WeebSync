@@ -673,3 +673,56 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
+/* ── The server form page: two columns from sm, one on a phone ── */
+.srv-form {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+}
+@media (width >= 40rem) {
+  .srv-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+/* a pick among pictures or dots: twelve even cells, the word taking two */
+.srv-pick {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.375rem;
+}
+@media (width >= 40rem) {
+  .srv-pick {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+}
+.srv-pick > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--fg-3);
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r-item);
+}
+.srv-pick > button.wide {
+  grid-column: span 2;
+}
+.srv-pick > button[aria-pressed="true"] {
+  color: var(--fg);
+  border-color: var(--accent);
+  background: var(--hover);
+}
+@media (hover: hover) {
+  .srv-pick > button:hover {
+    color: var(--fg);
+  }
+}
+.srv-pick .srv-dot {
+  width: 1.125rem;
+  height: 1.125rem;
+}

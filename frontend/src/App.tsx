@@ -513,6 +513,22 @@ export const router = createBrowserRouter(
             )}
             handle={inSettings('nav.servers')}
           />
+          <Route
+            path="servers/new"
+            lazy={screen(
+              () => import('./pages/settings/Servers'),
+              (m) => m.ServerFormPage,
+            )}
+            handle={h('servers.newTitle', '/settings/servers', 'nav.settings')}
+          />
+          <Route
+            path="servers/:id"
+            lazy={screen(
+              () => import('./pages/settings/Servers'),
+              (m) => m.ServerFormPage,
+            )}
+            handle={h('servers.editTitle', '/settings/servers', 'nav.settings')}
+          />
           <Route path="transfers" element={<TransfersRedirect />} />
           <Route
             path="downloads"

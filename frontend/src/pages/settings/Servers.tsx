@@ -1,10 +1,16 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router'
 import { Plus, Server, ShieldAlert } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, Button, Dialog, Field, Input, RowAction, Segmented, Select, SettingsField } from 'fluid-lycoris'
+import { Badge, Button, Field, Input, RowAction, Select, SettingsField } from 'fluid-lycoris'
 import { api, keyConflictOf, type KeyConflict, type ServerInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
+import { BackLink } from '../../components/BackLink'
+import Loading from '../../components/Loading'
+import { PageFooter } from '../../components/PageActions'
+import { useBack } from '../../components/playLinks'
+import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import FtpsMigrateDialog from '../../components/FtpsMigrate'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
 import { useAuth } from '../../hooks'
@@ -30,16 +36,9 @@ export default function Servers() {
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
   })
-  // mount-to-open, like every other dialog in the app: the state IS the dialog
-  const [editing, setEditing] = useState<ServerInfo | null>(null)
-  const [dialogOpen, setDialogOpen] = useState(false)
+  const navigate = useNavigate()
   const [migrating, setMigrating] = useState<ServerInfo | null>(null)
   const [testResult, setTestResult] = useState<Record<number, string>>({})
-
-  const openDialog = (s: ServerInfo | null) => {
-    setEditing(s)
-    setDialogOpen(true)
-  }
 
   const del = useMutation({
     mutationFn: (id: number) => api.del(`/api/servers/${id}`),
@@ -143,7 +142,7 @@ export default function Servers() {
               <Button size="sm" onClick={() => test(s.id)} disabled={testResult[s.id] === '…'}>
                 {testResult[s.id] === '…' ? t('servers.testing') : t('servers.test')}
               </Button>
-              <Button size="sm" onClick={() => openDialog(s)}>
+              <Button size="sm" onClick={() => navigate(String(s.id))}>
                 {t('servers.edit')}
               </Button>
               <Button
@@ -178,7 +177,7 @@ export default function Servers() {
           </article>
         ))}
         <div className="sf-acts">
-          <Button variant="primary" onClick={() => openDialog(null)}>
+          <Button variant="primary" onClick={() => navigate('new')}>
             <Plus aria-hidden size="1em" />
             {t('servers.add')}
           </Button>
@@ -231,22 +230,42 @@ export default function Servers() {
       {/* an admin finds the folder rules with the index and the matches */}
       {!user?.isAdmin && <ScopeRules />}
       {migrating && <FtpsMigrateDialog server={migrating} onClose={() => setMigrating(null)} />}
-      {dialogOpen && <ServerDialog editing={editing} onClose={() => setDialogOpen(false)} />}
     </>
   )
 }
 
-function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClose: () => void }) {
+/**
+ * The add and edit screen of a server: a page of its own under the list, as
+ * the matches and the stores are, since it is a long form that wants the room
+ * (and the browser's back) rather than a box over the list. /new adds,
+ * /:id edits.
+ */
+export function ServerFormPage() {
+  const { id } = useParams()
+  const { data: servers } = useQuery<ServerInfo[]>({
+    queryKey: ['servers'],
+    queryFn: () => api.get('/api/servers'),
+  })
+  if (id === undefined) return <ServerForm editing={null} />
+  if (!servers) return <Loading page />
+  const editing = servers.find((s) => String(s.id) === id)
+  if (!editing) return <Navigate to="/settings/servers" replace />
+  return <ServerForm editing={editing} />
+}
+
+const FORM_ID = 'server-form'
+
+function ServerForm({ editing }: { editing: ServerInfo | null }) {
   const { t } = useTranslation()
-  const confirm = useConfirm()
   const qc = useQueryClient()
+  const goBack = useBack('/settings/servers')
   const [error, setError] = useState('')
   const [protocol, setProtocol] = useState<ServerInfo['protocol']>(
     editing?.protocol === 'ftp' ? 'ftps' : (editing?.protocol ?? 'sftp'),
   )
   const [icon, setIcon] = useState(editing?.icon ?? '')
   const [color, setColor] = useState(editing?.color ?? '')
-  // uncontrolled form: any input change marks it dirty for the close guard;
+  // uncontrolled form: any input change marks it dirty for the leave guard;
   // the icon and colour pickers are buttons, not inputs, so they mark it
   // themselves (a form change event never fires for them)
   const [dirty, setDirty] = useState(false)
@@ -262,31 +281,13 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   // the server twice; the ref closes the gap before the disabled re-render
   const [busy, setBusy] = useState(false)
   const busyRef = useRef(false)
-  // Dialog asks this before Escape or a backdrop click closes it
-  const mayClose = async () => {
-    if (
-      dirty &&
-      !(await confirm({
-        title: t('common.unsavedTitle'),
-        message: t('common.unsavedMsg'),
-        confirmLabel: t('common.discard'),
-        cancelLabel: t('common.keepEditing'),
-        destructive: true,
-      }))
-    )
-      return false
-    setDirty(false)
-    return true
-  }
-  const cancel = async () => {
-    if (await mayClose()) onClose()
-  }
+  // leave only once the guard has seen the form clean: navigating in the
+  // same tick as setDirty(false) would still be blocked
+  const [saved, setSaved] = useState(false)
   useEffect(() => {
-    if (!dirty) return
-    const h = (e: BeforeUnloadEvent) => e.preventDefault()
-    window.addEventListener('beforeunload', h)
-    return () => window.removeEventListener('beforeunload', h)
-  }, [dirty])
+    if (saved) goBack()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved])
 
   const submit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -312,7 +313,7 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
       else await api.post('/api/servers', body)
       qc.invalidateQueries({ queryKey: ['servers'] })
       setDirty(false)
-      onClose()
+      setSaved(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : t('app.error'))
     } finally {
@@ -322,110 +323,153 @@ function ServerDialog({ editing, onClose }: { editing: ServerInfo | null; onClos
   }
 
   return (
-    <Dialog
-      onClose={onClose}
-      onRequestClose={mayClose}
-      aria-label={editing ? t('servers.dialogEdit') : t('servers.dialogNew')}
-    >
-      {/* key remounts the form so defaultValues follow the edited server */}
-      <form
-        key={editing?.id ?? 'new'}
-        onSubmit={submit}
-        onChange={() => setDirty(true)}
-        className="dialog-body form-dlg"
-      >
-        <h2 className="form-dlg-h">{editing ? t('servers.editTitle') : t('servers.newTitle')}</h2>
-        <div className="form-dlg-bd grid gap-3 overflow-y-auto sm:grid-cols-2">
-          <Field label={t('servers.name')} className="sm:col-span-2">
-            <Input name="name" required defaultValue={editing?.name} />
-          </Field>
-          {/* the picture the source switch shows for this server; none = its name */}
-          <Field label={t('servers.icon')} className="sm:col-span-2">
-            <Segmented
-              aria-label={t('servers.icon')}
-              value={icon}
-              onChange={pickIcon}
-              options={[
-                { value: '', label: t('servers.iconNone') },
-                ...Object.keys(SERVER_ICONS).map((k) => ({
-                  value: k,
-                  'aria-label': k.replace('-', ' '),
-                  label: <ServerIcon name={k} aria-hidden size="1em" />,
-                })),
-              ]}
-            />
-          </Field>
-          {/* the tint of this server's entries where sources meet, e.g. in the search */}
-          <Field label={t('servers.color')} className="sm:col-span-2">
-            <ColorChoice value={color} onChange={pickColor} auto={editing ? serverColor(editing.id) : undefined} />
-          </Field>
-          <Field label={t('servers.protocol')}>
-            <Select
-              name="protocol"
-              value={protocol}
-              onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}
-            >
-              <option value="sftp">SFTP (SSH)</option>
-              <option value="ftps">FTPS (TLS)</option>
-            </Select>
-          </Field>
-          <Field label={t('servers.port')}>
-            <Input
-              name="port"
-              className="font-mono"
-              type="number"
-              min={1}
-              max={65535}
-              placeholder={protocol === 'ftps' ? '21 / 990' : '22'}
-              defaultValue={editing?.port || ''}
-            />
-            {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
-          </Field>
-          <Field label={t('servers.host')} className="sm:col-span-2">
-            <Input name="host" kind="host" className="font-mono" required defaultValue={editing?.host} />
-          </Field>
-          <Field label={t('servers.user')}>
-            <Input name="username" kind="username" className="font-mono" required defaultValue={editing?.username} />
-          </Field>
-          <Field label={t('servers.password')}>
-            <Input
-              name="password"
-              type="password"
-              placeholder={editing ? t('servers.unchanged') : ''}
-              required={!editing}
-              autoComplete="new-password"
-            />
-          </Field>
-          <Field label={t('servers.rootPath')} className="sm:col-span-2">
-            <Input name="rootPath" kind="path" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
-          </Field>
-          {/* the hint is its own grid cell: inside the Field it would sit
-              below the control, which pins itself to the bottom of the row */}
-          <Field label={t('servers.maxConnections')} className="sm:col-span-2">
-            <Input
-              name="maxConnections"
-              type="number"
-              min={1}
-              max={10}
-              className="w-24"
-              defaultValue={editing?.maxConnections ?? 3}
-            />
-          </Field>
-          <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
-          {error && (
-            <p className="sf-issue sm:col-span-2" role="alert">
-              {error}
-            </p>
-          )}
-        </div>
-        <footer className="dlg-foot">
-          <Button onClick={cancel}>{t('servers.cancel')}</Button>
-          <Button type="submit" variant="primary" disabled={busy}>
+    <div>
+      <UnsavedGuard dirty={dirty} />
+      <header className="set-sub max-lg:sr-only">
+        <h2 className="flex items-center gap-2">
+          {/* a phone has the title and the way back in its app bar */}
+          <BackLink to="/settings/servers" className="-ml-2 max-lg:hidden" />
+          {editing ? t('servers.editTitle') : t('servers.newTitle')}
+        </h2>
+      </header>
+      <form id={FORM_ID} onSubmit={submit} onChange={() => setDirty(true)} className="srv-form">
+        <Field label={t('servers.name')} className="sm:col-span-2">
+          <Input name="name" required defaultValue={editing?.name} />
+        </Field>
+        {/* the picture the source switch shows for this server; none = its name */}
+        <Field label={t('servers.icon')} className="sm:col-span-2">
+          <ChoiceGrid
+            label={t('servers.icon')}
+            value={icon}
+            onChange={pickIcon}
+            options={[
+              { value: '', label: t('servers.iconNone'), wide: true },
+              ...Object.keys(SERVER_ICONS).map((k) => ({
+                value: k,
+                name: k.replace('-', ' '),
+                label: <ServerIcon name={k} aria-hidden size="1.25em" />,
+              })),
+            ]}
+          />
+        </Field>
+        {/* the tint of this server's entries where sources meet, e.g. in the search */}
+        <Field label={t('servers.color')} className="sm:col-span-2">
+          <ColorChoice value={color} onChange={pickColor} auto={editing ? serverColor(editing.id) : undefined} />
+        </Field>
+        <Field label={t('servers.protocol')}>
+          <Select
+            name="protocol"
+            value={protocol}
+            onChange={(e) => setProtocol(e.target.value as ServerInfo['protocol'])}
+          >
+            <option value="sftp">SFTP (SSH)</option>
+            <option value="ftps">FTPS (TLS)</option>
+          </Select>
+        </Field>
+        <Field label={t('servers.port')}>
+          <Input
+            name="port"
+            className="font-mono"
+            type="number"
+            min={1}
+            max={65535}
+            placeholder={protocol === 'ftps' ? '21 / 990' : '22'}
+            defaultValue={editing?.port || ''}
+          />
+          {protocol === 'ftps' && <p className="mt-1 text-xs text-t-muted">{t('servers.tlsHint')}</p>}
+        </Field>
+        <Field label={t('servers.host')} className="sm:col-span-2">
+          <Input name="host" kind="host" className="font-mono" required defaultValue={editing?.host} />
+        </Field>
+        <Field label={t('servers.user')}>
+          <Input name="username" kind="username" className="font-mono" required defaultValue={editing?.username} />
+        </Field>
+        <Field label={t('servers.password')}>
+          <Input
+            name="password"
+            type="password"
+            placeholder={editing ? t('servers.unchanged') : ''}
+            required={!editing}
+            autoComplete="new-password"
+          />
+        </Field>
+        <Field label={t('servers.rootPath')} className="sm:col-span-2">
+          <Input name="rootPath" kind="path" className="font-mono" defaultValue={editing?.rootPath ?? '/'} />
+        </Field>
+        {/* the hint is its own grid cell: inside the Field it would sit
+            below the control, which pins itself to the bottom of the row */}
+        <Field label={t('servers.maxConnections')} className="sm:col-span-2">
+          <Input
+            name="maxConnections"
+            type="number"
+            min={1}
+            max={10}
+            className="w-24"
+            defaultValue={editing?.maxConnections ?? 3}
+          />
+        </Field>
+        <p className="sm:col-span-2 text-xs text-t-muted">{t('servers.maxConnectionsHint')}</p>
+        {error && (
+          <p className="sf-issue sm:col-span-2" role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+      {/* the shell's footer row on a phone, under the form on a desktop */}
+      <PageFooter>
+        <div className="set-save justify-end" role="region" aria-label={t('servers.save')}>
+          <Button onClick={goBack} disabled={busy}>
+            {t('servers.cancel')}
+          </Button>
+          <Button type="submit" form={FORM_ID} variant="primary" disabled={busy}>
             {t('servers.save')}
           </Button>
-        </footer>
-      </form>
-    </Dialog>
+        </div>
+      </PageFooter>
+    </div>
+  )
+}
+
+interface Choice {
+  value: string
+  label: ReactNode
+  /** the accessible name when the label is only a picture */
+  name?: string
+  /** takes two cells: a word next to the pictures */
+  wide?: boolean
+}
+
+/**
+ * A pick among pictures or dots as an even grid: twelve cells, six to a row
+ * on a phone and one row on a wide screen, the word option taking two. A
+ * wrapping segmented control left its last item alone on a row.
+ */
+function ChoiceGrid({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  options: Choice[]
+}) {
+  return (
+    <div role="group" aria-label={label} className="srv-pick">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={value === o.value}
+          aria-label={o.name}
+          className={o.wide ? 'wide' : undefined}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -441,14 +485,14 @@ function ColorChoice({
 }) {
   const { t } = useTranslation()
   return (
-    <Segmented
-      aria-label={t('servers.color')}
+    <ChoiceGrid
+      label={t('servers.color')}
       value={value}
       onChange={onChange}
-      className="flex-wrap"
       options={[
         {
           value: '',
+          wide: true,
           label: (
             <span className="inline-flex items-center gap-1.5">
               {auto && <span aria-hidden className="t-src-dot" style={tint(auto)} />}
@@ -458,8 +502,8 @@ function ColorChoice({
         },
         ...(Object.keys(SOURCE_COLORS) as SourceColorName[]).map((k) => ({
           value: k,
-          'aria-label': t(`servers.colors.${k}`),
-          label: <span aria-hidden className="t-src-dot" style={tint(k)} />,
+          name: t(`servers.colors.${k}`),
+          label: <span aria-hidden className="t-src-dot srv-dot" style={tint(k)} />,
         })),
       ]}
     />
