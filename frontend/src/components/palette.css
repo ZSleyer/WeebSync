@@ -146,6 +146,14 @@ dialog.pal-dlg > .pal-body {
   .pal-in { padding: 0.5rem 0.5rem 0.5rem 1rem; }
   .pal-x-icon { display: none; }
   .pal-x-kbd { display: inline-block; }
+  /* the scrollbar gets a gutter of its own inside the outline: flush against
+     the box it read as a second line beside the border, and its track ran
+     square into the header and footer dividers */
+  .pal-list {
+    margin: 0.375rem 0.375rem 0.375rem 0;
+    padding: 0 0.25rem calc(0.375rem + var(--safe-b)) 0.5rem;
+    scrollbar-gutter: stable;
+  }
   .pal-foot {
     display: flex;
     flex: none;
