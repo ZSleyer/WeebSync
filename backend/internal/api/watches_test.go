@@ -322,6 +322,7 @@ func TestWatchAttention(t *testing.T) {
 		want []string
 	}{
 		{"nothing wrong", Watch{}, nil},
+		{"not checked yet is not attention", Watch{Behind: 12, BehindLate: true, LastQueued: -1}, nil},
 		{"failed check first", Watch{LastResult: "boom", Behind: 2, BehindLate: true}, []string{"checkFailed", "behind"}},
 		{"every reason in order", Watch{
 			LastResult: "x", Behind: 1, BehindLate: true, Missing: []EpRef{{1, 4}}, DubOverdue: true,
@@ -331,6 +332,8 @@ func TestWatchAttention(t *testing.T) {
 		{"dub not out yet is not attention", Watch{LangWaiting: 3}, nil},
 		{"expected dub waiting is not attention", Watch{LangWaiting: 3, DubWaiting: true}, nil},
 		{"overdue dub still is", Watch{LangWaiting: 3, DubWaiting: true, DubOverdue: true}, []string{"dubOverdue"}},
+		{"episodes still downloading are not attention", Watch{Behind: 12, BehindLate: true, Missing: []EpRef{{1, 2}}, Active: 11}, nil},
+		{"a failed check still is while downloading", Watch{LastResult: "x", Behind: 1, BehindLate: true, Active: 1}, []string{"checkFailed"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

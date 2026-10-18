@@ -1433,16 +1433,21 @@ func (s *Server) watchesFor(userID int64) ([]Watch, error) {
 // watchAttention is THE needs-a-hand predicate, worst first. Expected
 // waiting is not attention: an episode the source has not uploaded yet only
 // counts once it is late (BehindLate), a language backlog is the dub not
-// being out yet, and only an overdue dub is a reason of its own.
+// being out yet, and only an overdue dub is a reason of its own. Neither is
+// a gap or a backlog before a check has queued anything or while downloads
+// of the watch still run: a new watch fetches every aired episode at once,
+// and until they land it would read as all of them late. LastQueued, not
+// LastCheck: the check stamps that before it lists the source.
 func watchAttention(w Watch) []string {
 	var out []string
+	settled := w.LastQueued != -1 && w.Active == 0
 	if w.LastResult != "" {
 		out = append(out, "checkFailed")
 	}
-	if w.Behind > 0 && w.BehindLate {
+	if w.Behind > 0 && w.BehindLate && settled {
 		out = append(out, "behind")
 	}
-	if len(w.Missing) > 0 {
+	if len(w.Missing) > 0 && settled {
 		out = append(out, "missing")
 	}
 	if w.DubOverdue {
