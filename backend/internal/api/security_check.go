@@ -135,11 +135,11 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		{"jellyfin_http", "jellyfin_url", "JELLYFIN_URL", "jellyfin_token", "JELLYFIN_TOKEN"},
 	} {
 		u := db.SettingOrEnv(s.DB, c.key, c.env)
-		if strings.HasPrefix(u, "http://") && !isLoopbackURL(u) && secret.SettingOrEnv(s.DB, c.secretSetting, c.secretSettingEnv) != "" {
+		if strings.HasPrefix(u, "http://") && !isInternalURL(u) && secret.SettingOrEnv(s.DB, c.secretSetting, c.secretSettingEnv) != "" {
 			add(c.id, "warn", 0, hostOf(u))
 		}
 	}
-	if u := db.Setting(s.DB, "ha_webhook_url"); strings.HasPrefix(u, "http://") && !isLoopbackURL(u) {
+	if u := db.Setting(s.DB, "ha_webhook_url"); strings.HasPrefix(u, "http://") && !isInternalURL(u) {
 		// the webhook id in the path is the whole credential
 		add("ha_webhook_http", "warn", 0, hostOf(u))
 	}
@@ -173,6 +173,36 @@ func hostOf(raw string) string {
 }
 
 func isLoopbackURL(raw string) bool { return isLoopbackHost(hostOf(raw)) }
+
+// cgnat is the shared address space (RFC 6598) Tailscale and carrier NAT use.
+var cgnat = netip.MustParsePrefix("100.64.0.0/10")
+
+// isInternalURL: the URL's host is reachable only inside a private network,
+// where cleartext does not cross the internet: loopback, private, link-local
+// or CGNAT addresses, single-label names (Docker services, add-on hostnames)
+// and the reserved local suffixes.
+func isInternalURL(raw string) bool {
+	h := strings.TrimSuffix(strings.ToLower(hostOf(raw)), ".")
+	if h == "" {
+		return false
+	}
+	if isLoopbackHost(h) {
+		return true
+	}
+	if a, err := netip.ParseAddr(h); err == nil {
+		a = a.Unmap()
+		return !a.IsUnspecified() && (a.IsPrivate() || a.IsLinkLocalUnicast() || cgnat.Contains(a))
+	}
+	if !strings.Contains(h, ".") {
+		return true
+	}
+	for _, suf := range []string{".local", ".lan", ".internal", ".home.arpa", ".localdomain"} {
+		if strings.HasSuffix(h, suf) {
+			return true
+		}
+	}
+	return false
+}
 
 // broadNetworks names the trusted networks so wide that the rate-limit
 // bypass covers strangers: any IPv4 prefix shorter than /8, IPv6 shorter

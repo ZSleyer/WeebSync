@@ -60,3 +60,65 @@ func TestSecurityCheck(t *testing.T) {
 		t.Error("the review leaks a secret")
 	}
 }
+
+func TestIsInternalURL(t *testing.T) {
+	for raw, want := range map[string]bool{
+		"http://homeassistant:8123/api/webhook/x": true,
+		"http://a0d7b954-xyz:8123":                true,
+		"http://192.168.178.5":                    true,
+		"http://10.0.0.2:80":                      true,
+		"http://172.30.32.1":                      true,
+		"http://[fd0c:ac1e:2100::1]:8123":         true,
+		"http://[fe80::1]":                        true,
+		"http://100.100.1.1":                      true,
+		"http://nas.local":                        true,
+		"http://NAS.Local.":                       true,
+		"http://ha.home.arpa":                     true,
+		"http://x.lan":                            true,
+		"http://x.internal":                       true,
+		"http://x.localdomain":                    true,
+		"http://localhost":                        true,
+		"http://127.0.0.1":                        true,
+		"http://[::1]":                            true,
+		"http://example.com":                      false,
+		"http://ha.example.org":                   false,
+		"http://8.8.8.8":                          false,
+		"http://100.128.0.1":                      false,
+		"http://0.0.0.0":                          false,
+		"http://[2001:db8::1]":                    false,
+		"http://":                                 false,
+	} {
+		if got := isInternalURL(raw); got != want {
+			t.Errorf("%s: got %v, want %v", raw, got, want)
+		}
+	}
+}
+
+// A service URL that stays inside the host's network is not a cleartext
+// finding; one on a public name still is.
+func TestSecurityCheckHAWebhookInternal(t *testing.T) {
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	has := func(url string) bool {
+		db.SetSetting(s.DB, "ha_webhook_url", url)
+		rec := doReq(mux, "GET", "/api/admin/security-check", "", adminC)
+		var got []SecurityCheck
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("%d %s", rec.Code, rec.Body)
+		}
+		for _, c := range got {
+			if c.ID == "ha_webhook_http" {
+				return true
+			}
+		}
+		return false
+	}
+	if has("http://homeassistant:8123/api/webhook/x") {
+		t.Error("service name flagged")
+	}
+	if !has("http://ha.example.com/api/webhook/x") {
+		t.Error("public host not flagged")
+	}
+}
