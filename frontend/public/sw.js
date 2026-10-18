@@ -1,13 +1,25 @@
 // WeebSync service worker: makes the app installable, shows push
 // notifications and answers a failed page load with an offline page.
 //
-// The only thing cached is that page and what it needs (OFFLINE_FILES). The
+// Two things are cached: that page and what it needs (OFFLINE_FILES), and the
+// public cover/banner images of the metadata providers (IMAGE_HOSTS). The
 // app's code, /api/ and every authenticated response always come from the
 // network, so a cached copy can never serve stale or another user's data.
-// Raise CACHE when those files change; activate drops every other cache.
+// Raise CACHE when the offline files change; activate drops every cache but
+// this one and IMAGE_CACHE.
 const CACHE = 'weebsync-offline-v1'
 const OFFLINE = '/offline.html'
 const OFFLINE_FILES = [OFFLINE, '/offline.js', '/favicon.svg']
+
+// Provider pictures are public and content-addressed (a changed picture gets a
+// new URL), so a stored copy never needs revalidating. Nothing else is cached.
+const IMAGE_CACHE = 'weebsync-img-v1'
+const IMAGE_HOSTS = ['s4.anilist.co', 'image.tmdb.org', 'artworks.thetvdb.com']
+// ~150 KB a picture on average, so the cap is about 90 MB
+const IMAGE_MAX = 600
+// trim once per this many stores: keys() walks the whole cache
+const TRIM_EVERY = 25
+let stored = TRIM_EVERY
 
 // skipWaiting/claim are safe here: this worker never serves the app's code
 // (it passes every request but a failed navigation through), so replacing it
@@ -28,16 +40,59 @@ self.addEventListener('activate', (e) =>
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE && k !== IMAGE_CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   ),
 )
 
+// a provider picture worth keeping: GET over https from a known host; TMDB's
+// original size is 1.3 MB each and never shown at that size
+function cacheableImage(req) {
+  if (req.method !== 'GET' || req.destination !== 'image') return false
+  const u = new URL(req.url)
+  return u.protocol === 'https:' && IMAGE_HOSTS.includes(u.hostname) && !u.pathname.startsWith('/t/p/original/')
+}
+
+// Cache first. A page's <img> is a no-cors request, which the worker would only
+// see as an opaque response (status 0, padded in the storage quota), so a miss
+// is fetched again with CORS and stored when it is a readable image; a host that
+// refuses CORS is simply passed through, uncached.
+async function image(req) {
+  try {
+    const cache = await caches.open(IMAGE_CACHE)
+    const hit = await cache.match(req.url)
+    if (hit) return hit
+    let res
+    try {
+      res = await fetch(req.url, { mode: 'cors', credentials: 'omit' })
+    } catch {
+      return fetch(req)
+    }
+    if (res.ok && (res.headers.get('content-type') || '').startsWith('image/')) {
+      await cache.put(req.url, res.clone())
+      if (++stored >= TRIM_EVERY) {
+        stored = 0
+        await trim(cache)
+      }
+    }
+    return res
+  } catch {
+    return fetch(req)
+  }
+}
+
+// keys() lists oldest first: drop the surplus from the front
+async function trim(cache) {
+  const keys = await cache.keys()
+  await Promise.all(keys.slice(0, Math.max(0, keys.length - IMAGE_MAX)).map((k) => cache.delete(k)))
+}
+
 // Network first for page loads; when the server cannot be reached (or the
 // proxy in front answers 502/503/504 for it) the offline page stands in.
-// Everything else is not touched, so the browser handles it as without a worker.
+// Provider images are served from their own cache. Everything else is not touched, so the browser handles it as without a worker.
 self.addEventListener('fetch', (event) => {
   const req = event.request
+  if (cacheableImage(req)) return event.respondWith(image(req))
   if (req.mode !== 'navigate' || req.method !== 'GET') return
   if (new URL(req.url).pathname.startsWith('/api/')) return
   event.respondWith(

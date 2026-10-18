@@ -259,7 +259,10 @@ func harden(next http.Handler) http.Handler {
 		h.Set("Cross-Origin-Opener-Policy", "same-origin")
 		h.Set("Cross-Origin-Resource-Policy", "same-origin")
 		// self for scripts/styles; external cover/banner images (AniList, TMDB)
-		// need https+data; SSE/fetch stay same-origin. frame-src names what the
+		// need https+data; SSE/fetch stay same-origin, except that the service
+		// worker's image cache fetches those pictures itself and a worker's
+		// fetch() is judged by connect-src, so the three picture hosts are named
+		// there (nothing else, and never a wildcard). frame-src names what the
 		// app embeds: the trailer player, and the reader's EPUB chapters from
 		// our own origin - without it an iframe falls back to default-src and
 		// is blocked. Those chapters are sandboxed and are the only responses
@@ -271,7 +274,8 @@ func harden(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; "+
 				"img-src 'self' https: data:; "+
-				"style-src 'self' 'unsafe-inline'; connect-src 'self'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"connect-src 'self' https://s4.anilist.co https://image.tmdb.org https://artworks.thetvdb.com; "+
 				"frame-src 'self' https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
 		// the assistant's dictation is the browser's own speech recognition,
