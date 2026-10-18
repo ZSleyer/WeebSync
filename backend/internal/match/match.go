@@ -40,7 +40,7 @@ var (
 func GuessTitle(name string) string {
 	// Plex libraries spell spaces as underscores; as one token the title
 	// shares nothing with the entry ("7th_Time_Loop")
-	name = strings.ReplaceAll(name, "_", " ")
+	name = dropAfterTags(strings.ReplaceAll(name, "_", " "))
 	t := relname.Read(name).Title
 	if t == "" {
 		t = name
@@ -51,6 +51,25 @@ func GuessTitle(name string) string {
 		return t
 	}
 	return strings.TrimSpace(name)
+}
+
+// dropAfterTags cuts a free word after the last tag group of a name that
+// starts with its title: "Mewkledreamy [JapDub,EngSub] dropped" is the show
+// Mewkledreamy, with a note. Text with a digit, a bracket, a format or season
+// word stays: it is part of the name.
+func dropAfterTags(name string) string {
+	end := strings.LastIndex(name, "]")
+	if end < 0 || strings.HasPrefix(strings.TrimSpace(name), "[") {
+		return name
+	}
+	tail := strings.TrimSpace(name[end+1:])
+	if tail == "" || !tailWordsRe.MatchString(tail) || tailMarkRe.MatchString(tail) {
+		return name
+	}
+	if strings.TrimSpace(bracketRe.ReplaceAllString(name[:end+1], " ")) == "" {
+		return name
+	}
+	return name[:end+1]
 }
 
 // GuessAltTitle returns the alternative title from a parenthesized group
@@ -78,8 +97,11 @@ var (
 	folderFinal  = regexp.MustCompile(`(?i)\bfinal\b`)
 	movieRe      = regexp.MustCompile(`(?i)\bmovies?\b`)
 	ovaRe        = regexp.MustCompile(`(?i)\b(?:ova|oad|specials?)\b`)
-	promoRe      = regexp.MustCompile(`(?i)\b(?:teaser|trailer|pv|cm)\b`)
-	yearRe       = regexp.MustCompile(`\b(19|20)\d{2}\b`)
+	// a free word after the last tag group: "Title [JapDub,EngSub] dropped"
+	tailWordsRe = regexp.MustCompile(`^\p{L}[\p{L} '-]*$`)
+	tailMarkRe  = regexp.MustCompile(`(?i)\b(?:movies?|films?|ova|oad|specials?|seasons?|staffel|part|final|arc|tv)\b`)
+	promoRe     = regexp.MustCompile(`(?i)\b(?:teaser|trailer|pv|cm)\b`)
+	yearRe      = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 	// the "(2020)" a library names its folders with; a year in the title
 	// ("Wonder Woman 1984 (2020)") is part of the title
 	parenYearRe = regexp.MustCompile(`\(((?:19|20)\d{2})\)`)
@@ -185,7 +207,7 @@ func YearVeto(info Info, m anilist.Media) bool {
 // guessed titles. Bare trailing digits are deliberately NOT read as a season
 // ("Yami Shibai 10" is a title - exact-title scoring handles those).
 func ParseName(name, title, alt string) Info {
-	name = strings.ReplaceAll(name, "_", " ")
+	name = dropAfterTags(strings.ReplaceAll(name, "_", " "))
 	info := Info{Title: title, Alt: alt}
 	full := bracketRe.ReplaceAllString(name, " ")
 	full = parenRe.ReplaceAllString(full, " ")
