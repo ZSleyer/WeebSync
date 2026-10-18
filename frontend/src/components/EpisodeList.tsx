@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { BookOpen, Clock, Play } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
+import { Badge, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
+import { dubProgressLabel } from '../attention'
 import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import type { Schemas } from '../api.gen'
 import Loading from './Loading'
@@ -136,6 +137,15 @@ async function episodeGroups(f: EpisodeFolder): Promise<Group[]> {
     if (files.length) groups.push({ label: s.name, files })
   }
   return groups
+}
+
+/**
+ * Whether a local episode lacks the watch's dub: within the season the dub
+ * runs out in, from the first episode without it on.
+ */
+export function dubMissing(w: Pick<Watch, 'dubProgress'>, season: number, episode: number): boolean {
+  const p = w.dubProgress
+  return !!p && p.next.s === season && episode >= p.next.e
 }
 
 /** A language tag as a word in the reader's language ("jpn" is "Japanisch"). */
@@ -384,6 +394,7 @@ export default function EpisodeList({
                 otherwise reads as a broken feature, not a missing provider */}
             {q.data?.reason && <p className="ws-ex-sub">{t(`watch.gaps.${q.data.reason}`)}</p>}
             {q.data && !eps.length && !q.data.reason && <p className="ws-d-quiet">{t('series.noEpisodesKnown')}</p>}
+            {w.dubProgress && <p className="ws-ex-sub">{dubProgressLabel(t, w)}</p>}
             {seasons.map((se) => {
               const inSeason = eps.filter((e) => e.season === se)
               return (
@@ -402,8 +413,24 @@ export default function EpisodeList({
                       const air = airings.find(
                         (a) => a.episode === (e.absolute ?? e.episode) || a.episode === e.episode,
                       )
+                      const noDub = e.have && dubMissing(w, e.season, e.episode)
+                      const chip = noDub && (
+                        <Badge size="sm">{t('series.ep.noDub', { lang: w.dubProgress!.lang })}</Badge>
+                      )
                       const sub = f ? (
-                        <span>{bare(f.name)}</span>
+                        noDub ? (
+                          <span className="ws-ep-sub">
+                            <span>{bare(f.name)}</span>
+                            {chip}
+                          </span>
+                        ) : (
+                          <span>{bare(f.name)}</span>
+                        )
+                      ) : noDub ? (
+                        <span className="ws-ep-sub">
+                          <span>{e.aired ?? ''}</span>
+                          {chip}
+                        </span>
                       ) : e.upcoming ? (
                         air && air.at * 1000 > now ? (
                           <span data-tone="acc">

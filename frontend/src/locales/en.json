@@ -764,6 +764,7 @@
       "local": "Local",
       "missing": "missing on disk",
       "noDate": "no date yet",
+      "noDub": "no {{lang}} dub",
       "none": "none",
       "picture": "Picture",
       "play": "Play {{name}}",

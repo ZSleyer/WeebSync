@@ -764,6 +764,7 @@
       "local": "Lokal",
       "missing": "fehlt auf der Platte",
       "noDate": "noch kein Termin",
+      "noDub": "ohne {{lang}}-Dub",
       "none": "keine",
       "picture": "Bild",
       "play": "{{name}} abspielen",

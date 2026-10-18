@@ -486,6 +486,44 @@ describe('SeriesModalProvider', () => {
     expect(screen.getByRole('button', { name: 'series.ep.play:Drei' })).toBeInTheDocument()
   })
 
+  it('notes the dub progress above the episodes and marks local episodes without the dub', async () => {
+    const dub = { lang: 'Ger', have: 1, total: 2, next: { s: 1, e: 3 } }
+    serve({
+      watches: [{ ...watch(1), serverId: 1, dubProgress: dub } as Watch],
+      episodes: [
+        { season: 1, episode: 2, have: true, title: 'Zwei' },
+        { season: 1, episode: 3, have: true, title: 'Drei' },
+      ],
+      files: [
+        { name: 'Frieren S01E02.mkv', path: '/media/Frieren S01E02.mkv', isDir: false, size: 1e9, modTime: '' },
+        { name: 'Frieren S01E03.mkv', path: '/media/Frieren S01E03.mkv', isDir: false, size: 2e9, modTime: '' },
+      ],
+    })
+    target = { id: 7, media, tab: 'episodes' }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    const three = (await screen.findByRole('button', { name: 'series.ep.facts:Drei' })).closest('li')!
+    expect(three).toHaveTextContent('series.ep.noDub')
+    expect(screen.getByRole('button', { name: 'series.ep.facts:Zwei' }).closest('li')).not.toHaveTextContent(
+      'series.ep.noDub',
+    )
+    expect(document.body).toHaveTextContent('watch.dubProgressNoDate')
+  })
+
+  it('shows no dub note without dub progress', async () => {
+    serve({
+      watches: [{ ...watch(1), serverId: 1 } as Watch],
+      episodes: [{ season: 1, episode: 3, have: true, title: 'Drei' }],
+      files: [{ name: 'Frieren S01E03.mkv', path: '/media/Frieren S01E03.mkv', isDir: false, size: 2e9, modTime: '' }],
+    })
+    target = { id: 7, media, tab: 'episodes' }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    await screen.findByRole('button', { name: 'series.ep.facts:Drei' })
+    expect(document.body).not.toHaveTextContent('watch.dubProgress')
+    expect(document.body).not.toHaveTextContent('series.ep.noDub')
+  })
+
   it('opens straight into the watch editor when asked and comes back to the page', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
     target = { id: 7, media, edit: true }

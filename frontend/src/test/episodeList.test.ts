@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WatchEpisode } from '../api'
-import { incoming, landingEpisode, langName, matchFiles } from '../components/EpisodeList'
+import { dubMissing, incoming, landingEpisode, langName, matchFiles } from '../components/EpisodeList'
 
 describe('incoming', () => {
   const w = { serverId: 1, remotePath: '/x/Show' }
@@ -111,5 +111,19 @@ describe('langName', () => {
     expect(langName('ja', 'de')).toBe('Japanisch')
     expect(langName(undefined, 'de')).toBe('?')
     expect(langName('und', 'en')).toBe('?')
+  })
+})
+
+describe('dubMissing', () => {
+  const w = { dubProgress: { lang: 'Ger', have: 15, total: 19, next: { s: 2, e: 16 } } }
+  it('marks episodes from the first undubbed one on, in its season only', () => {
+    expect(dubMissing(w, 2, 15)).toBe(false)
+    expect(dubMissing(w, 2, 16)).toBe(true)
+    expect(dubMissing(w, 2, 19)).toBe(true)
+    expect(dubMissing(w, 1, 20)).toBe(false)
+    expect(dubMissing(w, 3, 20)).toBe(false)
+  })
+  it('marks nothing without dub progress', () => {
+    expect(dubMissing({}, 2, 16)).toBe(false)
   })
 })
