@@ -107,11 +107,44 @@ func hintWords(s string) []string {
 // HintAccept reports whether candidate m, found by searching query on TMDB,
 // is the folder's show, for a hint. See the package comment above for the rules.
 func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
-	if m.CoverImage.Large == "" && strings.TrimSpace(m.Description) == "" {
-		return false // an empty stub
-	}
 	if info.Season > 1 || info.OVA {
 		return false // TMDB keeps one entry per show: a season or a special is not it
+	}
+	return strictGate(info, query, m, tier, true, false)
+}
+
+// HintAcceptFrom is HintAccept for a provider that counts no audience (TVDB):
+// the poster or overview has to vouch for the entry instead of its votes.
+func HintAcceptFrom(info Info, query string, m anilist.Media, tier HintTier, votes bool) bool {
+	if info.Season > 1 || info.OVA {
+		return false
+	}
+	return strictGate(info, query, m, tier, votes, false)
+}
+
+// AutoAccept is the gate a candidate from a provider other than the one a
+// folder's name points to must pass, in a folder marked "automatic": the same
+// title exists as anime and as live action, so what the folder says has to be
+// all the candidate's title says. It is HintAccept's gate for folders that
+// name a season: markers are stripped from both sides, the season and the year
+// of a later season are left to the provider's own season logic. A special
+// (OVA) is never taken this way. votes says the provider counts an audience
+// (TVDB does not): without it only the poster or overview is required.
+func AutoAccept(info Info, query string, m anilist.Media, tier HintTier, votes bool) bool {
+	if info.OVA {
+		return false
+	}
+	return strictGate(info, query, m, tier, votes, true)
+}
+
+// strictGate is the check behind HintAccept and AutoAccept; seasons says the
+// folder may name a later season of the candidate's show.
+func strictGate(info Info, query string, m anilist.Media, tier HintTier, votes, seasons bool) bool {
+	if query == "" {
+		return false
+	}
+	if m.CoverImage.Large == "" && strings.TrimSpace(m.Description) == "" {
+		return false // an empty stub
 	}
 	// a folder that says Movie is not the series sharing the title
 	if info.Movie && m.Format != "MOVIE" {
@@ -123,12 +156,12 @@ func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
 	if len(qw) == 1 && !(tier == HintStrong || info.Year != 0) {
 		return false
 	}
-	if m.Popularity < hintMinVotes || (len(qw) == 1 && m.Popularity < hintMinVotesWord) {
+	if votes && (m.Popularity < hintMinVotes || (len(qw) == 1 && m.Popularity < hintMinVotesWord)) {
 		return false
 	}
 	// the folder's year is the show's first year: a sequel or a remake from
-	// another year is a different entry
-	if info.Year != 0 && (m.SeasonYear < info.Year-1 || m.SeasonYear > info.Year+1) {
+	// another year is a different entry (a later season starts later)
+	if info.Year != 0 && !(seasons && info.Season > 1) && (m.SeasonYear < info.Year-1 || m.SeasonYear > info.Year+1) {
 		return false
 	}
 	if !relaxedAccept(info, query, m, tier == HintStrict) {
@@ -153,6 +186,9 @@ func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
 		extra = 0
 	}
 	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+		if seasons {
+			t = StripFolderMarkers(t)
+		}
 		tw := hintWords(t)
 		if len(tw) == 0 {
 			continue
@@ -174,4 +210,37 @@ func HintAccept(info Info, query string, m anilist.Media, tier HintTier) bool {
 		}
 	}
 	return false
+}
+
+// NonTitle reports whether a folder name cannot be a title at all: a
+// collection or music folder, or nothing but words that name a kind of
+// content ("Anime", "Movies", "Music Videos"). Nothing is looked up for it.
+// Unlike HintQuery this lets a short or one-word title through, since the
+// provider's own match decides those.
+func NonTitle(info Info) bool {
+	if relaxedCollectionRe.MatchString(info.Full) || musicFolderRe.MatchString(info.Full) {
+		return true
+	}
+	words := gateWords(relaxedClean(info.Full))
+	if len(words) == 0 {
+		return true
+	}
+	strong := false
+	for _, w := range words {
+		if !hintCategoryWords[w] {
+			return false
+		}
+		strong = strong || !weakCategoryWords[w]
+	}
+	// "New Game" is made of category words and is a title all the same
+	return strong
+}
+
+// weakCategoryWords are category words that also turn up in titles: a name of
+// nothing but these is not taken for a category.
+var weakCategoryWords = map[string]bool{
+	"new": true, "old": true, "game": true, "games": true, "web": true, "tv": true, "family": true, "kids": true,
+	"children": true, "international": true, "english": true, "german": true, "japanese": true, "other": true,
+	"others": true, "stuff": true, "random": true, "book": true, "books": true, "temp": true, "tmp": true,
+	"sorted": true, "complete": true, "special": true, "extra": true, "bonus": true, "docu": true,
 }
