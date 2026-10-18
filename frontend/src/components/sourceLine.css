@@ -9,6 +9,11 @@
   height: 0.875rem;
   border-radius: 0;
 }
+/* AniList's glyph is white: it sits on the site's dark blue */
+.ws-d-pmark[data-provider='AniList'] {
+  background: #0b1622;
+  padding: 0.125rem;
+}
 /* TVDB's mark carries dark lettering: it sits on a light plate in both themes */
 .ws-d-pmark[data-provider='TVDB'] {
   height: 1.375rem;

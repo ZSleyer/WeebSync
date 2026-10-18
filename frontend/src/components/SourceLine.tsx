@@ -11,20 +11,23 @@ const MARKS: Record<string, { src: string; wide?: boolean }> = {
   TVDB: { src: tvdbMark, wide: true },
 }
 
-/** A provider's mark (its name is the alt text) or, without one, its name. */
+/** A provider's mark (its name is the alt text) or, without one, its name. The square AniList icon gets its name beside it. */
 export function ProviderMark({ name }: { name: string }) {
   const m = MARKS[name]
   if (!m) return <b>{name}</b>
   return (
-    <img
-      src={m.src}
-      alt={name}
-      loading="lazy"
-      decoding="async"
-      className="ws-d-pmark"
-      data-wide={m.wide || undefined}
-      data-provider={name}
-    />
+    <>
+      <img
+        src={m.src}
+        alt={m.wide ? name : ''}
+        loading="lazy"
+        decoding="async"
+        className="ws-d-pmark"
+        data-wide={m.wide || undefined}
+        data-provider={name}
+      />
+      {!m.wide && <b>{name}</b>}
+    </>
   )
 }
 
