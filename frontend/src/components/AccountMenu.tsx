@@ -105,8 +105,9 @@ export function AccountMenu({ email }: { email: string }) {
 }
 
 /**
- * The phone's gear in the app bar: the same entries as a bottom sheet instead
- * of a link to the settings hub (which is its first entry).
+ * The phone's account button in the app bar, the same person mark as the
+ * sidebar's: the same entries as a bottom sheet instead of a link to the
+ * settings hub (which is its first entry).
  */
 export function AccountSheetButton({ email }: { email: string }) {
   const { t } = useTranslation()
@@ -118,13 +119,14 @@ export function AccountSheetButton({ email }: { email: string }) {
       <button
         type="button"
         className="ws-iconbtn"
-        aria-label={t('nav.settings')}
+        aria-label={t('nav.accountMenu', { email })}
+        title={email}
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen(true)}
       >
         <UpdateDot show={update}>
-          <Settings aria-hidden />
+          <UserRound aria-hidden />
         </UpdateDot>
       </button>
       {open && <ActionSheet title={email} actions={actions} onClose={() => setOpen(false)} />}

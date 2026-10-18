@@ -96,7 +96,7 @@ describe('AccountMenu', () => {
 describe('AccountSheetButton', () => {
   it('opens the same entries as a sheet headed by the address', () => {
     app(<AccountSheetButton email="a@b.c" />)
-    fireEvent.click(screen.getByRole('button', { name: 'nav.settings' }))
+    fireEvent.click(screen.getByRole('button', { name: /^nav\.accountMenu/ }))
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByRole('heading', { name: 'a@b.c' })).toBeInTheDocument()
     expect(within(sheet).getAllByRole('button')).toHaveLength(6)
