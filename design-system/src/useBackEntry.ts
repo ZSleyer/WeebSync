@@ -87,3 +87,28 @@ export function useBackEntry(onBack: () => void, guard?: () => boolean | Promise
     }
   }, [id, enabled])
 }
+
+/**
+ * Runs `fn` once the history step of a layer that was just closed has landed.
+ * Closing takes its entry with history.back(), which Chrome resolves against
+ * the entry current at the call: a navigation pushed in between is discarded
+ * when the pop arrives. So an action that follows `onClose()` and navigates
+ * waits for the popstate first. Without a layer's entry on top there is
+ * nothing to wait for. The timeout covers a close that takes no step (the
+ * entry was left behind after a route change, or the step was refused).
+ */
+export function afterBackEntry(fn: () => void, timeout = 400) {
+  if (typeof history === 'undefined' || !history.state?.wsDialog) return fn()
+  let done = false
+  const run = () => {
+    if (done) return
+    done = true
+    window.removeEventListener('popstate', onPop)
+    clearTimeout(fallback)
+    fn()
+  }
+  // after the router has handled the pop
+  const onPop = () => setTimeout(run)
+  const fallback = setTimeout(run, timeout)
+  window.addEventListener('popstate', onPop, { once: true })
+}

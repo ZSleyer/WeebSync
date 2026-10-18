@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryRouter, RouterProvider, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -94,14 +94,15 @@ describe('AccountMenu', () => {
 })
 
 describe('AccountSheetButton', () => {
-  it('opens the same entries as a sheet headed by the address', () => {
+  it('opens the same entries as a sheet headed by the address', async () => {
     app(<AccountSheetButton email="a@b.c" />)
     fireEvent.click(screen.getByRole('button', { name: /^nav\.accountMenu/ }))
     const sheet = screen.getByRole('dialog')
     expect(within(sheet).getByRole('heading', { name: 'a@b.c' })).toBeInTheDocument()
     expect(within(sheet).getAllByRole('button')).toHaveLength(6)
     fireEvent.click(within(sheet).getByRole('button', { name: 'settings.nav.account' }))
-    expect(screen.getByLabelText('where')).toHaveTextContent('/settings/account')
+    // the action runs once the sheet's own history step has landed
+    await waitFor(() => expect(screen.getByLabelText('where')).toHaveTextContent('/settings/account'))
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

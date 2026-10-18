@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Dialog } from 'fluid-lycoris'
+import { afterBackEntry, Dialog } from 'fluid-lycoris'
 
 export interface SheetAction {
   key: string
@@ -41,7 +41,9 @@ export default function ActionSheet({
               } [&_svg]:size-5 [&_svg]:shrink-0`}
               onClick={() => {
                 onClose()
-                a.onClick()
+                // the sheet's own history step first: a navigation pushed before
+                // it lands would be popped by it
+                afterBackEntry(a.onClick)
               }}
             >
               {a.icon}
