@@ -375,7 +375,7 @@ func (s *Server) handleWatchEpisodes(w http.ResponseWriter, r *http.Request) {
 	default:
 		resp.Episodes = markBySeason(eps, nums, seasonAlias(seasons, eps, p.Season))
 	}
-	resp.Missing = flagUpcoming(resp.Episodes, time.Now().Format("2006-01-02"))
+	resp.Missing = flagUpcoming(resp.Episodes, time.Now())
 	if p.SeriesID != 0 {
 		// cached provider media: carries the title and the stable provider URL
 		// the footer links to, so no second place builds those
@@ -387,12 +387,19 @@ func (s *Server) handleWatchEpisodes(w http.ResponseWriter, r *http.Request) {
 }
 
 // flagUpcoming marks the episodes that are not out yet and returns how many of
-// the rest the folder lacks. An episode counts as missing only when it has
-// aired, or when it is undated and a later episode is local or has aired (a
-// gap in the middle). Everything behind a future-dated episode, and an undated
-// tail after the last aired or local one, has not come out either, so it is
-// flagged upcoming instead of missing.
-func flagUpcoming(eps []WatchEpisode, today string) int {
+// the rest the folder lacks. Everything behind a future-dated episode has not
+// come out either. An undated tail after the last aired or local episode is
+// only taken as not out yet while the series is running, read as its latest
+// dated episode having aired within runningGrace; on a finished series the
+// same tail is what the folder lacks. An undated episode before a local or
+// aired one is a gap and missing.
+// runningGrace is how long after its latest dated episode a series still
+// counts as running for flagUpcoming
+const runningGrace = 14 * 24 * time.Hour
+
+func flagUpcoming(eps []WatchEpisode, now time.Time) int {
+	today := now.Format("2006-01-02")
+	since := now.Add(-runningGrace).Format("2006-01-02")
 	// reached: a later episode is local or has aired
 	reached := make([]bool, len(eps))
 	later := false
@@ -402,15 +409,18 @@ func flagUpcoming(eps []WatchEpisode, today string) int {
 	}
 	missing := 0
 	future := false // an earlier episode is dated in the future
+	lastAired := "" // the latest dated episode so far that has aired
 	for i, e := range eps {
 		if e.Aired > today {
 			future = true
+		} else if e.Aired > lastAired {
+			lastAired = e.Aired
 		}
 		switch {
 		case e.Have:
 		case future || e.Aired > today:
 			eps[i].Upcoming = true
-		case e.Aired == "" && !reached[i]:
+		case e.Aired == "" && !reached[i] && lastAired >= since:
 			eps[i].Upcoming = true
 		default:
 			missing++

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
 )
@@ -168,7 +169,8 @@ func TestFlagUpcoming(t *testing.T) {
 		ep(4, "2026-10-24", false), ep(5, "2026-10-31", false),
 		ep(6, "", false), ep(7, "", false),
 	}
-	if got := flagUpcoming(eps, "2026-10-18"); got != 1 {
+	now := time.Date(2026, 10, 18, 12, 0, 0, 0, time.UTC)
+	if got := flagUpcoming(eps, now); got != 1 {
 		t.Errorf("missing = %d, want 1 (only E2)", got)
 	}
 	for i, wantUp := range []bool{false, false, false, true, true, true, true} {
@@ -177,15 +179,27 @@ func TestFlagUpcoming(t *testing.T) {
 		}
 	}
 
-	// undated: a gap before a local episode is missing, the tail is not
-	eps = []WatchEpisode{ep(1, "", true), ep(2, "", false), ep(3, "", true), ep(4, "", false)}
-	if got := flagUpcoming(eps, "2026-10-18"); got != 1 || eps[1].Upcoming || !eps[3].Upcoming {
-		t.Errorf("undated gap/tail: missing=%d, E2 up=%v, E4 up=%v", got, eps[1].Upcoming, eps[3].Upcoming)
+	// a running series (latest dated episode a week ago): the undated tail is
+	// not out yet, an undated gap before a local episode is missing
+	eps = []WatchEpisode{ep(1, "2026-10-04", true), ep(2, "", false), ep(3, "2026-10-11", true), ep(4, "", false), ep(5, "", false)}
+	if got := flagUpcoming(eps, now); got != 1 || eps[1].Upcoming || !eps[3].Upcoming || !eps[4].Upcoming {
+		t.Errorf("running: missing=%d, E2 up=%v, E4 up=%v, E5 up=%v", got, eps[1].Upcoming, eps[3].Upcoming, eps[4].Upcoming)
+	}
+
+	// a finished series (or one without any dates): the undated tail is what
+	// the folder lacks
+	for _, eps := range [][]WatchEpisode{
+		{ep(1, "2025-01-05", true), ep(2, "2025-01-12", true), ep(3, "", false), ep(4, "", false)},
+		{ep(1, "", true), ep(2, "", false), ep(3, "", true), ep(4, "", false)},
+	} {
+		if got := flagUpcoming(eps, now); got != 2 || eps[3].Upcoming {
+			t.Errorf("finished: missing=%d, last up=%v", got, eps[3].Upcoming)
+		}
 	}
 
 	// aired but not downloaded stays missing, an undated one before an aired one too
 	eps = []WatchEpisode{ep(1, "2026-09-01", true), ep(2, "2026-09-08", false), ep(3, "", false), ep(4, "2026-09-22", false)}
-	if got := flagUpcoming(eps, "2026-10-18"); got != 3 {
+	if got := flagUpcoming(eps, now); got != 3 {
 		t.Errorf("aired not downloaded: missing = %d, want 3", got)
 	}
 }
