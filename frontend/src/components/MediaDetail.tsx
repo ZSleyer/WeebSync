@@ -5,6 +5,7 @@ import { mediaDescription, providerName, type Airing, type Media, type MediaExtr
 import { countdown } from '../countdown'
 import { focusPosition } from './bannerFocus'
 import type { Schemas } from '../api.gen'
+import SourceLine from './SourceLine'
 
 // source-dependent external link: the provider the match came from
 export const mediaLink = (source: string | undefined, id: number) =>
@@ -63,6 +64,8 @@ export default function MediaDetail({
   links,
   now,
   bannerFocus,
+  dubDates,
+  mappedBy,
   children,
 }: {
   media: Media
@@ -74,6 +77,10 @@ export default function MediaDetail({
   now: number
   /** where the banner's detail lies, to cut the trailer's picture by */
   bannerFocus?: Schemas['api.bannerFocus']
+  /** the watch's dub slots (Crunchyroll's) */
+  dubDates?: boolean
+  /** tvdb or tmdb: what the watch numbers its episodes by */
+  mappedBy?: string
   children?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
@@ -210,6 +217,7 @@ export default function MediaDetail({
       </ul>
       {m.trailer?.site === 'youtube' && <Trailer id={m.trailer.id} art={m.bannerImage} focus={bannerFocus} />}
       {children}
+      <SourceLine primary={own} dubDates={dubDates} mappedBy={mappedBy} />
     </>
   )
 }

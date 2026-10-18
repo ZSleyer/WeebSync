@@ -1189,6 +1189,8 @@ function SeriesCard({
                               airings={lead?.airings}
                               links={extras?.links}
                               now={now}
+                              dubDates={!!lead?.dubProgress || !!lead?.airings?.some((x) => x.dub)}
+                              mappedBy={lead?.airedMapping ? lead.renameProvider : undefined}
                               bannerFocus={art === media.bannerImage ? focus : undefined}
                             >
                               {cur.extra}

@@ -428,6 +428,29 @@ html[data-overlay] .app-shell > main > * {
   color: var(--fg-3);
   flex: none;
 }
+.ws-d-src ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0 1rem;
+}
+.ws-d-src li > a,
+.ws-d-src li > span {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-height: 2.25rem;
+  color: var(--fg);
+  text-decoration: none;
+}
+.ws-d-src li > a:hover .ws-d-quiet {
+  text-decoration: underline;
+}
+.ws-d-src .ws-d-quiet {
+  font-size: 0.75rem;
+}
 .ws-d-dot {
   width: 0.625rem;
   height: 0.625rem;

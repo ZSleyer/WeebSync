@@ -800,6 +800,13 @@
     "helpful_other": "{{count}} fanden das hilfreich",
     "inAutoSync": "in Auto-Sync",
     "lastReply": "zuletzt {{date}}",
+    "src": {
+      "title": "Daten von",
+      "role": "Überblick, Cover, Besetzung, Bewertungen und Links",
+      "roleAnilist": "Überblick, Cover, Besetzung, Bewertungen, Termine und Links",
+      "numbering": "Folgennummerierung",
+      "dubs": "Dub-Termine"
+    },
     "link": {
       "info": "Info",
       "social": "Social",
