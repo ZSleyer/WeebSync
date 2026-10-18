@@ -9,13 +9,13 @@ import (
 )
 
 func TestTr(t *testing.T) {
-	if got := tr("de", "push.downloadDone"); got != "Download fertig" {
+	if got := tr("de", "push.downloadFailed"); got != "Download fehlgeschlagen" {
 		t.Errorf("de: got %q", got)
 	}
-	if got := tr("en", "push.downloadDone"); got != "Download finished" {
+	if got := tr("en", "push.downloadFailed"); got != "Download failed" {
 		t.Errorf("en: got %q", got)
 	}
-	if got := tr("fr", "push.downloadDone"); got != "Download finished" {
+	if got := tr("fr", "push.downloadFailed"); got != "Download failed" {
 		t.Errorf("fallback: got %q", got)
 	}
 	if got := tr("en", "email.downloadDoneMany", 3); got != "3 downloads finished" {

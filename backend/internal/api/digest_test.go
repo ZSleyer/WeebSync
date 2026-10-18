@@ -72,7 +72,7 @@ func TestFlushDigestWaitsForQueue(t *testing.T) {
 	defer swapQuiet(t, 20*time.Millisecond)()
 
 	insertDownload(t, s, "running")
-	s.NotifyDownload(1, "download_done", 1, "/one.mkv", "", "")
+	s.NotifyDownload(1, "download_done", digestItem{serverID: 1, remotePath: "/one.mkv"})
 
 	// several quiet periods pass while the queue is still busy
 	time.Sleep(120 * time.Millisecond)
@@ -102,7 +102,7 @@ func TestNotifyDownloadDebounces(t *testing.T) {
 
 	const key = "1|download_done"
 	for i := 0; i < 4; i++ {
-		s.NotifyDownload(1, "download_done", 1, "/ep.mkv", "", "")
+		s.NotifyDownload(1, "download_done", digestItem{serverID: 1, remotePath: "/ep.mkv"})
 		time.Sleep(40 * time.Millisecond) // shorter than the quiet period
 	}
 	// 160ms elapsed, well past one quiet period, but each item pushed it back

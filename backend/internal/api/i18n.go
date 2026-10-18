@@ -195,17 +195,33 @@ var catalog = map[string]map[string]string{
 		"en": "New account registered: %s",
 		"de": "Neues Konto registriert: %s",
 	},
-	"push.downloadDone": {
-		"en": "Download finished",
-		"de": "Download fertig",
+	"push.itemDone": {
+		"en": "%s downloaded",
+		"de": "%s geladen",
+	},
+	"push.filesDone": {
+		"en": "%d files downloaded",
+		"de": "%d Dateien geladen",
+	},
+	"push.episodeNo": {
+		"en": "Episode %d",
+		"de": "Folge %d",
+	},
+	"push.actionPlay": {
+		"en": "Play",
+		"de": "Abspielen",
+	},
+	"push.actionRetry": {
+		"en": "Retry",
+		"de": "Erneut versuchen",
 	},
 	"push.downloadFailed": {
 		"en": "Download failed",
 		"de": "Download fehlgeschlagen",
 	},
 	"push.downloadDoneMany": {
-		"en": "%d downloads finished",
-		"de": "%d Downloads fertig",
+		"en": "%d episodes downloaded",
+		"de": "%d Folgen geladen",
 	},
 	"push.downloadFailedMany": {
 		"en": "%d downloads failed",

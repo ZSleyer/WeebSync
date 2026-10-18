@@ -160,12 +160,12 @@ func TestSendHeaders(t *testing.T) {
 	defer srv.Close()
 	resp, err := send(srv.Client(), srv.URL+"/push/1", b64.EncodeToString(ua.PublicKey().Bytes()),
 		// a padded standard-alphabet secret, as some stores hand it out
-		"AQEBAQEBAQEBAQEBAQEBAQ==", []byte("hi"), "mailto:ops@example.com", pub, priv, 60)
+		"AQEBAQEBAQEBAQEBAQEBAQ==", []byte("hi"), "mailto:ops@example.com", pub, priv, 60, "low")
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if got.Header.Get("Content-Encoding") != "aes128gcm" || got.Header.Get("TTL") != "60" ||
+	if got.Header.Get("Content-Encoding") != "aes128gcm" || got.Header.Get("TTL") != "60" || got.Header.Get("Urgency") != "low" ||
 		!strings.HasPrefix(got.Header.Get("Authorization"), "vapid t=") {
 		t.Fatalf("headers %v", got.Header)
 	}

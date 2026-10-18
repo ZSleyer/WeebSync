@@ -278,13 +278,15 @@ func (s *Server) notifyQuiet(userID int64) time.Duration {
 // NotifyEvent sends a one-off notification (a suggestion or an upgrade found by
 // the sweep) to a user, honouring their per-channel category opt-ins. Unlike a
 // download it is not batched by the download-queue collector - these events are
-// rare, so they go out promptly (respecting the category filters).
+// rare, so they go out promptly (respecting the category filters). icon is an
+// optional cover for the push; the mail builds its own layout.
 //
 // ponytail: no frequency batching for these one-off events yet; add it here if
 // suggestion/upgrade notifications ever get chatty enough to need a digest.
-func (s *Server) NotifyEvent(userID int64, category, title, body, url string) {
+func (s *Server) NotifyEvent(userID int64, category, title, body, url, icon string) {
 	if s.Push != nil && s.pushAllowed(userID, category) {
-		s.Push.Notify(userID, push.Notification{Title: title, Body: body, Tag: category, URL: url})
+		n := push.Notification{Title: title, Body: body, Tag: category, URL: url, Icon: httpsOnly(icon)}
+		s.Push.Notify(userID, n)
 	}
 	locale := s.userLocale(userID)
 	extra, manage := "", ""
@@ -325,6 +327,8 @@ var digestQuiet = 1 * time.Minute
 type digestItem struct {
 	serverID   int64
 	remotePath string
+	localPath  string // where the file landed; the push offers to play it
+	id         int64  // the download row; the push offers to retry a failure
 	note       string // error message for failed downloads
 	// code is the classified reason behind note, when there is one. The note
 	// itself is raw Go text in the language of the kernel; a code the catalog
@@ -349,14 +353,14 @@ func (it digestItem) reason(locale string) string {
 // catalog match of the file's folder) with cover images, and as a single push.
 // Both senders share this one collector: a folder sync must not fire one mail
 // (or one push) per episode.
-func (s *Server) NotifyDownload(userID int64, category string, serverID int64, remotePath, note, code string) {
+func (s *Server) NotifyDownload(userID int64, category string, it digestItem) {
 	key := fmt.Sprintf("%d|%s", userID, category)
 	s.digestMu.Lock()
 	if s.digest == nil {
 		s.digest = map[string][]digestItem{}
 		s.digestTimer = map[string]*time.Timer{}
 	}
-	s.digest[key] = append(s.digest[key], digestItem{serverID, remotePath, note, code})
+	s.digest[key] = append(s.digest[key], it)
 	// every new item pushes the flush back, so a running sync keeps the
 	// notification held until it goes quiet
 	if t := s.digestTimer[key]; t != nil {
@@ -423,49 +427,17 @@ func (s *Server) downloadsPending() bool {
 	return n > 0
 }
 
-// pushDigest sends one push for a flushed digest: the title carries the
-// count, the body the file names (the first few - a push has no room for
-// twenty). Unlike the mail it is not grouped by series; a notification that
-// needs scrolling is no longer a notification.
+// pushDigest sends one push for a flushed digest. The text is built from the
+// catalog match (series, season, episode) rather than from file names; see
+// buildDownloadPush.
 func (s *Server) pushDigest(userID int64, category, locale string, items []digestItem) {
 	if s.Push == nil || len(items) == 0 || !s.pushAllowed(userID, category) {
 		return
 	}
-	done := category == "download_done"
-	var title string
-	switch {
-	case done && len(items) == 1:
-		title = tr(locale, "push.downloadDone")
-	case done:
-		title = tr(locale, "push.downloadDoneMany", len(items))
-	case len(items) == 1:
-		title = tr(locale, "push.downloadFailed")
-	default:
-		title = tr(locale, "push.downloadFailedMany", len(items))
-	}
-	const maxNames = 3
-	names := make([]string, 0, maxNames)
-	for _, it := range items {
-		if len(names) == maxNames {
-			names = append(names, "…")
-			break
-		}
-		names = append(names, path.Base(it.remotePath))
-	}
-	body := strings.Join(names, ", ")
-	// one failed file has room for its reason; a batch does not, and the file
-	// names are what tells the reader whether this needs them now
-	if !done && len(items) == 1 {
-		if reason := items[0].reason(locale); reason != "" {
-			body += " - " + reason
-		}
-	}
-	s.Push.Notify(userID, push.Notification{
-		Title: title,
-		Body:  body,
-		Tag:   category, // finished and failed collapse separately
-		URL:   "/",
-	})
+	n := buildDownloadPush(locale, category == "download_done", s.pushItems(userID, locale, items))
+	n.Tag = category // finished and failed collapse separately
+	n.Timestamp = time.Now().UnixMilli()
+	s.Push.Notify(userID, n)
 }
 
 // renderDigest groups items by their remote series folder, resolves the
@@ -579,9 +551,9 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 // localized to the owner's stored locale. Wired as transfer.OnFinished.
 func (s *Server) NotifyDownloadFinished(d *transfer.Download) {
 	if d.Status == "done" {
-		s.NotifyDownload(d.UserID, "download_done", d.ServerID, d.RemotePath, "", "")
+		s.NotifyDownload(d.UserID, "download_done", digestItem{serverID: d.ServerID, remotePath: d.RemotePath, localPath: d.LocalPath, id: d.ID})
 	} else {
-		s.NotifyDownload(d.UserID, "download_failed", d.ServerID, d.RemotePath, d.Error, d.ErrorCode)
+		s.NotifyDownload(d.UserID, "download_failed", digestItem{serverID: d.ServerID, remotePath: d.RemotePath, localPath: d.LocalPath, id: d.ID, note: d.Error, code: d.ErrorCode})
 	}
 }
 

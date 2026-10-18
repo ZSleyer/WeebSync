@@ -112,6 +112,25 @@ type Notification struct {
 	Body  string `json:"body"`
 	Tag   string `json:"tag,omitempty"`
 	URL   string `json:"url,omitempty"`
+	// Icon is an https image shown beside the text (a series cover).
+	Icon string `json:"icon,omitempty"`
+	// Timestamp is when the event happened, in unix milliseconds.
+	Timestamp int64 `json:"timestamp,omitempty"`
+	// Actions are the buttons under the notification; browsers show two at
+	// most. The service worker maps an action to a link in Data.
+	Actions []Action `json:"actions,omitempty"`
+	// Data holds per-action targets: "url" (a click), "play" (a link to open)
+	// and "retry" (an API path the worker POSTs).
+	Data map[string]string `json:"data,omitempty"`
+	// Urgency is the RFC 8030 header ("low", "normal", ...); it travels beside
+	// the payload, not in it. Empty sends none.
+	Urgency string `json:"-"`
+}
+
+// Action is one button on a notification.
+type Action struct {
+	Action string `json:"action"`
+	Title  string `json:"title"`
 }
 
 // Notify sends a notification to all of the user's subscriptions; dead
@@ -151,7 +170,7 @@ func (s *Service) Notify(userID int64, n Notification) {
 		// netguard's client: a subscription host that DNS-rebinds or
 		// 30x-redirects to link-local/metadata is blocked at dial time
 		resp, err := send(netguard.PublicClient(15*time.Second), x.endpoint, x.p256dh, x.auth,
-			payload, s.subscriber(), s.public, s.private, 3600)
+			payload, s.subscriber(), s.public, s.private, 3600, n.Urgency)
 		if err != nil {
 			slog.Warn("push send", "err", err)
 			continue

@@ -56,7 +56,11 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 	if created && !manual && serverID != 0 {
 		var owner int64
 		if s.DB.QueryRow(`SELECT user_id FROM servers WHERE id = ?`, serverID).Scan(&owner) == nil && owner != 0 {
-			s.NotifyEvent(owner, "suggestion", tr(s.userLocale(owner), "notify.newSeries"), title, "/suggestions")
+			cover := ""
+			if m, _ := s.sourceMedia(source, mediaID); m != nil {
+				cover = m.CoverImage.Large
+			}
+			s.NotifyEvent(owner, "suggestion", tr(s.userLocale(owner), "notify.newSeries"), title, "/suggestions", cover)
 		}
 	}
 	return nil

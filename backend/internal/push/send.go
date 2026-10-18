@@ -167,7 +167,7 @@ func vapid(endpoint, subscriber, public, private string, now time.Time) (string,
 }
 
 // send delivers payload to one subscription. The caller closes the body.
-func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int) (*http.Response, error) {
+func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int, urgency string) (*http.Response, error) {
 	ua, err := decodeKey(p256dh)
 	if err != nil {
 		return nil, fmt.Errorf("push: p256dh: %w", err)
@@ -191,6 +191,9 @@ func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, su
 	req.Header.Set("Content-Encoding", "aes128gcm")
 	req.Header.Set("Content-Type", "application/octet-stream")
 	req.Header.Set("TTL", strconv.Itoa(ttl))
+	if urgency != "" {
+		req.Header.Set("Urgency", urgency)
+	}
 	req.Header.Set("Authorization", authz)
 	return client.Do(req)
 }
