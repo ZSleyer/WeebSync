@@ -1663,7 +1663,7 @@ export interface Schemas {
     season: number
     title?: string
     /**
-     * dated in the future, so its absence is not a gap
+     * not out yet (dated in the future or behind such an episode), so its absence is not a gap
      */
     upcoming?: boolean
   }
