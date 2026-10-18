@@ -27,7 +27,7 @@ import {
 } from 'fluid-lycoris'
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
 import type { Schemas } from '../api.gen'
-import { focusPosition } from './bannerFocus'
+import { focusPosition, useBannerFocus } from './bannerFocus'
 import { shareLink } from '../clipboard'
 import { coverSet } from '../images'
 import { useToast } from './toast'
@@ -615,18 +615,19 @@ function SeriesCard({
   })
   const art = media?.bannerImage || cur.banner?.url || backdrop?.url
   // cut like the Heute panel it grew out of, or the two crops cross-fade in
-  // the morph. The box is the banner's (the column's width, 15rem tall, 20rem
-  // on a desktop), worked out without a size read: the page commits inside
-  // the morph's update callback
-  const artAt =
-    cur.banner?.focus && art === cur.banner.url
-      ? focusPosition(
-          cur.banner.focus,
-          window.innerWidth,
-          (matchMedia('(width >= 64rem)').matches ? 20 : 15) *
-            (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16),
-        )
-      : {}
+  // the morph; a banner the page did not come from asks the server for its map
+  const focus = useBannerFocus(art, art === cur.banner?.url ? cur.banner?.focus : undefined, stage > 0)
+  // The box is the banner's (the column's width, 15rem tall, 20rem on a
+  // desktop), worked out without a size read: the page commits inside the
+  // morph's update callback
+  const artAt = focus
+    ? focusPosition(
+        focus,
+        window.innerWidth,
+        (matchMedia('(width >= 64rem)').matches ? 20 : 15) *
+          (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16),
+      )
+    : {}
   const big = !media?.bannerImage && backdrop?.large ? backdrop.large : ''
   const artSet = big ? `${art} 1280w, ${big} 3840w` : undefined
 
@@ -1188,6 +1189,7 @@ function SeriesCard({
                               airings={lead?.airings}
                               links={extras?.links}
                               now={now}
+                              bannerFocus={art === media.bannerImage ? focus : undefined}
                             >
                               {cur.extra}
                             </MediaDetail>

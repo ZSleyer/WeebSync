@@ -109,6 +109,13 @@ html[data-overlay] .app-shell > main > * {
   max-width: none;
   object-fit: cover;
 }
+/* the map of a banner that has to be read first arrives after the page */
+@media (prefers-reduced-motion: no-preference) {
+  .ws-d-banner-art img,
+  .ws-d-trailer-btn > img {
+    transition: object-position 500ms var(--ease-out, ease-out);
+  }
+}
 
 /* ── hero: cover, title, meta, actions ── */
 .ws-d-hero {

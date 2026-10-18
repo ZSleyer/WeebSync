@@ -3,6 +3,8 @@ import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { mediaDescription, providerName, type Airing, type Media, type MediaExtras } from '../api'
 import { countdown } from '../countdown'
+import { focusPosition } from './bannerFocus'
+import type { Schemas } from '../api.gen'
 
 // source-dependent external link: the provider the match came from
 export const mediaLink = (source: string | undefined, id: number) =>
@@ -60,6 +62,7 @@ export default function MediaDetail({
   airings,
   links,
   now,
+  bannerFocus,
   children,
 }: {
   media: Media
@@ -69,6 +72,8 @@ export default function MediaDetail({
   links?: MediaExtras['links']
   /** the clock behind the countdowns, from useNow */
   now: number
+  /** where the banner's detail lies, to cut the trailer's picture by */
+  bannerFocus?: Schemas['api.bannerFocus']
   children?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
@@ -203,7 +208,7 @@ export default function MediaDetail({
           </a>
         </li>
       </ul>
-      {m.trailer?.site === 'youtube' && <Trailer id={m.trailer.id} art={m.bannerImage} />}
+      {m.trailer?.site === 'youtube' && <Trailer id={m.trailer.id} art={m.bannerImage} focus={bannerFocus} />}
       {children}
     </>
   )
@@ -235,13 +240,23 @@ function LinkMark({ link, dot }: { link: NonNullable<MediaExtras['links']>[numbe
  * and the player's scripts held it for hundreds of milliseconds right while
  * the series page opened. Until then nothing is sent to YouTube either.
  */
-function Trailer({ id, art }: { id: string; art?: string | null }) {
+function Trailer({ id, art, focus }: { id: string; art?: string | null; focus?: Schemas['api.bannerFocus'] }) {
   const { t } = useTranslation()
   const [on, setOn] = useState(false)
+  // the box is 16:9 whatever the width
+  const at = focusPosition(focus, 16, 9)
   if (!on)
     return (
       <button type="button" className="ws-d-trailer ws-d-trailer-btn" onClick={() => setOn(true)}>
-        {art && <img src={art} alt="" decoding="async" loading="lazy" />}
+        {art && (
+          <img
+            src={art}
+            style={{ objectPosition: `${at.x ?? '50%'} ${at.y ?? '50%'}` }}
+            alt=""
+            decoding="async"
+            loading="lazy"
+          />
+        )}
         <span className="ws-d-trailer-play">
           <Play aria-hidden size="1.25rem" />
           {t('remote.trailerPlay')}

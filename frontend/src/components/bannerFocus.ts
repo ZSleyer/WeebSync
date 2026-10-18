@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query'
+import { api } from '../api'
 import type { Schemas } from '../api.gen'
 
 type Focus = Schemas['api.bannerFocus']
@@ -48,4 +50,23 @@ export function focusPosition(f: Focus | undefined, w: number, h: number): { x?:
   const x = slice(f.cols, box / img)
   const y = slice(f.rows, img / box)
   return { x: x == null ? undefined : `${x.toFixed(1)}%`, y: y == null ? undefined : `${y.toFixed(1)}%` }
+}
+
+const ANILIST_IMAGE = /^https:\/\/([^/]+\.)?anilist\.co\//
+
+/**
+ * The focus map of an AniList banner the page did not arrive with (the Today
+ * hero hands its own along). The server reads a picture once and answers empty
+ * until then, so an empty answer is asked again a few times.
+ */
+export function useBannerFocus(url: string | null | undefined, known?: Focus, enabled = true): Focus | undefined {
+  const { data } = useQuery<{ focus?: Focus }>({
+    queryKey: ['banner-focus', url],
+    queryFn: () => api.get(`/api/media/banner-focus?url=${encodeURIComponent(url!)}`),
+    enabled: enabled && !known && !!url && ANILIST_IMAGE.test(url),
+    staleTime: Infinity,
+    retry: false,
+    refetchInterval: (q) => (q.state.data?.focus || q.state.dataUpdateCount >= 8 ? false : 2500),
+  })
+  return known ?? data?.focus
 }
