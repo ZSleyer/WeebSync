@@ -13,7 +13,7 @@
 // Chromium only: Playwright's Firefox driver dispatches neither touch events
 // nor pointer events for synthetic input, so there is nothing to drive there.
 import { chromium } from 'playwright'
-import { signIn } from './auth.mjs'
+import { launch, signIn } from './auth.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
@@ -38,7 +38,7 @@ const bad = (m) => {
 }
 const good = (m) => console.log(`  ✓ ${m}`)
 
-const browser = await chromium.launch()
+const browser = await launch(chromium)
 for (const vp of VIEWPORTS) {
   const ctx = await browser.newContext({
     viewport: { width: vp.width, height: vp.height },

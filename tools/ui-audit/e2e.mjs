@@ -8,7 +8,7 @@
 import { chromium, firefox } from 'playwright'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { scanLayout } from './overlap.mjs'
-import { signIn } from './auth.mjs'
+import { launch, signIn } from './auth.mjs'
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -410,7 +410,7 @@ const audit = () => {
 }
 
 const run = async (name, browserType) => {
-  const browser = await browserType.launch()
+  const browser = await launch(browserType)
   const findings = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look

@@ -6,7 +6,7 @@
 //   WS_EMAIL=... WS_PASSWORD=... node tools/ui-audit/modals.mjs [--base http://127.0.0.1:8080]
 import { chromium, firefox } from 'playwright'
 import { scanLayout } from './overlap.mjs'
-import { signIn } from './auth.mjs'
+import { launch, signIn } from './auth.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
@@ -325,7 +325,7 @@ const auditDialog = () => {
 }
 
 const run = async (browserName, type) => {
-  const browser = await type.launch()
+  const browser = await launch(type)
   const found = []
   for (const [vpName, vp] of Object.entries(VIEWPORTS)) {
     // the app follows the OS scheme unless a choice is stored: WS_THEME=dark runs the dark look

@@ -8,7 +8,7 @@
 //   WS_TOKEN=... node tools/ui-audit/targets.mjs [--base http://127.0.0.1:8090] [--viewports iphone,phone] [--routes /a,/b] [--groups] [--json out.json]
 import { chromium } from 'playwright'
 import { writeFileSync } from 'node:fs'
-import { signIn } from './auth.mjs'
+import { launch, signIn } from './auth.mjs'
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf(`--${name}`)
@@ -88,7 +88,7 @@ const measure = (sel) => {
   return out
 }
 
-const browser = await chromium.launch()
+const browser = await launch(chromium)
 const result = {}
 for (const vpName of vps) {
   const ctx = await browser.newContext({ ...VPS[vpName], locale: 'de-DE' })

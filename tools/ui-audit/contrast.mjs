@@ -17,7 +17,7 @@
 //     [--viewports phone,wide] [--themes dark,light] [--routes /a,/b] [--inject '<css>']
 import { chromium } from 'playwright'
 import { writeFileSync } from 'node:fs'
-import { signIn } from './auth.mjs'
+import { launch, signIn } from './auth.mjs'
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(`--${n}`)
@@ -340,7 +340,7 @@ const focusRing = async (page, n = 25) => {
   return bad
 }
 
-const browser = await chromium.launch()
+const browser = await launch(chromium)
 const report = []
 for (const theme of THEMES)
   for (const vpName of VIEWPORTS) {

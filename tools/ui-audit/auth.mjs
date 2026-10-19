@@ -34,3 +34,12 @@ export async function signIn(ctx, page, base) {
     process.exit(2)
   }
 }
+
+/**
+ * Launches an engine for an audit. Headless Chromium hides scrollbars by
+ * default, which makes every desktop run measure a layout nobody sees: with a
+ * classic 15px bar the content edge moves and a control flush with it is
+ * suddenly under the bar. Keep them (touch contexts get overlay bars anyway).
+ */
+export const launch = (type) =>
+  type.launch(type.name() === 'chromium' ? { ignoreDefaultArgs: ['--hide-scrollbars'] } : {})
