@@ -189,6 +189,11 @@ main:has(.page-fill) {
        are rows of the shell, not overlays, so they need no room. */
     scroll-padding-block: 3.5rem 6rem;
   }
+  /* the save bar wraps to up to three rows on a narrow phone (about 7.5rem
+     plus its 0.75rem lift), more than the room above */
+  .app-shell > main:has(.set-save) {
+    scroll-padding-bottom: 9rem;
+  }
   /* `flex-1` on the route wrapper means `flex: 1 1 0%`, which caps it at the
      height of the scroller - a taller page then spills out of the wrapper as
      pure overflow, and overflow of a *child* never picks up the scroller's end
