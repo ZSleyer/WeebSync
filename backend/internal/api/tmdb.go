@@ -439,7 +439,7 @@ var yearRe = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 // No batching: TMDB's rate limit is generous and the client paces itself.
 func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force bool) {
 	s.runJob(fmt.Sprintf("m:%d:%s", serverID, folder), func(ctx context.Context) {
-		mediaID, err := s.tmdbLookup(ctx, serverID, folder, name, kind, force)
+		mediaID, _, err := s.tmdbLookup(ctx, serverID, folder, name, kind, force)
 		if err != nil {
 			return // retried by the next catalog poll
 		}
@@ -450,10 +450,12 @@ func (s *Server) queueTmdbMatch(serverID int64, folder, name, kind string, force
 
 // tmdbLookup finds the TMDB entry of kind (tv | movie) a folder names, 0 when
 // none carries one of the folder's names. An error means the search itself
-// failed: nothing is known, nothing should be stored.
-func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, kind string, force bool) (int, error) {
+// failed: nothing is known, nothing should be stored. The search result the
+// entry was found as comes with it (nil for what Plex identified).
+func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, kind string, force bool) (int, *anilist.Media, error) {
 	// what Plex identified under this name and year wins over a search
 	mediaID, _ := s.matchLocalByPlexID(folder, "tmdb:"+kind)
+	var hit *anilist.Media
 	year, _ := strconv.Atoi(yearRe.FindString(name))
 	for _, lq := range s.liveQueries(serverID, folder, name) {
 		if mediaID != 0 {
@@ -471,7 +473,7 @@ func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, k
 			}
 			l, err := s.Tmdb.Search(ctx, kind, lq.q, y)
 			if err != nil {
-				return 0, err
+				return 0, nil, err
 			}
 			list = append(list, l...)
 			if year == 0 {
@@ -481,14 +483,16 @@ func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, k
 		// the localized name and the original, as the adapter maps them
 		cands := make([]liveCand, 0, len(list))
 		for _, m := range list {
-			cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID)})
+			cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID), media: m})
 		}
-		mediaID = pickLive(name, lq.accept, cands)
+		if c, ok := pickLiveCand(name, lq.accept, cands); ok {
+			mediaID, hit = c.id, &c.media
+		}
 	}
 	if mediaID != 0 {
 		s.Tmdb.Media(ctx, kind, mediaID) // full details into the cache first
 	}
-	return mediaID, nil
+	return mediaID, hit, nil
 }
 
 // queueTmdbFetch refreshes missing/stale TMDB media in the background.

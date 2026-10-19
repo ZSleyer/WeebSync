@@ -208,13 +208,13 @@ func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, 
 					auto: &autoPlan{rest: seq[k+1:], gated: true, tier: tier}})
 				return
 			}
-			src, id, err := s.westLookup(ctx, serverID, folder, name, p, movie, force)
+			src, id, hit, err := s.westLookup(ctx, serverID, folder, name, p, movie, force)
 			if err != nil {
 				return // retried by the next catalog poll
 			}
 			// the first provider is taken on its own confidence, a later one
 			// is a guess between look-alikes unless it passes the gate
-			if id == 0 || (k > 0 && !s.westAccept(ctx, src, id, info, tier)) {
+			if id == 0 || (k > 0 && !s.westAccept(ctx, src, id, hit, info, tier)) {
 				continue
 			}
 			// persistMatch logs a failure; the next catalog poll retries
@@ -226,31 +226,37 @@ func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, 
 }
 
 // westLookup asks one western provider for a folder: the entry's source tag
-// and id, 0 when none carries the folder's name, an error when the search failed.
-func (s *Server) westLookup(ctx context.Context, serverID int64, folder, name, provider string, movie, force bool) (string, int, error) {
+// and id, 0 when none carries the folder's name, an error when the search failed;
+// and the search result it was found as, nil for what Plex identified.
+func (s *Server) westLookup(ctx context.Context, serverID int64, folder, name, provider string, movie, force bool) (string, int, *anilist.Media, error) {
 	switch provider {
 	case "tmdb":
 		kind := "tv"
 		if movie {
 			kind = "movie"
 		}
-		id, err := s.tmdbLookup(ctx, serverID, folder, name, kind, force)
-		return "tmdb:" + kind, id, err
+		id, hit, err := s.tmdbLookup(ctx, serverID, folder, name, kind, force)
+		return "tmdb:" + kind, id, hit, err
 	case "tvdb":
 		if movie {
-			id, err := s.tvdbMovieLookup(ctx, serverID, folder, name)
-			return tvdbMovieSource, id, err
+			id, hit, err := s.tvdbMovieLookup(ctx, serverID, folder, name)
+			return tvdbMovieSource, id, hit, err
 		}
-		id, err := s.tvdbLookup(ctx, serverID, folder, name)
-		return "tvdb", id, err
+		id, hit, err := s.tvdbLookup(ctx, serverID, folder, name)
+		return "tvdb", id, hit, err
 	}
-	return "", 0, fmt.Errorf("unknown provider %q", provider)
+	return "", 0, nil, fmt.Errorf("unknown provider %q", provider)
 }
 
 // westAccept is the strict gate for a western pick: the candidate's record has
 // to say what the folder says and nothing more (match.AutoAccept).
-func (s *Server) westAccept(ctx context.Context, src string, id int, info match.Info, tier match.HintTier) bool {
-	m := s.autoRecord(ctx, src, id)
+func (s *Server) westAccept(ctx context.Context, src string, id int, hit *anilist.Media, info match.Info, tier match.HintTier) bool {
+	// the search result, which keeps the titles the entry was found under;
+	// the full record only for what Plex identified
+	m := hit
+	if m == nil {
+		m = s.autoRecord(ctx, src, id)
+	}
 	if m == nil {
 		return false
 	}
@@ -314,7 +320,7 @@ func hasReleaseTags(name string) bool {
 func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) (string, int) {
 	movie := s.autoMovie(b.serverID, b.folder, b.name, info)
 	for _, p := range b.auto.rest {
-		src, id, err := s.westLookup(ctx, b.serverID, b.folder, b.name, p, movie, b.force)
+		src, id, hit, err := s.westLookup(ctx, b.serverID, b.folder, b.name, p, movie, b.force)
 		if err != nil {
 			slog.Debug("auto match lookup", "folder", logSafe(b.folder), "provider", p, "err", err)
 			if ctx.Err() != nil {
@@ -326,7 +332,7 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 			slog.Debug("auto match: provider has no entry of that name", "folder", logSafe(b.folder), "provider", p, "source", src)
 			continue
 		}
-		if !s.westAccept(ctx, src, id, info, b.auto.tier) {
+		if !s.westAccept(ctx, src, id, hit, info, b.auto.tier) {
 			slog.Debug("auto match: entry refused by the strict gate", "folder", logSafe(b.folder), "source", src, "media", id)
 			continue
 		}

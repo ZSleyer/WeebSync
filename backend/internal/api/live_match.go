@@ -21,6 +21,10 @@ type liveCand struct {
 	id, year int
 	titles   []string
 	anime    bool // the anime mapping knows it: breaks a tie for a Japanese folder
+	// the search result itself, with the titles it was found under: what a
+	// second provider's strict gate reads, since the full record of a TVDB
+	// series carries only the translated name
+	media anilist.Media
 }
 
 // liveQuery is one search for a folder: q is sent to the provider, accept is
@@ -165,6 +169,17 @@ func pickLive(name, accept string, cands []liveCand) int {
 		}
 	}
 	return 0
+}
+
+// pickLiveCand is pickLive returning the hit, not only its id.
+func pickLiveCand(name, accept string, cands []liveCand) (liveCand, bool) {
+	id := pickLive(name, accept, cands)
+	for _, c := range cands {
+		if id != 0 && c.id == id {
+			return c, true
+		}
+	}
+	return liveCand{}, false
 }
 
 // exactTitle reports whether a candidate carries one of the folder's names.

@@ -60,6 +60,12 @@ func fakeTvdbAuto(t *testing.T, calls *atomic.Int32) *httptest.Server {
 		id := strings.Split(strings.TrimPrefix(r.URL.Path, "/series/"), "/")[0]
 		names := map[string]string{"7": "Neo Yokio", "8": "Death Note", "9": "Castlevania"}
 		n, ok := names[id]
+		// the German translation of one series differs from its name: the full
+		// record then carries the translated name only
+		if ok && id == "7" && strings.HasSuffix(r.URL.Path, "/translations/deu") {
+			w.Write([]byte(`{"data":{"name":"Neu Yokio","overview":"x"}}`))
+			return
+		}
 		if !ok || strings.Contains(r.URL.Path, "translations") {
 			http.NotFound(w, r)
 			return
