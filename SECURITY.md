@@ -82,8 +82,9 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
   Browsers are recognised by a signed `weebsync_known` cookie (up to four
   accounts, 400 days, `/api/auth` only), separate from the rate limiter's
   device cookie so a password change does not make every browser new. The
-  first sign-in of an account is not reported, and at most one notice per
-  account is sent every ten minutes.
+  first sign-in of an account is not reported, and repeats from one address
+  are collapsed to one notice per account and address every ten minutes; a
+  new browser from another address is always reported.
 - Cross-site requests: Go's `CrossOriginProtection` refuses state-changing
   browser requests from other origins, sibling subdomains included, on top of
   `SameSite` and the JSON-only API. The configured public address is trusted

@@ -184,12 +184,16 @@ func (s *Server) signInAlert(w http.ResponseWriter, r *http.Request, userID int6
 	if known || n > 0 || method == signInRegistered {
 		return
 	}
+	ip, ua := auth.ClientIP(r), r.UserAgent()
+	// The throttle collapses repeats from one address (a cookie-less script,
+	// a private window signing in over and over), never a sign-in from
+	// another one: keyed by account alone, a stranger signing in right after
+	// the owner's new phone would be enrolled without a word.
 	if s.loginNoticeLimiter != nil {
-		if ok, _ := s.loginNoticeLimiter.take("login-notice:" + strconv.FormatInt(userID, 10)); !ok {
+		if ok, _ := s.loginNoticeLimiter.take("login-notice:" + strconv.FormatInt(userID, 10) + "|" + ip); !ok {
 			return
 		}
 	}
-	ip, ua := auth.ClientIP(r), r.UserAgent()
 	if len(ua) > 200 {
 		// a cut through a multi-byte character would leave invalid UTF-8
 		ua = strings.ToValidUTF8(ua[:200], "")

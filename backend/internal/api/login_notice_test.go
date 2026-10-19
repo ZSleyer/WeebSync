@@ -50,10 +50,15 @@ func newLoginNoticeRig(t *testing.T) *loginNoticeRig {
 
 func (g *loginNoticeRig) login(t *testing.T, ua string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
+	return g.loginFrom(t, "203.0.113.7:4000", ua, cookies...)
+}
+
+func (g *loginNoticeRig) loginFrom(t *testing.T, addr, ua string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
 	req := httptest.NewRequest("POST", "/api/auth/login", strings.NewReader(`{"email":"user@example.com","password":"correct horse battery"}`))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", ua)
-	req.RemoteAddr = "203.0.113.7:4000"
+	req.RemoteAddr = addr
 	for _, c := range cookies {
 		req.AddCookie(c)
 	}
@@ -141,10 +146,14 @@ func TestLoginNoticeThrottle(t *testing.T) {
 	g.expectNone(t)
 	// the window is ten minutes, not ten hours: the limiter takes a rate
 	// per minute
-	ok, wait := g.s.loginNoticeLimiter.take("login-notice:" + strconv.FormatInt(g.userID, 10))
+	ok, wait := g.s.loginNoticeLimiter.take("login-notice:" + strconv.FormatInt(g.userID, 10) + "|203.0.113.7")
 	if ok || wait > 10*time.Minute || wait < 9*time.Minute {
 		t.Errorf("throttle: allowed %v, next notice in %v; want about ten minutes", ok, wait)
 	}
+	// a new browser from another address inside the window is still reported:
+	// the throttle must not let a stranger in quietly behind the owner
+	g.loginFrom(t, "198.51.100.9:4000", "Mozilla/5.0 (Macintosh; Mac OS X 14_0) Safari/605.1.15")
+	g.expectMail(t)
 }
 
 func TestLoginNoticeFirstSignIn(t *testing.T) {
