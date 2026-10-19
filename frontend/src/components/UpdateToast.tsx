@@ -20,6 +20,26 @@ const COUNTDOWN = 60 // seconds until the automatic reload
 const booted = assetRefs(document).join('\n')
 let snoozedUntil = 0
 
+// Whether a reload would throw something away. Controlled inputs keep their
+// value attribute in step with the typed text (React writes it), so
+// value !== defaultValue finds nothing here. Two signals do: the focus is in
+// a field that takes text, and a dirty form has armed a beforeunload guard
+// (UnsavedGuard, WatchDialog), which a probe event asks without leaving.
+export function editing(): boolean {
+  const el = document.activeElement
+  if (el instanceof HTMLElement) {
+    if (el.isContentEditable || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) return true
+    if (
+      el instanceof HTMLInputElement &&
+      !/^(button|submit|reset|checkbox|radio|range|image|file|color)$/.test(el.type)
+    )
+      return true
+  }
+  const probe = new Event('beforeunload', { cancelable: true })
+  window.dispatchEvent(probe)
+  return probe.defaultPrevented
+}
+
 export default function UpdateToast() {
   const { t } = useTranslation()
   const [stale, setStale] = useState(false)
@@ -68,12 +88,13 @@ export default function UpdateToast() {
 
   useEffect(() => {
     if (!stale) return
-    const tick = setInterval(() => setLeft((s) => s - 1), 1000)
+    // the countdown starts over while there is input a reload would lose
+    const tick = setInterval(() => setLeft((s) => (editing() ? COUNTDOWN : s - 1)), 1000)
     return () => clearInterval(tick)
   }, [stale])
 
   useEffect(() => {
-    if (stale && left <= 0) window.location.reload()
+    if (stale && left <= 0 && !editing()) window.location.reload()
   }, [stale, left])
 
   if (!stale) return null
