@@ -922,6 +922,17 @@ option { background-color: var(--bg-2); color: var(--fg); }
   ::-webkit-scrollbar-corner { background: transparent; }
 }
 
+/* ── Scroller ──
+   An inner vertical scroller whose content keeps its distance from the bar.
+   A classic bar takes its gutter outside the padding, an overlay bar (phone,
+   macOS) paints over the padding box: either way the end padding is the gap.
+   The padding sits in :where() so a class with its own padding still wins.
+   The component form (tabIndex 0, labelled region) is for content without a
+   focusable element, so the keyboard can still scroll it. */
+.t-scroll { overflow-y: auto; scrollbar-gutter: stable; }
+:where(.t-scroll) { padding-inline-end: 1rem; }
+.t-scroll[tabindex]:focus-visible { outline-offset: -2px; }
+
 /* ── Touch ergonomics ──
    Taller controls give comfortable thumb targets without changing the desktop
    density. Expressed in rem so they ride the viewport-relative master scale

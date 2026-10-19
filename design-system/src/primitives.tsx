@@ -494,6 +494,17 @@ export function Divider({ label, count, trailing, className }: DividerProps) {
   )
 }
 
+export interface ScrollRegionProps extends HTMLAttributes<HTMLDivElement> {
+  /** names the region for assistive tech; required, it is the only way to find it */
+  'aria-label': string
+}
+
+/** Vertical scroller for content with nothing focusable in it (logs, previews,
+ *  text): focusable itself so the keyboard can scroll it, and clear of its bar. */
+export function ScrollRegion({ className, ...rest }: ScrollRegionProps) {
+  return <div role="region" tabIndex={0} {...rest} className={cx('t-scroll', className)} />
+}
+
 export interface ToolbarProps extends HTMLAttributes<HTMLDivElement> {}
 
 /** One control row at a single compact height - filters, search, bulk actions. */

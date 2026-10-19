@@ -143,6 +143,10 @@ package has:
   `enterPage` / `useEnterPage`: on entering a page or switching its content,
   titles and section headings wipe in, meters fill, and rows, shelf items and
   `[data-rise]` children rise in one wave from left to right.
+- `.t-scroll` and `ScrollRegion`: an inner vertical scroller with a stable
+  gutter and end padding, so content never touches or sits under the bar.
+  `ScrollRegion` adds tabIndex 0, role region and a required `aria-label`
+  for content with nothing focusable in it.
 - `Toast` and `ToastRegion`: inverted toasts in the top layer, left of an
   open `SidePanel`.
 - `Dialog`, `Modal`, `SidePanel`, `Menu`, `Tabs` and the rest of the
