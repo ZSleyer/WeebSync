@@ -215,6 +215,12 @@ html[data-overlay] .app-shell > main > * {
   box-shadow: inset 0 -1px 0 var(--line);
   margin-bottom: 1.25rem;
 }
+/* no arrows on the row: a mouse keeps its scrollbar */
+@media (pointer: fine) {
+  .ws-d-jump {
+    scrollbar-width: auto;
+  }
+}
 .ws-d-jump a {
   flex: none;
   position: relative;

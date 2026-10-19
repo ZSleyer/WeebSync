@@ -122,6 +122,11 @@
 .ws-rd-sl .ws-rd-count { font: 0.75rem var(--f-mono); min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; }
 .ws-rd-tools { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .ws-rd-tools::-webkit-scrollbar { display: none; }
+/* no arrows here: a mouse keeps its scrollbar */
+@media (pointer: fine) {
+  .ws-rd-tools { scrollbar-width: auto; }
+  .ws-rd-tools::-webkit-scrollbar { display: block; }
+}
 .ws-rd-tool {
   flex: none;
   display: inline-flex;

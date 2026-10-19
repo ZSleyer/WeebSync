@@ -23,6 +23,10 @@
   background: var(--bg);
 }
 .dc-nav::-webkit-scrollbar { display: none; }
+/* no arrows on the strip: a mouse keeps its scrollbar */
+@media (pointer: fine) {
+  .dc-nav { scrollbar-width: auto; }
+}
 .dc-g { display: none; }
 .dc-nav a {
   flex: none;

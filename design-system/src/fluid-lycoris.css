@@ -701,6 +701,10 @@ kbd, .t-kbd {
   overflow-x: auto;
   scrollbar-width: none;
 }
+/* only a fade and the arrow keys say there is more: a mouse keeps its bar */
+@media (pointer: fine) {
+  .t-tabs--scroll { scrollbar-width: auto; }
+}
 /* the cut edge fades out, so a tab sliced mid-word reads as "more this way"
    rather than a rendering fault; Tabs sets the attribute from the scroll
    position, and a bar that fits has none and stays crisp */
