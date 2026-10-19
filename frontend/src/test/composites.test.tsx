@@ -691,7 +691,7 @@ describe('Modal and EmptyState', () => {
         <p>Formular</p>
       </Modal>,
     )
-    expect(screen.getByRole('heading', { level: 3, name: 'Watch bearbeiten' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Watch bearbeiten' })).toBeInTheDocument()
     expect(screen.getByText('Serie 12')).toBeInTheDocument()
     expect(screen.getByText('Formular')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Speichern' })).toBeInTheDocument()

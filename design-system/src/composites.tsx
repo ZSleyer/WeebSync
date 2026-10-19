@@ -1584,7 +1584,7 @@ export function Modal({ title, info, children, footer, secondary, onClose, close
     <div className={cx('dialog-body w-full max-w-lg bg-bg-card', className)}>
       <header className="flex items-start gap-3 border-b border-border-subtle px-5 py-4">
         <div className="min-w-0 flex-1">
-          <h3 className="font-display text-[length:var(--fs-sheet)] leading-tight font-semibold">{title}</h3>
+          <h2 className="font-display text-[length:var(--fs-sheet)] leading-tight font-semibold">{title}</h2>
           {info && <p className="mt-1 text-ctl-sm text-t-secondary">{info}</p>}
         </div>
         {onClose && (
