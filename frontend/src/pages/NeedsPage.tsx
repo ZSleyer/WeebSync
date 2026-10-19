@@ -21,7 +21,7 @@ export default function NeedsPage() {
   return (
     <div className="flex flex-col">
       <PageHeader className="mb-4" title={t('needs.title')} />
-      <div className="grid gap-6">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
         {loading ? (
           <ul className="t-rows td-needs">
             {[0, 1, 2].map((i) => (
