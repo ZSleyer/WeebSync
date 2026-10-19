@@ -891,12 +891,17 @@ option { background-color: var(--bg-2); color: var(--fg); }
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
 .bg-accent { color: var(--on-accent) !important; }
 
-/* Visible focus everywhere, on the browser's own :focus-visible heuristics
-   (keys and Space/arrows after a mouse open show it, a mouse click and
-   programmatic focus after one do not). */
+/* Focus rings are for keyboard and assistive input only: main.tsx sets
+   html[data-input='keys'] on navigation keys and clears it on any pointer
+   press (and keeps it set under forced-colors / prefers-contrast). Outline
+   rings are switched off here without it; box-shadow rings carry the
+   attribute in their own selector. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+:root:not([data-input='keys']) :is(:focus-visible, :focus-within) {
+  outline: none !important;
 }
 /* menu rows sit in a clipped surface: ring inside */
 [role='menuitem']:focus-visible { outline-offset: -2px; }
@@ -1034,7 +1039,7 @@ input[type='checkbox']:indeterminate::after {
   background: var(--on-accent);
   transform: translate(-50%, -50%);
 }
-input[type='checkbox']:focus-visible {
+:root[data-input='keys'] input[type='checkbox']:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--bg),
@@ -1080,7 +1085,7 @@ input[type='radio']:checked::after {
   transform: translate(-50%, -50%);
   animation: t-tick var(--dur-1) var(--ease-out);
 }
-input[type='radio']:focus-visible {
+:root[data-input='keys'] input[type='radio']:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--bg),
@@ -2450,7 +2455,7 @@ button.t-select { display: flex; align-items: center; text-align: start; cursor:
    1.2:1 on the list: the same accent ring as every other focus (WCAG 1.4.11) */
 /* focus stays on the trigger and hover sets data-active too: the list
    marks data-keys once the keys moved it */
-.t-listbox[data-keys] .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
+:root[data-input='keys'] .t-listbox[data-keys] .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .t-option[aria-selected="true"] { color: var(--accent); }
 .t-option[aria-selected="true"] > svg { flex: none; font-size: 1.125rem; }
 .t-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
@@ -2479,8 +2484,8 @@ input[type='range']::-webkit-slider-thumb {
 input[type='range']::-moz-range-thumb { width: 1.125rem; height: 1.125rem; border: 0; border-radius: 50%; background: var(--accent); }
 input[type='range']:disabled { opacity: 0.45; cursor: not-allowed; }
 input[type='range']:focus-visible { outline: none; }
-input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+:root[data-input='keys'] input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+:root[data-input='keys'] input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
 /* ── Search fields: no UA clear button or decoration; a page that wants a
    clear button draws its own ── */
