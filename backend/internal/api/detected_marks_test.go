@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 // detect writes a mark the way the detection does.
@@ -44,5 +45,45 @@ func TestUserDecisionReplacesDetectedMark(t *testing.T) {
 	call("PUT", "/api/servers/1/catalog/scope", `{"path":"/Server/Some Category","kind":""}`)
 	if _, _, ok := scopeRow(t, s, "/Server/Some Category"); ok {
 		t.Error("a user's cleared mark left a row")
+	}
+}
+
+// The list holds the detected marks only, newest first; once seen they stop
+// counting as new, a later detection counts again, and a mark the user changed
+// leaves the list.
+func TestDetectedMarksList(t *testing.T) {
+	s, call := scopeServer(t)
+	list := func() (out detectedMarksResponse) {
+		w := call("GET", "/api/catalog/detected-marks", "")
+		if w.Code != 200 {
+			t.Fatalf("list: %d %s", w.Code, w.Body)
+		}
+		json.Unmarshal(w.Body.Bytes(), &out)
+		return out
+	}
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind) VALUES (1, '/Server/By Hand', 'anime')`)
+	s.DB.Exec(`INSERT INTO catalog_scopes (server_id, path, kind, detected_at) VALUES
+		(1, '/Server/Older', 'auto', 1000), (1, '/Server/Newer', 'anime', 2000)`)
+	got := list()
+	if got.Unseen != 2 || len(got.Items) != 2 || got.Items[0].Path != "/Server/Newer" || got.Items[0].Name != "Newer" ||
+		got.Items[1].Kind != "auto" || !got.Items[0].Unseen || got.Items[0].ServerName != "seedbox" {
+		t.Fatalf("list = %+v", got)
+	}
+	if w := call("POST", "/api/catalog/detected-marks/seen", ""); w.Code != 200 {
+		t.Fatalf("seen: %d %s", w.Code, w.Body)
+	}
+	if got := list(); got.Unseen != 0 || len(got.Items) != 2 || got.Items[0].Unseen {
+		t.Fatalf("after seen = %+v", got)
+	}
+	// marked later than the user looked
+	detect(t, s, "/Server/Later", "auto")
+	s.DB.Exec(`UPDATE catalog_scopes SET detected_at = ? WHERE path = '/Server/Later'`, time.Now().Add(time.Minute).UnixMilli())
+	if got := list(); got.Unseen != 1 || !got.Items[0].Unseen || got.Items[0].Path != "/Server/Later" {
+		t.Fatalf("after a new one = %+v", got)
+	}
+	call("PUT", "/api/servers/1/catalog/scope", `{"path":"/Server/Later","kind":"none"}`)
+	call("PUT", "/api/servers/1/catalog/scope", `{"path":"/Server/Older","kind":"manga"}`)
+	if got := list(); got.Unseen != 0 || len(got.Items) != 1 || got.Items[0].Path != "/Server/Newer" {
+		t.Fatalf("after the user's changes = %+v", got)
 	}
 }

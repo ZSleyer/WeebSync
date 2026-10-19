@@ -5117,6 +5117,71 @@
                 ],
                 "type": "object"
             },
+            "api.detectedMark": {
+                "properties": {
+                    "detectedAt": {
+                        "description": "when it was marked, Unix milliseconds",
+                        "type": "integer"
+                    },
+                    "kind": {
+                        "enum": [
+                            "anime",
+                            "manga",
+                            "tv",
+                            "movie",
+                            "tvdb",
+                            "auto"
+                        ],
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "serverId": {
+                        "type": "integer"
+                    },
+                    "serverName": {
+                        "type": "string"
+                    },
+                    "unseen": {
+                        "description": "marked after the user last looked at the list",
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "serverId",
+                    "serverName",
+                    "path",
+                    "name",
+                    "kind",
+                    "detectedAt",
+                    "unseen"
+                ],
+                "type": "object"
+            },
+            "api.detectedMarksResponse": {
+                "properties": {
+                    "items": {
+                        "items": {
+                            "$ref": "#/components/schemas/api.detectedMark"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
+                    "unseen": {
+                        "description": "how many of them the user has not seen yet",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "items",
+                    "unseen"
+                ],
+                "type": "object"
+            },
             "api.dismissRequest": {
                 "properties": {
                     "cover": {
@@ -14013,6 +14078,77 @@
                 "summary": "Rename local entry",
                 "tags": [
                     "Browse"
+                ]
+            }
+        },
+        "/api/catalog/detected-marks": {
+            "get": {
+                "description": "The folder marks WeebSync set itself (a folder of single titles, a new season folder beside marked ones), newest first. A mark the user changes, sets to none or removes is no longer listed. unseen counts those marked after the list was last marked seen.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.detectedMarksResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Folders marked automatically",
+                "tags": [
+                    "Catalog"
+                ]
+            }
+        },
+        "/api/catalog/detected-marks/seen": {
+            "post": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Mark the automatic marks as seen",
+                "tags": [
+                    "Catalog"
                 ]
             }
         },
