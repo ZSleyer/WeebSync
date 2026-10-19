@@ -363,6 +363,8 @@
   flex: none;
   display: flex;
   align-items: center;
+  /* the TMDB mark is 20px tall: a standalone link needs 24 (WCAG 2.5.8) */
+  min-height: 1.5rem;
 }
 .set-about-credits .sf-note {
   margin: 0;

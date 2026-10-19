@@ -74,7 +74,7 @@ export function CatalogWhy({
         )}
       </div>
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-5 py-3">
-        <Link to="/rules#match" onClick={onClose} className="text-sm text-accent-2 hover:underline">
+        <Link to="/rules#match" onClick={onClose} className="t-link t-link--2">
           {t('explain.rulesLink.match')}
         </Link>
         <Button onClick={onClose}>{t('common.close')}</Button>
