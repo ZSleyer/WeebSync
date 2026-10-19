@@ -160,7 +160,8 @@
 .ws-scope-more { display: grid; gap: 0.5rem; padding: 0.75rem; border-radius: var(--r-menu); background: color-mix(in oklab, var(--fg) 6%, transparent); }
 .ws-scope-more:empty { display: none; }
 /* the desktop's popover: the choice, then the rule and the why */
-.ws-scope-pop { min-width: 17rem; }
+/* taller than a plain menu: the options plus the detected note, the rule and the why */
+.ws-scope-pop { min-width: 17rem; max-height: min(70dvh, 26rem); }
 .ws-scope-pop-more { padding: 0.375rem 0.5rem 0.25rem; }
 .ws-scope-pop-more .ws-scope-more { background: none; padding: 0.5rem 0.25rem 0.125rem; border-top: 1px solid var(--line); border-radius: 0; }
 .ws-scope-opt {
