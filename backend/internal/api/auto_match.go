@@ -247,15 +247,19 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 	return "", 0
 }
 
-// gateAutoPicks drops the AniList picks of folders whose routing put AniList
-// after another provider: they have to pass the strict gate.
+// gateAutoPicks drops the AniList picks of an automatic mark that do not hold up:
+// the first provider's pick has to be verifiable (match.FirstPickOK), a later one passes the strict gate.
 func gateAutoPicks(batch []matchJob, infos []match.Info, picked []*anilist.Media) {
 	for i, b := range batch {
-		if b.auto == nil || !b.auto.gated || picked[i] == nil {
+		if b.auto == nil || picked[i] == nil {
 			continue
 		}
-		if !match.AutoAccept(infos[i], match.HintQuery(infos[i]), *picked[i], b.auto.tier, true) {
-			slog.Debug("auto match: pick refused by the strict gate", "folder", logSafe(b.folder), "media", picked[i].ID)
+		ok := match.FirstPickOK(infos[i], *picked[i], strings.Contains(b.name, "["))
+		if b.auto.gated {
+			ok = match.AutoAccept(infos[i], match.HintQuery(infos[i]), *picked[i], b.auto.tier, true)
+		}
+		if !ok {
+			slog.Debug("auto match: pick refused", "folder", logSafe(b.folder), "media", picked[i].ID, "gated", b.auto.gated)
 			picked[i] = nil
 		}
 	}

@@ -236,6 +236,61 @@ func NonTitle(info Info) bool {
 	return strong
 }
 
+// TitleWithin reports whether one of the entry's titles (romaji, English or a
+// synonym) is nothing but what the folder's name says, one word excepted in a
+// title of four words or more: "Tiny Evil" is not the folder "Evil".
+func TitleWithin(info Info, m anilist.Media) bool {
+	fw := hintWords(info.Full + " " + info.Alt)
+	within := func(t string) bool {
+		tw := hintWords(StripFolderMarkers(t))
+		if len(tw) == 0 {
+			return false
+		}
+		ok := make([]bool, len(tw))
+		explained(tw, fw, ok)
+		miss := 0
+		for _, o := range ok {
+			if !o {
+				miss++
+			}
+		}
+		allowed := 0
+		if len(tw) >= 4 {
+			allowed = 1
+		}
+		return miss <= allowed
+	}
+	for _, t := range append([]string{m.Title.Romaji, m.Title.English}, m.Synonyms...) {
+		// a folder often carries the title without its subtitle
+		if within(t) {
+			return true
+		}
+		if loc := relaxedCutRe.FindStringIndex(t); loc != nil && within(t[:loc[0]]) {
+			return true
+		}
+	}
+	return false
+}
+
+// FirstPickOK is the minimum an "automatic" mark asks of the pick of the first
+// provider, which it otherwise takes on that provider's own confidence. A tree
+// that mixes anime and live action meets live-action titles that share a word
+// or two with an AniList entry; what such a pick has in common is that nothing
+// can verify it: the folder names a year and the entry has none, or the entry
+// is a music video the folder does not speak of. A name with no tag group
+// ("Title (2019)", the way a media server files its shows) carries no sign of
+// being a release of an anime, and there the entry must also be nothing but what
+// the name says (TitleWithin): "Tiny Evil" is not "Evil".
+func FirstPickOK(info Info, m anilist.Media, tagged bool) bool {
+	if info.Year != 0 && m.SeasonYear == 0 {
+		return false
+	}
+	if m.Format == "MUSIC" && !musicFolderRe.MatchString(info.Full) {
+		return false
+	}
+	return tagged || TitleWithin(info, m)
+}
+
 // weakCategoryWords are category words that also turn up in titles: a name of
 // nothing but these is not taken for a category.
 var weakCategoryWords = map[string]bool{

@@ -25,6 +25,35 @@ func TestNonTitle(t *testing.T) {
 	}
 }
 
+func TestFirstPickOK(t *testing.T) {
+	film := tmdbCand("Example Story", "Example Story", 0, 500, "MOVIE")
+	music := tmdbCand("Example Story", "Example Story", 2019, 500, "MUSIC")
+	tv := tmdbCand("Example Story", "Example Story", 2019, 500, "TV")
+	longer := tmdbCand("Tiny Example Story", "Tiny Example Story", 2019, 500, "TV")
+	sub := tmdbCand("Example Story: The Long Subtitle Of It All", "Example Story", 2019, 500, "TV")
+	for _, c := range []struct {
+		name   string
+		m      anilist.Media
+		tagged bool
+		want   bool
+	}{
+		{"Example Story (2019)", tv, false, true},
+		{"Example Story", film, true, true},          // no year asked, none needed
+		{"Example Story (2019)", film, true, false},  // the folder names a year the entry cannot confirm
+		{"Example Story (2019)", music, true, false}, // a music video the folder does not speak of
+		{"Example Story Music Videos (2019)", music, true, true},
+		// a name with no tags, the way a media server files it: the entry may not be more than the name
+		{"Example Story (2019)", longer, false, false},
+		{"Example Story (2019)", longer, true, true},
+		{"Example Story (2019)", sub, false, true}, // its subtitle is left out of the folder name
+	} {
+		info := ParseName(c.name, GuessTitle(c.name), GuessAltTitle(c.name))
+		if got := FirstPickOK(info, c.m, c.tagged); got != c.want {
+			t.Errorf("FirstPickOK(%q, %q, tagged %v) = %v, want %v", c.name, c.m.Title.Romaji, c.tagged, got, c.want)
+		}
+	}
+}
+
 // AutoAccept is the gate for a provider asked after the first: seasons may
 // ride along, a title that is more or less than the folder's is refused, and
 // a provider without votes is held to its poster instead.
