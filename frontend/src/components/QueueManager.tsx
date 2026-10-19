@@ -91,6 +91,7 @@ import { useDragReorder } from '../hooks/useDragReorder'
 import ActionSheet, { type SheetAction } from './ActionSheet'
 import ActionMenu from './ActionMenu'
 import Press from './Press'
+import { Hint } from './RenameOptions'
 
 // history-only status filter: the active queue is short and searchable, its
 // three states never need chips
@@ -1348,8 +1349,9 @@ function DownloadRow({
           {/* why it is waiting, in the row's own words - a countdown without
               a reason is an unexplained pause */}
           {isRetrying(d) && d.error && (
-            <span className="max-w-64 truncate text-xs text-err" title={d.error}>
-              {netErrorText(d.error)}
+            <span className="flex max-w-64 items-center text-xs text-err">
+              <span className="truncate">{netErrorText(d.error)}</span>
+              <Hint text={d.error} />
             </span>
           )}
         </>

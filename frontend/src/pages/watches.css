@@ -372,6 +372,18 @@
   color: var(--fg-3);
   font-size: 0.875rem;
 }
+.w-ag-row {
+  display: flex;
+  align-items: center;
+}
+.w-ag-row > .w-ag {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.w-week .w-ag-row {
+  align-items: flex-start;
+}
 .w-ag {
   display: flex;
   align-items: center;

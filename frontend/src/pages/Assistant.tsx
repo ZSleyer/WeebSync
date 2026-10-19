@@ -36,6 +36,7 @@ import {
 } from '../api'
 import UpgradeCard, { type SyncRequest } from '../components/UpgradeCard'
 import { CoverImg } from '../components/SmartImg'
+import { Hint } from '../components/RenameOptions'
 import { coverSet } from '../images'
 import { discoverPath } from '../discoverRoutes'
 import { EmptyNote } from './DiscoverParts'
@@ -847,9 +848,10 @@ export default function Assistant() {
           </div>
         ) : (
           modelInUse && (
-            <span className="as-model" title={modelInUse}>
-              {modelChip(modelInUse)}
-            </span>
+            <>
+              <span className="as-model">{modelChip(modelInUse)}</span>
+              {modelChip(modelInUse) !== modelInUse && <Hint text={modelInUse} />}
+            </>
           )
         )}
         {webReady && (webTools.search || webTools.research) && (

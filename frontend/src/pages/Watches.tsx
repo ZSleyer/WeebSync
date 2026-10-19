@@ -45,6 +45,7 @@ import {
 import { api, mediaTitle, type Watch } from '../api'
 import ActionSheet from '../components/ActionSheet'
 import Press from '../components/Press'
+import { Hint } from '../components/RenameOptions'
 import { addDays, dayKey, episodeLabel, fileStatus, startOfDay, upcomingAirings, type Airing } from '../airings'
 import { countdown } from '../countdown'
 import WatchDialog from '../components/WatchDialog'
@@ -400,17 +401,31 @@ export default function Watches() {
         : `${d.toLocaleDateString([], { weekday: 'short' })} `) + hm(st.at ?? 0)
     const key = { onServer: 'watch.fileOnServer', expected: 'watch.fileExpected', late: 'watch.fileLate' }[st.kind]
     return (
-      <span className="w-file" data-kind={st.kind} title={st.kind === 'onServer' ? undefined : t('watch.fileEstimate')}>
+      <span className="w-file" data-kind={st.kind}>
         {t(key, { time })}
       </span>
     )
+  }
+  // what the row's figures rest on: the JST slot, an estimated dub date, an
+  // estimated file arrival. Sits behind a "?" beside the row, not inside its
+  // button, so a keyboard or a finger reaches it as well as a pointer.
+  const rowNote = (e: Airing) => {
+    const st = fileStatus(e, now)
+    return [
+      e.watch.category?.startsWith('anime') ? `${jst(e.at)} JST.` : '',
+      e.est ? t('watch.dubEstimate') : '',
+      st && st.kind !== 'have' && st.kind !== 'onServer' ? t('watch.fileEstimate') : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
   }
   // one release as a row: time, title and episode, how far off it is
   const entry = (e: Airing) => {
     const w = e.watch
     const past = e.at * 1000 <= now
+    const note = rowNote(e)
     return (
-      <Press onLongPress={() => setMore(w)}>
+      <Press className="w-ag-row" onLongPress={() => setMore(w)}>
         <button type="button" className="w-ag" disabled={!w.media} onClick={() => showSeries(w)}>
           <CoverImg
             className="w-ag-cov"
@@ -418,21 +433,17 @@ export default function Watches() {
             tint={w.media?.coverImage?.color}
             sizes="2.75rem"
           />
-          <time
-            dateTime={new Date(e.at * 1000).toISOString()}
-            title={w.category?.startsWith('anime') ? `${jst(e.at)} JST` : undefined}
-          >
-            {hm(e.at)}
-          </time>
+          <time dateTime={new Date(e.at * 1000).toISOString()}>{hm(e.at)}</time>
           <span className="w-ag-t">
             <strong>{watchName(w)}</strong>
-            <span title={e.est ? t('watch.dubEstimate') : undefined}>{episodeLabel(t, e)}</span>
+            <span>{episodeLabel(t, e)}</span>
             {fileLine(e)}
           </span>
           <span className="w-ag-state" data-tone={past && e.have ? 'ok' : undefined}>
             {past ? t('watch.cal.aired') : countdown(t, e.at, isToday(e.at), now)}
           </span>
         </button>
+        {note && <Hint text={note} />}
       </Press>
     )
   }
