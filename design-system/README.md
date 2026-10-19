@@ -144,7 +144,8 @@ package has:
   titles and section headings wipe in, meters fill, and rows, shelf items and
   `[data-rise]` children rise in one wave from left to right.
 - `.t-scroll` and `ScrollRegion`: an inner vertical scroller with a stable
-  gutter and end padding, so content never touches or sits under the bar.
+  gutter and end padding (1rem, in the components layer: `pr-*` utilities and
+  unlayered classes override it), so content never touches or sits under the bar.
   `ScrollRegion` adds tabIndex 0, role region and a required `aria-label`
   for content with nothing focusable in it.
 - `Toast` and `ToastRegion`: inverted toasts in the top layer, left of an
