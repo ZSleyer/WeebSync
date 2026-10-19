@@ -1134,6 +1134,8 @@ export function DayScroller({ days, selected, onSelect, onPrev, onNext, onToday,
         ref={band}
         role="group"
         aria-label={labels.strip}
+        // the day buttons are the stops; a scroller is a Tab stop in Firefox, and its ring is masked
+        tabIndex={-1}
         className="t-dayband gap-1 py-1"
         onScroll={onScroll}
         onPointerDown={onPointerDown}
@@ -1695,7 +1697,7 @@ export function AppShell({
           browsers) says `flex-1` instead of subtracting the bars by hand - the
           hand-computed value was 19px off, and those 19px were exactly the
           phantom scroll that toggles a phone's URL bar */}
-      <main key={mainKey} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
+      <main key={mainKey} tabIndex={-1} className="flex min-w-0 flex-1 flex-col overflow-x-clip p-4 lg:p-6">
         {children}
       </main>
       {aside}
