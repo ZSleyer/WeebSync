@@ -44,3 +44,8 @@
   font-size: 0.875rem;
   color: var(--fg-3);
 }
+/* the total gives way, not the action: on 320px "Papierkorb leeren" wrapped
+   to two lines while the count beside it still had room to */
+.ws-trash-foot > .t-btn {
+  flex: none;
+}
