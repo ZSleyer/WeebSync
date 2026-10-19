@@ -1,8 +1,10 @@
 // End-to-end pass over the running app: every route, in Chromium and Firefox,
-// at desktop, Pixel 8 Pro and iPhone 14. Checks what a screenshot cannot - WCAG
-// 2.2 AA text contrast (1.4.3) and target size (2.5.8), console errors, control
-// heights per family, labels that wrapped, and whether the mobile shell stays
-// pinned - and leaves one screenshot per route/browser/viewport behind.
+// at desktop, both tablet orientations, Pixel 8 Pro and iPhone 14. Checks what a
+// screenshot cannot - WCAG 2.2 AA text contrast (1.4.3) and target size (2.5.8),
+// console errors, control heights per family, labels that wrapped, whether the
+// mobile shell stays pinned, how close content sits to a scroller's scrollbar,
+// scrollers a keyboard cannot reach (2.1.1) and focus hidden behind sticky
+// chrome (2.4.11) - and leaves one screenshot per route/browser/viewport behind.
 //
 //   WS_EMAIL=... WS_PASSWORD=... node tools/ui-audit/e2e.mjs [--base http://127.0.0.1:8099] [--out ./e2e-shots] [--tag before]
 import { chromium, firefox } from 'playwright'
@@ -45,41 +47,84 @@ const ALL_VIEWPORTS = {
   desktop: { viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false },
   // Pixel 8 Pro: the CSS viewport Firefox for Android gives it
   pixel: { viewport: { width: 412, height: 915 }, deviceScaleFactor: 2.625, isMobile: true, hasTouch: true },
+  // iPad Air: below and above the 64rem breakpoint, where <main> scrolls on the
+  // portrait one and the document on the landscape one
+  tabletP: { viewport: { width: 820, height: 1180 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
+  tabletL: { viewport: { width: 1180, height: 820 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   // iPhone 14 - the narrower of the two target phones, and therefore the one
   // that finds the labels which no longer fit on a single line
   iphone: { viewport: { width: 393, height: 852 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+  // WCAG 1.4.10 reflow: 320 CSS px. Opt-in, it is the slowest of the sweep
+  narrow: { viewport: { width: 320, height: 640 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
 }
-// --viewports phone,wide picks a subset; the default is the three of the
-// contrast and target pass
+// --viewports phone,wide,narrow picks a subset; the default covers desktop,
+// both tablets, the Pixel and the iPhone (add `narrow` for 320px and `wide`
+// for 1440px)
 const VIEWPORTS = Object.fromEntries(
-  arg('viewports', 'desktop,pixel,iphone').split(',').map((k) => [k, ALL_VIEWPORTS[k]]),
+  arg('viewports', 'desktop,tabletP,tabletL,pixel,iphone').split(',').map((k) => [k, ALL_VIEWPORTS[k]]),
 )
 const BROWSERS = arg('browsers', 'chromium,firefox').split(',')
 
 // Runs in the page. Walks every text node for contrast and every interactive
 // element for target size, and collects one height per control family.
 const audit = () => {
-  const lum = (c) => {
-    const m = (c.match(/[\d.]+/g) || ['0', '0', '0']).map(Number)
-    if (m.length >= 4 && m[3] === 0) return null // fully transparent
-    const [r, g, b] = m.slice(0, 3).map((v) => {
+  // Computed colours come back as oklab() / color(srgb ...) / color-mix()
+  // results as often as rgb(), and splitting digits out of those reads garbage
+  // (an oklab background came out as near-black). A 1x1 canvas converts any
+  // CSS colour the browser understands to 8-bit sRGB.
+  const px = document.createElement('canvas')
+  px.width = px.height = 1
+  const g2d = px.getContext('2d', { willReadFrequently: true })
+  const memo = new Map()
+  const rgba = (c) => {
+    if (!memo.has(c)) {
+      g2d.clearRect(0, 0, 1, 1)
+      g2d.fillStyle = '#000'
+      g2d.fillStyle = c
+      g2d.fillRect(0, 0, 1, 1)
+      const d = g2d.getImageData(0, 0, 1, 1).data
+      const a = d[3] / 255
+      memo.set(c, a === 0 ? [0, 0, 0, 0] : [d[0], d[1], d[2], a])
+    }
+    return memo.get(c)
+  }
+  const lum = ([r, g, b]) => {
+    const [x, y, z] = [r, g, b].map((v) => {
       v /= 255
       return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
     })
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return 0.2126 * x + 0.7152 * y + 0.0722 * z
   }
+  // The colour actually behind an element: translucent backgrounds are blended
+  // over their ancestors until one is opaque (glass headers are translucent, and
+  // taking the first non-transparent ancestor as opaque read a page title as
+  // 1.3:1). An image or a backdrop blur anywhere in that stack cannot be
+  // computed from styles: null, left to contrast.mjs, which samples pixels.
   const bgOf = (el) => {
-    let n = el
-    while (n) {
-      const b = getComputedStyle(n).backgroundColor
-      if (b && b !== 'rgba(0, 0, 0, 0)' && b !== 'transparent') return b
-      n = n.parentElement
+    const layers = []
+    let opaque = false
+    for (let n = el; n && !opaque; n = n.parentElement) {
+      const cs = getComputedStyle(n)
+      const bd = cs.backdropFilter || cs.webkitBackdropFilter
+      if (cs.backgroundImage !== 'none' || (bd && bd !== 'none')) return null
+      const b = rgba(cs.backgroundColor)
+      if (b[3] > 0) layers.push(b)
+      opaque = b[3] >= 1
     }
-    return getComputedStyle(document.body).backgroundColor || 'rgb(255,255,255)'
+    // the canvas is white when nothing paints it
+    let out = opaque ? layers.pop() : [255, 255, 255, 1]
+    while (layers.length) {
+      const [r, g, b, a] = layers.pop()
+      out = [r * a + out[0] * (1 - a), g * a + out[1] * (1 - a), b * a + out[2] * (1 - a), 1]
+    }
+    return out
   }
-  const ratio = (fg, bg) => {
+  const ratio = (fgCss, bg) => {
+    const f = rgba(fgCss)
+    if (f[3] === 0) return 21 // invisible, not low contrast
+    // text with an alpha is blended over what is behind it first
+    const fg = [0, 1, 2].map((i) => f[i] * f[3] + bg[i] * (1 - f[3]))
     const l1 = lum(fg), l2 = lum(bg)
-    if (l1 === null || l2 === null) return 21
     return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05)
   }
   const visible = (el) => {
@@ -90,13 +135,19 @@ const audit = () => {
   }
 
   const contrast = []
+  let deferred = 0
   for (const el of document.querySelectorAll('body *')) {
     const own = [...el.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent.trim()).join('')
     if (!own || !visible(el)) continue
     const cs = getComputedStyle(el)
     const size = parseFloat(cs.fontSize)
     const large = size >= 24 || (size >= 18.66 && +cs.fontWeight >= 700)
-    const r = ratio(cs.color, bgOf(el))
+    const bg = bgOf(el)
+    if (!bg) {
+      deferred++
+      continue
+    }
+    const r = ratio(cs.color, bg)
     if (r < (large ? 3 : 4.5)) contrast.push({ text: own.slice(0, 40), size: +size.toFixed(1), ratio: +r.toFixed(2) })
   }
 
@@ -406,7 +457,150 @@ const audit = () => {
   if ((locked(doc) || (scroller && locked(scroller))) && !document.querySelector('dialog[open]'))
     shell.push({ what: 'the page is locked against scrolling with no modal open', off: 0 })
 
-  return { contrast, targets, heights, offenders, scroll, wrapped, shell, title: document.title }
+  return { contrast, deferred, targets, heights, offenders, scroll, wrapped, shell, title: document.title }
+}
+
+// Runs in the page. Every scroll container that actually overflows: how wide
+// its scrollbar is, how close the interactive content sits to it, and whether a
+// keyboard can reach it. A control flush with the content edge is hidden under a
+// classic scrollbar (15px on desktop) or too close to an overlay one to hit.
+const scrollers = () => {
+  const doc = document.documentElement
+  const visible = (e) => {
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e)
+    return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.display !== 'none'
+  }
+  const name = (e) => {
+    if (!(e instanceof Element)) return '?'
+    return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + [...e.classList].slice(0, 3).map((c) => '.' + c).join('')
+  }
+  const path = (e) => {
+    const p = []
+    for (let i = 0; e && i < 4; i++, e = e.parentElement) p.push(name(e))
+    return p.reverse().join(' > ')
+  }
+  const all = [...document.body.querySelectorAll('*')]
+  const INTER = 'button, a[href], input, select, textarea, [role="button"], [role="link"], [role="tab"], [role="menuitem"], [tabindex]:not([tabindex="-1"])'
+  const out = { scrollers: [], hscroll: null, notFocusable: [] }
+
+  // the page or <main> scrolling sideways, with the boxes that stick out
+  const main = document.querySelector('main')
+  if (doc.scrollWidth > doc.clientWidth + 1 || (main && main.scrollWidth > main.clientWidth + 1)) {
+    const vw = doc.clientWidth
+    const clipped = (e) => {
+      for (let p = e.parentElement; p && p !== document.body && p !== doc; p = p.parentElement) {
+        const cs = getComputedStyle(p)
+        if (cs.position === 'fixed') return false
+        if (cs.overflowX !== 'visible' || cs.contain.includes('paint')) return true
+      }
+      return false
+    }
+    const culprits = []
+    for (const e of all) {
+      if (culprits.length >= 8) break
+      if (!visible(e) || getComputedStyle(e).position === 'fixed' || clipped(e)) continue
+      const r = e.getBoundingClientRect()
+      if (r.right > vw + 1 || r.left < -1) culprits.push(`${path(e)} [${Math.round(r.left)}..${Math.round(r.right)}]`)
+    }
+    out.hscroll = {
+      html: doc.scrollWidth - doc.clientWidth,
+      main: main ? main.scrollWidth - main.clientWidth : 0,
+      culprits,
+    }
+  }
+
+  for (const e of all) {
+    const cs = getComputedStyle(e)
+    const ox = /auto|scroll/.test(cs.overflowX), oy = /auto|scroll/.test(cs.overflowY)
+    if (!(ox || oy) || !visible(e)) continue
+    const overY = oy && e.scrollHeight > e.clientHeight + 1
+    const overX = ox && e.scrollWidth > e.clientWidth + 1
+    if (!overY && !overX) continue
+    const r = e.getBoundingClientRect()
+    const sbw = e.offsetWidth - e.clientWidth - (parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth))
+    const edge = r.left + e.clientLeft + e.clientWidth
+    const kids = [...e.querySelectorAll(INTER)].filter(visible)
+    // smallest distance between an interactive descendant and the content edge,
+    // among those in view (a row scrolled away says nothing about its gap)
+    let gap = null, who = null
+    if (overY)
+      for (const k of kids) {
+        const kr = k.getBoundingClientRect()
+        if (kr.bottom < r.top || kr.top > r.bottom || kr.left > edge) continue
+        // inside a scroller of its own (a tab strip), the clipping is that box's
+        let nested = false
+        for (let p = k.parentElement; p && p !== e; p = p.parentElement)
+          if (/auto|scroll/.test(getComputedStyle(p).overflowX)) nested = true
+        if (nested) continue
+        const g = edge - kr.right
+        if (g > -400 && (gap === null || g < gap)) {
+          gap = g
+          who = path(k)
+        }
+      }
+    const row = {
+      el: path(e), overX, overY, sbw: Math.round(sbw * 10) / 10,
+      padL: cs.paddingLeft, padR: cs.paddingRight,
+      gap: gap === null ? null : Math.round(gap * 10) / 10, gapEl: who,
+    }
+    // a classic scrollbar needs room beside the content, an overlay one still
+    // has a thumb sitting over the last few pixels
+    const need = row.sbw > 0 ? 8 : 4
+    row.tight = overY && row.gap !== null && row.gap < need ? need : 0
+    out.scrollers.push(row)
+    // 2.1.1: a scroller with nothing focusable in it cannot be scrolled by keyboard
+    // (Firefox makes it a tab stop by itself, Chromium does not)
+    if (e.tabIndex < 0 && !kids.some((k) => k.tabIndex >= 0 && !k.disabled))
+      out.notFocusable.push({ el: path(e), axis: overY ? 'y' : 'x' })
+  }
+  return out
+}
+
+// Runs in the page after each Tab: how much of the focused element something
+// else covers (2.4.11 Focus Not Obscured), sampled at the centre and four
+// corners. A sticky header or tab bar over the focus ring is the usual cause.
+const focusInfo = () => {
+  const a = document.activeElement
+  if (!a || a === document.body) return null
+  const r = a.getBoundingClientRect()
+  const vw = document.documentElement.clientWidth, vh = innerHeight
+  if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) return null
+  const lab = a.closest('label')
+  let covered = 0, by = null
+  for (const [fx, fy] of [[0.5, 0.5], [0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) {
+    const x = r.left + r.width * fx, y = r.top + r.height * fy
+    if (x < 0 || y < 0 || x >= vw || y >= vh) continue
+    const t = document.elementFromPoint(x, y)
+    if (!t || a.contains(t) || t.contains(a) || (lab && t.closest('label') === lab)) continue
+    covered++
+    by = t.tagName.toLowerCase() + [...t.classList].slice(0, 3).map((c) => '.' + c).join('')
+  }
+  return {
+    el: a.tagName.toLowerCase() + [...a.classList].slice(0, 3).map((c) => '.' + c).join(''),
+    text: (a.getAttribute('aria-label') || a.textContent || '').trim().slice(0, 30),
+    covered, by,
+  }
+}
+
+// Tab through the first stops of the page and report what a sticky bar hides:
+// all five sample points covered fails, two or more is a warning
+const focusWalk = async (page, n = 40) => {
+  const res = []
+  const seen = new Set()
+  await page.evaluate(() => {
+    document.activeElement?.blur?.()
+    scrollTo(0, 0)
+  })
+  for (let i = 0; i < n; i++) {
+    await page.keyboard.press('Tab')
+    const f = await page.evaluate(focusInfo).catch(() => null)
+    if (!f) continue
+    const k = `${f.el}|${f.text}`
+    if (seen.has(k)) continue
+    seen.add(k)
+    if (f.covered >= 2) res.push({ ...f, fail: f.covered === 5 })
+  }
+  return res
 }
 
 const run = async (name, browserType) => {
@@ -481,6 +675,7 @@ const run = async (name, browserType) => {
         await page.waitForTimeout(500)
       }
       const r = await page.evaluate(audit)
+      Object.assign(r, await page.evaluate(scrollers))
       const slug = (route + (label ? '-' + label : '')).replace(/[^\w-]+/g, '_') || '_root'
       const file = `${OUT}/${TAG ? TAG + '-' : ''}${name}-${vpName}${slug}.png`
       // a full-page shot is capped at 32767 device px; long lists on the real
@@ -493,6 +688,8 @@ const run = async (name, browserType) => {
           : { path: file, fullPage: true },
       )
       const layout = await scanLayout(page)
+      // last: walking the focus order scrolls the page
+      r.focus = await focusWalk(page)
       findings.push({ browser: name, viewport: vpName, route: label ? `${route} (${label})` : route, ...r, layout, errors: [...new Set(errors)], shot: file })
     }
     await ctx.close()
@@ -523,9 +720,18 @@ for (const f of all) {
   if (f.targets.length) problems.push(`${f.targets.length}x target size`)
   if (f.errors.length) problems.push(`${f.errors.length}x console error`)
   if (f.scroll?.length) problems.push(`${f.scroll.length}x scrollbar`)
+  const tight = (f.scrollers || []).filter((x) => x.tight)
+  const hard = (f.focus || []).filter((x) => x.fail)
+  if (f.hscroll) problems.push(`sideways overflow (html +${f.hscroll.html}, main +${f.hscroll.main})`)
+  if (tight.length) problems.push(`${tight.length}x scroller content too close to the scrollbar`)
+  if (f.notFocusable?.length) problems.push(`${f.notFocusable.length}x scroller not keyboard reachable (2.1.1)`)
+  if (hard.length) problems.push(`${hard.length}x focus obscured (2.4.11)`)
   if (f.wrapped?.length) problems.push(`${f.wrapped.length}x label wrapped`)
   if (f.shell?.length) problems.push(`${f.shell.length}x shell shifted`)
   for (const [fam, rows] of Object.entries(f.offenders || {})) problems.push(`${fam}: ${rows.length}x mixed heights in a row`)
+  // two to four of five points covered: worth a look, not a failure
+  for (const x of (f.focus || []).filter((x) => !x.fail))
+    console.log(`  ⚠ ${f.browser}/${f.viewport} ${f.route}: focus <${x.el}> "${x.text}" covered ${x.covered}/5 by ${x.by}`)
   if (problems.length) {
     bad++
     console.log(`✗ ${f.browser}/${f.viewport} ${f.route}: ${problems.join(' · ')}`)
@@ -533,6 +739,10 @@ for (const f of all) {
     for (const o of lay.escapes.slice(0, 6)) console.log(`    escapes ${o.box} by ${o.dx}/${o.dy}px: "${o.text}"`)
     for (const o of lay.clipped.slice(0, 6)) console.log(`    clipped by ${o.by}: "${o.text}" (${o.el})`)
     for (const c of f.contrast.slice(0, 4)) console.log(`    contrast ${c.ratio}:1 ${c.size}px "${c.text}"`)
+    if (f.hscroll) for (const c of f.hscroll.culprits) console.log(`    overflow culprit ${c}`)
+    for (const x of tight) console.log(`    scroller ${x.el}: gap ${x.gap}px < ${x.tight}px (scrollbar ${x.sbw}px, padding ${x.padL}/${x.padR}) at ${x.gapEl}`)
+    for (const x of f.notFocusable || []) console.log(`    scroller ${x.el} (${x.axis}) has no focusable content and no tabindex`)
+    for (const x of hard) console.log(`    focus <${x.el}> "${x.text}" covered 5/5 by ${x.by}`)
     for (const t of f.targets.slice(0, 4)) console.log(`    target ${t.w}x${t.h} <${t.tag}> "${t.text}"`)
     for (const sc of (f.scroll || []).slice(0, 4)) console.log(`    Scroll ${sc.axis} +${sc.overflow}px in "${sc.where}"`)
     for (const w of (f.wrapped || []).slice(0, 6)) console.log(`    wrap ${w.lines} lines: ${w.w}px available, ${w.needs}px needed "${w.text}"`)
@@ -542,6 +752,7 @@ for (const f of all) {
     for (const e of f.errors.slice(0, 3)) console.log(`    ${e}`)
   }
 }
+console.log(`${all.reduce((n, f) => n + (f.deferred || 0), 0)} text nodes over an image or backdrop blur: deferred to contrast.mjs`)
 console.log(bad === 0
   ? `\n✓ ${all.length} page runs (${BROWSERS.length} browsers x ${Object.keys(VIEWPORTS).length} viewports x ${new Set(all.map((r) => r.route)).size} routes): no findings`
   : `\n${bad}/${all.length} page runs with findings`)

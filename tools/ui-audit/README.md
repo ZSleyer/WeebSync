@@ -1,15 +1,42 @@
 # UI audit
 
-Playwright passes over a running instance, in Chromium and Firefox, at
-desktop 1280x900, Pixel 8 Pro 448x998 and iPhone 14 393x852 (both DPR 3). The
-two phones are the real target devices; 393px is the narrower of them and the
-one that finds labels which no longer fit on a single line.
+Playwright passes over a running instance, in Chromium and Firefox. `e2e.mjs`
+covers desktop 1280x900, both iPad orientations (820x1180 portrait, below the
+64rem breakpoint where `<main>` scrolls, and 1180x820 landscape, above it where
+the document does), Pixel 8 Pro 412x915 and iPhone 14 393x852 by default. Two
+more are opt-in because they cost run time: `narrow` (320x640, the WCAG 1.4.10
+reflow width) and `wide` (1440x900). The two phones are the real target
+devices; 393px is the narrower of them and the one that finds labels which no
+longer fit on a single line.
+
+Headless Chromium hides scrollbars unless told otherwise, so every pass
+launches it through `launch()` in `auth.mjs`, which drops `--hide-scrollbars`.
+Non-touch contexts (desktop, wide) then get classic 15px bars that take room
+from the content, as they do for a real user; touch contexts keep overlay bars.
 
 - `e2e.mjs` walks every route and checks WCAG 2.2 AA text contrast (1.4.3),
   target size (2.5.8), control heights within a row, stray scrollbars, console
   errors, labels that had to wrap (with the width they would have needed), and
   whether the mobile header and tab bar stay pinned across a scroll. It leaves
-  one screenshot per route/browser/viewport behind.
+  one screenshot per route/browser/viewport behind. Three passes look at what
+  scrolls and what is focused:
+  - Scrollers: for every container that really overflows, the scrollbar width,
+    the padding and the smallest gap between an interactive descendant's right
+    edge and the content edge. A gap under 8px beside a classic scrollbar (4px
+    beside an overlay one) is a finding: the control sits against, or under,
+    the bar. Also reported: the page or `<main>` scrolling sideways, with the
+    boxes that stick out, and a scroller with nothing focusable in it and no
+    `tabindex`, which a keyboard cannot scroll (2.1.1).
+  - Focus not obscured (2.4.11): the first 40 Tab stops, each sampled at five
+    points for what is painted over it (sticky header, tab bar). All five
+    covered fails; two to four are listed as warnings (the line starts with a
+    warning sign and does not count as a failing run), with the covering element.
+  - Contrast reads the colour behind each text by blending translucent
+    backgrounds up the ancestor chain until one is opaque; colours come
+    through a canvas, so `oklab()` and `color-mix()` values are handled. Text
+    over a background image or a backdrop blur cannot be computed from styles
+    and is not judged: the run prints how many text nodes were "deferred to
+    contrast.mjs", the pixel-based pass.
 - `modals.mjs` opens every dialog the app has and applies the same checks
   there, which a route pass cannot reach: a dialog is not in the DOM until
   something is clicked. It also asserts the page behind a modal cannot scroll,
@@ -48,8 +75,11 @@ one that finds labels which no longer fit on a single line.
   the focus indicator of the first 25 Tab stops. `--inject '<css>'` adds a
   known failure, to check that a clean run is not a blind one.
 
-`--viewports phone,wide` (448x998 and 1440x900) and `--browsers chromium`
-narrow `e2e.mjs` and `modals.mjs` to a subset.
+`--viewports phone,wide,narrow` and `--browsers chromium` narrow `e2e.mjs`
+and `modals.mjs` to a subset (`e2e.mjs` knows `desktop, wide, tabletP, tabletL,
+phone, pixel, iphone, narrow`; `modals.mjs` only the phone/desktop sizes). A
+full `e2e.mjs` run with all seven of them in both browsers takes about 15
+minutes; the default five take roughly ten.
 
 `auth.mjs` is how every pass gets in: `WS_TOKEN` (the raw token whose SHA-256
 sits in the `sessions` table, the way in when the instance is OIDC-only) wins,
