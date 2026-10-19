@@ -406,6 +406,8 @@
   margin-left: -1.75rem;
   border-radius: 0.9375rem;
   background: color-mix(in oklab, var(--accent) 22%, transparent);
+  /* the accent ring keeps the current tab at 3:1 where the tint alone is ~1.5:1 */
+  box-shadow: inset 0 0 0 1.5px var(--accent);
   opacity: 0;
   transform: scaleX(0.4);
   transition: opacity var(--dur-2) var(--ease-out), transform var(--dur-3) var(--spring-calm);
@@ -419,6 +421,7 @@
 }
 .ws-tab[data-tone="teal"] .ws-pip {
   background: color-mix(in oklab, var(--accent-2) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--accent-2);
 }
 @media (prefers-reduced-motion: reduce) {
   .ws-pip {

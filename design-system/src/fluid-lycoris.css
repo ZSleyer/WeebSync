@@ -2130,6 +2130,8 @@ p > .t-link::before {
   width: calc((100% - 6px) / var(--n));
   border-radius: var(--r-item);
   background: var(--hover);
+  /* the picked option is told apart by an edge at 3:1, not by a tint alone */
+  box-shadow: inset 0 0 0 1px var(--line-strong);
   transform: translateX(calc(100% * var(--i)));
 }
 .t-seg[data-placed] > .t-seg-thumb {
