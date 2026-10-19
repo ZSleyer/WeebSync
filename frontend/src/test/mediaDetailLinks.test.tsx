@@ -45,4 +45,11 @@ describe('MediaDetail outbound links', () => {
     expect(row(container, 'Crunchyroll').querySelector('.ws-d-mark')).toBeNull()
     expect(row(container, 'Crunchyroll').querySelector('.ws-d-dot')).not.toBeNull()
   })
+
+  it("gives the provider's own link its brand mark", () => {
+    const { container } = view()
+    const mark = row(container, 'AniList').querySelector('.ws-d-mark') as HTMLElement
+    expect(mark.querySelector('img')).not.toBeNull()
+    expect(mark.style.getPropertyValue('--lc')).toBe('#0b1622')
+  })
 })

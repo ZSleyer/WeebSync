@@ -473,6 +473,14 @@ html[data-overlay] .app-shell > main > * {
   height: 1rem;
   object-fit: contain;
 }
+.ws-d-mark[data-wide] {
+  width: auto;
+  padding: 0 0.25rem;
+}
+.ws-d-mark[data-wide] img {
+  width: auto;
+  height: 0.75rem;
+}
 .ws-d-trailer {
   margin-top: 1rem;
   max-width: 40rem;

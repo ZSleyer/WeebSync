@@ -6,18 +6,30 @@ import { countdown } from '../countdown'
 import { focusPosition } from './bannerFocus'
 import type { Schemas } from '../api.gen'
 import SourceLine from './SourceLine'
+import anilistMark from '../assets/providers/anilist.svg'
+import tmdbMark from '../assets/providers/tmdb.svg'
+import tvdbMark from '../assets/providers/tvdb.png'
 
 // source-dependent external link: the provider the match came from
 export const mediaLink = (source: string | undefined, id: number) =>
   source?.startsWith('tmdb:')
-    ? { href: `https://www.themoviedb.org/${source.slice(5)}/${id}`, label: 'TMDB' }
+    ? {
+        href: `https://www.themoviedb.org/${source.slice(5)}/${id}`,
+        label: 'TMDB',
+        icon: tmdbMark,
+        color: '#0d253f',
+        wide: true,
+      }
     : source?.startsWith('tvdb')
       ? {
           // TVDB's own pages are slugs; the by-id address redirects there
           href: `https://thetvdb.com/dereferrer/${source === 'tvdb:movie' ? 'movie' : 'series'}/${id}`,
           label: 'TVDB',
+          icon: tvdbMark,
+          color: '#fff',
+          wide: true,
         }
-      : { href: `https://anilist.co/anime/${id}`, label: 'AniList' }
+      : { href: `https://anilist.co/anime/${id}`, label: 'AniList', icon: anilistMark, color: '#0b1622' }
 
 // AniList's YYYYMMDD as "12. Oktober 2026"; a month or a bare year stay short
 export const fuzzyDate = (d?: number) => {
@@ -209,7 +221,7 @@ export default function MediaDetail({
         ))}
         <li>
           <a href={own.href} target="_blank" rel="noreferrer">
-            <ExternalLink aria-hidden size="1rem" />
+            <LinkMark link={own} wide={own.wide} />
             <span>{own.label}</span>
             <span className="ws-d-quiet">{t('series.link.info')}</span>
           </a>
@@ -227,11 +239,24 @@ export default function MediaDetail({
  * glyph on a square in the site's colour) when it has an icon, else a dot for
  * a streaming link and the external-link glyph for the rest. Purely decorative.
  */
-function LinkMark({ link, dot }: { link: NonNullable<MediaExtras['links']>[number]; dot?: boolean }) {
+function LinkMark({
+  link,
+  dot,
+  wide,
+}: {
+  link: { icon?: string | null; color?: string | null }
+  dot?: boolean
+  wide?: boolean
+}) {
   const [broken, setBroken] = useState(false)
   if (link.icon && !broken)
     return (
-      <span aria-hidden className="ws-d-mark" style={{ '--lc': link.color || undefined } as CSSProperties}>
+      <span
+        aria-hidden
+        className="ws-d-mark"
+        data-wide={wide || undefined}
+        style={{ '--lc': link.color || undefined } as CSSProperties}
+      >
         <img src={link.icon} alt="" loading="lazy" decoding="async" onError={() => setBroken(true)} />
       </span>
     )
