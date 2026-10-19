@@ -2183,6 +2183,11 @@ export interface Schemas {
     elsewhere?: Partial<Record<string, string>>
     items: Schemas['api.catalogItem'][]
     /**
+     * MatchingOff: the mark's provider is switched off for matching (settings),
+     * so the folders below that have no match are not being looked up
+     */
+    matchingOff?: boolean
+    /**
      * Missing: series of that season already on air for longer than the
      * grace period that the folder still lacks.
      */
@@ -2306,7 +2311,7 @@ export interface Schemas {
   }
   'api.explainScope': {
     /**
-     * "" | anime | manga | tv | movie | tvdb
+     * "" | anime | manga | tv | movie | tvdb | auto
      */
     kind: string
     /**
@@ -2456,9 +2461,19 @@ export interface Schemas {
    */
   'api.matchHint': {
     mediaId: number
-    source: "tmdb:tv" | "tmdb:movie"
+    source: "tmdb:tv" | "tmdb:movie" | "tvdb" | "tvdb:movie"
     title: string
     year?: number
+  }
+  /**
+   * MatchRouting: which providers matching asks, and in which order (see match_routing.go)
+   */
+  'api.matchRouting': {
+    animeMovie: Schemas['api.routeEntry'][]
+    animeSeries: Schemas['api.routeEntry'][]
+    movie: Schemas['api.routeEntry'][]
+    providers: Schemas['api.routeSwitches']
+    series: Schemas['api.routeEntry'][]
   }
   'api.mediaExtrasResponse': {
     characters: Schemas['anilist.Character'][]
@@ -2873,6 +2888,15 @@ export interface Schemas {
   'api.reviewsResponse': {
     reviews: Schemas['anilist.Review'][]
   }
+  'api.routeEntry': {
+    enabled: boolean
+    provider: "anilist" | "tvdb" | "tmdb"
+  }
+  'api.routeSwitches': {
+    anilist: boolean
+    tmdb: boolean
+    tvdb: boolean
+  }
   'api.scopeHint': {
     /**
      * the siblings' mark
@@ -2913,7 +2937,7 @@ export interface Schemas {
      */
     ruleShape: string
     /**
-     * "" | anime | manga | tv | movie | tvdb
+     * "" | anime | manga | tv | movie | tvdb | auto
      */
     scope: string
   }
@@ -3087,6 +3111,10 @@ export interface Schemas {
     jellyfinToken?: string
     jellyfinTokenSet: boolean
     jellyfinUrl: string
+    /**
+     * MatchRouting: which providers matching asks, and in which order (see match_routing.go)
+     */
+    matchRouting: Schemas['api.matchRouting']
     maxConcurrent: number
     mediaServer: "plex" | "jellyfin"
     /**

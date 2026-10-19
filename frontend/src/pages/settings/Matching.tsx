@@ -38,6 +38,7 @@ import {
   type MatchStat,
 } from './maintenance'
 import { SettingsPanel } from './ui'
+import MatchRouting from './MatchRouting'
 import './maintenance.css'
 
 type Run = UseMutationResult<unknown, Error, { name: string; body?: unknown }>
@@ -107,6 +108,8 @@ export default function Matching() {
           {error}
         </p>
       )}
+      <MatchRouting />
+
       <SettingsPanel title={t('nav.servers')} desc={t('settings.jobs.indexHint')}>
         {cards.length === 0 ? (
           <p className="sf-note">{t('settings.jobs.empty')}</p>

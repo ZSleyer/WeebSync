@@ -1026,8 +1026,8 @@
     "matching": "wird zugeordnet",
     "noMatchTitle": "Ohne Treffer",
     "noMatchSub": "Keine Serie gefunden",
-    "hintFound": "Gefunden auf TMDB: {{title}} ({{year}})",
-    "hintFoundNoYear": "Gefunden auf TMDB: {{title}}",
+    "hintFound": "Gefunden auf {{provider}}: {{title}} ({{year}})",
+    "hintFoundNoYear": "Gefunden auf {{provider}}: {{title}}",
     "hintTake": "Übernehmen",
     "hintDrop": "Verwerfen",
     "why": "Warum?",
@@ -1144,6 +1144,8 @@
     "scopeTv": "Serien (TMDB)",
     "scopeMovie": "Filme (TMDB)",
     "scopeTvdb": "Serien (TVDB)",
+    "scopeAuto": "Automatisch",
+    "matchingOff": "Das Matching ist in den Einstellungen ausgeschaltet, Ordner ohne Treffer werden nicht gesucht.",
     "kindMovie": "Film",
     "kindSeries": "Serie",
     "scopeClear": "Markierung entfernen",
@@ -1520,6 +1522,29 @@
   },
   "securityCheck": {"title": "Sicherheits-Check", "hint": "Was an dieser Instanz noch nicht optimal eingerichtet ist, das Wichtigste zuerst. Geprüft wird auch die Verbindung, über die du gerade hier bist.", "allGood": "Nichts gefunden, was sich verbessern ließe.", "passed_one": "{{count}} Prüfung bestanden", "passed_other": "{{count}} Prüfungen bestanden", "level": {"risk": "Risiko", "warn": "Verbessern", "info": "Hinweis", "ok": "OK"}, "items": {"https_risk": {"title": "Kein HTTPS", "fix": "Die Instanz ist über unverschlüsseltes HTTP erreichbar: Passwörter, Sitzungs-Cookies und Medien gehen im Klartext übers Netz, und Passkeys funktionieren nicht. Stell einen Reverse Proxy mit TLS davor."}, "https_info": {"title": "Lokal ohne HTTPS", "fix": "Du bist über diesen Rechner selbst verbunden. Von außen sollte die Instanz nur über HTTPS erreichbar sein."}, "https_ok": {"title": "Verbindung über HTTPS"}, "proxy_untrusted": {"title": "Reverse Proxy nicht als vertrauenswürdig eingetragen", "fix": "Anfragen kommen über einen Proxy ({{detail}}), dessen weitergereichte Client-Adresse nicht geglaubt wird. Alle Besucher teilen sich dadurch seine Adresse, auch beim Schutz gegen Passwort-Raten. Trag ihn unter „Vertrauenswürdige Proxys“ ein."}, "proxy_trust_all": {"title": "Jedem Proxy wird vertraut", "fix": "WEEBSYNC_TRUSTED_PROXY=true glaubt die weitergereichte Adresse von jedem direkten Gegenüber. Ist der Port direkt erreichbar, kann jeder seine Adresse fälschen. Nenn stattdessen die Adresse deines Proxys."}, "force_https": {"title": "HTTPS nur laut Proxy", "fix": "Die App erkennt HTTPS nur am Header des Proxys. Schalte „HTTPS erzwingen“ ein, damit Cookies auch dann geschützt bleiben, wenn jemand den Proxy umgeht."}, "base_url_warn": {"title": "Öffentliche Adresse fehlt", "fix": "Ohne öffentliche Adresse können Mails keine Links bauen, und der Schutz vor fremden Seiten kennt deine Adresse hinter dem Proxy nicht."}, "base_url_risk": {"title": "Öffentliche Adresse ohne HTTPS", "fix": "{{detail}} beginnt mit http://. Links in Mails (Passwort zurücksetzen, Adresse bestätigen) gehen dann unverschlüsselt."}, "base_url_ok": {"title": "Öffentliche Adresse über HTTPS"}, "registration_open": {"title": "Registrierung offen", "fix": "Jeder kann ein Konto beantragen. Ein Admin muss es freischalten, die Anträge kommen trotzdem. Schließ die Registrierung, wenn du niemanden erwartest."}, "pending_approvals": {"title_one": "{{count}} Konto wartet auf Freigabe", "title_other": "{{count}} Konten warten auf Freigabe", "fix": "Unter Benutzer freischalten oder löschen."}, "admin_single_factor_warn": {"title_one": "{{count}} Admin ohne zweiten Faktor", "title_other": "{{count}} Admins ohne zweiten Faktor", "fix": "Admins, die sich mit Passwort anmelden, sollten TOTP, einen Sicherheitsschlüssel oder einen Passkey einrichten (Konto und Anmeldung)."}, "admin_single_factor_ok": {"title": "Admins mit zweitem Faktor"}, "trusted_networks_wide": {"title": "Vertrauenswürdige Netze zu weit", "fix": "{{detail}} nimmt fast jede Adresse vom Schutz gegen Passwort-Raten aus. Trag nur dein lokales Netz ein, etwa 192.168.1.0/24."}, "smtp_cleartext_risk": {"title": "SMTP-Passwort ohne Verschlüsselung", "fix": "Der Mailserver {{detail}} wird ohne TLS angesprochen. Stell auf STARTTLS oder TLS um."}, "smtp_cleartext_warn": {"title": "SMTP ohne Verschlüsselung", "fix": "Mails an {{detail}} gehen unverschlüsselt, auch Links zum Zurücksetzen des Passworts. Stell auf STARTTLS oder TLS um."}, "smtp_cleartext_ok": {"title": "SMTP verschlüsselt"}, "ftp_cleartext": {"title_one": "{{count}} Server über unverschlüsseltes FTP", "title_other": "{{count}} Server über unverschlüsseltes FTP", "fix": "Zugangsdaten und Dateien gehen im Klartext. Nimm SFTP oder FTPS, wenn der Server es kann."}, "oidc_http": {"title": "Identitätsanbieter über HTTP", "fix": "{{detail}} wird ohne TLS angesprochen, obwohl das Client-Secret mitgeht."}, "ai_http": {"title": "KI-Endpunkt über HTTP mit API-Key", "fix": "Der API-Key geht unverschlüsselt an {{detail}}."}, "plex_http": {"title": "Plex über HTTP mit Token", "fix": "Das Plex-Token geht unverschlüsselt an {{detail}}. Nimm die https-Adresse deines Servers (…plex.direct)."}, "jellyfin_http": {"title": "Jellyfin über HTTP mit Schlüssel", "fix": "Der Jellyfin-Schlüssel geht unverschlüsselt an {{detail}}. Nimm die https-Adresse deines Servers."}, "ha_webhook_http": {"title": "Home-Assistant-Webhook über HTTP", "fix": "Die Webhook-ID ist das ganze Geheimnis und geht unverschlüsselt an {{detail}}."}}},
   "settings": {
+    "routing": {
+      "title": "Anbieter fürs Matching",
+      "desc": "Welche Anbieter den Titel eines Ordners nachschlagen und in welcher Reihenfolge. Sie steuern die automatische Katalogmarkierung und die Treffer-Vorschläge; eine Markierung mit fester Quelle behält ihren einen Anbieter.",
+      "provider": {
+        "anilist": "AniList",
+        "tvdb": "TVDB",
+        "tmdb": "TMDB"
+      },
+      "noKey": "(kein Schlüssel)",
+      "switchHint": "Ein Schalter nimmt einen Anbieter überall aus dem Matching, auch bei festen Markierungen. Kalender, Ausstrahlungen und Entdecken nutzen AniList weiter.",
+      "allOff": "Alle Anbieter sind aus oder ohne Schlüssel: Es wird nichts gematcht, und der Katalog zeigt die Ordner, wie sie sind.",
+      "list": {
+        "animeSeries": "Anime-Serien",
+        "animeMovie": "Anime-Filme",
+        "series": "Serien",
+        "movie": "Filme"
+      },
+      "reorder": "{{name}} in {{list}} verschieben",
+      "up": "{{name}} nach oben",
+      "down": "{{name}} nach unten",
+      "use": "{{name}} für {{list}} verwenden",
+      "emptyList": "In dieser Liste ist nichts an: Ordner dieser Art werden nicht gematcht und bekommen keine Vorschläge."
+    },
     "hw": {
       "title": "Hardware-Transcoding",
       "desc": "Womit der Player Video umwandelt, wenn ein Browser eine Datei nicht direkt abspielen kann.",
@@ -2774,7 +2799,8 @@
         "manga": "Manga",
         "tv": "Serie",
         "movie": "Film",
-        "tvdb": "Serie (TVDB)"
+        "tvdb": "Serie (TVDB)",
+        "auto": "automatisch"
       },
       "signal": {
         "title_fold": "Titel stimmt überein",
