@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -615,6 +616,39 @@ func TestAutoAnimeBySourceTag(t *testing.T) {
 	} {
 		if got := autoAnime(name); got != want {
 			t.Errorf("autoAnime(%q) = %v, want %v", name, got, want)
+		}
+	}
+}
+
+// A film is told from a series by what its folder holds: one video and its
+// other versions, no episode, no season folder.
+func TestAutoMovieByContents(t *testing.T) {
+	f := newAutoFixture(t, nil)
+	add := func(folder, name string, dir int) {
+		f.s.DB.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir) VALUES (1,?,?,?,?)`, folder+"/"+name, folder, name, dir)
+	}
+	cases := []struct {
+		folder string
+		files  []string
+		subdir []string
+		want   bool
+	}{
+		{"/lib/One", []string{"Example.Story.(2019).mkv"}, nil, true},
+		{"/lib/Versions", []string{"Example.Story.(2019).(x265).mkv", "Example.Story.(2019).(x264).mp4"}, []string{"Subs"}, true},
+		{"/lib/Episodes", []string{"Example.Story.S01E01.mkv", "Example.Story.S01E02.mkv"}, nil, false},
+		{"/lib/Seasons", nil, []string{"Season 1", "Season 2"}, false},
+		{"/lib/Pile", []string{"a.mkv", "b.mkv", "c.mkv", "d.mkv", "e.mkv"}, nil, false},
+		{"/lib/Empty", nil, nil, false},
+	}
+	for _, c := range cases {
+		for _, n := range c.files {
+			add(c.folder, n, 0)
+		}
+		for _, n := range c.subdir {
+			add(c.folder, n, 1)
+		}
+		if got := f.s.autoMovie(1, c.folder, path.Base(c.folder), match.Info{}); got != c.want {
+			t.Errorf("autoMovie(%s) = %v, want %v", c.folder, got, c.want)
 		}
 	}
 }

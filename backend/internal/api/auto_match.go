@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 	"path"
+	"regexp"
 	"slices"
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/match"
 	"github.com/ch4d1/weebsync/internal/rename"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // The "automatic" scope. A mark of any other kind fixes one provider for the
@@ -75,11 +77,13 @@ type autoPlan struct {
 	tier match.HintTier
 }
 
-// autoMovie reports whether a folder holds a film, as the catalog lists it:
-// the folder's contents decide (a single main video is a film, season
-// folders or several episodes are a series), the name's Movie word only when
-// the index has nothing to say. Unclear counts as a series.
+// autoMovie reports whether a folder holds a film. The folder's contents decide
+// (see filmByContents), then the way the catalog lists it, the name's Movie word
+// only when the index has nothing to say. Unclear counts as a series.
 func (s *Server) autoMovie(serverID int64, folder, name string, info match.Info) bool {
+	if film, known := s.filmByContents(serverID, folder); known {
+		return film
+	}
 	switch s.itemKind(serverID, folder, name) {
 	case "movie":
 		return true
@@ -87,6 +91,45 @@ func (s *Server) autoMovie(serverID int64, folder, name string, info match.Info)
 		return false
 	}
 	return info.Movie
+}
+
+// seasonSubdirRe names a subfolder only a series has.
+var seasonSubdirRe = regexp.MustCompile(`(?i)^(?:s|season|staffel)[ ._-]*\d+\b`)
+
+// filmByContents reads the remote index of a folder: a video that names its
+// episode, or a season folder, make it a series; one to three videos with no
+// episode among them (a film and its other versions) make it a film. known is
+// false when the index has nothing to say or the folder holds more files than a
+// film has versions.
+func (s *Server) filmByContents(serverID int64, folder string) (film, known bool) {
+	rows, err := s.DB.Query(`SELECT name, is_dir FROM remote_index WHERE server_id = ? AND parent = ?`, serverID, folder)
+	if err != nil {
+		return false, false
+	}
+	defer rows.Close()
+	videos := 0
+	for rows.Next() {
+		var n string
+		var dir int
+		if rows.Scan(&n, &dir) != nil {
+			return false, false
+		}
+		switch {
+		case dir != 0:
+			if seasonSubdirRe.MatchString(n) {
+				return false, true
+			}
+		case transfer.VideoExt[strings.ToLower(path.Ext(n))]:
+			if isEpisodeFile(n) {
+				return false, true
+			}
+			videos++
+		}
+	}
+	if rows.Err() != nil {
+		return false, false // half a listing is no evidence
+	}
+	return videos >= 1 && videos <= 3, videos >= 1 && videos <= 3
 }
 
 // autoAnime reports whether a folder's name reads as an anime, which picks the
@@ -279,7 +322,12 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 			}
 			continue
 		}
-		if id == 0 || !s.westAccept(ctx, src, id, info, b.auto.tier) {
+		if id == 0 {
+			slog.Debug("auto match: provider has no entry of that name", "folder", logSafe(b.folder), "provider", p, "source", src)
+			continue
+		}
+		if !s.westAccept(ctx, src, id, info, b.auto.tier) {
+			slog.Debug("auto match: entry refused by the strict gate", "folder", logSafe(b.folder), "source", src, "media", id)
 			continue
 		}
 		slog.Debug("auto match fell to another provider", "folder", logSafe(b.folder), "source", src, "media", id)

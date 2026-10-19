@@ -200,6 +200,13 @@ func RelaxedAccept(info Info, query string, m anilist.Media) bool {
 // relaxedAccept is RelaxedAccept; strict allows no folder word to be missing
 // from the candidate's titles, however long the folder name is.
 func relaxedAccept(info Info, query string, m anilist.Media, strict bool) bool {
+	return relaxedAcceptSeasons(info, query, m, strict, true)
+}
+
+// relaxedAcceptSeasons is relaxedAccept; seasons false leaves the season of the
+// candidate out of the judgement, for a film whose number is part of its title
+// ("Toy Story 2" is no second season of "Toy Story").
+func relaxedAcceptSeasons(info Info, query string, m anilist.Media, strict, seasons bool) bool {
 	// a folder that names its year cannot be held to an entry that has none
 	if info.Year != 0 && m.SeasonYear == 0 {
 		return false
@@ -262,6 +269,9 @@ func relaxedAccept(info Info, query string, m anilist.Media, strict bool) bool {
 				return false
 			}
 		}
+	}
+	if !seasons {
+		return true
 	}
 	switch so := SeasonOf(m); {
 	case so >= 2 && so != info.Season:

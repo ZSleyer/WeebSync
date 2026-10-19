@@ -176,7 +176,7 @@ func strictGate(info Info, query string, m anilist.Media, tier HintTier, votes, 
 	if info.Year != 0 && !(seasons && info.Season > 1) && (m.SeasonYear < info.Year-1 || m.SeasonYear > info.Year+1) {
 		return false
 	}
-	if !relaxedAccept(info, query, m, tier == HintStrict) {
+	if !relaxedAcceptSeasons(info, query, m, tier == HintStrict, m.Format != "MOVIE") {
 		return false
 	}
 	// the query lost the folder's trailing numbers with its markers ("Rocky
