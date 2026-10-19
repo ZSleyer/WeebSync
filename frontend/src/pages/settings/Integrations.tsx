@@ -530,6 +530,8 @@ function PlexSections({
     writeAnime(nextAnime)
   }
   const rootsOf = (s: PlexSection) => libraries?.find((l) => l.title === s.title)?.roots ?? []
+  // explicit roles: settings.css turns each row into a grid on a phone, which drops the implicit table roles in Chromium and WebKit
+  /* eslint-disable jsx-a11y/no-redundant-roles, jsx-a11y/no-interactive-element-to-noninteractive-role */
   return (
     <SettingsField label={t('settings.plexSections')} hint={t('settings.plexSectionsHint')}>
       {error ? (
@@ -537,22 +539,26 @@ function PlexSections({
           {(error as Error).message}
         </p>
       ) : (
-        <table className="cat-t">
-          <thead>
-            <tr>
-              <th scope="col">{t('settings.svc_library')}</th>
-              <th scope="col">{t('settings.svc_source')}</th>
-              <th scope="col" className="c">
+        <table className="cat-t" role="table">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th scope="col" role="columnheader">
+                {t('settings.svc_library')}
+              </th>
+              <th scope="col" role="columnheader">
+                {t('settings.svc_source')}
+              </th>
+              <th scope="col" role="columnheader" className="c">
                 {t('settings.plexSectionAnime')}
               </th>
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {sections.map((s) => {
               const on = selected.has(s.key)
               return (
-                <tr key={s.key}>
-                  <td>
+                <tr key={s.key} role="row">
+                  <td role="cell">
                     <label>
                       <Switch checked={on} onChange={() => toggle(s)} />
                       <span className="min-w-0">
@@ -574,7 +580,7 @@ function PlexSections({
                       </ul>
                     )}
                   </td>
-                  <td>
+                  <td role="cell">
                     {on && (
                       <div className="grid gap-1">
                         <Select
@@ -610,7 +616,7 @@ function PlexSections({
                       </div>
                     )}
                   </td>
-                  <td className="c">
+                  <td role="cell" className="c">
                     {on && (
                       <Switch
                         aria-label={t('settings.svc_isAnime', { name: s.title })}
@@ -632,6 +638,7 @@ function PlexSections({
     </SettingsField>
   )
 }
+/* eslint-enable jsx-a11y/no-redundant-roles, jsx-a11y/no-interactive-element-to-noninteractive-role */
 
 // Own AniList app: only needed when the built-in client id doesn't fit (own
 // branding, own rate limit). Collapsed by default so the pin flow above stays

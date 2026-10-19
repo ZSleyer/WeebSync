@@ -5,6 +5,8 @@
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   font-size: var(--fs-link);
   color: var(--fg-2);
 }
