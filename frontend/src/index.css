@@ -255,6 +255,10 @@ main:has(.page-fill) {
     display: flex;
     justify-content: flex-end;
   }
+  /* once it shows (so the page already scrolls) the button stands above this
+     spot: the last row ends below it, not under it. Hidden, it takes no room,
+     so a page that does not scroll gains no scroll range. */
+  .app-shell > main > .t-totop-wrap:has(.t-totop[data-show]) { margin-top: 3rem; }
   .t-totop {
     position: relative;
     display: grid;
@@ -275,6 +279,10 @@ main:has(.page-fill) {
     transition: opacity var(--dur-2) var(--ease-out), translate var(--dur-2) var(--ease-out), visibility 0s var(--dur-2);
   }
   .t-totop[data-show] { opacity: 1; translate: 0 -100%; pointer-events: auto; visibility: visible; transition-delay: 0s; }
+  /* focus can land in the moments before the fade out has ended and the
+     button is still reachable: then it stands fully there, hit-testable and
+     above the page, instead of focus sitting on a ghost */
+  .t-totop:focus-visible { opacity: 1; translate: 0 -100%; pointer-events: auto; visibility: visible; transition-delay: 0s; }
   /* The pull-to-refresh mark (PageScroll): a pill that comes down with the
      page, fading in and turning with the pull. It says what letting go does
      at every stage - pull, release, loading, done - and the arrow turns into
