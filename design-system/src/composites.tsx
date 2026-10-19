@@ -1588,7 +1588,7 @@ export function Modal({ title, info, children, footer, secondary, onClose, close
           {info && <p className="mt-1 text-ctl-sm text-t-secondary">{info}</p>}
         </div>
         {onClose && (
-          <button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose} className="t-iconbtn -my-1 -mr-2 shrink-0 text-t-secondary hover:text-t-primary">
+          <button type="button" aria-label={closeLabel} title={closeLabel} onClick={onClose} className="t-modal-x t-iconbtn -my-1 -mr-2 shrink-0 text-t-secondary hover:text-t-primary">
             <svg aria-hidden viewBox="0 0 24 24" width="1.1em" height="1.1em" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M18 6 6 18M6 6l12 12" />
             </svg>

@@ -1389,6 +1389,9 @@ dialog .overflow-y-auto {
     background: inherit;
   }
   dialog.dialog-sheet { translate: 0 var(--lift); }
+  /* the grabber is the sheet's close button: a header one beside it would be
+     a second control with the same name */
+  dialog.dialog-sheet .t-modal-x { display: none; }
 }
 /* The page behind a dialog is blurred as well as dimmed: on a phone the box
    sits over content of the same colours and the hairline border alone did
