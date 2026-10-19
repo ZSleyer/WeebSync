@@ -643,6 +643,11 @@ html[data-overlay] .app-shell > main > * {
   :is(html.playing, html.reading) .ws-live-wrap {
     display: none;
   }
+  /* the one-time hint stays behind the overlay: hidden, so Tab cannot land
+     on a button the player covers */
+  :is(html.playing, html.reading) .app-shell > main > aside {
+    visibility: hidden;
+  }
 }
 
 /* ── The mini player: a full-width card 8px above the tab bar on a phone
