@@ -602,3 +602,19 @@ func TestFirstPickNeedsReleaseTags(t *testing.T) {
 		t.Error("the pick of a release-tagged name was refused")
 	}
 }
+
+// Tags that name a service of anime make a name an anime, whatever else they say.
+func TestAutoAnimeBySourceTag(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Example Story":                 true,
+		"Example Story [JapDub,GerSub]": true,
+		"Example Story [GerDub,CR]":     true,
+		"Example Story [GerDub,AoD]":    true,
+		"Example Story [GerDub]":        false,
+		"Example Story [EngDub,NF]":     false,
+	} {
+		if got := autoAnime(name); got != want {
+			t.Errorf("autoAnime(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

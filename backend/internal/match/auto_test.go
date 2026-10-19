@@ -74,10 +74,13 @@ func TestAutoAccept(t *testing.T) {
 		{"Example Story", HintNormal, tmdbCand("Example Story", "Example Story", 2017, 0, "TV"), false, true},
 		{"Castlevania", HintNormal, tmdbCand("Castlevania", "Castlevania", 2017, 5000, "TV"), true, false},
 		{"Castlevania (2017)", HintNormal, tmdbCand("Castlevania", "Castlevania", 2017, 5000, "TV"), true, true},
+		// a short title is looked up when the folder gives its year
+		{"Saw VI (2009)", HintNormal, tmdbCand("Saw VI", "Saw VI", 2009, 5000, "MOVIE"), true, true},
+		{"Saw VI", HintNormal, tmdbCand("Saw VI", "Saw VI", 2009, 5000, "MOVIE"), true, false},
 	}
 	for _, c := range cases {
 		info := ParseName(c.name, GuessTitle(c.name), GuessAltTitle(c.name))
-		if got := AutoAccept(info, HintQuery(info), c.m, c.tier, c.votes); got != c.want {
+		if got := AutoAccept(info, AutoQuery(info), c.m, c.tier, c.votes); got != c.want {
 			t.Errorf("AutoAccept(%q, %q) = %v, want %v", c.name, c.m.Title.Romaji, got, c.want)
 		}
 	}

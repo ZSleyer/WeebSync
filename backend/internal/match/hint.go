@@ -71,12 +71,24 @@ var hintCategoryWords = map[string]bool{
 
 // HintQuery is the search for a folder's hint: its name without tags, season
 // and version markers. "" when the name cannot name a show.
-func HintQuery(info Info) string {
+func HintQuery(info Info) string { return hintQuery(info, hintMinLetters) }
+
+// AutoQuery is HintQuery for a title looked up on a second provider: a name
+// that gives its year ("Troy (2004)", "Legion (2017)") may be short, the year
+// is what keeps it from naming anything else.
+func AutoQuery(info Info) string {
+	if info.Year != 0 {
+		return hintQuery(info, 2)
+	}
+	return hintQuery(info, hintMinLetters)
+}
+
+func hintQuery(info Info, minLetters int) string {
 	if relaxedCollectionRe.MatchString(info.Full) || musicFolderRe.MatchString(info.Full) {
 		return ""
 	}
 	q := strings.Trim(relaxedClean(info.Full), " &+-,.")
-	if letterCount(q) < hintMinLetters {
+	if letterCount(q) < minLetters {
 		return ""
 	}
 	words := gateWords(q)

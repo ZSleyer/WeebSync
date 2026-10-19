@@ -175,7 +175,7 @@ func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name st
 	case !errors.Is(err, sql.ErrNoRows):
 		return err
 	}
-	query := match.HintQuery(info)
+	query := match.AutoQuery(info)
 	if query == "" || s.isContainerFolder(serverID, folder) {
 		return nil
 	}

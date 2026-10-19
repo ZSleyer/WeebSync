@@ -91,10 +91,30 @@ func (s *Server) autoMovie(serverID int64, folder, name string, info match.Info)
 
 // autoAnime reports whether a folder's name reads as an anime, which picks the
 // routing list: audio in English or German alone, or a streaming-service tag,
-// is a western release; a Japanese track, and a name with nothing to say,
-// count as an anime (AniList-first lists).
+// is a western release - unless the tags name a service of anime; a Japanese
+// track, and a name with nothing to say, count as an anime (AniList-first lists).
 func autoAnime(name string) bool {
-	return hintTierOf(name) != match.HintStrong
+	return hasAnimeSource(name) || hintTierOf(name) != match.HintStrong
+}
+
+// animeSourceTags are the tags of services that carry anime and little else:
+// "[GerDub,CR]" is a German dub of an anime, whatever its audio tag says.
+var animeSourceTags = map[string]bool{
+	"cr": true, "crunchyroll": true, "funi": true, "funimation": true, "hidive": true,
+	"wakanim": true, "aod": true, "abema": true,
+	"adn": true, //nolint:misspell // Animation Digital Network
+}
+
+// hasAnimeSource reports whether a name's tag group names such a service.
+func hasAnimeSource(name string) bool {
+	for _, g := range hintTagGroupRe.FindAllStringSubmatch(name, -1) {
+		for _, tok := range strings.Split(g[1], ",") {
+			if animeSourceTags[strings.ToLower(strings.TrimSpace(tok))] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // autoTier is the strictness of the gate for a folder: Japanese audio asks for
@@ -192,7 +212,7 @@ func (s *Server) westAccept(ctx context.Context, src string, id int, info match.
 		return false
 	}
 	// TVDB counts no audience: the poster or overview has to vouch for it
-	return match.AutoAccept(info, match.HintQuery(info), *m, tier, src != "tvdb" && src != tvdbMovieSource)
+	return match.AutoAccept(info, match.AutoQuery(info), *m, tier, src != "tvdb" && src != tvdbMovieSource)
 }
 
 // autoRecord loads one record of TMDB or TVDB (from the cache when it is
@@ -277,7 +297,7 @@ func gateAutoPicks(batch []matchJob, infos []match.Info, picked []*anilist.Media
 		}
 		ok := match.FirstPickOK(infos[i], *picked[i], hasReleaseTags(b.name))
 		if b.auto.gated {
-			ok = match.AutoAccept(infos[i], match.HintQuery(infos[i]), *picked[i], b.auto.tier, true)
+			ok = match.AutoAccept(infos[i], match.AutoQuery(infos[i]), *picked[i], b.auto.tier, true)
 		}
 		if !ok {
 			slog.Debug("auto match: pick refused", "folder", logSafe(b.folder), "media", picked[i].ID, "gated", b.auto.gated)
