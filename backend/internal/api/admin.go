@@ -255,7 +255,7 @@ type jobQueuedResponse struct {
 // POST /api/admin/jobs/{name}/run {serverId?, all?}
 //
 // @Summary      Run background job
-// @Description  Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.
+// @Description  Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl, geoip or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
@@ -266,6 +266,7 @@ type jobQueuedResponse struct {
 // @Failure      401  {object}  ErrorResponse
 // @Failure      403  {object}  ErrorResponse
 // @Failure      404  {object}  ErrorResponse
+// @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
 // @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
@@ -335,6 +336,14 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		s.runJob(fmt.Sprintf("crawl:%d", in.ServerID), func(ctx context.Context) {
 			s.crawlServer(ctx, userID, in.ServerID, root, s.crawlBatchFor(in.ServerID))
 		})
+		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
+
+	case "geoip":
+		if !s.geoipEnabled() {
+			writeErr(w, http.StatusConflict, "geolocation is off")
+			return
+		}
+		s.runJobFor(geoipJob, geoipTimeout+time.Minute, func(ctx context.Context) { s.updateGeoip(ctx, true) })
 		writeJSON(w, http.StatusOK, jobStartedResponse{Status: "started"})
 
 	case "rematch":

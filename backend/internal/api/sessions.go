@@ -10,14 +10,16 @@ import (
 // sessionInfo is one signed-in browser of the account. ID is a prefix of the
 // stored token hash: enough to name the session, useless as a credential.
 type sessionInfo struct {
-	ID        string `json:"id"`
-	CreatedAt string `json:"createdAt"` // "" for sessions older than the column
-	ExpiresAt string `json:"expiresAt"`
-	LastSeen  string `json:"lastSeen"` // stamped at most every few minutes
-	IP        string `json:"ip"`       // where it was last used from, "" until then
-	UserAgent string `json:"userAgent"`
-	OIDC      bool   `json:"oidc"`
-	Current   bool   `json:"current"`
+	ID          string `json:"id"`
+	CreatedAt   string `json:"createdAt"` // "" for sessions older than the column
+	ExpiresAt   string `json:"expiresAt"`
+	LastSeen    string `json:"lastSeen"`    // stamped at most every few minutes
+	IP          string `json:"ip"`          // where it was last used from, "" until then
+	City        string `json:"city"`        // approximate, from the DB-IP database; "" when unknown or off
+	CountryCode string `json:"countryCode"` // ISO 3166-1 alpha-2, "" when unknown or off
+	UserAgent   string `json:"userAgent"`
+	OIDC        bool   `json:"oidc"`
+	Current     bool   `json:"current"`
 }
 
 const sessionIDLen = 16
@@ -27,7 +29,7 @@ var sessionIDRe = regexp.MustCompile(`^[0-9a-f]{16}$`)
 // handleSessionsList lists the account's sessions, the current one marked.
 //
 //	@Summary		List sessions
-//	@Description	The signed-in browsers of the account, newest first.
+//	@Description	The signed-in browsers of the account, newest first. City and countryCode are an approximation from a local database, empty for local addresses or while the lookup is off.
 //	@Tags			Auth
 //	@Produce		json
 //	@Success		200	{array}		sessionInfo
@@ -44,6 +46,7 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+	geo := s.geoipReader()
 	out := []sessionInfo{}
 	for rows.Next() {
 		var hash string
@@ -53,6 +56,8 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		it.ID, it.Current = hash[:sessionIDLen], hash == cur
+		p := geoipPlace(geo, it.IP)
+		it.City, it.CountryCode = p.City, p.Country
 		out = append(out, it)
 	}
 	if rows.Err() != nil {

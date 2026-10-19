@@ -49,6 +49,7 @@ type Reader struct {
 	ipv6      bool
 	v4Start   uint32 // node reached after 96 zero bits, where IPv4 lives in a v6 tree
 	built     time.Time
+	dbType    string
 }
 
 // Open validates the metadata and the tree geometry up front so that Lookup
@@ -135,6 +136,10 @@ func newReader(f *os.File) (*Reader, error) {
 	if v, err := md.value(pos); err != nil || v.typ != typeString {
 		return nil, errors.New("geoip: metadata database_type is not a string")
 	}
+	dbType, err := md.path(0, "database_type")
+	if err != nil {
+		return nil, fmt.Errorf("geoip: metadata database_type: %w", err)
+	}
 
 	switch {
 	case major != 2:
@@ -156,6 +161,7 @@ func newReader(f *os.File) (*Reader, error) {
 		nodeLen:   int64(recBits) / 4,
 		ipv6:      ipv == 6,
 		built:     time.Unix(int64(epoch), 0).UTC(),
+		dbType:    dbType,
 	}
 	r.treeSize = r.nodeLen * int64(r.nodeCount)
 	dataStart := r.treeSize + separatorLen
@@ -178,6 +184,9 @@ func newReader(f *os.File) (*Reader, error) {
 
 // BuildTime is when the database was generated, from its metadata.
 func (r *Reader) BuildTime() time.Time { return r.built }
+
+// Type is the metadata's database_type, e.g. "DBIP-City-Lite".
+func (r *Reader) Type() string { return r.dbType }
 
 // Close releases the file.
 func (r *Reader) Close() error { return r.f.Close() }

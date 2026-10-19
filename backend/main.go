@@ -148,6 +148,7 @@ func main() {
 		Mail:          mailer.New(database),
 		Conns:         pool.New(),
 		Logs:          logs,
+		DataDir:       dataDir,
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
 	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots
@@ -160,6 +161,7 @@ func main() {
 	api.ClearBookCache() // the reader's unpacked books: their tokens died with the last run
 	go srv.WatchLoop(rootCtx)
 	go srv.IndexLoop(rootCtx)
+	go srv.GeoipLoop(rootCtx) // session locations: opens or refreshes the DB-IP database when the setting is on
 	go func() {
 		srv.BackfillSeries()
 		srv.SettleMatchedSeries()    // once per rule set: name series after the match their folder holds

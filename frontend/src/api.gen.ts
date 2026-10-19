@@ -3063,6 +3063,14 @@ export interface Schemas {
   }
   'api.sessionInfo': {
     /**
+     * approximate, from the DB-IP database; "" when unknown or off
+     */
+    city: string
+    /**
+     * ISO 3166-1 alpha-2, "" when unknown or off
+     */
+    countryCode: string
+    /**
      * "" for sessions older than the column
      */
     createdAt: string
@@ -3155,6 +3163,10 @@ export interface Schemas {
      * always mark cookies Secure - for a proxy that terminates TLS
      */
     forceHttps: boolean
+    /**
+     * show an approximate location per session, from a DB-IP database the server downloads monthly
+     */
+    geoipEnabled: boolean
     /**
      * bytes/s, 0 = unlimited
      */

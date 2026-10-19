@@ -7056,6 +7056,14 @@
             },
             "api.sessionInfo": {
                 "properties": {
+                    "city": {
+                        "description": "approximate, from the DB-IP database; \"\" when unknown or off",
+                        "type": "string"
+                    },
+                    "countryCode": {
+                        "description": "ISO 3166-1 alpha-2, \"\" when unknown or off",
+                        "type": "string"
+                    },
                     "createdAt": {
                         "description": "\"\" for sessions older than the column",
                         "type": "string"
@@ -7090,6 +7098,8 @@
                     "expiresAt",
                     "lastSeen",
                     "ip",
+                    "city",
+                    "countryCode",
                     "userAgent",
                     "oidc",
                     "current"
@@ -7200,6 +7210,10 @@
                     },
                     "forceHttps": {
                         "description": "always mark cookies Secure - for a proxy that terminates TLS",
+                        "type": "boolean"
+                    },
+                    "geoipEnabled": {
+                        "description": "show an approximate location per session, from a DB-IP database the server downloads monthly",
                         "type": "boolean"
                     },
                     "globalRateLimit": {
@@ -7400,6 +7414,7 @@
                     "plexRoots",
                     "plexLibRoots",
                     "plexLibraries",
+                    "geoipEnabled",
                     "plexSkipOwned",
                     "arrKeySet",
                     "arrCompleteDir",
@@ -9113,7 +9128,7 @@
         },
         "/api/admin/jobs/{name}/run": {
             "post": {
-                "description": "Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.",
+                "description": "Triggers one background job by name (admin only): plex-suggestions, anilist-suggestions, index-crawl, geoip or rematch. Crawl/rematch require serverId; rematch returns a queued count, the others a started status.",
                 "parameters": [
                     {
                         "description": "job name",
@@ -9191,6 +9206,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
                     },
                     "415": {
                         "content": {
@@ -12361,7 +12386,7 @@
         },
         "/api/auth/sessions": {
             "get": {
-                "description": "The signed-in browsers of the account, newest first.",
+                "description": "The signed-in browsers of the account, newest first. City and countryCode are an approximation from a local database, empty for local addresses or while the lookup is off.",
                 "responses": {
                     "200": {
                         "content": {

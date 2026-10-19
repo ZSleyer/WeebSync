@@ -19,6 +19,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/animeschedule"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/crunchyroll"
+	"github.com/ch4d1/weebsync/internal/geoip"
 	"github.com/ch4d1/weebsync/internal/logbus"
 	"github.com/ch4d1/weebsync/internal/mailer"
 	"github.com/ch4d1/weebsync/internal/push"
@@ -55,6 +56,9 @@ type Server struct {
 	// Logs is the app-wide log bus (ring buffer + SSE fan-out + runtime level
 	// switch) backing the admin live-log stream.
 	Logs *logbus.Bus
+	// DataDir is the data directory; the downloaded geolocation database
+	// lives under it. Empty disables that feature.
+	DataDir string
 
 	// background AniList matching (see queueMatch in anilist.go):
 	// dedup of in-flight jobs plus a queue drained in batches by one worker
@@ -68,6 +72,12 @@ type Server struct {
 	// bg counts the fire-and-forget goroutines handlers start (see spawn), so
 	// Shutdown can wait for them
 	bg atomic.Int64
+
+	// the DB-IP city database behind the session locations (geoip_job.go);
+	// geoipBase and geoipClient are swapped by tests
+	geoip       atomic.Pointer[geoip.Reader]
+	geoipBase   string
+	geoipClient *http.Client
 
 	// the player: loopback for remote sources, transcode sessions (play.go)
 	playLoop playLoop

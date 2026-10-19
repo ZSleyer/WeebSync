@@ -218,6 +218,7 @@ type settingsPayload struct {
 	PlexRoots             string         `json:"plexRoots"`           // manual override: newline-separated local dirs where the Plex library is mounted; usually unneeded (auto-detected)
 	PlexLibRoots          string         `json:"plexLibRoots"`        // read-only: mounts auto-detected from Plex's reported library locations (flat)
 	PlexLibraries         []LibraryRoots `json:"plexLibraries"`       // read-only: detected mounts grouped by their Plex library
+	GeoipEnabled          bool           `json:"geoipEnabled"`        // show an approximate location per session, from a DB-IP database the server downloads monthly
 	PlexSkipOwned         bool           `json:"plexSkipOwned"`       // auto-sync leaves episodes Plex already holds (under any name) on the remote
 	ArrKeySet             bool           `json:"arrKeySet"`           // read-only: the Sonarr/Radarr source is on, managed via /api/settings/arr-key
 	ArrCompleteDir        string         `json:"arrCompleteDir"`      // local folder grabs from Sonarr/Radarr land in; must be under a download root
@@ -334,6 +335,7 @@ func (s *Server) settingsState() settingsPayload {
 		PlexRoots:             db.Setting(s.DB, "plex_roots"),
 		PlexLibRoots:          db.Setting(s.DB, "plex_lib_roots"),
 		PlexLibraries:         plexLibraries(db.Setting(s.DB, "plex_lib_map")),
+		GeoipEnabled:          truthySetting(db.Setting(s.DB, "geoip_enabled")),
 		PlexSkipOwned:         truthySetting(db.Setting(s.DB, "plex_skip_owned")),
 		JellyfinURL:           db.SettingOrEnv(s.DB, "jellyfin_url", "JELLYFIN_URL"),
 		JellyfinTokenSet:      secret.SettingOrEnv(s.DB, "jellyfin_token", "JELLYFIN_TOKEN") != "",
@@ -653,6 +655,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	writes.set("media_server", in.MediaServer)
 	writes.set("plex_sections", in.PlexSections)
 	writes.set("plex_skip_owned", strconv.FormatBool(in.PlexSkipOwned))
+	writes.set("geoip_enabled", strconv.FormatBool(in.GeoipEnabled))
 	// both of these decide what indexPlexLibrary writes onto every local row, so
 	// a change has to reach the rows rather than wait out the hourly gate: clear
 	// the stamp and the next sweep tick re-indexes.
@@ -721,6 +724,14 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	s.Transfers.Roots = s.localRoots()
 	s.spawn(s.refreshPlexRoots)
 	s.Transfers.SettingsChanged()
+	if in.GeoipEnabled != cur.GeoipEnabled {
+		if in.GeoipEnabled {
+			s.geoipCheck() // opens or downloads the database now, not at the next daily tick
+		} else {
+			s.stopJob(geoipJob)
+			s.dropGeoip()
+		}
+	}
 	// rebuild the OIDC provider; the client sees the effective config + error
 	out := s.settingsState()
 	if err := s.OIDC.Reload(r.Context()); err != nil {
