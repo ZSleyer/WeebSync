@@ -52,6 +52,11 @@ func (s *Server) SweepLoop(ctx context.Context) {
 					continue
 				}
 				last[id] = now
+				// folders the structure speaks for are marked on their own;
+				// their titles are matched by the job and by the sweep below
+				if id != localServerID {
+					s.detectMarksJob(id)
+				}
 				s.sweepServer(ctx, id, sweepBatch)
 			}
 			// refresh the external anime-lists mapping (AniList id -> shared

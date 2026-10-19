@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/relname"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -15,8 +16,8 @@ import (
 // (one show or film each) is what a mark is for, and nothing says so until
 // someone marks it. The detection reads the remote index only and judges the
 // CHILDREN with the checks the matcher itself applies, so a category root, a
-// container of containers, a music or software folder is never suggested.
-// Nothing is marked by it.
+// container of containers, a music or software folder is never picked.
+// auto_marks.go marks what it finds.
 const (
 	collMinChildren = 5  // subfolders a collection has at least
 	collTitleShare  = 70 // percent of them that must look like single titles
@@ -59,6 +60,11 @@ func titleDirOK(name string, entries []indexEntry) bool {
 		return false
 	}
 	if match.NonTitle(match.ParseName(name, GuessTitle(name), GuessAltTitle(name))) {
+		return false
+	}
+	// one episode of an OVA or special in a folder of its own ("... OVA 03"):
+	// the folder holds a part of a title, and so do its siblings
+	if r := relname.Read(strings.ReplaceAll(name, "_", " ")); len(r.Episodes) == 1 && len(r.Kinds) > 0 {
 		return false
 	}
 	// the container rule of the matcher (isContainerFolder), on the listing
@@ -210,63 +216,6 @@ func (s *Server) collections(serverID int64) ([]collectionCandidate, error) {
 	c.by[serverID] = collectionEntry{time.Now(), found}
 	c.mu.Unlock()
 	return found, nil
-}
-
-// collectionHints lists the user's unmarked folders that look like title
-// collections: no row of their own (a stored "none" is a dismissal), no rule,
-// and none of the folders above them marked (a mark's titles are matched, what
-// lies under them is seasons).
-func (s *Server) collectionHints(userID int64) ([]scopeHint, error) {
-	list, err := s.userServers(userID)
-	if err != nil {
-		return nil, err
-	}
-	out := []scopeHint{}
-	for _, v := range list {
-		found, err := s.collections(v.id)
-		if err != nil {
-			return nil, err
-		}
-		if len(found) == 0 {
-			continue
-		}
-		stored, active, err := s.storedScopes(v.id)
-		if err != nil {
-			return nil, err
-		}
-		for _, c := range found {
-			if stored[c.Path] || markedAbove(active, c.Path) {
-				continue
-			}
-			if id, _ := s.ruleScope(v.id, c.Path); id != 0 {
-				continue
-			}
-			out = append(out, scopeHint{ServerID: v.id, ServerName: v.name, Path: c.Path, Name: c.Name,
-				Kind: scopeAuto, Reason: "collection", Titles: c.Titles, Total: c.Total, AltKind: c.AltKind})
-		}
-	}
-	return out, nil
-}
-
-type userServer struct {
-	id   int64
-	name string
-}
-
-func (s *Server) userServers(userID int64) (list []userServer, err error) {
-	rows, err := s.DB.Query(`SELECT id, name FROM servers WHERE user_id = ?`, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var v userServer
-		if err := rows.Scan(&v.id, &v.name); err != nil {
-			return nil, err
-		}
-		list = append(list, v)
-	}
-	return list, rows.Err()
 }
 
 // storedScopes are the paths with a row in catalog_scopes (a mark or a
