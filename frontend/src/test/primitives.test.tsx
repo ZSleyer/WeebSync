@@ -388,6 +388,16 @@ describe('Field', () => {
     expect(container.firstElementChild).toHaveClass('t-field', 'text-xs', 'sm:col-span-2')
     expect(screen.getByLabelText('Muster')).toBe(screen.getByRole('textbox'))
   })
+
+  it('keeps a hint out of the label: the control is named by the caption alone', () => {
+    render(
+      <Field label="Verzögerung" hint={<button type="button">Erklärung</button>}>
+        <Input />
+      </Field>,
+    )
+    expect(screen.getByRole('textbox', { name: 'Verzögerung' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Erklärung' }).closest('label')).toBeNull()
+  })
 })
 
 describe('FieldRow', () => {

@@ -5,12 +5,14 @@ import type {
   InputHTMLAttributes,
   KeyboardEvent,
   LabelHTMLAttributes,
+  ReactElement,
   ReactNode,
   Ref,
   TextareaHTMLAttributes,
 } from 'react'
-import { useEffect, useId, useRef, useState } from 'react'
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from 'react'
 import { DUO_SHAPES } from './duo'
+import { Select } from './select'
 import { useWave } from './wave'
 
 // Presentational wrappers around the t-* classes in fluid-lycoris.css. Deliberately
@@ -240,6 +242,8 @@ export interface FieldProps {
   children: ReactNode
   /** id of the control, when the caption should point at it */
   htmlFor?: string
+  /** help button beside the caption; kept out of the <label> so it neither names the control nor nests in it */
+  hint?: ReactNode
   className?: string
 }
 
@@ -247,7 +251,23 @@ export interface FieldProps {
  * Caption above a control, control pinned to the bottom. In a row of fields the
  * controls line up even when one caption wraps or carries a help button.
  */
-export function Field({ label, children, htmlFor, className }: FieldProps) {
+export function Field({ label, children, htmlFor, hint, className }: FieldProps) {
+  const auto = useId()
+  const only = isValidElement(children) ? (children as ReactElement<{ id?: string }>) : null
+  // a hint cannot sit in the label, and a Select's button would put its shown
+  // value into the name: both point the label at the control by id instead
+  if (hint || only?.type === Select) {
+    const id = htmlFor ?? only?.props.id ?? auto
+    return (
+      <div className={cx('t-field text-xs text-t-muted', className)}>
+        <span className="block">
+          <label htmlFor={id}>{label}</label>
+          {hint}
+        </span>
+        {only && !htmlFor && !only.props.id ? cloneElement(only, { id }) : children}
+      </div>
+    )
+  }
   return (
     <label className={cx('t-field text-xs text-t-muted', className)} htmlFor={htmlFor}>
       <span className="block">{label}</span>
