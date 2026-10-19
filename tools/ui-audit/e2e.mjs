@@ -21,15 +21,16 @@ const BASE = arg('base', 'http://127.0.0.1:8099')
 const LANG = process.env.WS_LANG === 'en' ? 'en' : 'de'
 const OUT = arg('out', './e2e-shots')
 const TAG = arg('tag', '')
+const INJECT = arg('inject', '')
 
 const ROUTES = arg('routes', '').split(',').filter(Boolean).length
   ? arg('routes', '').split(',')
   : [
   '/', '/files', '/files?source=local', '/files/trash', '/history', '/watches', '/watches?view=calendar', '/watches?layout=grid',
   '/discover/merkliste', '/discover/empfohlen', '/discover/trending', '/discover/upgrades', '/discover/unvollstaendig',
-  '/discover/duplikate', '/discover/ausgeblendet', '/discover/assistent', '/rename', '/rules',
+  '/discover/duplikate', '/discover/ausgeblendet', '/discover/assistent', '/rename', '/rules', '/needs', '/calendar', '/play', '/view',
   '/settings', '/settings/general', '/settings/about', '/settings/account', '/settings/sync', '/settings/notifications', '/settings/servers',
-  '/settings/transfers', '/settings/security', '/settings/integrations',
+  '/settings/downloads', '/settings/playback', '/settings/security', '/settings/integrations',
   '/settings/jobs', '/settings/matching', '/settings/data',
 ]
 // States a route only shows after a click: extra fields that fold in. Each is
@@ -37,6 +38,14 @@ const ROUTES = arg('routes', '').split(',').filter(Boolean).length
 const STATES = [
   { route: '/settings/sync', label: 'subfolder series title', click: /^Serientitel$|^Series title$/ },
   { route: '/settings/sync', label: 'subfolder remote folder', click: /^Remote-Ordner$|^Remote folder$/ },
+  // the series page: an overlay on the list (own scroller, own top bar), reached
+  // through the first watch's tile
+  { route: '/watches', label: 'series page', open: async (page) => {
+    const tile = page.locator('.w-tile').first()
+    if (!(await tile.waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false))) return false
+    await tile.click()
+    return page.locator('.ws-detail').waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false)
+  } },
 ]
 
 const ALL_VIEWPORTS = {
@@ -621,6 +630,9 @@ const run = async (name, browserType) => {
     })
     // the app keeps the language it was last shown in: set it before it reads it
     await ctx.addInitScript((l) => localStorage.setItem('weebsync.locale', l), LANG)
+    // --inject '<css>' adds a known failure, to check that a clean run is not a blind one
+    if (INJECT)
+      await ctx.addInitScript((css) => addEventListener('DOMContentLoaded', () => document.head.append(Object.assign(document.createElement('style'), { textContent: css }))), INJECT)
     const page = await ctx.newPage()
     const errors = []
     // a navigation aborts the app's open SSE streams; that is expected noise
@@ -665,6 +677,11 @@ const run = async (name, browserType) => {
       // not networkidle: the app keeps an SSE stream open, so it never idles
       await page.goto(BASE + route, { waitUntil: 'load' })
       await page.waitForTimeout(600)
+      if (open && !(await open(page))) {
+        findings.push({ browser: name, viewport: vpName, route: `${route} (${label})`, missing: true })
+        continue
+      }
+      if (open) await page.waitForTimeout(800)
       if (click) {
         const ctl = page.getByRole('radio', { name: click }).or(page.getByRole('button', { name: click })).first()
         if (!(await ctl.count().catch(() => 0))) {
