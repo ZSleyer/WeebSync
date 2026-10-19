@@ -67,7 +67,7 @@ span.td-pn { cursor: default; }
 .td-pn[data-phone] { border-radius: var(--r-sheet); }
 .td-pn[data-phone] .t-art > img { object-position: var(--fx, 50%) var(--fy, 30%); }
 .td-pn:focus-visible { outline: none; }
-.td-pn:focus-visible::after {
+:root[data-input='keys'] .td-pn:focus-visible::after {
   content: "";
   position: absolute;
   inset: 0;
