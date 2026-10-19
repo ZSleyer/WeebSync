@@ -24,7 +24,8 @@ export function scrollToSection(
   block: 'start' | 'center' = 'start',
   behavior: ScrollBehavior = 'auto',
 ) {
-  const phone = !window.matchMedia(WIDE_MQ).matches
+  // no matchMedia (a bare test DOM): treat it as a desktop
+  const phone = window.matchMedia?.(WIDE_MQ).matches === false
   let box: HTMLElement | null = el.parentElement
   while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
   if (box === document.body || box === document.documentElement) box = null
