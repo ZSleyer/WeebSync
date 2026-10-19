@@ -691,6 +691,7 @@ export default function Files() {
             {!isLocal && searchFocus && !query && recentSearches.length > 0 && (
               <div
                 className="ws-cl-recent"
+                role="group"
                 aria-label={t('remote.recentSearches')}
                 // keep focus in the input, so a tap here does not close the row first
                 onMouseDown={(e) => e.preventDefault()}

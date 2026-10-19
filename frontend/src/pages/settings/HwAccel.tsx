@@ -71,7 +71,7 @@ function Fix({ title, hint, code }: { title: string; hint?: string; code: string
       </p>
       {/* a scrolling region a keyboard has to reach */}
       {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <pre tabIndex={0} aria-label={title}>
+      <pre tabIndex={0} role="group" aria-label={title}>
         {code}
       </pre>
       <Button

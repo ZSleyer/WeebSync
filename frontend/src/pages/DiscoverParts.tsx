@@ -106,7 +106,7 @@ export function EmptyNote({ title, sub }: { title: ReactNode; sub?: ReactNode })
 export function SkeletonRows({ n = 6 }: { n?: number }) {
   const { t } = useTranslation()
   return (
-    <div aria-busy="true" aria-label={t('app.loading')}>
+    <div role="status" aria-busy="true" aria-label={t('app.loading')}>
       {Array.from({ length: n }, (_, i) => (
         <div key={i} className="dc-sk" aria-hidden>
           <i />

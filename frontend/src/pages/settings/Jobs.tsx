@@ -105,7 +105,7 @@ function LogPanel({ level }: { level: LogLevel }) {
       {/* a scrolling region a keyboard has to reach: focusable, named (axe
           scrollable-region-focusable) */}
       {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex */}
-      <pre ref={logRef} className="log" tabIndex={0} aria-label={t('settings.jobs.logs.title')}>
+      <pre ref={logRef} className="log" role="log" tabIndex={0} aria-label={t('settings.jobs.logs.title')}>
         {shown.length === 0
           ? t('settings.jobs.logs.empty')
           : shown.map((l, i) => (

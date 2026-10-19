@@ -199,20 +199,22 @@ export default function Rename() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border-subtle text-left">
-                  <th className="w-10 px-3 py-2">
-                    {preview && selectable.length > 0 && (
+                  {preview && selectable.length > 0 ? (
+                    <th scope="col" className="w-10 px-3 py-2">
                       <input
                         type="checkbox"
                         aria-label={t('dash.selectAll')}
                         checked={picked.size === selectable.length}
                         onChange={(e) => setPicked(new Set(e.target.checked ? selectable.map((p) => p.old) : []))}
                       />
-                    )}
-                  </th>
-                  <th className="px-3 py-2">
+                    </th>
+                  ) : (
+                    <td className="w-10 px-3 py-2" />
+                  )}
+                  <th scope="col" className="px-3 py-2">
                     <Badge>{t('rename.old')}</Badge>
                   </th>
-                  <th className="px-3 py-2">
+                  <th scope="col" className="px-3 py-2">
                     <Badge>{applied ? t('rename.applied') : t('rename.new')}</Badge>
                   </th>
                 </tr>
