@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { Ban, FolderOpen, FolderPlus } from 'lucide-react'
@@ -12,6 +13,32 @@ import { scopeChanged } from '../../components/useCatalogView'
 import { useProviders } from '../../hooks'
 import { scopeKindLabel } from '../today/needs'
 import { SettingsPanel } from './ui'
+
+/**
+ * What became of a mark's subfolders: "370 matched: AniList 300 - TVDB 60 -
+ * TMDB 10", then the ones without a match and the pending ones. Empty while the
+ * index has not read the folder yet.
+ */
+export function titleSummary(t: TFunction, c: DetectedMark['titles']): string {
+  if (!c || c.total === 0) return ''
+  const providers = (
+    [
+      ['AniList', c.matched.anilist],
+      ['TVDB', c.matched.tvdb],
+      ['TMDB', c.matched.tmdb],
+    ] as const
+  )
+    .filter(([, n]) => n > 0)
+    .map(([name, n]) => `${name} ${n}`)
+  const matched = c.matched.anilist + c.matched.tvdb + c.matched.tmdb
+  return [
+    matched > 0 && `${t('servers.detectedMatched', { count: matched })}: ${providers.join(' · ')}`,
+    c.noMatch > 0 && t('servers.detectedNoMatch', { count: c.noMatch }),
+    c.pending > 0 && t('servers.detectedPending', { count: c.pending }),
+  ]
+    .filter(Boolean)
+    .join(' · ')
+}
 
 const markId = (m: DetectedMark) => `${m.serverId}:${m.path}`
 
@@ -97,7 +124,12 @@ export function DetectedMarks() {
                 {m.name} {fresh?.has(markId(m)) && <Badge tone="accent">{t('servers.detectedNew')}</Badge>}
               </span>
             }
-            sub={`${scopeKindLabel(t, m.kind)} · ${m.serverName}: ${m.path}`}
+            sub={
+              <>
+                <span className="break-words">{`${scopeKindLabel(t, m.kind)} · ${m.serverName}: ${m.path}`}</span>
+                {titleSummary(t, m.titles) && <span className="block break-words">{titleSummary(t, m.titles)}</span>}
+              </>
+            }
             trailing={
               <ActionMenu label={t('servers.detectedActions', { name: m.name })} title={m.name} actions={actions(m)} />
             }

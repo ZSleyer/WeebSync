@@ -22,6 +22,7 @@ const mark = (name: string, extra = {}) => ({
   name,
   kind: 'auto' as const,
   detectedAt: 1000,
+  titles: { total: 0, matched: { anilist: 0, tvdb: 0, tmdb: 0 }, noMatch: 0, pending: 0 },
   unseen: true,
   ...extra,
 })

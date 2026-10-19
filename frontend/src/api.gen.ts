@@ -2268,6 +2268,10 @@ export interface Schemas {
     serverId: number
     serverName: string
     /**
+     * how the folder's direct subfolders ended up in the catalogue
+     */
+    titles: Schemas['api.markTitles']
+    /**
      * marked after the user last looked at the list
      */
     unseen: boolean
@@ -2487,6 +2491,25 @@ export interface Schemas {
   }
   'api.logLevelRequest': {
     level: string
+  }
+  /**
+   * how the folder's direct subfolders ended up in the catalogue
+   */
+  'api.markTitles': {
+    matched: {
+      anilist: number
+      tmdb: number
+      tvdb: number
+    }
+    /**
+     * tried and found nothing (media_id 0)
+     */
+    noMatch: number
+    /**
+     * no match row yet
+     */
+    pending: number
+    total: number
   }
   /**
    * Hint: a suggestion from TMDB for a folder AniList found nothing for.
