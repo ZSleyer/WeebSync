@@ -60,7 +60,9 @@ export function Cast({
       {!extras && !failed && <Loading />}
       {extras && extras.characters.length === 0 && <p className="ws-d-quiet">{t('series.noCast')}</p>}
       {!!extras?.characters.length && (
-        <ul className="ws-d-cast">
+        // a scrolling row has to take focus to scroll by keyboard
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        <ul className="ws-d-cast" role="region" tabIndex={0} aria-labelledby={headingId}>
           {(extras.characters as CastMember[]).map((c) => (
             <li key={`${c.name}-${c.voiceActor ?? ''}`}>
               <span className="ws-d-portrait">
