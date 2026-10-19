@@ -118,10 +118,10 @@ export default function PlexShowField({
   const showMeta = (c: PlexShowRef) => [c.year || null, c.library].filter(Boolean).join(' · ')
   return (
     <div className="space-y-1">
-      <label className="flex w-fit items-center text-xs text-t-muted" htmlFor={`${ids}-input`}>
-        {t('watch.plexShow')}
+      <div className="flex w-fit items-center text-xs text-t-muted">
+        <label htmlFor={`${ids}-input`}>{t('watch.plexShow')}</label>
         <Hint text={t('watch.plexShowScope')} />
-      </label>
+      </div>
       <div className="flex items-stretch gap-2">
         <div className="relative min-w-0 flex-1">
           <Input

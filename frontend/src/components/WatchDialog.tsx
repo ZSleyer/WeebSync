@@ -403,15 +403,17 @@ export function WatchForm({
             seasonFolder={seasonFolder}
           />
           {isAdmin && f.replaceOld !== undefined && (
-            <label className="flex items-center gap-2 text-sm text-t-secondary">
-              <input
-                type="checkbox"
-                checked={f.replaceOld}
-                onChange={(e) => setF({ ...f, replaceOld: e.target.checked })}
-              />
-              {t('watch.replaceOld')}
+            <div className="flex items-center gap-2 text-sm text-t-secondary">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={f.replaceOld}
+                  onChange={(e) => setF({ ...f, replaceOld: e.target.checked })}
+                />
+                {t('watch.replaceOld')}
+              </label>
               <Hint text={t('watch.replaceOldHint')} />
-            </label>
+            </div>
           )}
           {/* no folder name: several levels can be missing at once, and
                 naming only the innermost reads as if the rest were there */}
@@ -496,12 +498,8 @@ export function WatchForm({
                   return (
                     <Field
                       key={key}
-                      label={
-                        <>
-                          {t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
-                          {key === 'wantDub' && <Hint text={t('watch.langHint')} />}
-                        </>
-                      }
+                      label={t(key === 'wantDub' ? 'watch.wantDub' : 'watch.wantSub')}
+                      hint={key === 'wantDub' ? <Hint text={t('watch.langHint')} /> : undefined}
                     >
                       <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
                         <option value="">{t('watch.langAny')}</option>
@@ -515,14 +513,7 @@ export function WatchForm({
                   )
                 })}
                 {f.wantDub && (
-                  <Field
-                    label={
-                      <>
-                        {t('watch.dubLag')}
-                        <Hint text={t('watch.dubLagHint')} />
-                      </>
-                    }
-                  >
+                  <Field label={t('watch.dubLag')} hint={<Hint text={t('watch.dubLagHint')} />}>
                     <Input
                       type="number"
                       min={0}
@@ -562,12 +553,8 @@ export function WatchForm({
                       return (
                         <Field
                           key={key}
-                          label={
-                            <>
-                              {t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
-                              {key === 'plexAudioLang' && <Hint text={t('watch.plexHint')} />}
-                            </>
-                          }
+                          label={t(key === 'plexAudioLang' ? 'watch.plexAudio' : 'watch.plexSub')}
+                          hint={key === 'plexAudioLang' ? <Hint text={t('watch.plexHint')} /> : undefined}
                         >
                           <Select value={f[key]} onChange={(e) => setF({ ...f, [key]: e.target.value })}>
                             <option value="">{t('watch.plexNoChange')}</option>

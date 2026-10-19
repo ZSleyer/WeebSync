@@ -68,7 +68,15 @@ export function Hint({ text }: { text: string }) {
   const [pos, setPos] = useState<{ top: number; left: number; container: Element } | null>(null)
   // a tap on the ? shows it on focus; the back gesture puts it away
   useCloseWatcher(() => setPos(null), !!pos)
+  // the pointer may cross the gap onto the tooltip without closing it (1.4.13)
+  const timer = useRef<number>(0)
+  const later = () => {
+    window.clearTimeout(timer.current)
+    timer.current = window.setTimeout(() => setPos(null), 150)
+  }
+  useEffect(() => () => window.clearTimeout(timer.current), [])
   const show = () => {
+    window.clearTimeout(timer.current)
     const r = ref.current?.getBoundingClientRect()
     if (!r) return
     // portal into the <dialog> (its top layer sits above everything); body
@@ -88,7 +96,7 @@ export function Hint({ text }: { text: string }) {
         className="group/hint t-iconbtn align-middle focus-visible:outline-1 focus-visible:outline-accent"
         aria-label={text}
         onMouseEnter={show}
-        onMouseLeave={() => setPos(null)}
+        onMouseLeave={later}
         onFocus={show}
         onBlur={() => setPos(null)}
         onKeyDown={(e) => e.key === 'Escape' && setPos(null)}
@@ -106,7 +114,11 @@ export function Hint({ text }: { text: string }) {
           <span
             role="tooltip"
             style={{ position: 'fixed', top: pos.top, left: pos.left, width: 'min(256px, 70vw)' }}
-            className="pointer-events-none z-100 rounded-md border border-border-subtle bg-bg-primary p-2 text-ctl-sm font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
+            // keep the trigger focused while the text is clicked or selected
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => window.clearTimeout(timer.current)}
+            onMouseLeave={later}
+            className="z-100 rounded-md border border-border-subtle bg-bg-primary p-2 text-ctl-sm font-normal normal-case leading-snug tracking-normal text-t-secondary shadow-lg"
           >
             {text}
           </span>,
@@ -295,10 +307,10 @@ export function FromEpisodeField({
   const { t } = useTranslation()
   return (
     <div>
-      <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor={`${idPrefix}-fromep`}>
-        {t('watch.fromEpisode')}
+      <div className="mb-1 w-fit text-xs text-t-muted">
+        <label htmlFor={`${idPrefix}-fromep`}>{t('watch.fromEpisode')}</label>
         <Hint text={t('watch.fromEpisodeHint')} />
-      </label>
+      </div>
       <Input
         id={`${idPrefix}-fromep`}
         inputMode="numeric"
@@ -367,10 +379,10 @@ export default function RenameOptions({
       {rule.mode === 'template' ? (
         <>
           <div>
-            <label className="mb-1 block w-fit text-xs text-t-muted" htmlFor={`${idPrefix}-template`}>
-              {t('watch.template')}
+            <div className="mb-1 w-fit text-xs text-t-muted">
+              <label htmlFor={`${idPrefix}-template`}>{t('watch.template')}</label>
               <Hint text={`${t('watch.templateHint')} ${t('watch.templatePadHint')}`} />
-            </label>
+            </div>
             <Input
               id={`${idPrefix}-template`}
               kind="code"
@@ -435,10 +447,11 @@ export default function RenameOptions({
         <div className="space-y-4 border-t border-border-subtle pt-4">
           <Badge className="block">{t('watch.sectionApiRename')}</Badge>
           {/* localized provider title as {title} - independent of aired mapping */}
-          <label className="block text-xs text-t-muted">
-            {t('watch.renameTitleLang')}
+          <div className="text-xs text-t-muted">
+            <label htmlFor={`${idPrefix}-titlelang`}>{t('watch.renameTitleLang')}</label>
             <Hint text={t('watch.titleLangHint')} />
             <Select
+              id={`${idPrefix}-titlelang`}
               wrapperClassName="mt-1 sm:max-w-xs"
               value={rule.renameTitleLang}
               onChange={(e) => onChange({ renameTitleLang: e.target.value })}
@@ -451,7 +464,7 @@ export default function RenameOptions({
                 </option>
               ))}
             </Select>
-          </label>
+          </div>
 
           {/* endless series: resolve aired-order season/episode */}
           <div>
