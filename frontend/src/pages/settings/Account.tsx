@@ -593,10 +593,13 @@ function SessionsSection() {
                     x.ip && (isLocalIP(x.ip) ? t('account.sessionsLocal', { ip: x.ip }) : x.ip),
                   ]
                     .filter(Boolean)
-                    .join(' · ')}
+                    // the dot sticks to the item before it; an address breaks only at its colons
+                    .join('\u00a0· ')
+                    .split(':')
+                    .flatMap((part, i) => (i ? [':', <wbr key={i} />, part] : [part]))}
                   <br />
                   {(x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')) +
-                    (x.oidc ? ` · ${t('account.sessionsSso')}` : '')}
+                    (x.oidc ? `\u00a0· ${t('account.sessionsSso')}` : '')}
                 </>
               }
               trailing={
