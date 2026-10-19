@@ -183,6 +183,11 @@ main:has(.page-fill) {
     /* the modal lock below freezes <main>: with a classic bar the gutter keeps
        the content from shifting by the bar's width */
     scrollbar-gutter: stable;
+    /* Tab and scrollIntoView stop short of what overlays the page: the sticky
+       group / tab strips on top (about 3rem), the live pill, "back to top"
+       and the sticky foot cards at the bottom. The top bar and the tab bar
+       are rows of the shell, not overlays, so they need no room. */
+    scroll-padding-block: 3.5rem 6rem;
   }
   /* `flex-1` on the route wrapper means `flex: 1 1 0%`, which caps it at the
      height of the scroller - a taller page then spills out of the wrapper as
@@ -202,6 +207,13 @@ main:has(.page-fill) {
      on a phone that is <main>, not the document */
   html:has(dialog[open]) .app-shell > main {
     overflow: hidden;
+  }
+}
+
+/* the document scrolls from here up: the same overlays, minus the pill */
+@media (width >= 64rem) {
+  html {
+    scroll-padding-block: 4rem 6rem;
   }
 }
 

@@ -18,6 +18,8 @@ html[data-overlay] .app-shell > main > * {
   container-type: inline-size;
   --d-bar-h: 3.25rem;
   --d-pad: 1rem;
+  /* the sticky bar and the section row under it */
+  scroll-padding-block: calc(var(--d-bar-h) + 3.5rem) 1rem;
 }
 @media (width >= 64rem) {
   .ws-detail {
