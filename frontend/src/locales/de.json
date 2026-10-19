@@ -2588,6 +2588,16 @@
       "soft": "Wählbare statt eingebrannte Untertitel"
     },
     "upgradeLoad": "Upgrade laden",
+    "noTarget": {
+      "unmapped": "Kann nicht laden: WeebSync sieht die Dateien von {{mediaServer}} nicht.",
+      "unmappedPath": "Kann nicht laden: WeebSync sieht die Datei von {{mediaServer}} nicht ({{path}}).",
+      "not_found": "Kann nicht laden: Die Pfad-Zuordnung führt zu einem Ordner, den WeebSync nicht findet.",
+      "not_foundPath": "Kann nicht laden: Die Pfad-Zuordnung für {{path}} führt zu einem Ordner, den WeebSync nicht findet.",
+      "no_folder": "Kann nicht laden: Der Ordner dieser Kopie ist nicht bekannt.",
+      "no_sibling": "Kann nicht laden: Es gibt keine vorhandene Staffel, neben der der neue Ordner angelegt werden kann.",
+      "fix": "Pfad-Zuordnung in den Einstellungen hinterlegen.",
+      "ask": "Ein Admin kann die Pfad-Zuordnung in den Einstellungen hinterlegen."
+    },
     "replaceOld": "alte Fassung in den Papierkorb",
     "upgradeRuns": "Upgrade für {{name}} läuft.",
     "upgradeRunsTrash": "Upgrade für {{name}} läuft. Die alte Fassung landet im Papierkorb.",

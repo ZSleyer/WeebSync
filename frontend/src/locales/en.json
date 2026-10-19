@@ -2588,6 +2588,16 @@
       "soft": "Selectable instead of burned-in subtitles"
     },
     "upgradeLoad": "Load upgrade",
+    "noTarget": {
+      "unmapped": "Cannot load: WeebSync cannot see the files of {{mediaServer}}.",
+      "unmappedPath": "Cannot load: WeebSync cannot see the file of {{mediaServer}} ({{path}}).",
+      "not_found": "Cannot load: The path mapping leads to a folder WeebSync cannot find.",
+      "not_foundPath": "Cannot load: The path mapping for {{path}} leads to a folder WeebSync cannot find.",
+      "no_folder": "Cannot load: The folder of this copy is not known.",
+      "no_sibling": "Cannot load: There is no existing season to place the new folder next to.",
+      "fix": "Set the path mapping in the settings.",
+      "ask": "An admin can set the path mapping in the settings."
+    },
     "replaceOld": "old version to the trash",
     "upgradeRuns": "Upgrade for {{name}} is running.",
     "upgradeRunsTrash": "Upgrade for {{name}} is running. The old version goes to the trash.",

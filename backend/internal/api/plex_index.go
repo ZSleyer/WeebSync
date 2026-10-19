@@ -38,6 +38,7 @@ func (s *Server) indexPlexLibrary(ctx context.Context) {
 	srcOf, animeOf := s.sectionSources(), s.sectionAnime()
 	now := time.Now().UTC().Format(time.RFC3339)
 	units := 0
+	notes := map[string]plexPathNote{}
 	for _, sec := range sections {
 		// a stopped index leaves what it already measured in place: every unit
 		// is stored on its own and the probe cache keeps the work, so the next
@@ -89,12 +90,16 @@ func (s *Server) indexPlexLibrary(ctx context.Context) {
 				if isMovie {
 					season = 0
 				}
-				q, folder := s.plexLocalQuality(sm, sh.RatingKey, season)
+				q, folder, note := s.plexLocalQuality(sm, sh.RatingKey, season)
+				if note != nil {
+					notes[folder] = *note
+				}
 				s.storeVariant(0, folder, q, showKey, season, isMovie, seriesID, libKind)
 				units++
 			}
 		}
 	}
+	s.storePlexPathNotes(notes)
 	if err := db.SetSetting(s.DB, "plex_indexed_at", now); err != nil {
 		slog.Warn("plex index time not saved, the next tick indexes again", "err", err)
 	}
@@ -389,11 +394,12 @@ func showKeyFor(sh plex.Show, prefer string) string {
 // resolution/languages are used. The folder is the real local directory when
 // available (nicer in the UI), else a stable per-season "plex:{ratingKey}:s{N}"
 // key (season in the key so distinct seasons don't collide on the variant PK).
-func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season int) (FolderQuality, string) {
+func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season int) (FolderQuality, string, *plexPathNote) {
 	folder := "plex:" + ratingKey + ":s" + strconv.Itoa(season)
 	// translate the Plex-reported path to where the file is mounted locally
 	// (identity for a shared mount; a prefix swap when configured otherwise)
 	file := s.mapPlexPath(sm.File)
+	var note *plexPathNote
 	if file != "" && s.localExists(file) {
 		folder = filepath.Dir(file)
 		// the whole season folder, not just the one episode Plex named: a
@@ -401,8 +407,11 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 		// branch the upgrade cards actually compare against
 		if q, ok := s.probeQuality(folder); ok {
 			q.Probed = probeMeasured
-			return q, folder
+			return q, folder, nil
 		}
+	} else if sm.File != "" {
+		// remembered so an upgrade card can say which path needs a mapping
+		note = &plexPathNote{Path: filepath.Dir(sm.File), Mapped: file != sm.File}
 	}
 	// fallback: Plex's own metadata. Also measured - Plex analyses the media
 	// itself and reports the container's tracks, not the file name.
@@ -419,7 +428,7 @@ func (s *Server) plexLocalQuality(sm plex.ShowMedia, ratingKey string, season in
 		sub[langOrUnd(l)] = true
 	}
 	q.Dub, q.Sub = keysSorted(dub), keysSorted(sub)
-	return q, folder
+	return q, folder, note
 }
 
 // streamsQuality aggregates ffprobe streams into a FolderQuality.

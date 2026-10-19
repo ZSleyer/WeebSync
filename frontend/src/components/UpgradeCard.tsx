@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useAuth } from '../hooks'
+import { Link } from 'react-router'
+import { useAuth, useMediaServer } from '../hooks'
 import { useTranslation } from 'react-i18next'
 import { Button, Checkbox, Radio, TextLink } from 'fluid-lycoris'
 import type { LocalSeason, UpgradeDims, UpgradeSuggestion, UpgradeVariant } from '../api'
@@ -110,6 +111,9 @@ export default function UpgradeCard({
     ],
   })
   const canLoad = !!u.sync?.localPath
+  // no target: the button stays, disabled, with the reason beside it
+  const mediaServer = useMediaServer()
+  const why = canLoad ? undefined : u.sync?.missing
   const season = u.isMovie ? undefined : u.season > 0 ? t('suggestions.season', { season: u.season }) : undefined
   const menu = [
     ...(canLoad ? [{ key: 'adjust', label: t('discover.adjust'), onClick: () => onSync(req()) }] : []),
@@ -189,7 +193,25 @@ export default function UpgradeCard({
       {more && (u.localSeasons ?? []).length > 0 && (
         <LocalSeasons seasons={u.localSeasons!} current={u.season} isMovie={u.isMovie} />
       )}
+      {why && (
+        <span className="sg-cand" id={`nt-${u.key}`}>
+          {t(`discover.noTarget.${why}${u.sync?.serverPath ? 'Path' : ''}`, { path: u.sync?.serverPath })}{' '}
+          {(why === 'unmapped' || why === 'not_found') &&
+            (me?.isAdmin ? (
+              <Link className="t-link" to={`/settings/integrations#${mediaServer || 'plex'}`}>
+                {t('discover.noTarget.fix')}
+              </Link>
+            ) : (
+              t('discover.noTarget.ask')
+            ))}
+        </span>
+      )}
       <span className="sg-acts">
+        {why && (
+          <Button size="sm" variant="primary" disabled aria-describedby={`nt-${u.key}`}>
+            {t('discover.upgradeLoad')}
+          </Button>
+        )}
         {canLoad && (
           <Button size="sm" variant="primary" onClick={() => (onLoad ? onLoad(req(), replace) : onSync(req()))}>
             {t('discover.upgradeLoad')}

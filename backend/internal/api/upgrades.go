@@ -89,10 +89,14 @@ func (n syncNaming) movie() string {
 
 // existingSyncPlan targets the folder a copy ALREADY lives in (an upgrade): the
 // existing season dir for a series, the movie's own dir for a movie. Empty when
-// the local path is not a shared mount here (a "plex:" fallback key).
+// the local path is not a shared mount here (a "plex:" fallback key), with the
+// reason in Missing.
 func existingSyncPlan(n syncNaming, localDir string, season int, isMovie bool) SyncPlan {
 	if !strings.HasPrefix(localDir, "/") {
-		return SyncPlan{}
+		if strings.HasPrefix(localDir, "plex:") {
+			return SyncPlan{Missing: planMissingUnmapped}
+		}
+		return SyncPlan{Missing: planMissingNoFolder}
 	}
 	if isMovie {
 		return SyncPlan{LocalPath: localDir, Template: n.movie(), Separator: n.Separator}
@@ -104,7 +108,7 @@ func existingSyncPlan(n syncNaming, localDir string, season int, isMovie bool) S
 // sibling owned copy of the same show to locate where it belongs: a new
 // "Season NN" folder under the show root (matching the sibling's padding), or -
 // for a movie - its own subfolder under the movie library. siblingDir empty or a
-// non-mount path yields an empty plan (UI hides the button).
+// non-mount path yields an empty plan with a Missing reason.
 //
 // The season folder is part of the PATH, not of the template. As a template
 // prefix it only materialised when renaming was switched on, so a plain sync
@@ -112,7 +116,7 @@ func existingSyncPlan(n syncNaming, localDir string, season int, isMovie bool) S
 // name the folder it was about to create.
 func missingSyncPlan(n syncNaming, siblingDir string, season int, isMovie bool) SyncPlan {
 	if !strings.HasPrefix(siblingDir, "/") {
-		return SyncPlan{}
+		return SyncPlan{Missing: planMissingNoSibling}
 	}
 	if isMovie {
 		// sibling is a movie's own folder; its parent is the movie library root.
@@ -560,7 +564,8 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 // rename: a series season goes into its Season folder under the show, a movie
 // into its OWN subfolder under the movie library (never mixed into another
 // movie's folder). LocalPath empty = target could not be resolved (the Plex file
-// path is not a shared local mount here), so the UI hides the button.
+// path is not a shared local mount here); Missing then says why, so the UI can
+// show the button disabled with the reason instead of hiding it.
 type SyncPlan struct {
 	LocalPath string `json:"localPath"`          // base dir to sync into
 	Template  string `json:"template,omitempty"` // rename template (may carry a "Season NN/" or "{title}/" subfolder)
@@ -571,7 +576,22 @@ type SyncPlan struct {
 	// Replace: the copy this sync improves on is trashed once the new file is
 	// in place (upgrades only; a missing episode has nothing to replace).
 	Replace bool `json:"replace,omitempty"`
+	// Missing is why LocalPath is empty (one of the planMissing* codes), "" when
+	// the plan is usable.
+	Missing string `json:"missing,omitempty" enums:"unmapped,not_found,no_folder,no_sibling"`
+	// ServerPath is the folder the media server reports for the copy, so the
+	// user knows which path to map. Only set for admins, who can change the
+	// mapping, and only when the index recorded it.
+	ServerPath string `json:"serverPath,omitempty"`
 }
+
+// Why a sync plan has no local target.
+const (
+	planMissingUnmapped  = "unmapped"   // the media server's path is not visible here and no mapping applies
+	planMissingNotFound  = "not_found"  // a mapping applies, but the mapped folder does not exist here
+	planMissingNoFolder  = "no_folder"  // the copy's folder is unknown (neither a local path nor a media server key)
+	planMissingNoSibling = "no_sibling" // a missing season has no owned sibling to place it next to
+)
 
 // UpgradeVariant is one physical copy of a season/movie and its quality.
 type UpgradeVariant struct {
@@ -674,6 +694,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	dims := s.upgradeDimsFor(userID)
 	locale := s.userLocale(userID)
 	defaults := s.watchDefaultsFor(userID)
+	notes := s.planNotesFor(userID)
 	want := wantedFrom(defaults.Common)
 	units := s.loadUnits()
 	enrich := s.unitEnrichIndex()
@@ -751,7 +772,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 			Library:  lib,
 			// sync into the existing local season/movie folder, named the way
 			// the user's auto-sync defaults for this kind name it
-			Sync: existingSyncPlan(defaults.naming(category), cur.Folder, u.season, u.isMovie),
+			Sync: notes.explain(existingSyncPlan(defaults.naming(category), cur.Folder, u.season, u.isMovie), cur.Folder),
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
@@ -986,7 +1007,7 @@ func (s *Server) addMissingEpisodes(acc *sugAcc) {
 			Providers: e.providers, Links: e.links, Candidates: cands,
 			Have: len(have), Need: need, Missing: nums,
 			Library: s.plexLibraryOf(local.Folder),
-			Sync:    existingSyncPlan(acc.defaults.naming(category), local.Folder, u.season, false),
+			Sync:    acc.notes.explain(existingSyncPlan(acc.defaults.naming(category), local.Folder, u.season, false), local.Folder),
 			Why:     tr(acc.locale, "why.episodes", len(have), need, cands[0].ServerName, epRanges(nums)),
 		})
 		if n++; n >= 200 {

@@ -2812,12 +2812,26 @@
                         "description": "base dir to sync into",
                         "type": "string"
                     },
+                    "missing": {
+                        "description": "Missing is why LocalPath is empty (one of the planMissing* codes), \"\" when\nthe plan is usable.",
+                        "enum": [
+                            "unmapped",
+                            "not_found",
+                            "no_folder",
+                            "no_sibling"
+                        ],
+                        "type": "string"
+                    },
                     "replace": {
                         "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
                         "type": "boolean"
                     },
                     "separator": {
                         "description": "Separator replaces spaces in the rendered name; \"\" keeps them. Part of\nthe plan because it belongs to the template it was configured with.",
+                        "type": "string"
+                    },
+                    "serverPath": {
+                        "description": "ServerPath is the folder the media server reports for the copy, so the\nuser knows which path to map. Only set for admins, who can change the\nmapping, and only when the index recorded it.",
                         "type": "string"
                     },
                     "subfolder": {

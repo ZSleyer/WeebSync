@@ -1173,6 +1173,11 @@ export interface Schemas {
      */
     localPath: string
     /**
+     * Missing is why LocalPath is empty (one of the planMissing* codes), "" when
+     * the plan is usable.
+     */
+    missing?: "unmapped" | "not_found" | "no_folder" | "no_sibling"
+    /**
      * Replace: the copy this sync improves on is trashed once the new file is
      * in place (upgrades only; a missing episode has nothing to replace).
      */
@@ -1182,6 +1187,12 @@ export interface Schemas {
      * the plan because it belongs to the template it was configured with.
      */
     separator?: string
+    /**
+     * ServerPath is the folder the media server reports for the copy, so the
+     * user knows which path to map. Only set for admins, who can change the
+     * mapping, and only when the index recorded it.
+     */
+    serverPath?: string
     /**
      * false: the template controls the folder structure
      */

@@ -112,6 +112,8 @@ type sugAcc struct {
 	// defaults are the user's auto-sync defaults, so a sync plan is named the
 	// way an auto-sync of the same media kind would name it
 	defaults WatchDefaults
+	// notes say why a sync plan has no target (see planNotes)
+	notes planNotes
 }
 
 func newAcc() *sugAcc { return &sugAcc{byKey: map[string]*SugItem{}} }
@@ -575,6 +577,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 
 	inc.locale = locale
 	inc.defaults = s.watchDefaultsFor(userID)
+	inc.notes = s.planNotesFor(userID)
 	s.addMissingUnits(inc)
 	s.addMissingEpisodes(inc)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
