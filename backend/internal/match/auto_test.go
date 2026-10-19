@@ -46,6 +46,8 @@ func TestFirstPickOK(t *testing.T) {
 		{"Example Story (2019)", longer, false, false},
 		{"Example Story (2019)", longer, true, true},
 		{"Example Story (2019)", sub, false, true}, // its subtitle is left out of the folder name
+		{"Example Story (2011)", tv, false, false}, // the same name, eight years apart
+		{"Example Story (2011)", tv, true, true},   // a release is not held to the year
 	} {
 		info := ParseName(c.name, GuessTitle(c.name), GuessAltTitle(c.name))
 		if got := FirstPickOK(info, c.m, c.tagged); got != c.want {
@@ -84,6 +86,39 @@ func TestAutoAccept(t *testing.T) {
 	for _, c := range cases {
 		info := ParseName(c.name, GuessTitle(c.name), GuessAltTitle(c.name))
 		if got := AutoAccept(info, AutoQuery(info), c.m, c.tier, c.votes); got != c.want {
+			t.Errorf("AutoAccept(%q, %q) = %v, want %v", c.name, c.m.Title.Romaji, got, c.want)
+		}
+	}
+}
+
+// What a provider's search result looks like for the folders of a media server:
+// TVDB tells remakes apart by a year in the name and keeps the original title
+// among its aliases, and a name may hold a word that also names a kind of content.
+func TestAutoAcceptSearchResults(t *testing.T) {
+	tvdbHit := func(name string, year int, aliases ...string) anilist.Media {
+		m := tmdbCand(name, "", year, 0, "TV")
+		m.Synonyms = append([]string{name}, aliases...)
+		return m
+	}
+	film := tmdbCand("Superhero Movie", "Superhero Movie", 2008, 2100, "MOVIE")
+	for _, c := range []struct {
+		name  string
+		m     anilist.Media
+		votes bool
+		want  bool
+	}{
+		{"Hunters (2020)", tvdbHit("Hunters (2020)", 2020), false, true},
+		{"Murder Mindfully (2024)", tvdbHit("Achtsam Morden", 2024, "Murder Mindfully"), false, true},
+		{"Spy Game (2001)", tmdbCand("Spy Game - Der finale Countdown", "Spy Game", 2001, 2400, "MOVIE"), true, true},
+		{"New Worlds (2014)", tvdbHit("New Worlds", 2014), false, true},
+		{"Superhero Movie (2008)", film, true, true},
+		// the same names without the year they are asked with
+		{"Spy Game", tmdbCand("Spy Game", "Spy Game", 2001, 2400, "MOVIE"), true, false},
+		// a name of nothing but words for a kind of content
+		{"Movies (2020)", tmdbCand("Movies", "Movies", 2020, 900, "TV"), true, false},
+	} {
+		info := ParseName(c.name, GuessTitle(c.name), GuessAltTitle(c.name))
+		if got := AutoAccept(info, AutoQuery(info), c.m, HintNormal, c.votes); got != c.want {
 			t.Errorf("AutoAccept(%q, %q) = %v, want %v", c.name, c.m.Title.Romaji, got, c.want)
 		}
 	}

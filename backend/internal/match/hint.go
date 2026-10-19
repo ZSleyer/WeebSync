@@ -1,6 +1,7 @@
 package match
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -71,19 +72,24 @@ var hintCategoryWords = map[string]bool{
 
 // HintQuery is the search for a folder's hint: its name without tags, season
 // and version markers. "" when the name cannot name a show.
-func HintQuery(info Info) string { return hintQuery(info, hintMinLetters) }
+func HintQuery(info Info) string { return hintQuery(info, hintMinLetters, true) }
 
 // AutoQuery is HintQuery for a title looked up on a second provider: a name
-// that gives its year ("Troy (2004)", "Legion (2017)") may be short, the year
-// is what keeps it from naming anything else.
+// that gives its year ("Troy (2004)", "Spy Game (2001)") may be short and may
+// hold a word that names a kind of content too ("Game", "New"), the year is what
+// keeps it from naming anything else. Only a name of nothing but such words
+// ("Anime Movies") is refused then.
 func AutoQuery(info Info) string {
 	if info.Year != 0 {
-		return hintQuery(info, 2)
+		if NonTitle(info) {
+			return ""
+		}
+		return hintQuery(info, 2, false)
 	}
-	return hintQuery(info, hintMinLetters)
+	return hintQuery(info, hintMinLetters, true)
 }
 
-func hintQuery(info Info, minLetters int) string {
+func hintQuery(info Info, minLetters int, noCategoryWord bool) string {
 	if relaxedCollectionRe.MatchString(info.Full) || musicFolderRe.MatchString(info.Full) {
 		return ""
 	}
@@ -95,7 +101,7 @@ func hintQuery(info Info, minLetters int) string {
 	if len(words) == 0 {
 		return ""
 	}
-	if len(words) <= 2 {
+	if noCategoryWord && len(words) <= 2 {
 		cat := 0
 		for _, w := range words {
 			if hintCategoryWords[w] {
@@ -182,7 +188,8 @@ func strictGate(info Info, query string, m anilist.Media, tier HintTier, votes, 
 	// the query lost the folder's trailing numbers with its markers ("Rocky
 	// 2"): a number the candidate's titles do not have names another entry
 	have := map[string]bool{}
-	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+	titles := append([]string{m.Title.Romaji, m.Title.English}, m.Synonyms...)
+	for _, t := range titles {
 		for _, d := range digitsRe.FindAllString(t, -1) {
 			have[strings.TrimLeft(d, "0")] = true
 		}
@@ -197,9 +204,11 @@ func strictGate(info Info, query string, m anilist.Media, tier HintTier, votes, 
 	if tier == HintStrict {
 		extra = 0
 	}
-	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+	for _, t := range titles {
+		// TVDB tells shows of one name apart by a year in the name
+		t = trailingYearRe.ReplaceAllString(t, "")
 		if seasons {
-			t = StripFolderMarkers(t)
+			t = relaxedClean(t)
 		}
 		tw := hintWords(t)
 		if len(tw) == 0 {
@@ -292,7 +301,8 @@ func TitleWithin(info Info, m anilist.Media) bool {
 // is a music video the folder does not speak of. A name with no tag group
 // ("Title (2019)", the way a media server files its shows) carries no sign of
 // being a release of an anime, and there the entry must also be nothing but what
-// the name says (TitleWithin): "Tiny Evil" is not "Evil".
+// the name says (TitleWithin): "Tiny Evil" is not "Evil", and its year is the
+// name's year, give or take one.
 func FirstPickOK(info Info, m anilist.Media, tagged bool) bool {
 	if info.Year != 0 && m.SeasonYear == 0 {
 		return false
@@ -300,8 +310,18 @@ func FirstPickOK(info Info, m anilist.Media, tagged bool) bool {
 	if m.Format == "MUSIC" && !musicFolderRe.MatchString(info.Full) {
 		return false
 	}
-	return tagged || TitleWithin(info, m)
+	if tagged {
+		return true
+	}
+	// a name with a year the entry is a few years off is another work of that name
+	if info.Year != 0 && m.SeasonYear != 0 && abs(info.Year-m.SeasonYear) > 1 {
+		return false
+	}
+	return TitleWithin(info, m)
 }
+
+// trailingYearRe is the "(2021)" TVDB appends to the name of a remake.
+var trailingYearRe = regexp.MustCompile(`\s*\((?:19|20)\d{2}\)$`)
 
 // weakCategoryWords are category words that also turn up in titles: a name of
 // nothing but these is not taken for a category.

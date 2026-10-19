@@ -58,7 +58,7 @@ func (s *Server) tvdbLookup(ctx context.Context, serverID int64, folder, name st
 		hits = append(hits, h...)
 		cands := make([]liveCand, 0, len(hits))
 		for _, h := range hits {
-			cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles, anime: s.inAnimeIDs("tvdb", h.Media.ID), media: h.Media})
+			cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles, anime: s.inAnimeIDs("tvdb", h.Media.ID), media: withTitles(h)})
 		}
 		if c, ok := pickLiveCand(name, q.accept, cands); ok {
 			mediaID, hit = c.id, &c.media
@@ -109,7 +109,7 @@ func (s *Server) tvdbMovieLookup(ctx context.Context, serverID int64, folder, na
 		cands := make([]liveCand, 0, len(hits))
 		for _, h := range hits {
 			cands = append(cands, liveCand{id: h.Media.ID, year: h.Media.SeasonYear, titles: h.Titles,
-				anime: slices.Contains(h.Media.Genres, "Anime"), media: h.Media})
+				anime: slices.Contains(h.Media.Genres, "Anime"), media: withTitles(h)})
 		}
 		if c, ok := pickLiveCand(name, q.accept, cands); ok {
 			mediaID, hit = c.id, &c.media
@@ -119,6 +119,15 @@ func (s *Server) tvdbMovieLookup(ctx context.Context, serverID int64, folder, na
 		s.Tvdb.Movie(ctx, mediaID) // full details into the cache first
 	}
 	return mediaID, hit, nil
+}
+
+// withTitles is a TVDB search result with every title it is known by (the name,
+// its translations and aliases) as synonyms: the name it was found under may be
+// any of them.
+func withTitles(h tvdb.Hit) anilist.Media {
+	m := h.Media
+	m.Synonyms = append([]string(nil), h.Titles...)
+	return m
 }
 
 // queueTvdbMovieFetch refreshes a missing or stale TVDB film in the background.

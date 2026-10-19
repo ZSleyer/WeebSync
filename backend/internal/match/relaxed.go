@@ -264,7 +264,8 @@ func relaxedAcceptSeasons(info Info, query string, m anilist.Media, strict, seas
 		have[strings.TrimLeft(d, "0")] = true
 	}
 	for _, t := range []string{m.Title.Romaji, m.Title.English} {
-		for _, d := range digitsRe.FindAllString(t, -1) {
+		// TVDB tells shows of one name apart by a year in the name
+		for _, d := range digitsRe.FindAllString(trailingYearRe.ReplaceAllString(t, ""), -1) {
 			if !have[strings.TrimLeft(d, "0")] {
 				return false
 			}
