@@ -644,7 +644,7 @@ kbd, .t-kbd {
   background: var(--bg-2);
 }
 /* the clip would cut the outer focus ring off - draw it inside the tab */
-.kbd .t-tab:focus-visible { outline-offset: -2px; }
+.t-tab:focus-visible { outline-offset: -2px; }
 .t-tab {
   flex-shrink: 0;
   display: inline-flex;
@@ -891,16 +891,15 @@ option { background-color: var(--bg-2); color: var(--fg); }
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
 .bg-accent { color: var(--on-accent) !important; }
 
-/* Visible keyboard focus everywhere - but only once keyboard navigation
-   started (html.kbd, set in main.tsx), so programmatic focus never paints
-   a ring for pure mouse users. The bare rule suppresses the UA default. */
+/* Visible focus everywhere, on the browser's own :focus-visible heuristics
+   (keys and Space/arrows after a mouse open show it, a mouse click and
+   programmatic focus after one do not). */
 :focus-visible {
-  outline: none;
-}
-.kbd :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* menu rows sit in a clipped surface: ring inside */
+[role='menuitem']:focus-visible { outline-offset: -2px; }
 
 /* ── Scrollbars ──
    One policy: the browser's full-width bar (scrollbar-width stays auto, a thin
@@ -2121,7 +2120,7 @@ p > .t-link::before {
 @media (hover: hover) {
   .t-seg-btn:hover:not(:disabled) { color: var(--fg); }
 }
-.kbd .t-seg-btn:focus-visible { outline-offset: -2px; }
+.t-seg-btn:focus-visible { outline-offset: -2px; }
 .t-seg-thumb {
   position: absolute;
   top: 3px;
@@ -2443,11 +2442,13 @@ button.t-select { display: flex; align-items: center; text-align: start; cursor:
 .t-option[data-active] { background: var(--hover); color: var(--fg); }
 /* walking the list by keys, the tint alone is the focus mark and sits near
    1.2:1 on the list: the same accent ring as every other focus (WCAG 1.4.11) */
-.kbd .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
+/* focus stays on the trigger and hover sets data-active too: the list
+   marks data-keys once the keys moved it */
+.t-listbox[data-keys] .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .t-option[aria-selected="true"] { color: var(--accent); }
 .t-option[aria-selected="true"] > svg { flex: none; font-size: 1.125rem; }
 .t-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
-.kbd button.t-select[aria-expanded="true"]:focus-visible { outline-offset: 2px; }
+button.t-select[aria-expanded="true"]:focus-visible { outline-offset: 2px; }
 
 /* ── Range: a 4px track and a round thumb drawn by the theme ── */
 input[type='range'] {
@@ -2471,9 +2472,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 input[type='range']::-moz-range-thumb { width: 1.125rem; height: 1.125rem; border: 0; border-radius: 50%; background: var(--accent); }
 input[type='range']:disabled { opacity: 0.45; cursor: not-allowed; }
-.kbd input[type='range']:focus-visible { outline: none; }
-.kbd input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-.kbd input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+input[type='range']:focus-visible { outline: none; }
+input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
 /* ── Search fields: no UA clear button or decoration; a page that wants a
    clear button draws its own ── */
@@ -2561,7 +2562,7 @@ input[type='search']::-webkit-search-results-decoration { -webkit-appearance: no
 @media (hover: hover) {
   .t-toast__action:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
 }
-.kbd .t-toast__action:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
+.t-toast__action:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
 .t-toast__time {
   position: absolute;
   left: 0;
@@ -2594,7 +2595,7 @@ input[type='search']::-webkit-search-results-decoration { -webkit-appearance: no
 @media (hover: hover) {
   .t-toast__close:hover { background: color-mix(in srgb, var(--bg) 14%, transparent); }
 }
-.kbd .t-toast__close:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
+.t-toast__close:focus-visible { outline-color: var(--bg); outline-offset: -2px; }
 .t-toast__ring {
   position: absolute;
   inset: 0.5rem;

@@ -150,6 +150,8 @@ export function Select({
   const picked = options.findIndex((o) => o.value === current)
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu<HTMLSpanElement>()
   const [active, setActive] = useState(-1)
+  // keys moved the highlight last (not the pointer): only then it carries a focus ring
+  const [byKey, setByKey] = useState(false)
   const listId = `${useId().replace(/[^A-Za-z0-9_-]/g, '')}-list`
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLUListElement>(null)
@@ -195,6 +197,7 @@ export function Select({
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (!['Shift', 'Control', 'Alt', 'Meta'].includes(e.key)) setByKey(true)
     const from = active >= 0 ? active : picked
     const last = stepOption(options, options.length, -1)
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key !== ' ' || typed.current.q)) {
@@ -250,7 +253,11 @@ export function Select({
         aria-activedescendant={open && active >= 0 ? `${listId}-${active}` : undefined}
         disabled={disabled}
         {...passthrough}
-        onClick={() => (open ? setOpen(false) : show(picked >= 0 ? picked : firstEnabled))}
+        onClick={() => {
+          setByKey(false)
+          if (open) setOpen(false)
+          else show(picked >= 0 ? picked : firstEnabled)
+        }}
         onKeyDown={onKeyDown}
         className={cx('t-select', size === 'sm' && 't-select--sm', className)}
       >
@@ -265,6 +272,7 @@ export function Select({
           aria-labelledby={id}
           aria-label={id ? undefined : (rest['aria-label'] as string | undefined)}
           tabIndex={-1}
+          data-keys={byKey ? '' : undefined}
           {...(mode !== 'inline' ? { popover: 'manual' } : {})}
           style={
             mode === 'anchor'
@@ -292,7 +300,10 @@ export function Select({
               // the trigger keeps focus: a press on an option must not take it
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => !o.disabled && pick(i)}
-              onMouseMove={() => !o.disabled && i !== active && setActive(i)}
+              onMouseMove={() => {
+                setByKey(false)
+                if (!o.disabled && i !== active) setActive(i)
+              }}
             >
               <span className="min-w-0 flex-1">{o.label}</span>
               {i === picked && <Check />}
