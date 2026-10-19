@@ -299,7 +299,7 @@ function Trailer({ id, art, focus }: { id: string; art?: string | null; focus?: 
   return (
     <iframe
       // the button it replaces had the focus: the player takes it over
-      ref={(el) => el?.focus()}
+      ref={(el) => el?.focus({ preventScroll: true })}
       className="ws-d-trailer"
       title={t('remote.trailer')}
       src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1`}

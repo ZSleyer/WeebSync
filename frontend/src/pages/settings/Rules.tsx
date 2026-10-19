@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { useLocation } from 'react-router'
 import { Trans, useTranslation } from 'react-i18next'
+import { scrollToSection } from '../../components/ScrollMemory'
 import { NameTester } from '../../components/NameTester'
 import './rules.css'
 
@@ -76,7 +77,7 @@ function useHashTarget() {
     const still =
       matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'off'
     // after the page's own entry has laid it out
-    const raf = requestAnimationFrame(() => el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' }))
+    const raf = requestAnimationFrame(() => scrollToSection(el, 'start', still ? 'auto' : 'smooth'))
     return () => cancelAnimationFrame(raf)
   }, [hash])
 }

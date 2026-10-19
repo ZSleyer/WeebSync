@@ -3,6 +3,7 @@ import { BookOpen, Clock, Play } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
+import { scrollToSection } from './ScrollMemory'
 import { dubProgressLabel } from '../attention'
 import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import type { Schemas } from '../api.gen'
@@ -247,7 +248,7 @@ export default function EpisodeList({
     setHit(k)
     const el = rows.current.get(k)
     const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    el?.scrollIntoView?.({ block: 'center', behavior: still ? 'auto' : 'smooth' })
+    if (el) scrollToSection(el, 'center', still ? 'auto' : 'smooth')
     const id = setTimeout(() => el?.querySelector<HTMLElement>('.ws-ep-tog')?.focus({ preventScroll: true }), 500)
     return () => clearTimeout(id)
     // the landing runs once, when both lists are in

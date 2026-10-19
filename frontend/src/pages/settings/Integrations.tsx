@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next'
 import { useLocation } from 'react-router'
 import { Badge, Button, Input, Select, SettingsField, Switch } from 'fluid-lycoris'
 import './integrations.css'
+import { scrollToSection } from '../../components/ScrollMemory'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
 import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
@@ -156,7 +157,7 @@ function useHashPanel() {
     let raf = 0
     const go = () => {
       const el = document.getElementById(id)
-      if (el) el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'start' })
+      if (el) scrollToSection(el, 'start', still ? 'auto' : 'smooth')
       else if (tries++ < 60) raf = requestAnimationFrame(go)
     }
     raf = requestAnimationFrame(go)

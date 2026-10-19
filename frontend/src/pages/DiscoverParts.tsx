@@ -45,7 +45,16 @@ export function DiscoverNav({
     const el = ref.current?.querySelector<HTMLElement>('[aria-current="page"]')
     // only the strip scrolls: the column has nothing to turn to
     if (el && ref.current && ref.current.scrollWidth > ref.current.clientWidth) {
-      el.scrollIntoView?.({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+      // sideways on the strip itself: scrollIntoView would move the page too
+      const nav = ref.current
+      nav.scrollTo?.({
+        left:
+          nav.scrollLeft +
+          el.getBoundingClientRect().left -
+          nav.getBoundingClientRect().left -
+          (nav.clientWidth - el.offsetWidth) / 2,
+        behavior: 'smooth',
+      })
     }
   }, [current])
   return (

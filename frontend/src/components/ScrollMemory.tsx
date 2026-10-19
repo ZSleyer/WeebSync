@@ -15,6 +15,27 @@ const KEY = 'weebsync.scroll.'
 let winY = 0
 if (typeof window !== 'undefined') window.addEventListener('scroll', () => (winY = window.scrollY), { passive: true })
 
+// Brings a section to the top (or middle) of the scroller it lives in. Plain
+// scrollIntoView also scrolls the window, and a document a few pixels taller
+// than the screen then slides the shell and its top bar out of view: on a
+// phone only the nearest scroller moves (<main> when none is found).
+export function scrollToSection(
+  el: HTMLElement,
+  block: 'start' | 'center' = 'start',
+  behavior: ScrollBehavior = 'auto',
+) {
+  const phone = !window.matchMedia(WIDE_MQ).matches
+  let box: HTMLElement | null = el.parentElement
+  while (box && !/(auto|scroll)/.test(getComputedStyle(box).overflowY)) box = box.parentElement
+  if (box === document.body || box === document.documentElement) box = null
+  box ??= phone ? document.querySelector<HTMLElement>('.app-shell > main') : null
+  if (!box) return el.scrollIntoView({ block, behavior })
+  const off = el.getBoundingClientRect().top - box.getBoundingClientRect().top
+  const top = box.scrollTop + off - (block === 'center' ? (box.clientHeight - el.offsetHeight) / 2 : 0)
+  if (behavior === 'smooth' && box.scrollTo) box.scrollTo({ top, behavior })
+  else box.scrollTop = top
+}
+
 export default function ScrollMemory() {
   const { key, hash, pathname } = useLocation()
   const navType = useNavigationType()
@@ -55,8 +76,7 @@ export default function ScrollMemory() {
       const target = (tries: number) => {
         const el = document.getElementById(hash.slice(1))
         if (el && el.getBoundingClientRect().height > 0) {
-          if (phone && main) main.scrollTop += el.getBoundingClientRect().top - main.getBoundingClientRect().top
-          else el.scrollIntoView()
+          scrollToSection(el)
         } else if (tries > 0) pending = setTimeout(() => target(tries - 1), 100)
       }
       target(20)
