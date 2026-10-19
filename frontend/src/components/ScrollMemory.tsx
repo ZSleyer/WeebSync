@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
+import { WIDE_MQ } from './PageActions'
 import { topPage } from './RouteTransition'
 
 // Below lg the shell's <main> is the scroller and it is remounted on every
@@ -27,10 +28,14 @@ export default function ScrollMemory() {
     const newPath = prevPath !== pathname
     lastPath.current = pathname
     const main = document.querySelector<HTMLElement>('.app-shell > main')
-    const read = () => Math.max(main?.scrollTop ?? 0, window.scrollY)
+    // On a phone <main> is the only scroller. The document may still be a few
+    // pixels taller than the screen (iOS toolbars, safe areas); moving it as
+    // well slid the shell, and with it the top bar, out of view.
+    const phone = !window.matchMedia(WIDE_MQ).matches
+    const read = () => (phone ? (main?.scrollTop ?? 0) : Math.max(main?.scrollTop ?? 0, window.scrollY))
     const write = (y: number) => {
       if (main) main.scrollTop = y
-      window.scrollTo(0, y)
+      if (!phone) window.scrollTo(0, y)
     }
     let last = 0
     const onScroll = () => (last = read())
@@ -49,8 +54,10 @@ export default function ScrollMemory() {
       // seeds from a request first - so keep trying for a moment
       const target = (tries: number) => {
         const el = document.getElementById(hash.slice(1))
-        if (el && el.getBoundingClientRect().height > 0) el.scrollIntoView()
-        else if (tries > 0) pending = setTimeout(() => target(tries - 1), 100)
+        if (el && el.getBoundingClientRect().height > 0) {
+          if (phone && main) main.scrollTop += el.getBoundingClientRect().top - main.getBoundingClientRect().top
+          else el.scrollIntoView()
+        } else if (tries > 0) pending = setTimeout(() => target(tries - 1), 100)
       }
       target(20)
     } else if (newPath) {
@@ -59,7 +66,7 @@ export default function ScrollMemory() {
       // the page being mounted. The window scrolls only on a desktop, and
       // only when it has been scrolled.
       if (main && topPage(prevPath) === topPage(pathname)) main.scrollTop = 0
-      if (winY > 0) window.scrollTo(0, 0)
+      if (!phone && winY > 0) window.scrollTo(0, 0)
     }
     return () => {
       clearTimeout(pending)
