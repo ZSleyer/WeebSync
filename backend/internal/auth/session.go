@@ -220,8 +220,8 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 		ua = ua[:300]
 	}
 	stamp := now.UTC().Format(time.RFC3339)
-	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember); err != nil {
+	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember, ClientIP(r)); err != nil {
 		return err
 	}
 	c := &http.Cookie{Name: "weebsync_session", Value: token, Path: "/"}
@@ -289,9 +289,9 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) error {
 }
 
 // touchSession reports whether a session is still in use, and stamps it as
-// seen when the last stamp is older than seenEvery. An empty stamp (a session
-// from before the column) counts as seen now.
-func touchSession(d *sql.DB, token, lastSeen string, remember bool, now time.Time) bool {
+// seen, from ip, when the last stamp is older than seenEvery. An empty stamp
+// (a session from before the column) counts as seen now.
+func touchSession(d *sql.DB, token, lastSeen, ip string, remember bool, now time.Time) bool {
 	if seen, err := time.Parse(time.RFC3339, lastSeen); err == nil {
 		if now.Sub(seen) > idleLimit(remember) {
 			return false
@@ -301,7 +301,7 @@ func touchSession(d *sql.DB, token, lastSeen string, remember bool, now time.Tim
 		}
 	}
 	// a missed stamp only means the next request stamps again
-	_, _ = d.Exec(`UPDATE sessions SET last_seen = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), hashToken(token))
+	_, _ = d.Exec(`UPDATE sessions SET last_seen = ?, ip = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), ip, hashToken(token))
 	return true
 }
 
@@ -345,7 +345,7 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
 				if err == nil {
 					now := time.Now()
-					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, remember, now) {
+					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, ClientIP(r), remember, now) {
 						if u.Upgrade != "" && !upgradeAllows(u.Upgrade, r) {
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusForbidden)

@@ -7069,6 +7069,14 @@
                     "id": {
                         "type": "string"
                     },
+                    "ip": {
+                        "description": "where it was last used from, \"\" until then",
+                        "type": "string"
+                    },
+                    "lastSeen": {
+                        "description": "stamped at most every few minutes",
+                        "type": "string"
+                    },
                     "oidc": {
                         "type": "boolean"
                     },
@@ -7080,6 +7088,8 @@
                     "id",
                     "createdAt",
                     "expiresAt",
+                    "lastSeen",
+                    "ip",
                     "userAgent",
                     "oidc",
                     "current"

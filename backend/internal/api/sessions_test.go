@@ -53,8 +53,8 @@ func TestSessions(t *testing.T) {
 		} else if other.ID == "" {
 			other = x
 		}
-		if x.CreatedAt == "" || x.UserAgent == "" {
-			t.Errorf("session %+v lacks its start or browser", x)
+		if x.CreatedAt == "" || x.UserAgent == "" || x.LastSeen == "" || x.IP != "192.0.2.1" {
+			t.Errorf("session %+v lacks its start, browser, last use or address", x)
 		}
 	}
 	if current.UserAgent != "Firefox desktop" {

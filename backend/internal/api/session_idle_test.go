@@ -61,11 +61,13 @@ func TestSessionIdle(t *testing.T) {
 	// a session from before the column: in, and stamped
 	old := start(true)
 	setSeen(old, 0)
+	s.DB.Exec(`UPDATE sessions SET ip = '' WHERE token_hash = ?`, auth.TokenHash(old.Value))
 	if code := me(old); code != http.StatusOK {
 		t.Errorf("pre-column session: %d", code)
 	}
-	s.DB.QueryRow(`SELECT last_seen FROM sessions WHERE token_hash = ?`, auth.TokenHash(old.Value)).Scan(&seen)
-	if seen == "" {
-		t.Error("pre-column session not stamped")
+	var ip string
+	s.DB.QueryRow(`SELECT last_seen, ip FROM sessions WHERE token_hash = ?`, auth.TokenHash(old.Value)).Scan(&seen, &ip)
+	if seen == "" || ip == "" {
+		t.Errorf("pre-column session not stamped: seen %q, ip %q", seen, ip)
 	}
 }

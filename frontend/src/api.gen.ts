@@ -3069,6 +3069,14 @@ export interface Schemas {
     current: boolean
     expiresAt: string
     id: string
+    /**
+     * where it was last used from, "" until then
+     */
+    ip: string
+    /**
+     * stamped at most every few minutes
+     */
+    lastSeen: string
     oidc: boolean
     userAgent: string
   }

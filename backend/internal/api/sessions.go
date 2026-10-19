@@ -13,6 +13,8 @@ type sessionInfo struct {
 	ID        string `json:"id"`
 	CreatedAt string `json:"createdAt"` // "" for sessions older than the column
 	ExpiresAt string `json:"expiresAt"`
+	LastSeen  string `json:"lastSeen"` // stamped at most every few minutes
+	IP        string `json:"ip"`       // where it was last used from, "" until then
 	UserAgent string `json:"userAgent"`
 	OIDC      bool   `json:"oidc"`
 	Current   bool   `json:"current"`
@@ -35,7 +37,7 @@ var sessionIDRe = regexp.MustCompile(`^[0-9a-f]{16}$`)
 func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	cur := auth.TokenHash(auth.SessionToken(r))
-	rows, err := s.DB.Query(`SELECT token_hash, created_at, expires_at, user_agent, oidc_sid != '' OR oidc_sub != ''
+	rows, err := s.DB.Query(`SELECT token_hash, created_at, expires_at, last_seen, ip, user_agent, oidc_sid != '' OR oidc_sub != ''
 		FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, u.ID)
 	if err != nil {
 		dbErr(w)
@@ -46,7 +48,7 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var hash string
 		var it sessionInfo
-		if err := rows.Scan(&hash, &it.CreatedAt, &it.ExpiresAt, &it.UserAgent, &it.OIDC); err != nil {
+		if err := rows.Scan(&hash, &it.CreatedAt, &it.ExpiresAt, &it.LastSeen, &it.IP, &it.UserAgent, &it.OIDC); err != nil {
 			dbErr(w)
 			return
 		}
