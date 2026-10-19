@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -471,7 +472,7 @@ func TestAutoScopeMark(t *testing.T) {
 // duplicates, every provider listed), an empty list is fine, a refused save
 // stores nothing, and the defaults are what an install without a value gets.
 func TestRoutingSetting(t *testing.T) {
-	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	mux, s, adminC, userC, _, _ := setupUsersTest(t)
 	s.OIDC = auth.NewManager(context.Background(), s.DB)
 	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
 	put := func(body string) *httptest.ResponseRecorder { return doReq(mux, "PUT", "/api/settings", body, adminC) }
@@ -491,6 +492,16 @@ func TestRoutingSetting(t *testing.T) {
 	}
 	if v := db.Setting(s.DB, matchRoutingKey); v != "" {
 		t.Errorf("a refused save stored %q", v)
+	}
+	// the routing is an admin setting, like the integrations next to it
+	if rec := doReq(mux, "GET", "/api/settings", "", userC); rec.Code != http.StatusForbidden {
+		t.Errorf("a user read the settings: %d", rec.Code)
+	}
+	if rec := doReq(mux, "PUT", "/api/settings", `{"matchRouting":{"providers":{"anilist":false,"tvdb":false,"tmdb":false}}}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("a user wrote the routing: %d", rec.Code)
+	}
+	if v := db.Setting(s.DB, matchRoutingKey); v != "" {
+		t.Errorf("a user's save stored %q", v)
 	}
 	ok := put(`{"matchRouting":{"providers":{"anilist":false,"tvdb":true,"tmdb":true},"series":[{"provider":"tmdb","enabled":true},{"provider":"tvdb","enabled":false},{"provider":"anilist","enabled":false}]}}`)
 	if ok.Code != http.StatusOK {
@@ -555,4 +566,39 @@ func TestHintRouting(t *testing.T) {
 
 func matchInfo(name string) match.Info {
 	return match.ParseName(name, GuessTitle(name), GuessAltTitle(name))
+}
+
+// Only a release tag group (a language, a streaming service) marks a name as the
+// release of an anime; a resolution in brackets does not, and the first pick of
+// such a name has to be nothing but what the name says.
+func TestFirstPickNeedsReleaseTags(t *testing.T) {
+	for name, want := range map[string]bool{
+		"Example Story (2019) [1080p]":             false,
+		"Example Story (2019)":                     false,
+		"Example Story [JapDub,GerSub,CR]":         true,
+		"Example Story [GerDub]":                   true,
+		"Example Story (2019) [NF]":                true,
+		"Example Story (2019) [1080p,x265,GerSub]": true,
+	} {
+		if got := hasReleaseTags(name); got != want {
+			t.Errorf("hasReleaseTags(%q) = %v, want %v", name, got, want)
+		}
+	}
+	// a live-action title that shares a word with an anime: the bracketed
+	// resolution is no release tag, the longer anime title is refused
+	name := "Example Story (2019) [1080p]"
+	info := matchInfo(name)
+	var tiny anilist.Media
+	tiny.ID, tiny.Title.Romaji, tiny.SeasonYear, tiny.Format = 7, "Tiny Example Story", 2019, "TV"
+	picked := []*anilist.Media{&tiny}
+	gateAutoPicks([]matchJob{{name: name, folder: "/lib/" + name, auto: &autoPlan{}}}, []match.Info{info}, picked)
+	if picked[0] != nil {
+		t.Error("the pick of an untagged name that says less than the entry was kept")
+	}
+	tagged := "Example Story [JapDub,GerSub]"
+	picked = []*anilist.Media{&tiny}
+	gateAutoPicks([]matchJob{{name: tagged, folder: "/lib/" + tagged, auto: &autoPlan{}}}, []match.Info{matchInfo(tagged)}, picked)
+	if picked[0] == nil {
+		t.Error("the pick of a release-tagged name was refused")
+	}
 }

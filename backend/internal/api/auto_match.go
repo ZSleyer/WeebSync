@@ -10,6 +10,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/rename"
 )
 
 // The "automatic" scope. A mark of any other kind fixes one provider for the
@@ -60,15 +61,6 @@ func expectedSource(scope, stored string) string {
 		return stored
 	}
 	return sourceForScope(scope)
-}
-
-// plexSourcesFor lists the sources the local library asks Plex for before it
-// searches by title. Plex knows a show by its TVDB or TMDB id, which maps back
-// to AniList only for an anime: that is evidence; a TMDB or TVDB id would be
-// taken for the right provider without any, so an automatic mark leaves the
-// western providers to the title lookup.
-func (s *Server) plexSourcesFor(scope string) []string {
-	return []string{sourceForScope(scope)}
 }
 
 // autoPlan says what the AniList step of an automatic match does.
@@ -225,6 +217,35 @@ func (s *Server) autoRecord(ctx context.Context, src string, id int) *anilist.Me
 	return m
 }
 
+// queueAutoFallback asks the providers after AniList for a folder AniList had
+// no confident pick for, in a job of its own: a slow TVDB or TMDB must not hold
+// up the AniList batch worker. The job stores the outcome - a match, or none -
+// and offers the hint a folder nothing matched may still get.
+func (s *Server) queueAutoFallback(b matchJob, info match.Info) {
+	s.runJob(fmt.Sprintf("mf:%d:%s", b.serverID, b.folder), func(ctx context.Context) {
+		if !b.force && s.hasManualMatch(b.serverID, b.folder) {
+			return
+		}
+		if src, id := s.autoFallback(ctx, b, info); id != 0 {
+			// persistMatch logs a failure; the next catalog poll retries
+			_ = s.persistMatch(b.serverID, b.folder, id, false, src)
+			return
+		}
+		_ = s.persistMatch(b.serverID, b.folder, 0, false, "anilist") // logged; the next poll asks again
+		if err := s.hintFolder(ctx, b.serverID, b.folder, b.name, info, b.force); err != nil {
+			slog.Debug("match hint lookup", "folder", logSafe(b.folder), "err", err)
+		}
+	})
+}
+
+// hasReleaseTags reports whether a folder name carries a release tag group that
+// names an audio or subtitle language or a streaming service: the mark of a
+// release, where "Title (2019) [1080p]" is only how a media server files a show.
+func hasReleaseTags(name string) bool {
+	dub, sub := rename.LangTags(name)
+	return dub != "" || sub != "" || hintTierOf(name) != match.HintNormal
+}
+
 // autoFallback asks the providers after AniList for a folder AniList had no
 // confident pick for. A pick counts only through the strict gate.
 func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) (string, int) {
@@ -254,7 +275,7 @@ func gateAutoPicks(batch []matchJob, infos []match.Info, picked []*anilist.Media
 		if b.auto == nil || picked[i] == nil {
 			continue
 		}
-		ok := match.FirstPickOK(infos[i], *picked[i], strings.Contains(b.name, "["))
+		ok := match.FirstPickOK(infos[i], *picked[i], hasReleaseTags(b.name))
 		if b.auto.gated {
 			ok = match.AutoAccept(infos[i], match.HintQuery(infos[i]), *picked[i], b.auto.tier, true)
 		}

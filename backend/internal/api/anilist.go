@@ -386,12 +386,10 @@ func (s *Server) matchBatch(batch []matchJob) {
 			src = mangaSource
 		}
 		if mediaID == 0 && b.auto != nil && len(b.auto.rest) > 0 {
-			// AniList had no confident answer: the next provider is asked
-			if asrc, aid := s.autoFallback(ctx, b, infos[i]); aid != 0 {
-				if s.persistMatch(b.serverID, b.folder, aid, false, asrc) == nil {
-					continue
-				}
-			}
+			// AniList had no confident answer: the next providers are asked off
+			// this worker, which is the AniList queue and must not wait on them
+			s.queueAutoFallback(b, infos[i])
+			continue
 		}
 		// persistMatch logs a failure; the folder is matched again on a later pass
 		_ = s.persistMatch(b.serverID, b.folder, mediaID, false, src)
@@ -988,11 +986,12 @@ func (s *Server) queueScopedMatch(serverID int64, folder, name, scope string, fo
 	// local library: try Plex's authoritative tvdb/tmdb id first (also drains
 	// the sweep this way); an explicit rematch (force) still does a title search
 	if serverID == localServerID && !force && scope != "manga" {
-		for _, src := range s.plexSourcesFor(scope) {
-			if id, ok := s.matchLocalByPlexID(folder, src); ok {
-				_ = s.persistMatch(serverID, folder, id, false, src) // logged; the sweep tries again
-				return
-			}
+		// an automatic mark asks Plex only for the AniList mapping (sourceForScope):
+		// a TVDB or TMDB id would be taken for the right provider without evidence
+		src := sourceForScope(scope)
+		if id, ok := s.matchLocalByPlexID(folder, src); ok {
+			_ = s.persistMatch(serverID, folder, id, false, src) // logged; the sweep tries again
+			return
 		}
 	}
 	if scope == scopeAuto {
