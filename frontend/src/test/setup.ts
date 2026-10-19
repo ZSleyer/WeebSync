@@ -28,3 +28,6 @@ if (!HTMLDialogElement.prototype.showModal) {
     this.dispatchEvent(new Event('close'))
   }
 }
+
+// jsdom does no layout and has no scrollIntoView; nothing here asserts on scrolling
+Element.prototype.scrollIntoView ??= () => {}

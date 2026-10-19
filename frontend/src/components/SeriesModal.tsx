@@ -1003,6 +1003,10 @@ function SeriesCard({
         tabIndex={-1}
         data-editing={viewOn || undefined}
         onScroll={onScroll}
+        // Firefox leaves a Tab-focused element partly under the scroller's edge
+        onFocus={(e) => {
+          if (e.target.matches(':focus-visible')) e.target.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+        }}
         onKeyDown={(e) => {
           if (e.key !== 'Escape' || e.defaultPrevented) return
           e.preventDefault()
