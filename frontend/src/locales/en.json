@@ -1843,6 +1843,7 @@
       "users": "Users"
     },
     "sync": {
+      "intro": "Target and naming for auto-syncs, one-off syncs and upgrades.",
       "airedHint": "For endless series with absolute numbering: seasons as aired on TVDB.",
       "aired": "Sort by airing",
       "kind": "Kind",
@@ -1874,7 +1875,7 @@
       "matching": "Index and matching",
       "general": "Appearance",
       "account": "Account and sign-in",
-      "sync": "Auto-sync defaults",
+      "sync": "Download defaults",
       "rules": "How WeebSync decides",
       "notifications": "Notifications",
       "downloads": "Downloads",

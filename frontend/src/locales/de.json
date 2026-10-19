@@ -1843,6 +1843,7 @@
       "users": "Benutzer"
     },
     "sync": {
+      "intro": "Ziel und Benennung für Auto-Syncs, einmalige Syncs und Upgrades.",
       "airedHint": "Für Endlos-Serien mit absoluter Nummerierung: Staffeln nach der Ausstrahlung bei TVDB.",
       "aired": "Nach Ausstrahlung einsortieren",
       "kind": "Art",
@@ -1874,7 +1875,7 @@
       "matching": "Index und Zuordnung",
       "general": "Darstellung",
       "account": "Konto und Anmeldung",
-      "sync": "Auto-Sync-Vorgaben",
+      "sync": "Download-Vorgaben",
       "rules": "So entscheidet WeebSync",
       "notifications": "Benachrichtigungen",
       "downloads": "Downloads",

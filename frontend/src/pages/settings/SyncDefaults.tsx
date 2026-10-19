@@ -104,6 +104,7 @@ export default function SyncDefaults() {
   return (
     <>
       <UnsavedGuard dirty={dirty} />
+      <p className="text-ctl-sm text-t-muted">{t('settings.sync.intro')}</p>
       <SettingsPanel title={t('settings.sync.targets')} desc={t('settings.sync.targetsHint')}>
         <SettingsField label={t('settings.sync.kind')}>
           <Segmented
