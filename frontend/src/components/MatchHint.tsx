@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 import { Button, RowAction } from 'fluid-lycoris'
 import { api, type CatalogItem } from '../api'
 
-// The hint a folder AniList found nothing for carries: TMDB knows a show by
-// its name. It is a suggestion only. Taking it writes the ordinary manual
-// match with TMDB as the source (the same call the match dialog makes), and
+// The hint a folder AniList found nothing for carries: TVDB or TMDB knows a
+// show by its name. It is a suggestion only. Taking it writes the ordinary
+// manual match with that provider as the source (the same call the match dialog makes), and
 // dropping it is remembered, so the sweep does not bring it back.
 
 interface Props {
@@ -59,9 +59,10 @@ export function MatchHint({ serverId, item, variant, onTaken }: Props) {
       () => setDropped(true),
     )
 
+  const provider = hint.source.startsWith('tvdb') ? 'TVDB' : 'TMDB'
   const text = hint.year
-    ? t('catalog.hintFound', { title: hint.title, year: hint.year })
-    : t('catalog.hintFoundNoYear', { title: hint.title })
+    ? t('catalog.hintFound', { provider, title: hint.title, year: hint.year })
+    : t('catalog.hintFoundNoYear', { provider, title: hint.title })
   const err = error && (
     <span className="block text-err" role="alert">
       {error}

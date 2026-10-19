@@ -1340,6 +1340,7 @@ export function CatalogGrid({
   }
 
   const scopeOptions = [
+    { value: 'auto', label: t('remote.scopeAuto') },
     { value: 'anime', label: t('remote.scopeAnime') },
     { value: 'manga', label: t('remote.scopeManga') },
     { value: 'tv', label: t('remote.scopeTv') },
@@ -1613,6 +1614,10 @@ export function CatalogGrid({
           {data?.scope === '' ? (
             <p className="ws-cat-note" role="status">
               {t('remote.scopePick')}
+            </p>
+          ) : data?.matchingOff ? (
+            <p className="ws-cat-note" role="status">
+              {t('remote.matchingOff')}
             </p>
           ) : (
             pendingCount > 0 && (
