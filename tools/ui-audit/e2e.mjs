@@ -604,6 +604,24 @@ const focusInfo = () => {
   }
 }
 
+// Firefox lands the focus scroll after the key press returns: wait until the
+// focused element's rect holds still across two samples, or give up after 1.5s
+const settleFocus = (page) =>
+  page.evaluate(async () => {
+    const rect = () => {
+      const r = document.activeElement?.getBoundingClientRect()
+      return r ? `${r.top}|${r.left}|${r.width}|${r.height}` : ''
+    }
+    const end = performance.now() + 1500
+    let prev = rect()
+    while (performance.now() < end) {
+      await new Promise((r) => setTimeout(r, 80))
+      const cur = rect()
+      if (cur === prev) return
+      prev = cur
+    }
+  }).catch(() => {})
+
 // Tab through the first stops of the page and report what a sticky bar hides:
 // all five sample points covered fails, two or more is a warning
 const focusWalk = async (page, n = 40) => {
@@ -615,6 +633,7 @@ const focusWalk = async (page, n = 40) => {
   })
   for (let i = 0; i < n; i++) {
     await page.keyboard.press('Tab')
+    await settleFocus(page)
     const f = await page.evaluate(focusInfo).catch(() => null)
     if (!f) continue
     const k = `${f.el}|${f.text}`
