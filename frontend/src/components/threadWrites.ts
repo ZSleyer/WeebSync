@@ -76,9 +76,9 @@ export function useThreadWrites(threadId: number) {
 
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.status === 403) {
-      toast({ message: t('thread.turnedOff') })
+      toast({ message: t('thread.turnedOff'), error: true })
       void qc.invalidateQueries({ queryKey: ['anilist-me'] })
-    } else if (e instanceof ApiError && e.status === 429) toast({ message: t('thread.tooFast') })
+    } else if (e instanceof ApiError && e.status === 429) toast({ message: t('thread.tooFast'), error: true })
     else failToast(e)
   }
   const set = (fn: (d: ThreadData) => ThreadData) => qc.setQueryData<ThreadData>(key, (d) => (d ? fn(d) : d))

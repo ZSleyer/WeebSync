@@ -27,6 +27,8 @@ interface ToastOptions {
   undo?: () => void
   /** what the line holds back until it runs out (or another line replaces it) */
   commit?: () => Promise<unknown> | void
+  /** a failure: announced assertively */
+  error?: boolean
 }
 
 type ToastFn = (opts: ToastOptions) => void
@@ -77,7 +79,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         const m = e.mutation
         if (m.options.onError || m.meta?.silent) return
         const err = e.action.error
-        toast({ message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }) })
+        toast({
+          message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }),
+          error: true,
+        })
       }),
     [qc, toast, t],
   )
@@ -100,21 +105,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, [flush])
   const closeNotice = useCallback(() => setNotice(null), [])
 
+  const noticeLine = notice && (
+    <Toast
+      key={notice.id}
+      message={notice.message}
+      duration={toastDuration(notice.message)}
+      onClose={closeNotice}
+      closeLabel={t('common.close')}
+    />
+  )
+
   return (
     <ToastCtx.Provider value={toast}>
       {children}
       {/* the region sits in the top layer and is raised again per line, so a
           line raised from inside an open sheet lands on top of it */}
-      <ToastRegion raise={`${live?.id}-${notice?.id}`}>
-        {notice && (
-          <Toast
-            key={notice.id}
-            message={notice.message}
-            duration={toastDuration(notice.message)}
-            onClose={closeNotice}
-            closeLabel={t('common.close')}
-          />
-        )}
+      <ToastRegion raise={`${live?.id}-${notice?.id}`} alerts={notice?.error && noticeLine}>
+        {notice && !notice.error && noticeLine}
         {live && (
           <Toast
             key={live.id}
@@ -137,7 +144,10 @@ export function useFailToast() {
   const toast = useToast()
   const { t } = useTranslation()
   return (err: unknown) =>
-    toast({ message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }) })
+    toast({
+      message: t('common.actionFailed', { msg: err instanceof Error ? err.message : String(err) }),
+      error: true,
+    })
 }
 
 /**
@@ -186,7 +196,7 @@ export function useUndoableRemove() {
       commit: () =>
         remove().then(settle, () => {
           void settle()
-          toast({ message: t('common.undoFailed') })
+          toast({ message: t('common.undoFailed'), error: true })
         }),
     })
   }

@@ -319,7 +319,7 @@ export default function Files() {
       const out = await api.post<{ canceled: number }>('/api/downloads/cancel', { ids })
       toast({ message: t('remote.syncCanceled', { count: out.canceled }) })
     } catch (err) {
-      toast({ message: err instanceof Error ? err.message : t('app.error') })
+      toast({ message: err instanceof Error ? err.message : t('app.error'), error: true })
     }
   }
   const enqueue = useMutation({
@@ -351,7 +351,7 @@ export default function Files() {
         undo: ids.length > 0 ? () => void cancelQueued(ids) : undefined,
       })
     },
-    onError: (e) => toast({ message: e instanceof Error ? e.message : t('app.error') }),
+    onError: (e) => toast({ message: e instanceof Error ? e.message : t('app.error'), error: true }),
   })
 
   const syncProps = (entry: Entry, seed: WatchFields) => ({
@@ -481,7 +481,7 @@ export default function Files() {
   const copyPath = (e: Entry) =>
     navigator.clipboard.writeText(e.path).then(
       () => toast({ message: t('files.pathCopied') }),
-      () => toast({ message: `${t('files.copyFailed')} ${e.path}` }),
+      () => toast({ message: `${t('files.copyFailed')} ${e.path}`, error: true }),
     )
 
   // the catalog tiles' long-press sheet: rename and delete on the local library
@@ -1135,7 +1135,7 @@ export function CatalogGrid({
       if (first) goTo(playHref(serverId, first))
       else toast({ message: t('player.noVideo') })
     } catch (err) {
-      toast({ message: err instanceof Error ? err.message : t('app.error') })
+      toast({ message: err instanceof Error ? err.message : t('app.error'), error: true })
     } finally {
       setStarting(null)
     }

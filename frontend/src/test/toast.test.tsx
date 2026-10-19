@@ -163,6 +163,9 @@ describe('failed mutations', () => {
     fireEvent.click(screen.getByText('go'))
     await act(() => vi.advanceTimersByTimeAsync(10))
     expect(screen.getByText('common.actionFailed')).toBeInTheDocument()
+    // a failure is announced assertively, not through the polite region
+    expect(screen.getByText('common.actionFailed').closest('[role=alert]')).not.toBeNull()
+    expect(screen.getByText('common.actionFailed').closest('[role=status]')).toBeNull()
   })
 
   it('stay quiet when the mutation handles its own error', async () => {

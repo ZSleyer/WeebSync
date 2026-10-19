@@ -125,7 +125,7 @@ export default function Watches() {
   const fail = useFailToast()
   // what the actions report goes to the toast, as everywhere else
   useEffect(() => {
-    if (error) toast({ message: error })
+    if (error) toast({ message: error, error: true })
   }, [error, toast])
   useEffect(() => {
     if (notice) toast({ message: notice })

@@ -47,7 +47,7 @@ export default function PhoneHint() {
   const copy = () =>
     navigator.clipboard.writeText(url).then(
       () => toast({ message: t('files.pathCopied') }),
-      () => toast({ message: t('files.copyFailed') }),
+      () => toast({ message: t('files.copyFailed'), error: true }),
     )
 
   return (
