@@ -457,7 +457,15 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     if (!isOpen) return
     const root = document.documentElement
     root.dataset.overlay = 'series'
+    // what the page covers is out of the tab order too: the skip link and the
+    // phone's top bar. The sidebar / tab bar stay standing and usable, and
+    // <main>'s content is skipped by the rule above, so aria-modal stays false.
+    const covered = [...document.querySelectorAll<HTMLElement>('.app-shell > :is(.ws-skip, .ws-top)')].filter(
+      (el) => !el.inert,
+    )
+    for (const el of covered) el.inert = true
     return () => {
+      for (const el of covered) el.inert = false
       delete root.dataset.overlay
       const back = opener.current
       if (back?.isConnected) requestAnimationFrame(() => back.focus({ preventScroll: true }))
