@@ -539,7 +539,7 @@ function PlexSections({
           {(error as Error).message}
         </p>
       ) : (
-        <table className="cat-t" role="table">
+        <table className="cat-t cat-t--lib" role="table">
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">

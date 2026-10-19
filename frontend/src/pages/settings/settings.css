@@ -491,36 +491,42 @@
   align-items: center;
   gap: 0.625rem;
 }
-/* a phone: three columns need more than the width, so a row is the library
-   and its Anime switch, with the source under them */
+/* a phone: the library table's three columns need more than the width, so a
+   row is the library and its Anime switch, with the source under them (the
+   notification table keeps its columns: two switches fit beside the name) */
 @media (width < 36rem) {
-  .cat-t tr {
+  .cat-t--lib tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     border-bottom: 1px solid var(--line);
   }
-  .cat-t tr:last-child {
+  .cat-t--lib tr:last-child {
     border-bottom: 0;
   }
-  .cat-t :is(td, th) {
+  .cat-t--lib :is(td, th) {
     border-bottom: 0;
     min-width: 0;
   }
-  .cat-t :is(td, th):nth-child(1) {
+  /* the switch column is as wide as its nowrap header: a zero minimum let
+     "Anime" hang out of its cell */
+  .cat-t--lib :is(td, th).c {
+    min-width: min-content;
+  }
+  .cat-t--lib :is(td, th):nth-child(1) {
     grid-area: 1 / 1;
   }
-  .cat-t :is(td, th):nth-child(2) {
+  .cat-t--lib :is(td, th):nth-child(2) {
     grid-area: 2 / 1 / 3 / 3;
     padding-top: 0;
   }
-  .cat-t :is(td, th):nth-child(3) {
+  .cat-t--lib :is(td, th):nth-child(3) {
     grid-area: 1 / 2;
   }
-  .cat-t td:nth-child(2):empty {
+  .cat-t--lib td:nth-child(2):empty {
     display: none;
   }
   /* the Source header stays for assistive tech */
-  .cat-t th:nth-child(2) {
+  .cat-t--lib th:nth-child(2) {
     position: absolute;
     width: 1px;
     height: 1px;
