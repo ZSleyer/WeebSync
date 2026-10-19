@@ -2846,7 +2846,7 @@
       },
       "scope": {
         "title": "Quelle eines Ordners",
-        "p1": "Ein markierter Ordner bestimmt, wo seine <b>direkten</b> Unterordner gesucht werden: Anime und Manga bei AniList, Serien und Filme bei TMDB, Serien wahlweise bei TVDB. Tiefer wird nicht vererbt. Ausnahme sind Buchstaben-Regale wie <m>A</m> oder <m>0-9</m>.",
+        "p1": "Ein markierter Ordner bestimmt, wo seine <b>direkten</b> Unterordner gesucht werden: Anime und Manga bei AniList, Serien und Filme bei TMDB, Serien wahlweise bei TVDB. Automatisch sucht jeden Ordner bei den Anbietern aus den Matching-Einstellungen, in deren Reihenfolge. Tiefer wird nicht vererbt. Ausnahme sind Buchstaben-Regale wie <m>A</m> oder <m>0-9</m>.",
         "p2": "Regeln übertragen eine Markierung auf gleich gebaute Geschwister. Aus <m>2026-2 Spring</m> wird die Form <m>{n}-{n} {season}</m>, sie passt dann auf alle Saison-Ordner."
       },
       "match": {

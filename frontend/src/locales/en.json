@@ -2846,7 +2846,7 @@
       },
       "scope": {
         "title": "Where a folder is looked up",
-        "p1": "A marked folder decides where its <b>direct</b> subfolders are looked up: anime and manga on AniList, shows and movies on TMDB, shows on TVDB if chosen. It does not reach deeper. Letter shelves like <m>A</m> or <m>0-9</m> are the exception.",
+        "p1": "A marked folder decides where its <b>direct</b> subfolders are looked up: anime and manga on AniList, shows and movies on TMDB, shows on TVDB if chosen. Automatic looks each folder up on the providers set under Matching, in their order. It does not reach deeper. Letter shelves like <m>A</m> or <m>0-9</m> are the exception.",
         "p2": "Rules carry a mark over to siblings of the same shape. <m>2026-2 Spring</m> becomes the shape <m>{n}-{n} {season}</m>, which then fits every season folder."
       },
       "match": {
