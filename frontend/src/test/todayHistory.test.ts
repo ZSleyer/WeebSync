@@ -91,10 +91,10 @@ test('needs: recent failures, watches that wait, new folders', () => {
   ]
   const hints = [{ serverId: 1, serverName: 'srv', path: '/a/New S2', name: 'New S2', sibling: 'New', kind: 'anime' }]
   const needs = buildNeeds(t, { downloads, watches, hints: hints as never, now })
-  expect(needs.map((n) => n.key)).toEqual(['dl-1', 'w-7', 'h-1-/a/New S2'])
+  expect(needs.map((n) => n.key)).toEqual(['dl-1', 'h-1-/a/New S2', 'w-7'])
   expect(needs[0].sub).toBe('boom')
-  expect(needs[1].why).toBe(true)
-  expect(needs[2].sub).toContain('remote.scopeAnime')
+  expect(needs[2].why).toBe(true)
+  expect(needs[1].sub).toContain('remote.scopeAnime')
 })
 
 test('needs: a Plex on a pasted token asks to sign in, first', () => {

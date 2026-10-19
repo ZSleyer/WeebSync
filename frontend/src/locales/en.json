@@ -585,6 +585,17 @@
     "inDays_one": "in {{count}} day",
     "inDays_other": "in {{count}} days"
   },
+  "needs": {
+    "title": "Needs you",
+    "all": "All {{count}}",
+    "group": {
+      "problems": "Problems",
+      "decisions": "Decisions",
+      "sync": "Auto-Sync"
+    },
+    "empty": "Nothing needs you",
+    "emptyHint": "Failed downloads, folders to sort and Auto-Sync notes show up here."
+  },
   "history": {
     "title": "History",
     "weekEpisodes": "episodes this week",

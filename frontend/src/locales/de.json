@@ -585,6 +585,17 @@
     "inDays_one": "in {{count}} Tag",
     "inDays_other": "in {{count}} Tagen"
   },
+  "needs": {
+    "title": "Braucht dich",
+    "all": "Alle {{count}}",
+    "group": {
+      "problems": "Fehler & Störungen",
+      "decisions": "Entscheidung nötig",
+      "sync": "Auto-Sync"
+    },
+    "empty": "Nichts braucht dich",
+    "emptyHint": "Fehlgeschlagene Downloads, Ordner zum Einordnen und Hinweise von Auto-Sync erscheinen hier."
+  },
   "history": {
     "title": "Verlauf",
     "weekEpisodes": "Folgen diese Woche",

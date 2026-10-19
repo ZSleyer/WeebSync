@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { api, type Download } from '../api'
-import { buildNeeds, moreLink, type Need } from '../pages/today/needs'
+import { buildNeeds, moreLink } from '../pages/today/needs'
 import { Needs } from '../pages/today/Needs'
 
 // the toast runs its held-back action at once; the real one waits for the line to run out
@@ -92,13 +92,8 @@ describe('grouping failed downloads', () => {
 })
 
 describe('the "more" link', () => {
-  const row = (kind: Need['kind']) => ({ kind }) as Need
-  it('leads to the failed downloads when failures are what is hidden', () => {
-    expect(moreLink([row('failed'), row('failed')])).toBe('/history?filter=fail')
-  })
-  it('keeps the auto-syncs for watch rows and mixed rows', () => {
-    expect(moreLink([row('watch')])).toBe('/watches?filter=attention')
-    expect(moreLink([row('failed'), row('watch')])).toBe('/watches?filter=attention')
+  it('always leads to the page with every need', () => {
+    expect(moreLink()).toBe('/needs')
   })
 })
 

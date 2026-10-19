@@ -166,6 +166,22 @@ export function buildNeeds(
       auth,
     })
   }
+  for (const h of hints) {
+    const collection = h.reason === 'collection'
+    out.push({
+      key: `h-${h.serverId}-${h.path}`,
+      print: `h-${h.serverId}-${h.path}-${h.kind}`,
+      kind: 'hint',
+      tone: 'accent',
+      title: t('today.needFolder', { name: h.name }),
+      sub: collection
+        ? t('dash.folderHintCollection', { server: h.serverName, titles: h.titles, total: h.total })
+        : t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: scopeKindLabel(t, h.kind) }),
+      act: collection ? t('today.needMarkAs', { kind: scopeKindLabel(t, h.kind) }) : t('today.needMark'),
+      why: false,
+      hint: h,
+    })
+  }
   for (const w of watches) {
     const chips = attentionInfo(t, w)
     if (!chips.length) continue
@@ -181,22 +197,6 @@ export function buildNeeds(
       act: t('explain.why'),
       why: true,
       watch: w,
-    })
-  }
-  for (const h of hints) {
-    const collection = h.reason === 'collection'
-    out.push({
-      key: `h-${h.serverId}-${h.path}`,
-      print: `h-${h.serverId}-${h.path}-${h.kind}`,
-      kind: 'hint',
-      tone: 'accent',
-      title: t('today.needFolder', { name: h.name }),
-      sub: collection
-        ? t('dash.folderHintCollection', { server: h.serverName, titles: h.titles, total: h.total })
-        : t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: scopeKindLabel(t, h.kind) }),
-      act: collection ? t('today.needMarkAs', { kind: scopeKindLabel(t, h.kind) }) : t('today.needMark'),
-      why: false,
-      hint: h,
     })
   }
   return out
@@ -227,11 +227,26 @@ export function failureKey(d: Download): string {
   return `${d.serverId}-${cause}`
 }
 
-/** Where "+N more" leads: the failed downloads when that is what is hidden, else the auto-syncs. */
-export function moreLink(hidden: Need[]): string {
-  return hidden.length > 0 && hidden.every((n) => n.kind === 'failed')
-    ? '/history?filter=fail'
-    : '/watches?filter=attention'
+/** The page with every need, grouped. */
+export const NEEDS_PATH = '/needs'
+
+/** Where "+N more" and the section heading lead. */
+export const moreLink = () => NEEDS_PATH
+
+/** The groups of the needs page, in the order they are listed and in which Today fills its rows. */
+export const NEED_GROUPS = ['problems', 'decisions', 'sync'] as const
+export type NeedGroup = (typeof NEED_GROUPS)[number]
+
+/** Which group a row belongs to: what is broken, what waits for a decision, what Auto-Sync holds back. */
+export function needGroup(n: Need): NeedGroup {
+  return n.kind === 'hint' ? 'decisions' : n.kind === 'watch' ? 'sync' : 'problems'
+}
+
+/** The rows by group, empty groups left out; within a group the list's own order stays. */
+export function groupNeeds(needs: Need[]): { group: NeedGroup; needs: Need[] }[] {
+  return NEED_GROUPS.map((group) => ({ group, needs: needs.filter((n) => needGroup(n) === group) })).filter(
+    (g) => g.needs.length > 0,
+  )
 }
 
 /** A folder mark's kind in words ("Anime", "Serie"). */
