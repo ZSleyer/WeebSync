@@ -169,7 +169,7 @@ export function SeriesPicker({
           <X aria-hidden size="1.2em" />
         </Button>
       </div>
-      <div className="max-h-64 overflow-y-auto">
+      <div className="t-scroll max-h-64">
         {results.map((m) => (
           <div key={m.id} className="flex gap-2 border-b border-border-subtle/50 px-1 py-1.5">
             {m.coverImage?.large && (

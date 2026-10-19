@@ -297,7 +297,7 @@ export function FileBrowser({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
-      <div className={`min-h-0 flex-1 overflow-y-auto${listClassName ? ` ${listClassName}` : ''}`}>
+      <div className={`t-scroll min-h-0 flex-1${listClassName ? ` ${listClassName}` : ''}`}>
         {isLoading && <SkeletonRows full={sortable} />}
         {conflict ? (
           <HostKeyPrompt

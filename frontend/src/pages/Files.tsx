@@ -989,7 +989,7 @@ function SearchResults({
 
   return (
     // the horizontal axis stays with the page's swipe zone, see the browser
-    <div className="ws-list-scroll min-h-0 flex-1 overflow-y-auto" style={{ touchAction: 'pan-y pinch-zoom' }}>
+    <div className="ws-list-scroll t-scroll min-h-0 flex-1" style={{ touchAction: 'pan-y pinch-zoom' }}>
       {isLoading && <SkeletonRows />}
       {data && data.results.length === 0 && (
         <div className="ws-empty">
@@ -1603,10 +1603,7 @@ export function CatalogGrid({
           and the browser never sees it, so a sideways drag in here became a
           scroll gesture and the page never turned. It has to allow the
           horizontal axis itself. */}
-      <div
-        className="ws-list-scroll min-h-0 flex-1 overflow-y-auto pt-2 pb-4"
-        style={{ touchAction: 'pan-y pinch-zoom' }}
-      >
+      <div className="ws-list-scroll t-scroll min-h-0 flex-1 pt-2 pb-4" style={{ touchAction: 'pan-y pinch-zoom' }}>
         {/* the notes on the folder's source: an error, the ask to pick one,
             the matching still running */}
         <div className="ws-cat-info">

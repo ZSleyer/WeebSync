@@ -240,7 +240,7 @@ export function RematchForm({
           {t('remote.search')}
         </Button>
       </div>
-      <ul className="max-h-72 overflow-y-auto">
+      <ul className="t-scroll max-h-72">
         {results.map((m) => (
           <li key={m.id}>
             <button

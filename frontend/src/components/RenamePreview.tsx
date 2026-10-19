@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Badge } from 'fluid-lycoris'
+import { Badge, ScrollRegion } from 'fluid-lycoris'
 import type { Entry, RenamePair } from '../api'
 import Loading from './Loading'
 import { TARGET_LABEL, classifyTargets, type TargetStatus } from './useTargetFolder'
@@ -39,7 +39,7 @@ export default function RenamePreview({
         {replaced > 0 && <Badge tone="warn">{t('rename.targetReplacesCount', { count: replaced })}</Badge>}
       </div>
       {pairs && (
-        <div className="max-h-56 overflow-y-auto rounded-lg border border-border-subtle">
+        <ScrollRegion aria-label={t('rename.previewList')} className="max-h-56 rounded-lg border border-border-subtle">
           {pairs.length === 0 && <p className="p-2 text-xs text-t-muted">{t('remote.emptyDir')}</p>}
           {pairs.map((p) => (
             <p
@@ -62,7 +62,7 @@ export default function RenamePreview({
               )}
             </p>
           ))}
-        </div>
+        </ScrollRegion>
       )}
     </section>
   )

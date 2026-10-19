@@ -1522,6 +1522,7 @@
     "pattern": "Pattern (Go regex)",
     "replacement": "Replacement ($1, ${name})",
     "preview": "Preview (dry run)",
+    "previewList": "Renamed files",
     "targetNew": "new",
     "targetReplaces": "replaced",
     "targetSame": "identical",

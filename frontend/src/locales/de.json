@@ -1522,6 +1522,7 @@
     "pattern": "Pattern (Go-RegEx)",
     "replacement": "Ersetzung ($1, ${name})",
     "preview": "Vorschau (Dry-Run)",
+    "previewList": "Umbenannte Dateien",
     "targetNew": "neu",
     "targetReplaces": "ersetzt",
     "targetSame": "identisch",

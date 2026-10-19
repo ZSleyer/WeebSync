@@ -328,7 +328,7 @@ function AudioSheet({ onClose }: { onClose: () => void }) {
             <X aria-hidden size="1.1em" />
           </IconButton>
         </div>
-        <div className="ws-au-sheet min-h-0 overflow-y-auto">
+        <div className="ws-au-sheet t-scroll min-h-0">
           <AudioPanel />
         </div>
       </div>

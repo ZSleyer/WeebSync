@@ -122,9 +122,10 @@
     gap: 0.875rem;
     width: clamp(18rem, 24vw, 26.25rem);
     flex: none;
-    padding-left: 1.5rem;
+    padding: 0 1rem 0 1.5rem;
     border-left: 1px solid var(--line);
     overflow-y: auto;
+    scrollbar-gutter: stable;
   }
 }
 .ws-fi-hd { display: flex; align-items: center; justify-content: space-between; }

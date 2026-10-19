@@ -131,7 +131,7 @@ export default function SyncDefaults() {
             </IconButton>
           </div>
           {browse && (
-            <div className="mt-2 max-h-56 overflow-y-auto rounded-lg border border-border-subtle">
+            <div className="t-scroll mt-2 max-h-56 rounded-lg border border-border-subtle">
               <LocalPicker path={k.localPath} onNavigate={(p) => setKindField({ localPath: p.replace(/^\//, '') })} />
             </div>
           )}

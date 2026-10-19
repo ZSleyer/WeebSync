@@ -346,7 +346,7 @@ function ReaderSheet({
             <X aria-hidden size="1.1em" />
           </button>
         </div>
-        <div className="ws-rd-sh min-h-0 overflow-y-auto">{children}</div>
+        <div className="ws-rd-sh t-scroll min-h-0">{children}</div>
       </div>
     </Dialog>,
     document.body,
