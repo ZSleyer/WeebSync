@@ -209,7 +209,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// one notice per ten minutes per user; in memory, so a restart hands
 	// out one more, which is the ceiling that matters
 	if s.loginNoticeLimiter == nil {
-		s.loginNoticeLimiter = newIPLimiter(1.0/600, 1, nil)
+		s.loginNoticeLimiter = newIPLimiter(0.1, 1, nil) // per minute
 	}
 	if s.testLimiter == nil {
 		s.testLimiter = newIPLimiter(10, 5, nil)

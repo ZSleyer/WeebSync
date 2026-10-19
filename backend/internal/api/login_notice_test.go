@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -138,6 +139,12 @@ func TestLoginNoticeThrottle(t *testing.T) {
 	g.expectMail(t)
 	g.login(t, "Mozilla/5.0 (Windows NT 10.0) Chrome/150.0 Safari/537.36")
 	g.expectNone(t)
+	// the window is ten minutes, not ten hours: the limiter takes a rate
+	// per minute
+	ok, wait := g.s.loginNoticeLimiter.take("login-notice:" + strconv.FormatInt(g.userID, 10))
+	if ok || wait > 10*time.Minute || wait < 9*time.Minute {
+		t.Errorf("throttle: allowed %v, next notice in %v; want about ten minutes", ok, wait)
+	}
 }
 
 func TestLoginNoticeFirstSignIn(t *testing.T) {
