@@ -179,7 +179,11 @@ span.td-pn { cursor: default; }
   border: 2px solid var(--fl-ink);
   border-radius: 4px;
   box-shadow: 4px 4px 0 var(--accent);
+  /* the words are not a target: the panel under them takes the click, and its
+     focus ring is what a hit test finds there */
+  pointer-events: none;
 }
+.td-cap a { pointer-events: auto; }
 /* the wipe block covers the words only, not the box */
 .td-date,
 .td-status,
