@@ -160,6 +160,8 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
+	// the account's first sign-in: remembers the browser, warns nobody
+	s.signInAlert(w, r, id, signInRegistered)
 	writeJSON(w, http.StatusCreated, RegisterResponse{ID: id, Email: c.Email})
 }
 
@@ -365,6 +367,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.accountSignedIn(w, r, c.Email)
+	s.signInAlert(w, r, id, signInPassword)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: id, Email: c.Email})
 }
 
@@ -415,6 +418,9 @@ type MeResponse struct {
 // @Router   /api/auth/me [get]
 func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	// quiet enrolment for browsers that signed in before the new-device
+	// notice existed (see enrollKnown)
+	enrollKnown(w, r, u.ID)
 	writeJSON(w, http.StatusOK, MeResponse{
 		ID: u.ID, Email: u.Email, IsAdmin: u.IsAdmin, HasPassword: s.hasPassword(u.ID),
 		TvdbApiKeySet:   secret.SettingOrEnv(s.DB, "tvdb_api_key", "TVDB_API_KEY") != "",

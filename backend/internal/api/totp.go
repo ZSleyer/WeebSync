@@ -298,6 +298,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.accountSignedIn(w, r, email)
+	s.signInAlert(w, r, userID, signInPassword2FA)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }
 

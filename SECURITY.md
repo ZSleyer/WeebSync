@@ -74,6 +74,16 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
 - The account owner gets a mail (without links) whenever the password, TOTP,
   a passkey or a security key changes; adding or removing any of them needs
   the password.
+- A sign-in from a browser the account has not used before (password, second
+  factor, passkey, security key or single sign-on) is reported to the owner:
+  by mail when a mail server is configured, otherwise by web push, with time,
+  browser, address, approximate place (if enabled) and method. The mail
+  carries no link; the push opens the account's session list.
+  Browsers are recognised by a signed `weebsync_known` cookie (up to four
+  accounts, 400 days, `/api/auth` only), separate from the rate limiter's
+  device cookie so a password change does not make every browser new. The
+  first sign-in of an account is not reported, and at most one notice per
+  account is sent every ten minutes.
 - Cross-site requests: Go's `CrossOriginProtection` refuses state-changing
   browser requests from other origins, sibling subdomains included, on top of
   `SameSite` and the JSON-only API. The configured public address is trusted

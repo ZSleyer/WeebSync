@@ -50,6 +50,10 @@ type Manager struct {
 	// OnPending is told of an account the provider's first sign-in created
 	// that waits for an admin's approval (the api package mails the admins)
 	OnPending func(email string)
+	// OnSignIn runs after the callback created the session and before the
+	// redirect, so the api package can recognise the browser and warn the
+	// owner of a new device.
+	OnSignIn func(w http.ResponseWriter, r *http.Request, userID int64)
 }
 
 func NewManager(ctx context.Context, d *sql.DB) *Manager {
@@ -370,6 +374,9 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject, rc != nil && rc.Value == "1"); err != nil {
 		callbackFail(w, r, "session_error")
 		return
+	}
+	if m.OnSignIn != nil {
+		m.OnSignIn(w, r, userID)
 	}
 	http.Redirect(w, r, "/", http.StatusFound)
 }

@@ -127,6 +127,10 @@ type Server struct {
 	testLimiter *ipLimiter
 	// replaces the security notice's mail send in tests
 	securityMail func(to, subject, text, html string) error
+	// replaces the new-device notice's web push in tests
+	securityPush func(userID int64, n push.Notification)
+	// at most one new-device notice per user in a while (see signInAlert)
+	loginNoticeLimiter *ipLimiter
 	// the first-run setup token (see setup_token.go)
 	setupMu    sync.Mutex
 	setupToken string
@@ -178,6 +182,9 @@ func (s *Server) Register(mux *http.ServeMux) {
 	warnEnvSecretURLs()
 	if s.OIDC != nil {
 		s.OIDC.OnPending = s.notifyPendingUser
+		s.OIDC.OnSignIn = func(w http.ResponseWriter, r *http.Request, userID int64) {
+			s.signInAlert(w, r, userID, signInSSO)
+		}
 	}
 
 	// auth - login/register are rate-limited per IP against brute-force;
@@ -198,6 +205,11 @@ func (s *Server) Register(mux *http.ServeMux) {
 	}
 	if s.socialLimiter == nil {
 		s.socialLimiter = newIPLimiter(12, 6, nil)
+	}
+	// one notice per ten minutes per user; in memory, so a restart hands
+	// out one more, which is the ceiling that matters
+	if s.loginNoticeLimiter == nil {
+		s.loginNoticeLimiter = newIPLimiter(1.0/600, 1, nil)
 	}
 	if s.testLimiter == nil {
 		s.testLimiter = newIPLimiter(10, 5, nil)

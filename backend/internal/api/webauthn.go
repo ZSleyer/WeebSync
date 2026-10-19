@@ -507,6 +507,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	if !unverified {
 		s.accountSignedIn(w, r, matched.email)
 	}
+	s.signInAlert(w, r, matched.id, signInPasskey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
 }
 
@@ -619,6 +620,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	s.accountSignedIn(w, r, user.email)
+	s.signInAlert(w, r, userID, signInKey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: user.email})
 }
 

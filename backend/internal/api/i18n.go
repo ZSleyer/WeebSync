@@ -63,6 +63,50 @@ var catalog = map[string]map[string]string{
 		"en": "When: %s · Address: %s · Browser: %s",
 		"de": "Wann: %s · Adresse: %s · Browser: %s",
 	},
+	"login.title": {
+		"en": "New sign-in to WeebSync",
+		"de": "Neue Anmeldung bei WeebSync",
+	},
+	"login.body": {
+		"en": "Someone just signed in to your account from a browser it has not used before.",
+		"de": "Dein Konto wurde gerade in einem Browser angemeldet, den wir bei dir noch nicht kannten.",
+	},
+	"login.where": {
+		"en": "When: %s · Browser: %s · Address: %s · Method: %s",
+		"de": "Wann: %s · Browser: %s · Adresse: %s · Methode: %s",
+	},
+	"login.whereWithPlace": {
+		"en": "When: %s · Browser: %s · Place: %s · Address: %s · Method: %s",
+		"de": "Wann: %s · Browser: %s · Ort: %s · Adresse: %s · Methode: %s",
+	},
+	"login.notMe": {
+		"en": "Was this you? Then there is nothing to do. If not, end the session under Settings → Account → Sessions and change your password.",
+		"de": "Warst du das? Dann musst du nichts tun. Wenn nicht: beende die Sitzung unter Einstellungen → Konto → Sitzungen und ändere dein Passwort.",
+	},
+	"login.unknownBrowser": {
+		"en": "unknown browser",
+		"de": "unbekannter Browser",
+	},
+	"login.method.password": {
+		"en": "password",
+		"de": "Passwort",
+	},
+	"login.method.password2fa": {
+		"en": "password and second factor",
+		"de": "Passwort und zweiter Faktor",
+	},
+	"login.method.passkey": {
+		"en": "passkey",
+		"de": "Passkey",
+	},
+	"login.method.securityKey": {
+		"en": "password and security key",
+		"de": "Passwort und Sicherheitsschlüssel",
+	},
+	"login.method.sso": {
+		"en": "SSO",
+		"de": "SSO",
+	},
 	"email.securityNotMe": {
 		"en": "Was this not you? Sign in to WeebSync, set a new password (or use \"Forgot password\" on the sign-in page) and end all other sessions under Settings → Account.",
 		"de": "Warst du das nicht? Melde dich bei WeebSync an, setze ein neues Passwort (oder nutze „Passwort vergessen\" auf der Anmeldeseite) und beende alle anderen Sitzungen unter Einstellungen → Konto.",
