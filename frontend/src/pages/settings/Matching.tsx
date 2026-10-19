@@ -37,6 +37,7 @@ import {
   type MatchesResp,
   type MatchStat,
 } from './maintenance'
+import { DetectedMarks } from './DetectedMarks'
 import { SettingsPanel } from './ui'
 import MatchRouting from './MatchRouting'
 import './maintenance.css'
@@ -108,6 +109,7 @@ export default function Matching() {
           {error}
         </p>
       )}
+      <DetectedMarks />
       <MatchRouting />
 
       <SettingsPanel title={t('nav.servers')} desc={t('settings.jobs.indexHint')}>

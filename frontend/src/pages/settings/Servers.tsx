@@ -14,6 +14,7 @@ import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import FtpsMigrateDialog from '../../components/FtpsMigrate'
 import HostKeyPrompt from '../../components/HostKeyPrompt'
 import { useAuth } from '../../hooks'
+import { DetectedMarks } from './DetectedMarks'
 import { SettingsPanel } from './ui'
 import { ScopeRules } from './Matching'
 import { SERVER_ICONS, ServerIcon } from '../../components/serverIcon'
@@ -110,6 +111,8 @@ export default function Servers() {
           </ul>
         </section>
       )}
+      {/* an admin finds the marks WeebSync set with the index and the matches */}
+      {!user?.isAdmin && <DetectedMarks />}
       <SettingsPanel title={t('nav.servers')}>
         {servers.length === 0 && <p className="sf-note">{t('servers.none')}</p>}
         {servers.map((s) => (
