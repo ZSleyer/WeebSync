@@ -1,6 +1,8 @@
 # Windows with Docker Desktop
 
-WeebSync ships as a Linux container, so on Windows it runs through Docker Desktop. Use the WSL 2 backend (Settings → General → *Use the WSL 2 based engine*); Windows 10 and 11 are supported. There is no native Windows build.
+WeebSync ships as a Linux container, so on Windows it runs through Docker Desktop. Use the WSL 2 backend (Settings → General → *Use the WSL 2 based engine*); Windows 10 and 11 are supported. There is no native Windows build. If you would rather not install Docker Desktop, [Docker Engine inside a WSL 2 distribution](#without-docker-desktop) works too.
+
+WSL 2 needs hardware virtualization with second-level address translation (SLAT). Running Windows itself in a VM? Then the VM needs nested virtualization: a KVM guest worked, a VirtualBox guest failed to start WSL 2 with `HCS_E_HYPERV_NOT_INSTALLED` because VirtualBox does not pass SLAT through.
 
 ## Install
 
@@ -71,7 +73,7 @@ Leave `user:` and `group_add:` out. Those set Linux file ownership, which a Wind
 
 ### Files added from Windows
 
-WeebSync notices changes to local folders with inotify. Docker Desktop does not pass inotify events for changes made on the Windows side of a shared drive into the container. Folders on a file system WeebSync knows as shared (9p, FUSE, SMB, NFS) are read again every 5 minutes instead; whether Docker Desktop's drive sharing reports itself as one of them is not confirmed yet. Files that WeebSync downloads itself are not affected, only files you copy into `D:\Anime` with Explorer or another program.
+WeebSync notices changes to local folders with inotify. Docker Desktop shows a bind-mounted Windows drive to the container as a 9p file system, and files created from the Windows side raise no inotify event inside the container. WeebSync therefore treats such a folder as not watchable and reads it again every 5 minutes: files you copy into `D:\Anime` with Explorer or another program show up within about 5 minutes. Files that WeebSync writes itself are seen at once, because writes through the container's own mount do raise events.
 
 ## GPU
 
@@ -105,9 +107,39 @@ Your data lives in the volume and survives. The image tags are listed in the [RE
 
 `restart: unless-stopped` brings WeebSync back whenever Docker Desktop starts, but Docker Desktop itself only starts when you sign in. Turn on **Settings → General → Start Docker Desktop when you sign in to your computer** so WeebSync is up after a reboot. Keep the hardening lines (`cap_drop`, `read_only`, `tmpfs`) - they work on Docker Desktop.
 
+## Without Docker Desktop
+
+Docker Engine runs fine inside a WSL 2 distribution, no Docker Desktop needed. The steps below were run on Windows 11 with Debian 13.
+
+1. Install the distribution from PowerShell: `wsl --install -d Debian`.
+2. Enable systemd. In the distribution, put this in `/etc/wsl.conf`, then run `wsl --shutdown` from Windows and open the distribution again:
+
+   ```ini
+   [boot]
+   systemd=true
+   ```
+
+3. Install Docker and the compose plugin. Debian's own packages are enough (`docker.io` 26.1, `docker-compose` 2.26, and `docker compose` works):
+
+   ```bash
+   sudo apt install docker.io docker-compose
+   sudo usermod -aG docker $USER
+   ```
+
+   Docker's own apt repository gives a newer engine. Log out of the distribution and back in so the group applies.
+4. Fetch the compose file inside the distribution (`curl -O` with the URL from [Install](#install)) and edit it as in the [complete example](#complete-example).
+
+Differences from Docker Desktop:
+
+- **Media drives.** Windows drives appear in WSL under `/mnt/c`, `/mnt/d` and so on, so the media mount becomes `source: /mnt/d/Anime`. It is the same 9p file system (`mountinfo` shows `9p ... aname=drvfs`), so the 5 minute re-read from [Files added from Windows](#files-added-from-windows) applies here too.
+- **Project and data.** Keep the compose project and the named volume inside the WSL file system, not under `/mnt`.
+- **Reaching WeebSync.** Microsoft documents that WSL forwards localhost ports by default, so a port published in WSL is reachable from Windows as `http://localhost:8080`.
+- **Start with Windows.** WSL does not start at Windows sign-in by itself. The distribution has to be started, for example by opening it once or with a scheduled task running `wsl.exe -d Debian`. With systemd the docker service starts with it, and `restart: unless-stopped` brings WeebSync up.
+- **GPU.** NVIDIA in WSL 2 needs the NVIDIA Container Toolkit installed inside the distribution (a requirement, not tested here). Intel and AMD are not available, as with Docker Desktop.
+
 ## Complete example
 
-`docker-compose.yml` with the hardening kept, a named volume and one media mount. Adjust the drive and the timezone.
+`docker-compose.yml` with the hardening kept, a named volume and one media mount. Adjust the drive and the timezone. This file was run unchanged under Docker Desktop (with `C:/anime` as the source): the container became healthy, the log showed the setup code, `http://localhost:8080` answered, and the named volume held `weebsync.db`, `secret.key` and `downloads` owned by uid 65532. Under WSL 2 without Docker Desktop, use `/mnt/d/Anime` as the source.
 
 ```yaml
 services:
