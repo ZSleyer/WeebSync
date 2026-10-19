@@ -1097,12 +1097,15 @@ export function CatalogGrid({
   // a scope rule marks this folder: the source chip carries a dot for it
   const ruleInfo = useScopeInfo(serverId, path).data
   const ruleOn = !!(ruleInfo?.ruleId && ruleInfo.ruleKind === ruleInfo.scope)
+  // WeebSync set this folder's mark itself: the chip says so, a pick below is the user's
+  const detectedMark = !!ruleInfo?.detected && !!ruleInfo.scope
   // under the source choice, in the sheet and the popover alike: the rule that
   // marks folders like this one, and why a title matched. `close` shuts the
   // sheet before the why dialog opens over it
   const scopeMore = (close: () => void) =>
     path || (whyHere && data?.scope) ? (
       <div className="ws-scope-more">
+        {detectedMark && <p className="text-xs text-t-muted">{t('remote.detectedHint')}</p>}
         {path && canCurate && <ScopeRuleLine serverId={serverId} path={path} kindLabel={scopeLabel} />}
         {whyHere && data?.scope !== '' && (
           <button
@@ -1585,6 +1588,7 @@ export function CatalogGrid({
               more={scopeMore}
             />
           )}
+          {canCurate && detectedMark && <span className="ws-chip-note">{t('remote.detected')}</span>}
           <CatalogActions
             canRematch={canCurate && data?.scope !== '' && pendingCount === 0 && items.length > 0}
             noMatchCount={noMatchCount}

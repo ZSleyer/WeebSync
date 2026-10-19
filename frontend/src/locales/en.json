@@ -1157,6 +1157,8 @@
     "scopeMovie": "Movies (TMDB)",
     "scopeTvdb": "Series (TVDB)",
     "scopeAuto": "Automatic",
+    "detected": "auto-detected",
+    "detectedHint": "WeebSync marked this folder itself. Pick another source or remove the mark to decide yourself.",
     "matchingOff": "Matching is switched off in the settings, so folders without a match are not looked up.",
     "kindMovie": "Film",
     "kindSeries": "Series",

@@ -149,6 +149,8 @@
   .ws-chip-sel .t-select, .ws-chip { height: var(--hit); min-height: var(--hit); }
 }
 .ws-chip[data-unset] { border-color: var(--accent); color: var(--accent); }
+/* the note beside the source chip: WeebSync marked this folder itself */
+.ws-chip-note { display: inline-flex; align-items: center; height: 1.5rem; padding: 0 0.625rem; border-radius: 999px; background: color-mix(in oklab, var(--fg) 8%, transparent); color: var(--fg-2); font-size: 0.75rem; white-space: nowrap; }
 .ws-chip-dot { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--accent-2); }
 .ws-cat-chips .t-iconbtn { width: 2.25rem !important; height: 2.25rem !important; }
 
