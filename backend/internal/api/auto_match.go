@@ -75,22 +75,52 @@ type autoPlan struct {
 	gated bool
 	// how strict the gate is for the providers after the first (autoTier)
 	tier match.HintTier
+	// the film list's providers (AniList left out, it was asked once), asked
+	// as films when the series list found nothing and the folder's kind was
+	// never conclusive (autoKind); empty when the kind is known
+	film []string
 }
 
 // autoMovie reports whether a folder holds a film. The folder's contents decide
 // (see filmByContents), then the way the catalog lists it, the name's Movie word
 // only when the index has nothing to say. Unclear counts as a series.
 func (s *Server) autoMovie(serverID int64, folder, name string, info match.Info) bool {
+	movie, _ := s.autoKind(serverID, folder, name, info)
+	return movie
+}
+
+// autoKind is autoMovie with the evidence: conclusive is false when nothing
+// decided and the folder only counts as a series by default (no usable index
+// data, no catalog kind, no Movie word).
+func (s *Server) autoKind(serverID int64, folder, name string, info match.Info) (movie, conclusive bool) {
 	if film, known := s.filmByContents(serverID, folder); known {
-		return film
+		return film, true
 	}
 	switch s.itemKind(serverID, folder, name) {
 	case "movie":
-		return true
+		return true, true
 	case "series":
-		return false
+		return false, true
 	}
-	return info.Movie
+	return info.Movie, info.Movie
+}
+
+// filmFallback is the film list for a folder whose kind is unclear: the
+// providers the routing lists for films, minus AniList (its search covers
+// films and series alike and has been asked already). Nil when the kind is
+// conclusive or already a film.
+func (s *Server) filmFallback(serverID int64, folder, name string, info match.Info) []string {
+	movie, conclusive := s.autoKind(serverID, folder, name, info)
+	if movie || conclusive {
+		return nil
+	}
+	var out []string
+	for _, p := range s.providerSequence(autoAnime(name), true) {
+		if p != "anilist" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // seasonSubdirRe names a subfolder only a series has.
@@ -182,19 +212,22 @@ func (s *Server) queueAutoMatch(serverID int64, folder, name string, force bool)
 		return
 	}
 	seq := s.providerSequence(autoAnime(name), s.autoMovie(serverID, folder, name, info))
+	var film []string
 	if sib := s.siblingProvider(serverID, folder, name, info); sib != "" && slices.Contains(seq, sib) {
 		seq = []string{sib} // the sibling vouches for it: first, so on its own confidence
+	} else if len(seq) > 0 { // an empty series list is matching switched off for series
+		film = s.filmFallback(serverID, folder, name, info)
 	}
-	s.autoWalk(serverID, folder, name, info, seq, autoTier(name), force)
+	s.autoWalk(serverID, folder, name, info, seq, film, autoTier(name), force)
 }
 
 // autoWalk asks the providers of seq in turn. AniList is asked through the
 // batch queue, which carries on with the rest of the sequence; the others
 // right here.
-func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, seq []string, tier match.HintTier, force bool) {
+func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, seq, film []string, tier match.HintTier, force bool) {
 	if len(seq) > 0 && seq[0] == "anilist" {
 		s.enqueueMatch(matchJob{serverID: serverID, folder: folder, name: name, force: force,
-			auto: &autoPlan{rest: seq[1:], tier: tier}})
+			auto: &autoPlan{rest: seq[1:], film: film, tier: tier}})
 		return
 	}
 	s.runJob(fmt.Sprintf("ma:%d:%s", serverID, folder), func(ctx context.Context) {
@@ -205,7 +238,7 @@ func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, 
 		for k, p := range seq {
 			if p == "anilist" {
 				s.enqueueMatch(matchJob{serverID: serverID, folder: folder, name: name, force: force,
-					auto: &autoPlan{rest: seq[k+1:], gated: true, tier: tier}})
+					auto: &autoPlan{rest: seq[k+1:], film: film, gated: true, tier: tier}})
 				return
 			}
 			src, id, hit, err := s.westLookup(ctx, serverID, folder, name, p, movie, force)
@@ -220,6 +253,18 @@ func (s *Server) autoWalk(serverID int64, folder, name string, info match.Info, 
 			// persistMatch logs a failure; the next catalog poll retries
 			_ = s.persistMatch(serverID, folder, id, false, src)
 			return
+		}
+		// the kind was never conclusive (film is empty otherwise): the film
+		// list, every provider on the strict gate
+		for _, p := range film {
+			src, id, hit, err := s.westLookup(ctx, serverID, folder, name, p, true, force)
+			if err != nil {
+				return // retried by the next catalog poll
+			}
+			if id != 0 && s.westAccept(ctx, src, id, hit, info, tier) {
+				_ = s.persistMatch(serverID, folder, id, false, src)
+				return
+			}
 		}
 		_ = s.persistMatch(serverID, folder, 0, false, "anilist") // logged; the next poll asks again
 	})
@@ -338,6 +383,25 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 		}
 		slog.Debug("auto match fell to another provider", "folder", logSafe(b.folder), "source", src, "media", id)
 		return src, id
+	}
+	if !movie {
+		// the series list found nothing and the kind was never conclusive:
+		// the folder may be a film no index data could tell. The same strict
+		// gate applies, as for every provider after the first.
+		for _, p := range b.auto.film {
+			src, id, hit, err := s.westLookup(ctx, b.serverID, b.folder, b.name, p, true, b.force)
+			if err != nil {
+				slog.Debug("auto match film lookup", "folder", logSafe(b.folder), "provider", p, "err", err)
+				if ctx.Err() != nil {
+					return "", 0
+				}
+				continue
+			}
+			if id != 0 && s.westAccept(ctx, src, id, hit, info, b.auto.tier) {
+				slog.Debug("auto match fell to a film", "folder", logSafe(b.folder), "source", src, "media", id)
+				return src, id
+			}
+		}
 	}
 	return "", 0
 }

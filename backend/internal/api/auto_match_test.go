@@ -658,3 +658,56 @@ func TestAutoMovieByContents(t *testing.T) {
 		}
 	}
 }
+
+// A folder whose kind nothing decided is a series by default; when the series
+// list finds nothing it is asked as a film, on the strict gate.
+func TestAutoUnclearKindAsksFilmList(t *testing.T) {
+	f := newAutoFixture(t, autoAnimeEntries)
+	if src, id := f.matchOf(t, "The Red Turtle (2016)"); src != "tmdb:movie" || id != 31 {
+		t.Fatalf("unclear kind: %s %d, want the film on tmdb:movie", src, id)
+	}
+}
+
+// With the kind settled as a series (a season folder in the index), the film
+// list is never asked, even though only the film exists.
+func TestAutoConclusiveSeriesAsksNoFilm(t *testing.T) {
+	f := newAutoFixture(t, autoAnimeEntries)
+	f.s.DB.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir) VALUES (1,?,?,?,1)`,
+		"/lib/The Red Turtle (2016)/Season 1", "/lib/The Red Turtle (2016)", "Season 1")
+	if _, id := f.matchOf(t, "The Red Turtle (2016)"); id != 0 {
+		t.Fatalf("a series folder matched the film: %d", id)
+	}
+	// the same folder with the film lists switched off asks TMDB just as often
+	g := newAutoFixture(t, autoAnimeEntries)
+	g.route(t, func(r *matchRouting) { r.AnimeMovie = nil; r.Movie = nil })
+	g.s.DB.Exec(`INSERT INTO remote_index (server_id, path, parent, name, is_dir) VALUES (1,?,?,?,1)`,
+		"/lib/The Red Turtle (2016)/Season 1", "/lib/The Red Turtle (2016)", "Season 1")
+	g.matchOf(t, "The Red Turtle (2016)")
+	if a, b := f.tmdbN.Load(), g.tmdbN.Load(); a != b {
+		t.Errorf("tmdb asked %d times, %d without film lists: the film list was asked", a, b)
+	}
+}
+
+// The film pass runs after the series list, never before it.
+func TestAutoUnclearKindSeriesFirst(t *testing.T) {
+	f := newAutoFixture(t, autoAnimeEntries)
+	if src, id := f.matchOf(t, "Neo Yokio (2017)"); src != "tvdb" || id != 7 {
+		t.Fatalf("a series found by the series list: %s %d", src, id)
+	}
+	if n := f.tmdbN.Load(); n != 0 {
+		t.Errorf("the film list was asked (%d) although the series list matched", n)
+	}
+}
+
+// A name with no relation to a title gets nothing from the film pass either.
+func TestAutoUnclearKindNonTitleNothing(t *testing.T) {
+	f := newAutoFixture(t, autoAnimeEntries)
+	for _, n := range []string{"Music Videos", "Software", "Season 2"} {
+		if _, id := f.matchOf(t, n); id != 0 {
+			t.Errorf("%q matched %d", n, id)
+		}
+	}
+	if a, v, m := f.asked(); a+v+m != 0 {
+		t.Errorf("providers asked for non-titles: %d %d %d", a, v, m)
+	}
+}
