@@ -6760,6 +6760,10 @@
             },
             "api.scopeResponse": {
                 "properties": {
+                    "detected": {
+                        "description": "the folder's own mark was set by WeebSync, not by a user (detected.go);\nchanging or clearing it stores the user's decision",
+                        "type": "boolean"
+                    },
                     "ruleId": {
                         "description": "the rule that covers this folder (its parent and shape), 0 for none.\nScope came from it unless the folder carries a mark of its own.",
                         "type": "integer"
@@ -6780,7 +6784,8 @@
                     "scope",
                     "ruleShape",
                     "ruleId",
-                    "ruleKind"
+                    "ruleKind",
+                    "detected"
                 ],
                 "type": "object"
             },

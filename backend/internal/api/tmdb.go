@@ -68,6 +68,9 @@ type scopeResponse struct {
 	// Scope came from it unless the folder carries a mark of its own.
 	RuleID   int64  `json:"ruleId"`
 	RuleKind string `json:"ruleKind"`
+	// the folder's own mark was set by WeebSync, not by a user (detected.go);
+	// changing or clearing it stores the user's decision
+	Detected bool `json:"detected"`
 }
 
 // handleCatalogScopeGet reports the scope of a path without listing the folder
@@ -101,6 +104,12 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 		dir = rootPath
 	}
 	out := scopeResponse{Scope: s.scopeFor(serverID, dir)}
+	detectedAt, err := s.detectedAt(serverID, dir)
+	if err != nil {
+		dbErr(w)
+		return
+	}
+	out.Detected = detectedAt > 0
 	if path.Dir(dir) != dir {
 		if shape := folderShape(path.Base(dir)); shapeVaries(shape) {
 			out.RuleShape = shape
@@ -214,12 +223,19 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ruleID, _ := s.ruleScope(serverID, in.Path)
-	var err error
+	// a mark WeebSync detected is replaced by the user's row (detected_at back
+	// to 0), and clearing it stores "none": a deleted row would be detected
+	// again at the next sweep
+	detectedAt, err := s.detectedAt(serverID, in.Path)
+	if err != nil {
+		dbErr(w)
+		return
+	}
 	switch {
 	case in.Kind != "":
 		_, err = s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
 			serverID, in.Path, in.Kind)
-	case ruleID != 0:
+	case ruleID != 0 || detectedAt > 0:
 		// clearing a folder a rule covers: without a stored "none" the rule
 		// would mark it again at once
 		_, err = s.DB.Exec(`INSERT OR REPLACE INTO catalog_scopes (server_id, path, kind) VALUES (?, ?, ?)`,
