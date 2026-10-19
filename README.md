@@ -35,6 +35,8 @@ docker compose up -d
 
 Open `http://localhost:8080` and enter the setup code the server writes to its log (`docker compose logs weebsync | grep setup_token`) - the first account you register becomes the admin. Accounts that sign themselves up later wait for an admin to approve them.
 
+On Windows with Docker Desktop, see [docs/windows.md](docs/windows.md) for the PowerShell commands and the settings that differ.
+
 WeebSync speaks plain HTTP; put it behind a TLS reverse proxy (Traefik, Caddy, Nginx). Everything else - media folders, OIDC, mail, metadata keys - is in [docs/configuration.md](docs/configuration.md).
 
 Running Home Assistant? There is an add-on: [ZSleyer/WeebSync-Addon](https://github.com/ZSleyer/WeebSync-Addon).
@@ -52,6 +54,7 @@ Running Home Assistant? There is an add-on: [ZSleyer/WeebSync-Addon](https://git
 ## Documentation
 
 - [Configuration](docs/configuration.md) - environment variables, reverse proxy, file ownership, hardening
+- [Windows](docs/windows.md) - Docker Desktop with WSL 2: volumes, media drives, GPU
 - [Home Assistant](docs/home-assistant.md) - sensors, triggers and events
 - [Sonarr / Radarr / Prowlarr](docs/sonarr-radarr.md) - optional: WeebSync as indexer and download client
 - [Development](docs/development.md) - local setup, stack, releases
