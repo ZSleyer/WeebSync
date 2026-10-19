@@ -154,9 +154,14 @@ export const textLayout = (rootSel) => {
     if (it.control || lazySized(it.el)) continue
     const l = Math.min(...it.rects.map((r) => r.left)), r = Math.max(...it.rects.map((r) => r.right))
     const t = Math.min(...it.rects.map((r) => r.top)), b = Math.max(...it.rects.map((r) => r.bottom))
+    let fixedBelow = false
     for (let a = it.el, k = 0; a && a !== root.parentElement && k < 8; a = a.parentElement, k++) {
       const cs = getComputedStyle(a)
       if (k > 0 && (cs.position === 'absolute' || cs.position === 'fixed')) break
+      // a fixed box (the skip link, parked off screen until focused) is bounded
+      // by the viewport: its own box counts, its ancestors' do not
+      if (k > 0 && fixedBelow) break
+      fixedBelow = cs.position === 'fixed'
       if (cs.display === 'inline' || cs.display === 'contents') continue
       if (cs.overflowX !== 'visible' && cs.overflowY !== 'visible') break
       const box = a.getBoundingClientRect()

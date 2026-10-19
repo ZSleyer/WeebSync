@@ -262,12 +262,16 @@ const audit = () => {
       cs.whiteSpace === 'nowrap' &&
       cs.overflowX === 'visible' &&
       el.tagName !== 'OPTION' && // never laid out; a clone of one measures nothing real
+      cs.position !== 'absolute' && // a decorative overlay is sized by its own box, not by its text
       el.getBoundingClientRect().width > 0 &&
       [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
     ) {
       const clone = el.cloneNode(true)
       clone.style.cssText += ';position:absolute;left:-9999px;top:0;width:auto;max-width:none;white-space:nowrap'
-      document.body.appendChild(clone)
+      // next to the original, not on <body>: the font size, weight and letter
+      // spacing a nav link inherits are not the body's, and a clone out there
+      // "needed" 10px more than the real thing ever did
+      el.parentElement.appendChild(clone)
       const needs = clone.getBoundingClientRect().width
       clone.remove()
       const has = el.getBoundingClientRect().width
@@ -436,7 +440,16 @@ const audit = () => {
     const cs = getComputedStyle(el)
     if (cs.display === 'none' || cs.position === 'fixed') continue
     if (scroller && !scroller.contains(el)) continue
-    if (inScroller(el)) continue
+    // not shown at all (a closed <details>) or collapsed and inert (the account
+    // menu's fold) is not content the user has lost
+    if (!el.checkVisibility({ contentVisibilityAuto: true }) || el.closest('[inert]') || inScroller(el)) continue
+    // (contentVisibilityAuto also drops rows a content-visibility:auto list has
+    // not rendered: their boxes are estimates, 92px off the real ones)
+    // checkVisibility() does not look through a closed <details> (its content
+    // is hidden by the shadow slot, not by an ancestor): a long list in a
+    // collapsed group measured 60000px deep
+    const det = el.closest('details:not([open])')
+    if (det && !el.closest('summary')) continue
     const r = el.getBoundingClientRect()
     if (!r.height) continue
     const b = r.bottom - originTop + getTop()
@@ -672,7 +685,7 @@ const run = async (name, browserType) => {
       ...[...ROUTES, ...(extra ? [extra] : [])].map((route) => ({ route })),
       ...STATES.filter((st) => !arg('routes', '') || ROUTES.includes(st.route)),
     ]
-    for (const { route, label, click } of passes) {
+    for (const { route, label, click, open } of passes) {
       errors.length = 0
       // not networkidle: the app keeps an SSE stream open, so it never idles
       await page.goto(BASE + route, { waitUntil: 'load' })
