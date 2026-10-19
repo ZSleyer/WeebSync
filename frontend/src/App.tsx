@@ -9,7 +9,7 @@ import {
   type ComponentType,
   type ReactNode,
 } from 'react'
-import { ArrowLeft, Compass, RefreshCw, Search, Settings } from 'lucide-react'
+import { ArrowLeft, BellRing, Compass, RefreshCw, Search, Settings } from 'lucide-react'
 import { DashboardIcon, FolderIcon } from './components/NavIcons'
 import {
   createBrowserRouter,
@@ -79,6 +79,8 @@ const PHONE_TABS = TABS
 const RULES_TO = '/rules'
 const SETTINGS = { to: '/settings', key: 'nav.settings', icon: Settings, motion: 'turn' }
 const NAV = [...TABS, SETTINGS]
+// what the palette can jump to: the nav plus the page of everything that needs the user
+const PALETTE_PAGES = [...NAV, { to: '/needs', key: 'needs.title', icon: BellRing }]
 // the sync side of the colour code: their entries light up teal, not red
 const TEAL = ['/watches', '/files']
 // how long a page's entry runs (the last wipe and the widest rise) before
@@ -88,7 +90,7 @@ type NavEntry = (typeof NAV)[number]
 const onPath = (n: NavEntry, path: string) => path === n.to || (n.to !== '/' && path.startsWith(n.to + '/'))
 // screens that belong to a tab without sitting under its path: the history
 // and a title card are Heute's, Rename is a tool of Files
-const ALSO: Record<string, string[]> = { '/': ['/history', '/title/'], '/files': ['/rename'] }
+const ALSO: Record<string, string[]> = { '/': ['/history', '/needs', '/title/'], '/files': ['/rename'] }
 const tabCurrent = (n: NavEntry, path: string) => onPath(n, path) || !!ALSO[n.to]?.some((p) => path.startsWith(p))
 
 // Signed out, or an admin before the first server: whole screens of their own
@@ -338,6 +340,7 @@ const screen =
 const files = () => import('./pages/Files')
 const share = () => import('./pages/Share')
 const history = () => import('./pages/History')
+const needs = () => import('./pages/NeedsPage')
 const discover = () => import('./pages/Suggestions')
 const assistant = () => import('./pages/Assistant')
 const rename = () => import('./pages/Rename')
@@ -376,6 +379,7 @@ export const router = createBrowserRouter(
           lazy={screen(history, (m) => m.default)}
           handle={h('history.title', '/', 'nav.dashboard')}
         />
+        <Route path="/needs" lazy={screen(needs, (m) => m.default)} handle={h('needs.title', '/', 'nav.dashboard')} />
         <Route
           path="/watches"
           lazy={screen(
@@ -868,7 +872,7 @@ function Shell({ email }: { email: string }) {
                             <RouteTitle />
                             <AppBadgeSync />
                             <ScrollMemory />
-                            <CommandPalette pages={NAV} open={palette} onOpenChange={setPalette} />
+                            <CommandPalette pages={PALETTE_PAGES} open={palette} onOpenChange={setPalette} />
                           </>
                         }
                       >
