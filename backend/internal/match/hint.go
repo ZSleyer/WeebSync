@@ -258,6 +258,30 @@ func NonTitle(info Info) bool {
 	return strong
 }
 
+// nonVideoWords name a kind of filing that holds no shows or films: a folder
+// called so is not a place for titles, whatever sits inside it.
+var nonVideoWords = map[string]bool{
+	"music": true, "musik": true, "musicvideo": true, "musicvideos": true, "ost": true, "soundtrack": true,
+	"soundtracks": true, "songs": true, "amv": true, "software": true, "apps": true, "tools": true,
+	"game": true, "games": true, "book": true, "books": true, "ebook": true, "ebooks": true,
+	"docs": true, "documents": true, "notes": true, "photos": true, "pictures": true, "backup": true,
+}
+
+// NonVideoFolder reports whether a folder's name says it holds something other
+// than shows and films (music, software, games, books, notes). Such a folder
+// is never offered as a collection of titles.
+func NonVideoFolder(info Info) bool {
+	if musicFolderRe.MatchString(info.Full) {
+		return true
+	}
+	for _, w := range gateWords(info.Full) {
+		if nonVideoWords[w] {
+			return true
+		}
+	}
+	return false
+}
+
 // TitleWithin reports whether one of the entry's titles (romaji, English or a
 // synonym) is nothing but what the folder's name says, one word excepted in a
 // title of four words or more: "Tiny Evil" is not the folder "Evil".
