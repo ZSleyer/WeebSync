@@ -153,6 +153,8 @@
   /* a long list off screen costs no layout until it scrolls near */
   content-visibility: auto;
   contain-intrinsic-size: auto 18rem;
+  /* paint containment would clip the tile's focus ring */
+  overflow-clip-margin: 6px;
 }
 .w-tile {
   display: flex;

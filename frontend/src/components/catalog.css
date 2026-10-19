@@ -16,7 +16,7 @@
 }
 /* off-screen tiles skip layout and paint until they come near; the size
    stands in for them so the scrollbar does not jump */
-.ws-cat-cell { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 18rem; }
+.ws-cat-cell { min-width: 0; content-visibility: auto; contain-intrinsic-size: auto 18rem; overflow-clip-margin: 6px; }
 /* the page-entry rise: the tiles wait hidden through the first paint */
 .ws-cat-grid[data-rise-wait] > * { opacity: 0; }
 
