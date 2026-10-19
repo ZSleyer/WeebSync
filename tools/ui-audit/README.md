@@ -72,8 +72,16 @@ from the content, as they do for a real user; touch contexts keep overlay bars.
   painted behind each thing (glass, opacity and text on cover art included,
   the latter sampled from a screenshot), in the dark and the light theme:
   text and placeholders, control boundaries and icon buttons (1.4.11) and
-  the focus indicator of the first 25 Tab stops. `--inject '<css>'` adds a
-  known failure, to check that a clean run is not a blind one.
+  the focus indicator of the first 25 Tab stops. The indicator is judged from
+  pixels: the control (plus its `:focus-within` wrapper, which is what rings a
+  search field) is shot focused and blurred, and the changed pixels must differ
+  3:1 from the page around them or from what they replaced, so an outline, a
+  ring, a turning border and a wrapper's ring all count. Each route runs in its
+  own browser context, so a crashed page costs that route and not the run.
+  `--browsers chromium,firefox` picks the engines. `--inject '<css>'` adds a
+  known failure, to check that a clean run is not a blind one, e.g.
+  `--routes /history --inject '.hs-q .t-input,.hs-q .t-input:focus{border-color:var(--line-strong)!important}'`
+  must report the search field as having no focus indicator.
 
 `--viewports phone,wide,narrow` and `--browsers chromium` narrow `e2e.mjs`
 and `modals.mjs` to a subset (`e2e.mjs` knows `desktop, wide, tabletP, tabletL,

@@ -6,7 +6,8 @@
 // - non-text (1.4.11): 3:1 for icons that carry meaning on their own and for
 //   the boundary of a form control against what it sits on.
 // - focus indicators (1.4.11 / 2.4.13 lite): Tab through the page and measure
-//   the outline (or ring) against the background next to it.
+//   the pixels that change between focused and blurred (outline, ring, a
+//   border turning, a wrapper's ring) against the ones they replace, 3:1.
 // - text over an image (a hero caption, a chip on a cover): the pixels behind
 //   it are sampled from a screenshot taken with the text hidden, and the worst
 //   10% decides.
@@ -14,8 +15,8 @@
 // Disabled controls are exempt (1.4.3) and are listed apart, not failed.
 //
 //   WS_EMAIL=... WS_PASSWORD=... node tools/ui-audit/contrast.mjs --base http://127.0.0.1:8080 \
-//     [--viewports phone,wide] [--themes dark,light] [--routes /a,/b] [--inject '<css>']
-import { chromium } from 'playwright'
+//     [--viewports phone,wide] [--themes dark,light] [--browsers chromium,firefox] [--routes /a,/b] [--inject '<css>']
+import { chromium, firefox } from 'playwright'
 import { writeFileSync } from 'node:fs'
 import { launch, signIn } from './auth.mjs'
 
@@ -88,7 +89,7 @@ const measure = () => {
   // what is painted under (x, y) below `self`: composite the stack top-down
   // until something opaque; an image or a gradient on the way makes it an
   // image case
-  const backdrop = (self, x, y) => {
+  const backdrop = (self, x, y, below = false) => {
     const stack = document.elementsFromPoint(x, y)
     // not painted here at all: scrolled out of its box, or under a layer
     if (self.isConnected && stack[0] && !(stack[0] === self || self.contains(stack[0]) || stack[0].contains(self))) return { hidden: true }
@@ -105,7 +106,7 @@ const measure = () => {
     }
     const layers = []
     for (const e of stack) {
-      if (e !== self && self.contains(e)) continue
+      if (e === self ? below : self.contains(e)) continue
       if (/^(IMG|VIDEO|CANVAS|PICTURE)$/.test(e.tagName) || (e.tagName === 'svg' && e.querySelector('image'))) return { image: true }
       const cs = getComputedStyle(e)
       // a gradient is sampled like a picture: its worst stretch decides
@@ -155,6 +156,14 @@ const measure = () => {
     const x = Math.min(Math.max(r.left + r.width / 2, 1), innerWidth - 1), y = Math.min(Math.max(r.top + r.height / 2, 1), innerHeight - 1)
     const b = backdrop(el, x, y)
     if (b.hidden) continue
+    // half under a sticky bar: the sampled backdrop is the bar's, not the text's
+    // (the step that scrolls it clear judges it)
+    const cut = [[r.left + 1, r.top + 1], [r.right - 1, r.top + 1], [r.left + 1, r.bottom - 1], [r.right - 1, r.bottom - 1]].some(([px, py]) => {
+      if (px < 0 || py < 0 || px >= innerWidth || py >= innerHeight) return false
+      const t = document.elementFromPoint(px, py)
+      return t && !(t === el || el.contains(t) || t.contains(el))
+    })
+    if (cut) continue
     const entry = { text: n.data.trim().slice(0, 40), el: desc(el), size: +size.toFixed(1), need, color: cs.color }
     if (b.image) {
       images.push({ ...entry, rect: { x: r.left, y: r.top, w: r.width, h: r.height }, fg: fg.slice(0, 3), alpha: fg[3], id: images.length })
@@ -193,8 +202,10 @@ const measure = () => {
     const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
     if (!top || !(top === box || box.contains(top) || top.contains(box))) continue
     const cs = getComputedStyle(box)
-    const outside = backdrop(document.createElement('i'), Math.max(r.left - 2, 0), r.top + r.height / 2)
-    if (outside.image) continue
+    // the control's own hit area (a padded ::before) reaches past its box:
+    // what counts is what is under it, not the control itself
+    const outside = backdrop(box, Math.max(r.left - 2, 0), r.top + r.height / 2, true)
+    if (outside.image || outside.hidden) continue
     const bw = parseFloat(cs.borderLeftWidth)
     const edge = bw > 0 ? parse(cs.borderLeftColor) : parse(cs.backgroundColor)
     edge[3] *= opacityOf(box)
@@ -204,7 +215,7 @@ const measure = () => {
     const vEdge = ratio(over(edge, outside.bg), outside.bg)
     const vFill = ratio(inside, outside.bg)
     const best = Math.max(vEdge, vFill)
-    if (best < 3) nontext.push({ what: 'control boundary', el: desc(el), type: el.type || el.getAttribute('role'), ratio: +best.toFixed(2) })
+    if (best < 3) nontext.push({ what: 'control boundary', el: desc(el), type: el.type || el.getAttribute('role'), ratio: +best.toFixed(2), edge: edge.map(Math.round).join(','), outside: outside.bg.map(Math.round).join(',') })
   }
   // icons that stand alone in a button or link (no text next to them): the
   // icon is the label, 3:1
@@ -239,8 +250,12 @@ const imageCases = async (page, images) => {
     await page.evaluate((id) => {
       const el = document.querySelector(`[data-contrast-probe="${id}"]`)
       if (el) el.style.setProperty('color', 'transparent', 'important')
+      // Firefox shoots before the new colour is painted without a frame between
+      return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
     }, String(im.id))
-    const buf = await page.screenshot({ clip, animations: 'disabled' })
+    // 'disabled' would cancel a scroll-driven rise and move the chip off its measured rect
+    const buf = await page.screenshot({ clip })
+    if (process.env.DUMP) { writeFileSync(process.env.DUMP + '/img-' + im.id + '.png', buf); console.log('img', im.id, im.text, JSON.stringify(clip), JSON.stringify(im.fg), im.alpha) }
     await page.evaluate((id) => {
       const el = document.querySelector(`[data-contrast-probe="${id}"]`)
       if (el) el.style.removeProperty('color')
@@ -267,135 +282,184 @@ const imageCases = async (page, images) => {
       rs.sort((p, q) => p - q)
       return rs[Math.floor(rs.length * 0.1)]
     }, { b64: buf.toString('base64'), fg: im.fg, alpha: im.alpha })
+    if (process.env.DUMP && worst < im.need) { await page.screenshot({ path: process.env.DUMP + '/fail-' + im.id + '.png' }); console.log('fail', im.id, im.text, JSON.stringify(clip), await page.evaluate((id) => JSON.stringify(document.querySelector(`[data-contrast-probe="${id}"]`)?.getBoundingClientRect()), String(im.id))) }
     if (worst < im.need) out.push({ text: im.text, el: im.el, ratio: +worst.toFixed(2), need: im.need, overImage: true })
   }
   return out
 }
 
-// Tab through the first focusable controls and measure the indicator
+// Tab through the first focusable controls and measure the indicator from
+// pixels: shoot the control (and the focus-within wrapper that may draw the
+// ring for it) focused and blurred, and take the pixels that changed. The
+// indicator passes if enough of them differ by 3:1 from the page around or
+// from what they replaced, whether it is an outline, a ring, a border turning
+// or a wrapper's.
+const MIN_PX = 12
+const diffShots = (page, a, b) =>
+  page.evaluate(async ({ a, b }) => {
+    const load = async (s) => {
+      const img = new Image()
+      img.src = 'data:image/png;base64,' + s
+      await img.decode()
+      const c = document.createElement('canvas')
+      c.width = img.width
+      c.height = img.height
+      const g = c.getContext('2d')
+      g.drawImage(img, 0, 0)
+      return g.getImageData(0, 0, c.width, c.height).data
+    }
+    const [p, q] = [await load(a), await load(b)]
+    const f = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
+    const L = (d, i) => 0.2126 * f(d[i]) + 0.7152 * f(d[i + 1]) + 0.0722 * f(d[i + 2])
+    // what lies outside the shot's box: its corner, which the control never reaches
+    const out = [q[0], q[1], q[2]]
+    const Lo = 0.2126 * f(out[0]) + 0.7152 * f(out[1]) + 0.0722 * f(out[2])
+    let changed = 0, strong = 0, best = 1
+    for (let i = 0; i < p.length && i < q.length; i += 4) {
+      if (Math.abs(p[i] - q[i]) + Math.abs(p[i + 1] - q[i + 1]) + Math.abs(p[i + 2] - q[i + 2]) < 24) continue
+      changed++
+      // an indicator counts when it stands out from the page around it (1.4.11)
+      // or from the pixel it replaced (2.4.13)
+      const x = L(p, i), y = L(q, i)
+      const r = Math.max((Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05), (Math.max(x, Lo) + 0.05) / (Math.min(x, Lo) + 0.05))
+      best = Math.max(best, r)
+      if (r >= 3) strong++
+    }
+    return { changed, strong, best }
+  }, { a: a.toString('base64'), b: b.toString('base64') })
+
 const focusRing = async (page, n = 25) => {
   const bad = []
+  const seen = new Set()
+  // a blinking caret would read as a changed pixel
+  const style = await page.addStyleTag({ content: '*{caret-color:transparent!important}' })
   await page.evaluate(() => document.activeElement?.blur())
   for (let i = 0; i < n; i++) {
     await page.keyboard.press('Tab')
-    // a ring that transitions in reads as transparent on the first frame
     await page.waitForTimeout(250)
-    const r = await page.evaluate(() => {
+    const t = await page.evaluate(() => {
+      const keyOf = (el) => { const r = el.getBoundingClientRect(); return el.tagName + '|' + Math.round(r.x) + '|' + Math.round(r.y) + '|' + Math.round(r.width) }
       const el = document.activeElement
-      if (!el || el === document.body) return null
-      const ink = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
-      const parse = (c) => {
-        ink.clearRect(0, 0, 1, 1)
-        ink.fillStyle = '#000'
-        ink.fillStyle = c
-        ink.fillRect(0, 0, 1, 1)
-        const d = ink.getImageData(0, 0, 1, 1).data
-        return [d[0], d[1], d[2], d[3] / 255]
+      if (!el || el === document.body || el === document.documentElement) return null
+      const r = el.getBoundingClientRect()
+      const key = keyOf(el)
+      if (!el.checkVisibility() || r.width < 4 || r.height < 4) return { skip: true, key }
+      // the outermost focus-within ancestor of modest size may draw the ring
+      let box = r
+      for (let e = el.parentElement, k = 0; e && k < 3; e = e.parentElement, k++) {
+        const q = e.getBoundingClientRect()
+        if (e.matches(':focus-within') && q.width < innerWidth * 0.9 && q.height < innerHeight * 0.5) box = q
       }
-      const lum = ([r, g, b]) => {
-        const f = (v) => ((v /= 255) <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
-        return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
-      }
-      const ratio = (a, b) => (Math.max(lum(a), lum(b)) + 0.05) / (Math.min(lum(a), lum(b)) + 0.05)
-      // the background just outside the control
-      let bg = parse(getComputedStyle(document.body).backgroundColor)
-      for (let e = el.parentElement; e; e = e.parentElement) {
-        const c = parse(getComputedStyle(e).backgroundColor)
-        if (c[3] > 0.9) { bg = c; break }
-      }
+      const pad = 6
+      const x = Math.max(0, box.left - pad), y = Math.max(0, box.top - pad)
+      const w = Math.min(innerWidth, box.right + pad) - x, h = Math.min(innerHeight, box.bottom + pad) - y
+      // under a bar or scrolled out of the view: not judged
+      const top = document.elementFromPoint(Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1), Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1))
+      if (!top || !(top === el || el.contains(top) || top.contains(el))) return { skip: true, key }
       const name = (el.getAttribute('aria-label') || el.textContent || el.tagName).trim().slice(0, 30)
-      // the indicator may be the element's own outline or ring, a pseudo
-      // element's, or its wrapper's (a search field rings its label)
-      const boxes = [[el, null], [el, '::after'], [el, '::before'], [el.parentElement, null], [el.parentElement?.parentElement, null]]
-      let best = null
-      for (const [e, pseudo] of boxes) {
-        if (!e) continue
-        const cs = getComputedStyle(e, pseudo)
-        const ow = parseFloat(cs.outlineWidth)
-        if (cs.outlineStyle !== 'none' && ow >= 1) {
-          const v = ratio(parse(cs.outlineColor), bg)
-          if (!best || v > best.ratio) best = { name, kind: 'outline' + (pseudo || ''), ratio: +v.toFixed(2) }
-        }
-        if (cs.boxShadow !== 'none') {
-          // each ring's colour; the strongest one is the indicator (an inner
-          // ring in the page colour is a gap, not the indicator)
-          for (const c of cs.boxShadow.match(/(rgba?|oklch|oklab|color|hsla?)\([^)]*\)/g) || []) {
-            const pc = parse(c)
-            if (pc[3] < 0.5) continue
-            const v = ratio(pc, bg)
-            if (!best || v > best.ratio) best = { name, kind: 'ring' + (pseudo || ''), ratio: +v.toFixed(2) }
-          }
-        }
-        // a bare input in a field-drawing label: the label's border turns
-        if (e !== el && el.tagName === 'INPUT' && parseFloat(cs.borderLeftWidth) >= 1 && cs.borderLeftStyle !== 'none') {
-          const v = ratio(parse(cs.borderLeftColor), bg)
-          if (!best || v > best.ratio) best = { name, kind: 'border', ratio: +v.toFixed(2) }
-        }
-        if (e !== el && best) break
-      }
-      return best || { name, kind: 'none', ratio: 0, tag: el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40) }
+      return { key, name, tag: el.tagName.toLowerCase() + '.' + el.className.toString().slice(0, 40), clip: { x, y, width: w, height: h } }
     })
-    if (r && r.ratio < 3) bad.push(r)
+    if (!t) continue
+    if (seen.has(t.key)) break
+    seen.add(t.key)
+    if (t.skip || t.clip.width < 4 || t.clip.height < 4) continue
+    const on = await page.screenshot({ clip: t.clip, animations: 'disabled' })
+    await page.evaluate(() => document.activeElement?.blur())
+    await page.waitForTimeout(250)
+    const off = await page.screenshot({ clip: t.clip, animations: 'disabled' })
+    // blur parks the next Tab at the start: put the focus back where it was
+    await page.evaluate(
+      (k) => {
+        const keyOf = (el) => { const r = el.getBoundingClientRect(); return el.tagName + '|' + Math.round(r.x) + '|' + Math.round(r.y) + '|' + Math.round(r.width) }
+        for (const e of document.querySelectorAll('a, button, input, select, textarea, summary, [tabindex]')) {
+          if (keyOf(e) === k) { e.focus({ focusVisible: true }); return }
+        }
+      },
+      t.key,
+    )
+    const d = await diffShots(page, on, off)
+    if (process.env.DUMP) { const f = process.env.DUMP + '/' + i + '-' + t.name.replace(/\W/g, '_').slice(0, 12); writeFileSync(f + '-on.png', on); writeFileSync(f + '-off.png', off); console.log(i, t.name, JSON.stringify(t.clip), JSON.stringify(d)) }
+    if (d.strong < MIN_PX) bad.push({ name: t.name, tag: t.tag, kind: d.changed ? 'weak' : 'none', ratio: +d.best.toFixed(2), changed: d.changed })
   }
+  await style.evaluate((e) => e.remove())
   return bad
 }
 
-const browser = await launch(chromium)
+const browsers = arg('browsers', 'chromium')
+  .split(',')
+  .map((b) => ({ chromium, firefox })[b])
+let browser
 const report = []
-for (const theme of THEMES)
-  for (const vpName of VIEWPORTS) {
-    const ctx = await browser.newContext({ ...VP[vpName], colorScheme: theme, reducedMotion: 'reduce', serviceWorkers: 'block' })
+const runRoute = async (type, theme, vpName, route) => {
+  // one context per route: a crashed page costs that route, not the run
+  const opts = { ...VP[vpName], colorScheme: theme, reducedMotion: 'reduce', serviceWorkers: 'block' }
+  if (type.name() === 'firefox') delete opts.isMobile
+  const ctx = await browser.newContext(opts)
+  try {
     const page = await ctx.newPage()
     await page.goto(BASE + '/', { waitUntil: 'domcontentloaded' })
-    // the login screen itself, before signing in
-    const routes = ['(login)', ...ROUTES]
-    for (const route of routes) {
-      if (route !== '(login)') await page.goto(BASE + route, { waitUntil: 'load' })
-      await page.waitForTimeout(1200)
-      // a stored choice would win over the emulated scheme
-      await page.evaluate((t) => { localStorage.setItem('weebsync.theme', t); document.documentElement.dataset.theme = t }, theme)
-      // --inject '<css>': a known failure, to prove a clean run is not a blind one
-      if (arg('inject', '')) await page.addStyleTag({ content: arg('inject', '') })
-      await page.waitForTimeout(200)
-      // every screenful: the measure only trusts what is painted in view
-      const seen = { text: new Map(), exempt: new Map(), nontext: new Map() }
-      for (let step = 0; step < 15; step++) {
-        const m = await page.evaluate(measure)
-        const img = await imageCases(page, m.images)
-        for (const t of [...m.text, ...img]) seen.text.set(t.el + t.text, t)
-        for (const t of m.exempt) seen.exempt.set(t.el + t.text, t)
-        for (const t of m.nontext) seen.nontext.set(t.what + t.el, t)
-        const moved = await page.evaluate(() => {
-          let best = document.scrollingElement
-          for (const el of document.querySelectorAll('main, dialog[open] *')) {
-            if (/auto|scroll/.test(getComputedStyle(el).overflowY) && el.scrollHeight - el.clientHeight > best.scrollHeight - best.clientHeight) best = el
-          }
-          const before = best.scrollTop
-          best.scrollTop = before + best.clientHeight * 0.8
-          return best.scrollTop !== before
-        })
-        if (!moved) break
-        await page.waitForTimeout(150)
-      }
-      await page.evaluate(() => { for (const el of [document.scrollingElement, document.querySelector('main')]) if (el) el.scrollTop = 0 })
-      const focus = await focusRing(page)
-      report.push({ theme, viewport: vpName, route, text: [...seen.text.values()], exempt: [...seen.exempt.values()], nontext: [...seen.nontext.values()], focus })
-      if (route === '(login)') await signIn(ctx, page, BASE)
+    if (route !== '(login)') {
+      await signIn(ctx, page, BASE)
+      await page.goto(BASE + route, { waitUntil: 'load' })
     }
-    await ctx.close()
+    await page.waitForTimeout(1200)
+    // a stored choice would win over the emulated scheme
+    await page.evaluate((t) => { localStorage.setItem('weebsync.theme', t); document.documentElement.dataset.theme = t }, theme)
+    // --inject '<css>': a known failure, to prove a clean run is not a blind one
+    if (arg('inject', '')) await page.addStyleTag({ content: arg('inject', '') })
+    await page.waitForTimeout(200)
+    // every screenful: the measure only trusts what is painted in view
+    const seen = { text: new Map(), exempt: new Map(), nontext: new Map() }
+    for (let step = 0; step < 15; step++) {
+      // a tile mid-rise reads as translucent: let every finite animation end first
+      await page.evaluate(() => { for (const a of document.getAnimations()) try { a.finish() } catch {} })
+      const m = await page.evaluate(measure)
+      const img = await imageCases(page, m.images)
+      for (const t of [...m.text, ...img]) seen.text.set(t.el + t.text, t)
+      for (const t of m.exempt) seen.exempt.set(t.el + t.text, t)
+      for (const t of m.nontext) seen.nontext.set(t.what + t.el, t)
+      const moved = await page.evaluate(() => {
+        let best = document.scrollingElement
+        for (const el of document.querySelectorAll('main, dialog[open] *')) {
+          if (/auto|scroll/.test(getComputedStyle(el).overflowY) && el.scrollHeight - el.clientHeight > best.scrollHeight - best.clientHeight) best = el
+        }
+        const before = best.scrollTop
+        best.scrollTop = before + best.clientHeight * 0.8
+        return best.scrollTop !== before
+      })
+      if (!moved) break
+      await page.waitForTimeout(250)
+    }
+    await page.evaluate(() => { for (const el of [document.scrollingElement, document.querySelector('main')]) if (el) el.scrollTop = 0 })
+    const focus = await focusRing(page)
+    report.push({ browser: type.name(), theme, viewport: vpName, route, text: [...seen.text.values()], exempt: [...seen.exempt.values()], nontext: [...seen.nontext.values()], focus })
+  } catch (e) {
+    console.log(`! ${type.name()}/${theme}/${vpName} ${route}: ${String(e.message).split('\n')[0]}`)
+    report.push({ browser: type.name(), theme, viewport: vpName, route, text: [], exempt: [], nontext: [], focus: [], error: String(e.message).split('\n')[0] })
   }
-await browser.close()
+  await ctx.close().catch(() => {})
+}
+for (const type of browsers) {
+  browser = await launch(type)
+  for (const theme of THEMES)
+    for (const vpName of VIEWPORTS)
+      for (const route of ['(login)', ...ROUTES]) {
+        if (!browser.isConnected()) browser = await launch(type)
+        await runRoute(type, theme, vpName, route)
+      }
+  await browser.close().catch(() => {})
+}
 writeFileSync(arg('out', './contrast-report.json'), JSON.stringify(report, null, 2))
 
 let bad = 0
 for (const r of report) {
-  const n = r.text.length + r.nontext.length + r.focus.length
+  const n = r.text.length + r.nontext.length + r.focus.length + (r.error ? 1 : 0)
   if (!n) continue
   bad++
-  console.log(`✗ ${r.theme}/${r.viewport} ${r.route}: ${r.text.length}x text, ${r.nontext.length}x non-text, ${r.focus.length}x focus`)
+  console.log(`✗ ${r.browser} ${r.theme}/${r.viewport} ${r.route}: ${r.text.length}x text, ${r.nontext.length}x non-text, ${r.focus.length}x focus`)
   for (const t of r.text.slice(0, 6)) console.log(`    Text ${t.ratio}:1 < ${t.need} "${t.text}" (${t.el})${t.overImage ? ' [image]' : ''}${t.bg ? ' on ' + t.bg : ''}`)
-  for (const t of r.nontext.slice(0, 6)) console.log(`    ${t.what} ${t.ratio}:1 ${t.el} ${t.type || t.label || ''}`)
-  for (const t of r.focus.slice(0, 4)) console.log(`    focus ${t.kind} ${t.ratio}:1 "${t.name}"`)
+  for (const t of r.nontext.slice(0, 6)) console.log(`    ${t.what} ${t.ratio}:1 ${t.el} ${t.type || t.label || ''}${t.edge ? ` edge ${t.edge} on ${t.outside}` : ''}`)
+  for (const t of r.focus.slice(0, 4)) console.log(`    focus ${t.kind} (best change ${t.ratio}:1, ${t.changed}px changed) "${t.name}" ${t.tag}`)
 }
 console.log(bad ? `\n${bad}/${report.length} runs with findings` : `\n✓ ${report.length} runs: no contrast findings`)
 if (bad) process.exitCode = 1
