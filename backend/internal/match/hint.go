@@ -84,7 +84,7 @@ func AutoQuery(info Info) string {
 		if NonTitle(info) {
 			return ""
 		}
-		return hintQuery(info, 2, false)
+		return hintQuery(info, 0, false)
 	}
 	return hintQuery(info, hintMinLetters, true)
 }
@@ -242,7 +242,8 @@ func NonTitle(info Info) bool {
 	if relaxedCollectionRe.MatchString(info.Full) || musicFolderRe.MatchString(info.Full) {
 		return true
 	}
-	words := gateWords(relaxedClean(info.Full))
+	// the name as written: a number in it ("Archive 81") makes it a title
+	words := gateWords(info.Full)
 	if len(words) == 0 {
 		return true
 	}

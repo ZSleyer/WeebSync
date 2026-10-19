@@ -12,7 +12,8 @@ func TestNonTitle(t *testing.T) {
 		"Music Videos":           true,
 		"Downloads":              true,
 		"Some Show Collection":   true,
-		"Season 2":               true,
+		"Archive 81":             false, // a number makes a name of category words a title
+		"Anime (2020)":           true,
 		"Death Note":             false,
 		"New Game!":              false, // one category word among others is a title
 		"Dr. Stone":              false,

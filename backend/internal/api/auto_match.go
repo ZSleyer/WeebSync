@@ -173,7 +173,7 @@ func autoTier(name string) match.HintTier {
 // queueAutoMatch resolves one folder under an automatic mark in the background.
 func (s *Server) queueAutoMatch(serverID int64, folder, name string, force bool) {
 	info := match.ParseName(name, GuessTitle(name), GuessAltTitle(name))
-	if match.NonTitle(info) || s.isContainerFolder(serverID, folder) {
+	if match.NonTitle(info) || seasonDirNameRe.MatchString(name) || s.isContainerFolder(serverID, folder) {
 		// no relation to a title: no provider is asked, and the folder shows
 		// as searched, not as pending
 		if force || !s.hasManualMatch(serverID, folder) {

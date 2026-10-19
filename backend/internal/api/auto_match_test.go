@@ -415,7 +415,7 @@ func TestAutoKeepsManualMatch(t *testing.T) {
 // Folders that are no title are looked up nowhere and store no match.
 func TestAutoNoTitleNoMatch(t *testing.T) {
 	f := newAutoFixture(t, autoAnimeEntries)
-	for _, n := range []string{"Anime Movies", "Music Videos", "Software", "Downloads [GerDub]"} {
+	for _, n := range []string{"Anime Movies", "Music Videos", "Software", "Downloads [GerDub]", "Season 2"} {
 		if _, id := f.matchOf(t, n); id != 0 {
 			t.Errorf("%q matched %d", n, id)
 		}

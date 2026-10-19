@@ -91,6 +91,15 @@ var tailParticles = map[string]bool{
 
 var musicFolderRe = regexp.MustCompile(`(?i)\b(?:music|musicvideos?|ost|soundtrack|song|songs|opening|ending|pv|amv)\b`)
 
+func hasLatinLetter(s string) bool {
+	for _, r := range s {
+		if unicode.Is(unicode.Latin, r) {
+			return true
+		}
+	}
+	return false
+}
+
 func letterCount(s string) int {
 	n := 0
 	for _, r := range s {
@@ -264,6 +273,9 @@ func relaxedAcceptSeasons(info Info, query string, m anilist.Media, strict, seas
 		have[strings.TrimLeft(d, "0")] = true
 	}
 	for _, t := range []string{m.Title.Romaji, m.Title.English} {
+		if !hasLatinLetter(t) {
+			continue // a title in another script has numbers of its own ("범죄도시 4")
+		}
 		// TVDB tells shows of one name apart by a year in the name
 		for _, d := range digitsRe.FindAllString(trailingYearRe.ReplaceAllString(t, ""), -1) {
 			if !have[strings.TrimLeft(d, "0")] {
