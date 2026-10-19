@@ -180,6 +180,9 @@ main:has(.page-fill) {
   .app-shell > main {
     min-height: 0;
     overflow-y: auto;
+    /* the modal lock below freezes <main>: with a classic bar the gutter keeps
+       the content from shifting by the bar's width */
+    scrollbar-gutter: stable;
   }
   /* `flex-1` on the route wrapper means `flex: 1 1 0%`, which caps it at the
      height of the scroller - a taller page then spills out of the wrapper as
