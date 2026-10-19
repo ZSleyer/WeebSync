@@ -92,7 +92,9 @@ const TRIGGERS = [
   { route: '/', label: 'Transfers', css: '.t-live', names: ['live'], optional: 'a transfer in progress' },
   // the search: a tab on the phone, a field in the header on the desktop
   { route: '/', label: 'Search', names: [/^Suchen|^Search/] },
-  { route: '/settings/servers', names: [/Server hinzufügen|Add server/, /Bearbeiten|^Edit$/, /Löschen|^Delete$/] },
+  // adding and editing a server are pages of their own (/settings/servers/new
+  // and /:id, which e2e.mjs walks), so only the delete confirmation is a dialog
+  { route: '/settings/servers', names: [/^Löschen$|^Delete$/] },
   // A watch opens as a series page, and its editor replaces that page's
   // content in place: neither is a dialog. The dialog there is the page's
   // overflow, an action sheet on a phone (on the desktop it is a menu, which
