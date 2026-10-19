@@ -5,6 +5,7 @@ import { Badge, Button, Input, Row, RowAction, Rows, SettingsField } from 'fluid
 import { api, type SessionInfo } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { qrPath } from '../../components/PhoneHint'
+import { relTime } from '../../components/threadText'
 import { registerCredential } from '../../webauthn'
 import { useAuth } from '../../hooks'
 import { SettingsPanel } from './ui'
@@ -486,13 +487,21 @@ export function browserOf(ua: string): string {
   return [browser, os].filter(Boolean).join(' · ') || ua.slice(0, 40)
 }
 
+// A private, loopback or link-local address says "from the home network"
+// better than the number does; anything else is shown as it is.
+export function isLocalIP(ip: string): boolean {
+  return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1$|f[cd][0-9a-f]{2}:|fe80:)/i.test(ip)
+}
+
 // Where the account is signed in: every browser with when it began, this one
 // marked. Another one can be ended on its own, or all others at once - the
 // answer to a session the user does not recognize.
 function SessionsSection() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const qc = useQueryClient()
   const confirm = useConfirm()
+  // "last active" counts from when the list mounted: fine at minute resolution
+  const [now] = useState(() => Date.now())
   const { data: sessions } = useQuery<SessionInfo[]>({
     queryKey: ['sessions'],
     queryFn: () => api.get('/api/auth/sessions'),
@@ -545,8 +554,22 @@ function SessionsSection() {
                 </span>
               }
               sub={
-                (x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')) +
-                (x.oidc ? ` · ${t('account.sessionsSso')}` : '')
+                <>
+                  {[
+                    x.current
+                      ? t('account.sessionsActiveNow')
+                      : x.lastSeen &&
+                        t('account.sessionsLastSeen', {
+                          when: relTime(Date.parse(x.lastSeen) / 1000, now, i18n.language),
+                        }),
+                    x.ip && (isLocalIP(x.ip) ? t('account.sessionsLocal', { ip: x.ip }) : x.ip),
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                  <br />
+                  {(x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')) +
+                    (x.oidc ? ` · ${t('account.sessionsSso')}` : '')}
+                </>
               }
               trailing={
                 x.current ? undefined : (
