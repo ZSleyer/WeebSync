@@ -331,7 +331,7 @@ function ServerForm({ editing }: { editing: ServerInfo | null }) {
       <header className="set-sub max-lg:sr-only">
         <h2 className="flex items-center gap-2">
           {/* a phone has the title and the way back in its app bar */}
-          <BackLink to="/settings/servers" className="-ml-2 max-lg:hidden" />
+          <BackLink to="/settings/servers" className="-ml-2 max-lg:hidden!" />
           {editing ? t('servers.editTitle') : t('servers.newTitle')}
         </h2>
       </header>
