@@ -113,12 +113,7 @@ function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?:
         id="td-dl-h"
         title={t('dash.transferSection')}
         action={
-          <button
-            type="button"
-            className="t-link"
-            aria-haspopup="dialog"
-            onClick={(e) => transfers.open(e.currentTarget)}
-          >
+          <button type="button" className="t-link" aria-haspopup="dialog" onClick={() => transfers.open()}>
             {t('today.details')}
           </button>
         }
