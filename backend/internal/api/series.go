@@ -64,7 +64,7 @@ func (s *Server) persistMatch(serverID int64, folder string, mediaID int, manual
 			if m, _ := s.sourceMedia(source, mediaID); m != nil {
 				cover = m.CoverImage.Large
 			}
-			s.NotifyEvent(owner, "suggestion", tr(s.userLocale(owner), "notify.newSeries"), title, "/suggestions", cover)
+			s.notifyNewSeries(owner, title, cover)
 		}
 	}
 	return nil

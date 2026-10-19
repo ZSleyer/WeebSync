@@ -280,9 +280,7 @@ func (s *Server) notifyQuiet(userID int64) time.Duration {
 // download it is not batched by the download-queue collector - these events are
 // rare, so they go out promptly (respecting the category filters). icon is an
 // optional cover for the push; the mail builds its own layout.
-//
-// ponytail: no frequency batching for these one-off events yet; add it here if
-// suggestion/upgrade notifications ever get chatty enough to need a digest.
+// New-series finds are batched by notifyNewSeries before they get here.
 func (s *Server) NotifyEvent(userID int64, category, title, body, url, icon string) {
 	if s.Push != nil && s.pushAllowed(userID, category) {
 		n := push.Notification{Title: title, Body: body, Tag: category, URL: url, Icon: s.pushCoverURL(httpsOnly(icon))}

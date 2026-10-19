@@ -247,6 +247,14 @@ var catalog = map[string]map[string]string{
 		"en": "New series found",
 		"de": "Neue Serie gefunden",
 	},
+	"notify.newSeriesMany": {
+		"en": "%d new series found",
+		"de": "%d neue Serien gefunden",
+	},
+	"notify.andMore": {
+		"en": "and %d more",
+		"de": "und %d weitere",
+	},
 	// A folder name on disk, not a label: the leading underscore keeps it out
 	// of Plex's way, and it is only ever chosen when the folder is created.
 	// Switching the interface language later does not rename what is there.

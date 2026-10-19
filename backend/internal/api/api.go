@@ -132,6 +132,10 @@ type Server struct {
 	digest      map[string][]digestItem
 	digestTimer map[string]*time.Timer
 
+	// new-series finds per user, waiting for their summary (newseries_digest.go)
+	newSeriesMu sync.Mutex
+	newSeries   map[int64]*newSeriesBatch
+
 	// per-folder disk stats for the local catalog, short-lived so a page of
 	// cards costs one walk per folder and not one per poll
 	statMu    sync.Mutex
