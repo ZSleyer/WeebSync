@@ -493,6 +493,19 @@ export function isLocalIP(ip: string): boolean {
   return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|::1$|f[cd][0-9a-f]{2}:|fe80:)/i.test(ip)
 }
 
+// "Darmstadt, Germany": the city the server looked up and the country named in
+// the reader's language. An unknown region code falls back to the code itself.
+export function placeName(city: string, countryCode: string, lang: string): string {
+  if (!countryCode) return city
+  let country = countryCode
+  try {
+    country = new Intl.DisplayNames([lang], { type: 'region' }).of(countryCode) ?? countryCode
+  } catch {
+    // an engine without DisplayNames, or a code it rejects: the code is still true
+  }
+  return city ? `${city}, ${country}` : country
+}
+
 // Where the account is signed in: every browser with when it began, this one
 // marked. Another one can be ended on its own, or all others at once - the
 // answer to a session the user does not recognize.
@@ -562,6 +575,7 @@ function SessionsSection() {
                         t('account.sessionsLastSeen', {
                           when: relTime(Date.parse(x.lastSeen) / 1000, now, i18n.language),
                         }),
+                    placeName(x.city, x.countryCode, i18n.language),
                     x.ip && (isLocalIP(x.ip) ? t('account.sessionsLocal', { ip: x.ip }) : x.ip),
                   ]
                     .filter(Boolean)
@@ -581,6 +595,13 @@ function SessionsSection() {
             />
           ))}
         </Rows>
+      )}
+      {sessions?.some((x) => x.countryCode) && (
+        <p className="sf-note">
+          <a href="https://db-ip.com" target="_blank" rel="noopener" className="t-link">
+            IP Geolocation by DB-IP
+          </a>
+        </p>
       )}
       {others.length > 1 && (
         <div className="sf-acts">

@@ -90,6 +90,12 @@ export default function Security() {
           checked={form.forceHttps}
           onChange={(v) => set('forceHttps', v)}
         />
+        <SwitchSetting
+          label={t('settings.geoipEnabled')}
+          hint={t('settings.geoipEnabledHint')}
+          checked={form.geoipEnabled}
+          onChange={(v) => set('geoipEnabled', v)}
+        />
       </SettingsPanel>
 
       <SettingsPanel

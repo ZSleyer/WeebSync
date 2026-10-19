@@ -94,6 +94,13 @@ export default function About() {
           </a>
           <span className="sf-note">{t('about.anilistNote')}</span>
         </li>
+        <li>
+          {/* the CC BY 4.0 terms of the database prescribe this link text */}
+          <a href="https://db-ip.com" target="_blank" rel="noopener" className="t-link">
+            IP Geolocation by DB-IP
+          </a>
+          <span className="sf-note">{t('about.dbipNote')}</span>
+        </li>
       </ul>
 
       {user?.isAdmin && data && (

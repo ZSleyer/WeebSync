@@ -48,6 +48,7 @@
   "about": {
     "creditsTitle": "Data providers",
     "tvdbNote": "Metadata provided by TheTVDB. Please consider adding missing information or subscribing.",
+    "dbipNote": "Approximate session locations, from the DB-IP database (CC BY 4.0).",
     "anilistNote": "Anime data and artwork from AniList.",
     "licenseLine": "Free software under",
     "dev": "Dev version",
@@ -1752,6 +1753,8 @@
     "plexRootsNone": "No paths detected from {{mediaServer}} yet (available after the first library scan).",
     "plexRootsHint": "Detected automatically from the {{mediaServer}} library paths (a library can have several). Only needed when the files are NOT locally at the path {{mediaServer}} reports: one mapping per line \"plexPath => localPath\" (e.g. /media/anime => /mnt/disk1/anime), or a single extra local path.",
     "plexSkipOwned": "Skip episodes {{mediaServer}} already has",
+    "geoipEnabled": "Show where sessions come from",
+    "geoipEnabledHint": "Looks up each session's address in a local copy of the DB-IP \"IP to City Lite\" database and shows an approximate city and country in the session list. The server downloads about 60 MB from db-ip.com once a month and keeps about 130 MB in its data folder. No address is sent anywhere. Switching this off deletes the file.",
     "plexSkipOwnedHint": "Auto-syncs leave an episode on the server when {{mediaServer}} already holds it, under any file name or folder. Only for syncs whose {{mediaServer}} show is known by its IDs or folder, and only when the sync numbers episodes in the same order as {{mediaServer}}. When {{mediaServer}} cannot be reached, everything is synced as usual.",
     "arrIntro": "Optional: WeebSync becomes a source for Sonarr and Radarr. It shows up there as an indexer (Newznab, also via Prowlarr) and a download client (SABnzbd). Sonarr/Radarr decide what to grab under their quality profiles, cutoff and upgrades; WeebSync fetches the release from its server into the download folder, and the app imports it. Your auto-syncs and everything else stay as they are.",
     "arrOn": "On",

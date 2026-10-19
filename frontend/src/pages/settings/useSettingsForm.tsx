@@ -41,6 +41,7 @@ export interface SettingsState {
   plexSectionAnime: string // csv of key:0|1 - does this library hold anime
   plexRoots: string
   plexSkipOwned: boolean
+  geoipEnabled: boolean
   jellyfinUrl: string
   jellyfinTokenSet: boolean
   jellyfinToken?: string

@@ -48,6 +48,7 @@
   "about": {
     "creditsTitle": "Datenanbieter",
     "tvdbNote": "Metadaten von TheTVDB. Bitte ergänze fehlende Angaben oder erwäge ein Abonnement.",
+    "dbipNote": "Ungefähre Orte der Sitzungen, aus der DB-IP-Datenbank (CC BY 4.0).",
     "anilistNote": "Anime-Daten und Bilder von AniList.",
     "licenseLine": "Freie Software unter",
     "dev": "Dev-Version",
@@ -1752,6 +1753,8 @@
     "plexRootsNone": "Noch keine Pfade aus {{mediaServer}} erkannt (nach dem ersten Bibliotheks-Scan verfügbar).",
     "plexRootsHint": "Werden automatisch aus den {{mediaServer}}-Bibliotheks-Pfaden erkannt (mehrere pro Bibliothek möglich). Nur nötig, wenn die Dateien lokal NICHT unter dem von {{mediaServer}} gemeldeten Pfad liegen: pro Zeile ein Mapping \"{{mediaServer}}-Pfad => lokaler Pfad\" (z. B. /media/anime => /mnt/disk1/anime) oder ein einzelner zusätzlicher lokaler Pfad.",
     "plexSkipOwned": "Folgen überspringen, die {{mediaServer}} schon hat",
+    "geoipEnabled": "Herkunft der Sitzungen anzeigen",
+    "geoipEnabledHint": "Schlägt die Adresse jeder Sitzung in einer lokalen Kopie der Datenbank \"IP to City Lite\" von DB-IP nach und zeigt in der Sitzungsliste eine ungefähre Stadt und das Land an. Der Server lädt dafür einmal im Monat etwa 60 MB von db-ip.com und belegt rund 130 MB in seinem Datenordner. Es wird keine Adresse verschickt. Wenn du das ausschaltest, wird die Datei gelöscht.",
     "plexSkipOwnedHint": "Auto-Syncs lassen eine Folge auf dem Server, wenn {{mediaServer}} sie schon hat, egal unter welchem Dateinamen oder Ordner. Gilt nur für Syncs, deren {{mediaServer}}-Serie über IDs oder Ordner eindeutig bekannt ist, und nur, wenn der Sync Folgen in derselben Reihenfolge nummeriert wie {{mediaServer}}. Ist {{mediaServer}} nicht erreichbar, wird wie gewohnt alles geladen.",
     "arrIntro": "Optional: WeebSync wird zur Quelle für Sonarr und Radarr. Dort taucht es als Indexer (Newznab, auch über Prowlarr) und als Download-Client (SABnzbd) auf. Sonarr/Radarr entscheiden nach Qualitätsprofil, Cutoff und Upgrades, was sie holen; WeebSync lädt den Release von seinem Server in den Download-Ordner, die App importiert ihn. Deine Auto-Syncs und alles andere bleiben, wie sie sind.",
     "arrOn": "An",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { browserOf, isLocalIP } from '../pages/settings/Account'
+import { browserOf, isLocalIP, placeName } from '../pages/settings/Account'
 
 describe('browserOf', () => {
   it('names browser and system from a user agent', () => {
@@ -39,5 +39,18 @@ describe('isLocalIP', () => {
     const remote = ['203.0.113.4', '172.32.0.1', '172.15.0.1', '2001:db8::1', '::1:2', 'fdx']
     expect(local.filter((ip) => !isLocalIP(ip))).toEqual([])
     expect(remote.filter(isLocalIP)).toEqual([])
+  })
+})
+
+describe('placeName', () => {
+  it('names the country in the reader language', () => {
+    expect(placeName('Darmstadt', 'DE', 'de')).toBe('Darmstadt, Deutschland')
+    expect(placeName('Darmstadt', 'DE', 'en')).toBe('Darmstadt, Germany')
+    expect(placeName('', 'JP', 'en')).toBe('Japan')
+  })
+  it('falls back to the code, or to nothing', () => {
+    expect(placeName('Nowhere', 'zz-bad', 'en')).toBe('Nowhere, zz-bad')
+    expect(placeName('Darmstadt', '', 'en')).toBe('Darmstadt')
+    expect(placeName('', '', 'en')).toBe('')
   })
 })
