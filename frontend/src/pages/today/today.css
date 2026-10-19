@@ -297,6 +297,7 @@ span.td-pn { cursor: default; }
   clip-path: polygon(12% 0, 100% 0, 88% 100%, 0 100%);
 }
 .td-needs .t-glyph[data-tone="accent-2"] { color: var(--on-accent-2); background: var(--accent-2); }
+.td-row-open { text-align: start; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; min-height: 2.75rem; }
 .td-needs .t-row-t > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td-under {
   position: absolute;

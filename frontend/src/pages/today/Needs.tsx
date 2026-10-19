@@ -3,7 +3,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
 import { CircleAlert, FolderPlus, Info, KeyRound, RotateCcw, Server, ShieldAlert, Trash2, X } from 'lucide-react'
-import { haptic, IconButton, SectionHeading } from 'fluid-lycoris'
+import {
+  afterBackEntry,
+  Button,
+  Dialog,
+  haptic,
+  IconButton,
+  SectionHeading,
+  SHEET_MQ,
+  useMediaQuery,
+} from 'fluid-lycoris'
 import { api, type Download, type DownloadMeta, type ScopeHint, type ServerInfo, type Watch } from '../../api'
 import ActionMenu from '../../components/ActionMenu'
 import FtpsMigrateDialog from '../../components/FtpsMigrate'
@@ -126,7 +135,67 @@ function useCommitSwipe(onCommit: (side: 'act' | 'hide') => void) {
   return { onPointerDown, onClickCapture }
 }
 
-const ICONS = { failed: CircleAlert, watch: Info, hint: FolderPlus, plex: KeyRound, ftp: ShieldAlert }
+const ICONS = {
+  failed: CircleAlert,
+  watch: Info,
+  hint: FolderPlus,
+  plex: KeyRound,
+  ftp: ShieldAlert,
+}
+
+/** the icon that stands for a row's primary action where the label has no room */
+function actIcon(n: Need, size: string) {
+  const Ico = n.kind === 'failed' ? (n.auth ? Server : RotateCcw) : ICONS[n.kind]
+  return <Ico aria-hidden size={size} />
+}
+
+type DetailAction = SheetAction & { primary?: boolean }
+
+/**
+ * A row in full: what it is, why, the backend's own words for a failure, and
+ * every action as a labelled button. Taking one closes the sheet first and
+ * then runs exactly what the row's own button runs.
+ */
+function NeedDetail({ n, actions, onClose }: { n: Need; actions: DetailAction[]; onClose: () => void }) {
+  const Icon = ICONS[n.kind]
+  return (
+    <Dialog width="max-w-sm" onClose={onClose} aria-labelledby="need-detail-title">
+      <div className="grid gap-3 px-5 pt-4 pb-5">
+        <header className="flex items-start gap-3">
+          <span
+            aria-hidden
+            className="t-glyph"
+            data-tone={n.tone === 'accent-2' ? 'accent-2' : n.tone === 'err' ? 'err' : 'accent'}
+          >
+            <Icon size={20} />
+          </span>
+          <h2 id="need-detail-title" className="font-display text-lg font-semibold break-words">
+            {n.title}
+          </h2>
+        </header>
+        <p className="text-[0.9375rem] break-words text-fg-2">{n.sub}</p>
+        {n.raw && <p className="rounded-md bg-hover p-2 font-mono text-xs break-words text-fg-3">{n.raw}</p>}
+        <div className="grid gap-2 pt-1">
+          {actions.map((a) => (
+            <Button
+              key={a.key}
+              variant={a.primary ? 'primary' : undefined}
+              className={`w-full justify-start gap-3 ${a.danger ? 'text-err' : ''}`}
+              onClick={() => {
+                onClose()
+                // the sheet's own history step first, as the action sheet does
+                afterBackEntry(a.onClick)
+              }}
+            >
+              {a.icon}
+              {a.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </Dialog>
+  )
+}
 
 function NeedRow({
   n,
@@ -144,7 +213,43 @@ function NeedRow({
 }) {
   const { t } = useTranslation()
   const swipe = useCommitSwipe((side) => (side === 'act' ? onAct() : onHide()))
+  // on a phone the action is an icon and the row opens in full; where there is room the label stays
+  const compact = useMediaQuery(SHEET_MQ)
+  const [detail, setDetail] = useState(false)
   const Icon = ICONS[n.kind]
+  const actLabel = `${n.act}: ${n.title}`
+  const text = (
+    <>
+      <strong>{n.title}</strong>
+      <span title={n.raw ? `${n.sub}\n${n.raw}` : n.sub}>{n.sub}</span>
+    </>
+  )
+  const detailActions = (): DetailAction[] => {
+    const ico = { 'aria-hidden': true, size: '1.1em' } as const
+    const rest = menu ?? []
+    // a row's own Hide or Remove sits in its menu already
+    const closes = rest.some((a) => a.key === 'hide' || a.key === 'remove')
+    return [
+      {
+        key: 'act',
+        label: n.act,
+        icon: actIcon(n, '1.1em'),
+        onClick: onAct,
+        primary: true,
+      },
+      ...rest,
+      ...(closes
+        ? []
+        : [
+            {
+              key: 'hide',
+              label: t('today.hide'),
+              icon: <X {...ico} />,
+              onClick: onHide,
+            },
+          ]),
+    ]
+  }
   return (
     <li className={`t-row${teach ? ' td-teach' : ''}`} {...swipe}>
       <div className="td-under" aria-hidden>
@@ -155,18 +260,32 @@ function NeedRow({
         <span aria-hidden className="t-glyph" data-tone={n.tone === 'accent-2' ? 'accent-2' : undefined}>
           <Icon size={18} />
         </span>
-        <div className="t-row-t">
-          <strong>{n.title}</strong>
-          <span title={n.raw ? `${n.sub}\n${n.raw}` : n.sub}>{n.sub}</span>
-        </div>
-        <button
-          type="button"
-          className={`t-row-act${n.why ? ' t-row-act--2' : ''}`}
-          onClick={onAct}
-          aria-label={`${n.act}: ${n.title}`}
-        >
-          {n.act}
-        </button>
+        {compact ? (
+          <button type="button" className="t-row-t td-row-open" aria-haspopup="dialog" onClick={() => setDetail(true)}>
+            {text}
+          </button>
+        ) : (
+          <div className="t-row-t">{text}</div>
+        )}
+        {compact ? (
+          <IconButton
+            aria-label={actLabel}
+            title={n.act}
+            onClick={onAct}
+            className={n.why ? 'text-accent-2' : 'text-accent'}
+          >
+            {actIcon(n, '1.2em')}
+          </IconButton>
+        ) : (
+          <button
+            type="button"
+            className={`t-row-act${n.why ? ' t-row-act--2' : ''}`}
+            onClick={onAct}
+            aria-label={actLabel}
+          >
+            {n.act}
+          </button>
+        )}
         {menu ? (
           <ActionMenu label={t('dash.moreActions', { name: n.title })} title={n.title} actions={menu} />
         ) : (
@@ -175,6 +294,7 @@ function NeedRow({
           </IconButton>
         )}
       </div>
+      {detail && <NeedDetail n={n} actions={detailActions()} onClose={() => setDetail(false)} />}
     </li>
   )
 }
@@ -221,7 +341,17 @@ export function Needs({
   const [gone, setGone] = useState<Set<string>>(new Set())
   const ftpServers = servers.filter((x) => x.protocol === 'ftp')
   const [migrating, setMigrating] = useState<ServerInfo | null>(null)
-  const all = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, serverNames, ftpServers })
+  const all = buildNeeds(t, {
+    downloads,
+    meta,
+    watches,
+    hints,
+    now,
+    plexToken,
+    mediaChoose,
+    serverNames,
+    ftpServers,
+  })
   const live = all.filter((n) => !hidden.has(n.print))
   const shown = live.filter((n) => !gone.has(n.key))
   const body = useRef<HTMLDivElement>(null)
@@ -247,20 +377,29 @@ export function Needs({
     mutationFn: (ds: Download[]) =>
       ds.length === 1
         ? api.post(`/api/downloads/${ds[0].id}/resume`)
-        : api.post('/api/downloads/bulk', { action: 'resume', ids: ds.map((d) => d.id) }),
+        : api.post('/api/downloads/bulk', {
+            action: 'resume',
+            ids: ds.map((d) => d.id),
+          }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
   })
   const discard = useMutation({
     mutationFn: (ds: Download[]) =>
       ds.length === 1
         ? api.del(`/api/downloads/${ds[0].id}`)
-        : api.post('/api/downloads/bulk', { action: 'delete', ids: ds.map((d) => d.id) }),
+        : api.post('/api/downloads/bulk', {
+            action: 'delete',
+            ids: ds.map((d) => d.id),
+          }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
   })
   // the suggested kind unless the user picked another; "none" waves a folder off for good
   const mark = useMutation({
     mutationFn: ({ h, kind }: { h: ScopeHint; kind?: string }) =>
-      api.put(`/api/servers/${h.serverId}/catalog/scope`, { path: h.path, kind: kind ?? h.kind }),
+      api.put(`/api/servers/${h.serverId}/catalog/scope`, {
+        path: h.path,
+        kind: kind ?? h.kind,
+      }),
     onSuccess: (_, { h }) => scopeChanged(qc, h.serverId),
   })
 
@@ -349,7 +488,12 @@ export function Needs({
           icon: <FolderPlus {...ico} />,
           onClick: () => leave(n, t('today.marked', { name: h.name }), () => mark.mutate({ h, kind })),
         },
-        { key: 'hide', label: t('today.hide'), icon: <X {...ico} />, onClick: () => hide(n) },
+        {
+          key: 'hide',
+          label: t('today.hide'),
+          icon: <X {...ico} />,
+          onClick: () => hide(n),
+        },
       ]
     }
     if (n.kind !== 'failed') return undefined
@@ -365,7 +509,14 @@ export function Needs({
             },
           ]
         : n.serverId !== undefined
-          ? [{ key: 'server', label: t('today.checkServer'), icon: <Server {...ico} />, onClick: checkServer }]
+          ? [
+              {
+                key: 'server',
+                label: t('today.checkServer'),
+                icon: <Server {...ico} />,
+                onClick: checkServer,
+              },
+            ]
           : []),
       {
         key: 'remove',
