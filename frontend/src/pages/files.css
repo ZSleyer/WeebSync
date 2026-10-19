@@ -145,6 +145,10 @@
    chip at the start of the search field (capped on a desktop) ── */
 .ws-viewsw { flex: none; }
 .ws-viewsw .t-seg-btn { min-height: 2rem; padding: 0 0.5rem; }
+/* icon-only buttons: as wide as the touch hit area, so it does not reach into the neighbour */
+@media (pointer: coarse) {
+  .ws-viewsw .t-seg-btn { min-width: var(--hit); }
+}
 .ws-cl-field {
   display: flex;
   flex: 1 1 0;
