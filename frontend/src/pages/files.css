@@ -111,6 +111,10 @@
    row's end */
 @media (width < 64rem) {
   .ws-list-scroll { margin-right: -1rem; padding-right: 1rem; }
+  /* <main> does not scroll here, the list does: "back to top" has nothing to
+     lift, and its hidden button, parked 9px low, was all that gave <main> a
+     scroll range (shell.css drops <main>'s bottom padding for this page) */
+  .app-shell > main:has(.page-fill .ws-list-scroll) > .t-totop-wrap { display: none; }
 }
 
 /* the details panel beside the list on a desktop */
