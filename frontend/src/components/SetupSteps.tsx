@@ -58,7 +58,7 @@ export function SetupFoot({
     <div className="ws-su-foot">
       <div className="ws-su-foot-in">
         {error && (
-          <p className="ws-login-err" role="alert">
+          <p id="setup-error" className="ws-login-err" role="alert">
             {error}
           </p>
         )}

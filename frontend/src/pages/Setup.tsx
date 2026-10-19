@@ -239,6 +239,13 @@ export default function Setup({
   const pad = (n: number) => String(n).padStart(2, '0')
   const label = (s: (typeof all)[number]) => (s === 'done' ? t('setup.stepDone') : t(`setup.step.${s}`))
   const tooShort = Math.max(0, MIN_PASSWORD - password.length)
+  // the error line sits in the footer: a field it belongs to is marked and
+  // points at it. Mismatched passwords belong to the repeat field alone, a
+  // refusal of the account request to the three values it carried
+  const mismatch = error === t('account.passwordMismatch')
+  const bad = (own: boolean) => (error && own ? { 'aria-invalid': true as const } : {})
+  const described = (hint: string | false, own: boolean) =>
+    [hint, error && own && 'setup-error'].filter(Boolean).join(' ') || undefined
 
   return (
     // a desktop keeps the steps in a rail on the left, a phone counts them
@@ -291,7 +298,8 @@ export default function Setup({
                 required
                 autoComplete="off"
                 spellCheck={false}
-                aria-describedby="setup-token-hint"
+                {...bad(!mismatch)}
+                aria-describedby={described('setup-token-hint', !mismatch)}
                 className="font-mono"
                 value={setupToken}
                 onChange={(e) => {
@@ -322,6 +330,8 @@ export default function Setup({
                     type="email"
                     autoComplete="email"
                     required
+                    {...bad(!mismatch)}
+                    aria-describedby={described(false, !mismatch)}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -334,7 +344,8 @@ export default function Setup({
                     autoComplete="new-password"
                     required
                     minLength={MIN_PASSWORD}
-                    aria-describedby="setup-password-hint"
+                    {...bad(!mismatch)}
+                    aria-describedby={described('setup-password-hint', !mismatch)}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -350,6 +361,8 @@ export default function Setup({
                     autoComplete="new-password"
                     required
                     minLength={MIN_PASSWORD}
+                    {...bad(mismatch)}
+                    aria-describedby={described(false, mismatch)}
                     value={again}
                     onChange={(e) => setAgain(e.target.value)}
                   />
@@ -422,7 +435,8 @@ export default function Setup({
                     className="font-mono"
                     required={oidcOnly && !envLocked('oidcIssuer')}
                     disabled={envLocked('oidcIssuer')}
-                    aria-describedby="setup-oidcIssuer-hint"
+                    {...bad(true)}
+                    aria-describedby={described('setup-oidcIssuer-hint', true)}
                     value={oidc.oidcIssuer}
                     onChange={(e) => setOidc({ ...oidc, oidcIssuer: e.target.value })}
                   />

@@ -50,6 +50,10 @@ function PasswordSection() {
   const [busy, setBusy] = useState(false)
   const id = useId()
   if (!me?.hasPassword) return null
+  // mismatched passwords are the repeat field's, a refusal is the current or
+  // the new password's
+  const mismatch = error === t('account.passwordMismatch')
+  const bad = (own: boolean) => (error && own ? { 'aria-invalid': true as const, 'aria-describedby': id + 'e' } : {})
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -79,6 +83,7 @@ function PasswordSection() {
             type="password"
             autoComplete="current-password"
             required
+            {...bad(!mismatch)}
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
           />
@@ -91,6 +96,7 @@ function PasswordSection() {
               autoComplete="new-password"
               required
               minLength={10}
+              {...bad(!mismatch)}
               value={next}
               onChange={(e) => setNext(e.target.value)}
             />
@@ -102,6 +108,7 @@ function PasswordSection() {
               autoComplete="new-password"
               required
               minLength={10}
+              {...bad(mismatch)}
               value={again}
               onChange={(e) => setAgain(e.target.value)}
             />
@@ -116,7 +123,7 @@ function PasswordSection() {
           {done ? t('account.passwordChanged') : ''}
         </p>
         {error && (
-          <p className="sf-issue mt-2" role="alert">
+          <p id={id + 'e'} className="sf-issue mt-2" role="alert">
             {error}
           </p>
         )}
@@ -233,6 +240,7 @@ function PasskeySection() {
               id={nameId + 'p'}
               type="password"
               autoComplete="current-password"
+              aria-describedby={error ? nameId + 'e' : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -247,7 +255,7 @@ function PasskeySection() {
       )}
       {oidcOnly && <p className="sf-note">{t('account.passkeyNeedsPassword')}</p>}
       {error && (
-        <p className="sf-issue mt-2" role="alert">
+        <p id={nameId + 'e'} className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}
@@ -295,6 +303,9 @@ function TotpSection() {
   const [copied, setCopied] = useState<'' | 'ok' | 'select'>('')
   const codesRef = useRef<HTMLUListElement>(null)
   const id = useId()
+  // a refused code belongs to the code field while it is up, otherwise a
+  // refused password belongs to the password field
+  const bad = error ? { 'aria-invalid': true as const, 'aria-describedby': id + 'e' } : {}
   const copyCodes = async (codes: string[]) => {
     try {
       if (!navigator.clipboard) throw new Error('no clipboard')
@@ -381,6 +392,7 @@ function TotpSection() {
                 id={id + 'p'}
                 type="password"
                 autoComplete="current-password"
+                {...bad}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -402,6 +414,7 @@ function TotpSection() {
               id={id + 'sp'}
               type="password"
               autoComplete="current-password"
+              {...bad}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
@@ -426,6 +439,7 @@ function TotpSection() {
               className="sf-num font-mono tracking-[0.3em]"
               inputMode="numeric"
               autoComplete="one-time-code"
+              {...bad}
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
@@ -452,7 +466,7 @@ function TotpSection() {
       )}
 
       {error && (
-        <p className="sf-issue mt-2" role="alert">
+        <p id={id + 'e'} className="sf-issue mt-2" role="alert">
           {error}
         </p>
       )}

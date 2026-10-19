@@ -107,8 +107,12 @@ export default function Login() {
   const [waiting, setWaiting] = useState<'passkey' | 'sso' | null>(null)
   // counts refusals, so the same message shakes again
   const [errorTick, setErrorTick] = useState(0)
-  const fail = (msg: string) => {
+  // which fields the shown error belongs to: only a refused password or code
+  // does, a refused passkey or provider is about no field
+  const [errAt, setErrAt] = useState<'' | 'form' | 'totp'>('')
+  const fail = (msg: string, at: '' | 'form' | 'totp' = '') => {
     setError(msg)
+    setErrAt(at)
     setErrorTick((n) => n + 1)
   }
 
@@ -173,7 +177,7 @@ export default function Login() {
       }
       await afterAuth()
     } catch (err) {
-      fail(refusedText(err, t) ?? (err instanceof Error ? err.message : t('app.error')))
+      fail(refusedText(err, t) ?? (err instanceof Error ? err.message : t('app.error')), 'form')
     } finally {
       setBusy(false)
     }
@@ -181,11 +185,11 @@ export default function Login() {
 
   // the pending token is gone (expired or too many wrong codes): back to the
   // password step, the second-factor form would only keep failing
-  const twoFactorFailed = (msg: string) => {
+  const twoFactorFailed = (msg: string, at: '' | 'totp' = '') => {
     if (msg === i18n.t('errors.loginExpired')) {
       setTwoFA(null)
       fail(t('login.twoFactorExpired'))
-    } else fail(msg)
+    } else fail(msg, at)
   }
 
   const submitTotp = async (e: FormEvent) => {
@@ -199,7 +203,7 @@ export default function Login() {
       await api.post('/api/auth/login/totp', { token: twoFA?.token, code: String(typed ?? code).trim() })
       await afterAuth()
     } catch (err) {
-      twoFactorFailed(err instanceof Error ? err.message : t('app.error'))
+      twoFactorFailed(err instanceof Error ? err.message : t('app.error'), 'totp')
     } finally {
       setBusy(false)
     }
@@ -271,9 +275,11 @@ export default function Login() {
   const oidcLabel = cfg.oidcName ? t('login.oidcNamed', { name: cfg.oidcName }) : t('login.oidc')
   const ssoWaiting = cfg.oidcName ? t('login.ssoWaitingNamed', { name: cfg.oidcName }) : t('login.ssoWaiting')
   // which screen is up: the key restarts the slide-in on every change
+  const bad = (at: 'form' | 'totp') =>
+    error && errAt === at ? { 'aria-invalid': true, 'aria-describedby': 'login-error' } : {}
   const stage = oidcOnly ? 'sso' : detour ? detour : twoFA ? 'totp' : mode
   const errorLine = error && (
-    <p key={errorTick} className="ws-login-err" data-shake={errorTick > 0 || undefined} role="alert">
+    <p id="login-error" key={errorTick} className="ws-login-err" data-shake={errorTick > 0 || undefined} role="alert">
       {error}
     </p>
   )
@@ -362,6 +368,7 @@ export default function Login() {
                     maxLength={6}
                     autoFocus
                     required
+                    {...bad('totp')}
                     value={code}
                     onChange={(e) => {
                       const v = e.target.value.replace(/\D/g, '').slice(0, 6)
@@ -430,6 +437,7 @@ export default function Login() {
                 // "webauthn" arms passkey autofill on this field (conditional UI)
                 autoComplete="username webauthn"
                 required
+                {...bad('form')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
@@ -459,7 +467,12 @@ export default function Login() {
                   autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                   required
                   minLength={mode === 'register' ? MIN_PASSWORD : undefined}
-                  aria-describedby={mode === 'register' ? 'password-hint' : undefined}
+                  {...bad('form')}
+                  aria-describedby={
+                    [mode === 'register' && 'password-hint', error && errAt === 'form' && 'login-error']
+                      .filter(Boolean)
+                      .join(' ') || undefined
+                  }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
@@ -543,6 +556,8 @@ function PasswordDetour({
   // the link is asked for: the screen says where to look next
   const [sent, setSent] = useState(false)
 
+  // the refused address, or the passwords that did not match or were refused
+  const bad = error ? { 'aria-invalid': true, 'aria-describedby': 'detour-error' } : {}
   const leave = (notice: string) => {
     // the token is spent (or abandoned): a reload must not show the form again
     if (resetToken) history.replaceState(null, '', window.location.pathname)
@@ -596,6 +611,7 @@ function PasswordDetour({
             autoComplete="username"
             autoFocus
             required
+            {...bad}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -612,6 +628,7 @@ function PasswordDetour({
             autoFocus
             required
             minLength={MIN_PASSWORD}
+            {...bad}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -624,13 +641,14 @@ function PasswordDetour({
             autoComplete="new-password"
             required
             minLength={MIN_PASSWORD}
+            {...bad}
             value={again}
             onChange={(e) => setAgain(e.target.value)}
           />
         </>
       )}
       {error && (
-        <p className="ws-login-err" role="alert">
+        <p id="detour-error" className="ws-login-err" role="alert">
           {error}
         </p>
       )}
