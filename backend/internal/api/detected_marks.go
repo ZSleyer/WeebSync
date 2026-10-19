@@ -41,6 +41,76 @@ type detectedMark struct {
 	DetectedAt int64 `json:"detectedAt"`
 	// marked after the user last looked at the list
 	Unseen bool `json:"unseen"`
+	// how the folder's direct subfolders ended up in the catalogue
+	Titles markTitles `json:"titles"`
+}
+
+// markTitles counts a marked folder's direct subfolders by what became of
+// their match. Matched.* + NoMatch + Pending = Total; all zero until the
+// remote index has read the folder.
+type markTitles struct {
+	Total   int `json:"total"`
+	Matched struct {
+		Anilist int `json:"anilist"`
+		Tvdb    int `json:"tvdb"`
+		Tmdb    int `json:"tmdb"`
+	} `json:"matched"`
+	// tried and found nothing (media_id 0)
+	NoMatch int `json:"noMatch"`
+	// no match row yet
+	Pending int `json:"pending"`
+}
+
+// markTitleCounts counts, in one query, the subfolders of every detected mark
+// of the user by match outcome. Keys are serverID and mark path.
+func (s *Server) markTitleCounts(userID int64) (map[string]*markTitles, error) {
+	rows, err := s.DB.Query(`SELECT server_id, path, bucket, COUNT(*) FROM (
+			SELECT cs.server_id, cs.path, CASE
+				WHEN cm.folder IS NULL THEN 'pending'
+				WHEN cm.media_id = 0 THEN 'none'
+				WHEN cm.source LIKE 'anilist%' THEN 'anilist'
+				WHEN cm.source LIKE 'tvdb%' THEN 'tvdb'
+				WHEN cm.source LIKE 'tmdb:%' THEN 'tmdb'
+				ELSE 'other' END AS bucket
+			FROM catalog_scopes cs
+			JOIN servers sv ON sv.id = cs.server_id
+			JOIN remote_index ri ON ri.server_id = cs.server_id AND ri.parent = cs.path AND ri.is_dir = 1
+			LEFT JOIN catalog_matches cm ON cm.server_id = ri.server_id AND cm.folder = ri.path
+			WHERE sv.user_id = ? AND cs.detected_at > 0 AND cs.kind != ?)
+		GROUP BY server_id, path, bucket`, userID, scopeNone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]*markTitles{}
+	for rows.Next() {
+		var id int64
+		var p, bucket string
+		var n int
+		if err := rows.Scan(&id, &p, &bucket, &n); err != nil {
+			return nil, err
+		}
+		k := fmt.Sprintf("%d:%s", id, p)
+		c := out[k]
+		if c == nil {
+			c = &markTitles{}
+			out[k] = c
+		}
+		c.Total += n
+		switch bucket {
+		case "pending":
+			c.Pending = n
+		case "none":
+			c.NoMatch = n
+		case "anilist":
+			c.Matched.Anilist = n
+		case "tvdb":
+			c.Matched.Tvdb = n
+		case "tmdb":
+			c.Matched.Tmdb = n
+		}
+	}
+	return out, rows.Err()
 }
 
 // detectedMarksResponse is the list of detected marks, newest first.
@@ -90,6 +160,11 @@ func (s *Server) handleDetectedMarks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rows.Close()
+	titles, err := s.markTitleCounts(u.ID)
+	if err != nil {
+		dbErr(w)
+		return
+	}
 	out := detectedMarksResponse{Items: []detectedMark{}}
 	for rows.Next() {
 		var m detectedMark
@@ -98,6 +173,9 @@ func (s *Server) handleDetectedMarks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		m.Name = path.Base(m.Path)
+		if c := titles[fmt.Sprintf("%d:%s", m.ServerID, m.Path)]; c != nil {
+			m.Titles = *c
+		}
 		m.Unseen = m.DetectedAt > seen
 		if m.Unseen {
 			out.Unseen++

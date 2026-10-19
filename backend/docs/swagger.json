@@ -5146,6 +5146,10 @@
                     "serverName": {
                         "type": "string"
                     },
+                    "titles": {
+                        "$ref": "#/components/schemas/api.markTitles",
+                        "description": "how the folder's direct subfolders ended up in the catalogue"
+                    },
                     "unseen": {
                         "description": "marked after the user last looked at the list",
                         "type": "boolean"
@@ -5158,7 +5162,8 @@
                     "name",
                     "kind",
                     "detectedAt",
-                    "unseen"
+                    "unseen",
+                    "titles"
                 ],
                 "type": "object"
             },
@@ -5713,6 +5718,48 @@
                 },
                 "required": [
                     "level"
+                ],
+                "type": "object"
+            },
+            "api.markTitles": {
+                "description": "how the folder's direct subfolders ended up in the catalogue",
+                "properties": {
+                    "matched": {
+                        "properties": {
+                            "anilist": {
+                                "type": "integer"
+                            },
+                            "tmdb": {
+                                "type": "integer"
+                            },
+                            "tvdb": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "anilist",
+                            "tvdb",
+                            "tmdb"
+                        ],
+                        "type": "object"
+                    },
+                    "noMatch": {
+                        "description": "tried and found nothing (media_id 0)",
+                        "type": "integer"
+                    },
+                    "pending": {
+                        "description": "no match row yet",
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "total",
+                    "matched",
+                    "noMatch",
+                    "pending"
                 ],
                 "type": "object"
             },
