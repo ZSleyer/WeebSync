@@ -43,9 +43,11 @@
      and the ink of a printed line */
   --fl-ink: #000000;
   --fl-cream: #f4ead6;
-  --scrollbar-track: #000000;
-  --scrollbar-thumb: #1f2a40;
-  --scrollbar-thumb-hover: #3a4b68;
+  /* thumb = the 3:1 edge colour, so it clears 3:1 on bg, bg-2, card and hover;
+     the track stays clear so the pair holds on whatever surface scrolls */
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #6b819c;
+  --scrollbar-thumb-hover: #8ea2b9;
   /* glass for floating layers: tinted black, never grey, so on an OLED panel
      it reads as depth rather than a milky veil. 78% keeps grey text at 4.5:1
      even with a white poster behind it (66% fell to ~4.3:1). */
@@ -79,9 +81,9 @@
   --err: #a8440a;
   --scrim: rgb(27 34 56 / 0.32);
   --fl-ink: #1b2238;
-  --scrollbar-track: #fdf8f8;
-  --scrollbar-thumb: #ecd3d8;
-  --scrollbar-thumb-hover: #8a6f76;
+  --scrollbar-track: transparent;
+  --scrollbar-thumb: #8a6f76;
+  --scrollbar-thumb-hover: #6b525a;
   --glass-bg: rgb(255 255 255 / 0.8);
   --glass-line: rgb(27 34 56 / 0.12);
   --glass-hi: rgb(255 255 255 / 0.7);
@@ -109,9 +111,9 @@
     --err: #a8440a;
     --scrim: rgb(27 34 56 / 0.32);
     --fl-ink: #1b2238;
-    --scrollbar-track: #fdf8f8;
-    --scrollbar-thumb: #ecd3d8;
-    --scrollbar-thumb-hover: #8a6f76;
+    --scrollbar-track: transparent;
+    --scrollbar-thumb: #8a6f76;
+    --scrollbar-thumb-hover: #6b525a;
     --glass-bg: rgb(255 255 255 / 0.8);
     --glass-line: rgb(27 34 56 / 0.12);
     --glass-hi: rgb(255 255 255 / 0.7);
@@ -897,17 +899,23 @@ option { background-color: var(--bg-2); color: var(--fg); }
 }
 
 /* ── Scrollbars ──
-   Slim and trackless so inner scroll containers (file lists, dialogs,
-   previews) don't eat layout width or paint bars across the UI. */
-* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
-::-webkit-scrollbar-corner { background: transparent; }
-/* touch devices get overlay-like minimal bars */
-@media (pointer: coarse) {
-  ::-webkit-scrollbar { width: 3px; height: 3px; }
+   One policy: the browser's full-width bar (scrollbar-width stays auto, a thin
+   bar is hard to grab, WCAG 2.5.8), with a thumb that holds 3:1 on every
+   surface (tokens above). thin/none only on horizontal rails that have a
+   visible alternative (arrows, peek, chips). */
+* { scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
+/* Safari before 18.2 knows neither property: paint a classic bar there only */
+@supports selector(::-webkit-scrollbar) and (not (scrollbar-color: red blue)) {
+  ::-webkit-scrollbar { width: 12px; height: 12px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 6px;
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: content-box; }
+  ::-webkit-scrollbar-corner { background: transparent; }
 }
 
 /* ── Touch ergonomics ──
