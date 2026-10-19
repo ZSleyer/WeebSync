@@ -1946,6 +1946,8 @@ export interface SegmentedOption<T extends string> {
   label: ReactNode
   /** for an icon-only option */
   'aria-label'?: string
+  /** cannot be picked (a provider without a key); stays in the row so the choice is visible */
+  disabled?: boolean
 }
 
 export interface SegmentedProps<T extends string> {
@@ -2007,6 +2009,7 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
           type="button"
           aria-pressed={o.value === value}
           aria-label={o['aria-label']}
+          disabled={o.disabled}
           onClick={() => onChange(o.value)}
           className="t-seg-btn"
         >

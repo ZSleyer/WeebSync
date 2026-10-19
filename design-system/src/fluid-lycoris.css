@@ -2094,8 +2094,9 @@ p > .t-link::before {
 }
 .t-seg--md .t-seg-btn { min-height: 2.5rem; font-size: var(--ctl-fs); }
 .t-seg-btn[aria-pressed="true"] { color: var(--fg); font-weight: 500; }
+.t-seg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (hover: hover) {
-  .t-seg-btn:hover { color: var(--fg); }
+  .t-seg-btn:hover:not(:disabled) { color: var(--fg); }
 }
 .kbd .t-seg-btn:focus-visible { outline-offset: -2px; }
 .t-seg-thumb {
