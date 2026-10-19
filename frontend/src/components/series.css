@@ -487,7 +487,6 @@ html[data-overlay] .app-shell > main > * {
 }
 .ws-d-trailer {
   margin-top: 1rem;
-  max-width: 40rem;
   aspect-ratio: 16 / 9;
   width: 100%;
   border: 0;
@@ -509,6 +508,7 @@ html[data-overlay] .app-shell > main > * {
   inset: -5px;
   width: calc(100% + 10px);
   height: calc(100% + 10px);
+  max-width: none;
   object-fit: cover;
 }
 .ws-d-trailer-play {
