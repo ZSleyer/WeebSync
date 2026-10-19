@@ -13,14 +13,14 @@ export type CatalogViewValue = 'classic' | 'catalogOnce' | 'catalogPersist'
 // A folder's scope lives in two caches: the cheap probe below and the catalog
 // listing itself. A mark changes both, and a scope rule reaches its sibling
 // folders (an alphabet shelf its parent's), so a change clears every folder of
-// the server in both, plus the rule list and the dashboard hints. With only
+// the server in both, plus the rule list and the list of detected marks. With only
 // one of them cleared, pinning read a stale "unmarked" and overwrote a tv mark
 // with anime.
 export const scopeChanged = (qc: QueryClient, serverId: number) => {
   qc.invalidateQueries({ queryKey: ['catalog', serverId] })
   qc.invalidateQueries({ queryKey: ['catalog-scope', serverId] })
   qc.invalidateQueries({ queryKey: ['scope-rules'] })
-  qc.invalidateQueries({ queryKey: ['scope-hints'] })
+  qc.invalidateQueries({ queryKey: ['detected-marks'] })
 }
 
 // useScopeInfo is the cheap scope probe (no listing, no matching): the mark,

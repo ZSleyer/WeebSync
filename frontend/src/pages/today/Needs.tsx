@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { SectionHeading } from 'fluid-lycoris'
-import type { Download, DownloadMeta, ScopeHint, Watch } from '../../api'
+import type { Download, DownloadMeta, Watch } from '../../api'
 import { useNeedList } from './NeedRows'
 import { moreLink } from './needs'
 import { useFold, useRiseOnData } from './shared'
@@ -22,7 +22,7 @@ export function Needs({
   downloads,
   meta,
   watches,
-  hints,
+  detected,
   plexToken,
   mediaChoose,
   loading,
@@ -30,7 +30,8 @@ export function Needs({
   downloads: Download[]
   meta?: DownloadMeta
   watches: Watch[]
-  hints: ScopeHint[]
+  /** folders WeebSync marked on its own that the user has not looked at yet */
+  detected: number
   /** an admin's Plex runs on a pasted token */
   plexToken?: boolean
   /** Plex and Jellyfin both connected, neither chosen */
@@ -38,7 +39,7 @@ export function Needs({
   loading: boolean
 }) {
   const { t } = useTranslation()
-  const { shown, row, dialog } = useNeedList({ downloads, meta, watches, hints, plexToken, mediaChoose })
+  const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
   const body = useRef<HTMLDivElement>(null)
   useRiseOnData(body, !loading)
   const rows = shown.slice(0, NEEDS_MAX)

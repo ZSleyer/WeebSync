@@ -40,7 +40,7 @@ const srv = (extra: Partial<ServerInfo> = {}) =>
 
 const t = (k: string, o?: Record<string, unknown>) => (o ? `${k}:${JSON.stringify(o)}` : k)
 const build = (ftpServers: { id: number; name: string }[]) =>
-  buildNeeds(t, { downloads: [], watches: [], hints: [], now: 0, ftpServers })
+  buildNeeds(t, { downloads: [], watches: [], detected: 0, now: 0, ftpServers })
 
 describe('the plain-FTP need', () => {
   it('is one error row per such server, ahead of everything else', () => {
@@ -100,7 +100,7 @@ describe('the Today row', () => {
   it('opens the dialog from "Switch" and hides only for the session', async () => {
     vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
     vi.spyOn(api, 'get').mockResolvedValue([srv()] as never)
-    wrap(<Needs downloads={[]} watches={[]} hints={[]} loading={false} />)
+    wrap(<Needs downloads={[]} watches={[]} detected={0} loading={false} />)
     const act = await screen.findByRole('button', { name: /^today\.needFtpAct/ })
     fireEvent.click(act)
     expect(await screen.findByRole('dialog')).toBeTruthy()

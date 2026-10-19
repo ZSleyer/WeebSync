@@ -5,7 +5,7 @@ import {
   type Download,
   type DownloadMeta,
   type PlexMe,
-  type ScopeHint,
+  type DetectedMarks,
   type ServerInfo,
   type Watch,
 } from '../../api'
@@ -35,11 +35,13 @@ export function useNeedsData() {
     () => api.get('/api/watches'),
     { refetchInterval: () => 30_000 },
   )
-  const { data: hints = [] } = useQuery<ScopeHint[]>({
-    queryKey: ['scope-hints'],
-    queryFn: () => api.get('/api/catalog/scope-hints'),
+  // folders WeebSync marked on its own since the user last looked at the list
+  const { data: marks } = useQuery<DetectedMarks>({
+    queryKey: ['detected-marks'],
+    queryFn: () => api.get('/api/catalog/detected-marks'),
     staleTime: 5 * 60_000,
   })
+  const detected = marks?.unseen ?? 0
   // an admin whose Plex runs on a pasted token is asked to sign in with Plex
   // instead; a token from the environment cannot be changed here, so no ask
   const { data: me } = useAuth()
@@ -57,15 +59,15 @@ export function useNeedsData() {
     staleTime: 60_000,
   })
   const ftpServers = servers.filter((x) => x.protocol === 'ftp')
-  return { now, downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose, ftpServers }
+  return { now, downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose, ftpServers }
 }
 
 /** How many rows the Today page's needs list shows, hidden ones left out. */
 export function useNeedCount(): number {
   const { t } = useTranslation()
-  const { now, downloads, meta, watches, hints, plexToken, mediaChoose, ftpServers } = useNeedsData()
+  const { now, downloads, meta, watches, detected, plexToken, mediaChoose, ftpServers } = useNeedsData()
   const hidden = hiddenNeeds()
-  return buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose, ftpServers }).filter(
+  return buildNeeds(t, { downloads, meta, watches, detected, now, plexToken, mediaChoose, ftpServers }).filter(
     (n) => !hidden.has(n.print),
   ).length
 }

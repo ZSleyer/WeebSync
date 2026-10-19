@@ -2257,6 +2257,28 @@ export interface Schemas {
   'api.deletedResponse': {
     deleted: number
   }
+  'api.detectedMark': {
+    /**
+     * when it was marked, Unix milliseconds
+     */
+    detectedAt: number
+    kind: "anime" | "manga" | "tv" | "movie" | "tvdb" | "auto"
+    name: string
+    path: string
+    serverId: number
+    serverName: string
+    /**
+     * marked after the user last looked at the list
+     */
+    unseen: boolean
+  }
+  'api.detectedMarksResponse': {
+    items: Schemas['api.detectedMark'][]
+    /**
+     * how many of them the user has not seen yet
+     */
+    unseen: number
+  }
   'api.dismissRequest': {
     /**
      * Cover is the item's picture and Section the list it was hidden from
@@ -2908,35 +2930,6 @@ export interface Schemas {
     tmdb: boolean
     tvdb: boolean
   }
-  'api.scopeHint': {
-    /**
-     * collection only: "anime" when the titles carry anime tags, so the user
-     * may pick that instead of the suggested kind; "" otherwise
-     */
-    altKind: "" | "anime"
-    /**
-     * the suggested mark: the siblings' for reason "sibling", "auto" for "collection"
-     */
-    kind: "anime" | "manga" | "tv" | "movie" | "tvdb" | "auto"
-    name: string
-    path: string
-    /**
-     * why the folder is pointed out: it looks like a marked sibling, or its
-     * subfolders look like single titles although nothing marks it
-     */
-    reason: "sibling" | "collection"
-    serverId: number
-    serverName: string
-    /**
-     * a marked sibling's name, for the reason; "" for a collection
-     */
-    sibling: string
-    /**
-     * collection only: how many of the Total subfolders look like titles
-     */
-    titles: number
-    total: number
-  }
   'api.scopeRequest': {
     /**
      * "" clears the mark; "none" stores "no mark", which keeps a scope rule
@@ -2951,6 +2944,11 @@ export interface Schemas {
     rule?: boolean
   }
   'api.scopeResponse': {
+    /**
+     * the folder's own mark was set by WeebSync, not by a user (detected.go);
+     * changing or clearing it stores the user's decision
+     */
+    detected: boolean
     /**
      * the rule that covers this folder (its parent and shape), 0 for none.
      * Scope came from it unless the folder carries a mark of its own.

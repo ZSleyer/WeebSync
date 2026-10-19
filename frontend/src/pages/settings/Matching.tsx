@@ -567,7 +567,7 @@ export function ScopeRules() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['scope-rules'] })
       qc.invalidateQueries({ queryKey: ['catalog-scope'] })
-      qc.invalidateQueries({ queryKey: ['scope-hints'] })
+      qc.invalidateQueries({ queryKey: ['detected-marks'] })
     },
   })
   if (rules.length === 0) return null

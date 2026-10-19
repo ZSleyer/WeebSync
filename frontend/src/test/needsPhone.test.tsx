@@ -1,8 +1,9 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router'
-import { api, type ScopeHint } from '../api'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
+import { api } from '../api'
+import { detectedLink } from '../pages/today/needs'
 import { Needs } from '../pages/today/Needs'
 
 // the toast runs its held-back action at once; the real one waits for the line to run out
@@ -16,7 +17,7 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
   useTranslation: () =>
     ({
-      t: (k: string, o?: Record<string, unknown>) => (o?.kind ? `${k}:${o.kind}` : k),
+      t: (k: string, o?: Record<string, unknown>) => (o?.count ? `${k}:${o.count}` : k),
     }) as never,
 }))
 
@@ -26,61 +27,49 @@ afterEach(() => {
   localStorage.clear()
 })
 
-const hint = (extra: Partial<ScopeHint> = {}): ScopeHint => ({
-  serverId: 1,
-  serverName: 'seedbox',
-  path: '/Server/Some Category',
-  name: 'Some Category',
-  kind: 'auto',
-  sibling: '',
-  reason: 'collection',
-  titles: 23,
-  total: 25,
-  altKind: '',
-  ...extra,
-})
+const Where = () => {
+  const l = useLocation()
+  return <p data-testid="where">{l.pathname + l.hash}</p>
+}
 
-function phone(h: ScopeHint) {
+function phone() {
   vi.stubGlobal('matchMedia', () => ({
     matches: true,
     addEventListener() {},
     removeEventListener() {},
   }))
   vi.spyOn(api, 'get').mockResolvedValue([] as never)
-  const put = vi.spyOn(api, 'put').mockResolvedValue({} as never)
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
-        <Needs downloads={[]} watches={[]} hints={[h]} loading={false} />
+        <Routes>
+          <Route path="/" element={<Needs downloads={[]} watches={[]} detected={4} loading={false} />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   )
-  return put
 }
 
 describe('Needs on a phone', () => {
-  it('shows the action as an icon with its label and runs it', async () => {
-    const put = phone(hint())
-    const btn = screen.getByRole('button', { name: /today\.needMarkAs/ })
+  it('shows the action as an icon with its label and opens the list', async () => {
+    phone()
+    const btn = screen.getByRole('button', { name: /today\.needDetectedAct/ })
     expect(btn.textContent).toBe('')
-    expect(btn.getAttribute('title')).toBe('today.needMarkAs:remote.scopeAuto')
+    expect(btn.getAttribute('title')).toBe('today.needDetectedAct')
     fireEvent.click(btn)
-    await waitFor(() =>
-      expect(put).toHaveBeenCalledWith('/api/servers/1/catalog/scope', expect.objectContaining({ kind: 'auto' })),
-    )
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe(detectedLink(false)))
   })
 
-  it('opens the row in full and runs an action from the sheet', async () => {
-    const put = phone(hint({ altKind: 'anime' }))
-    fireEvent.click(screen.getByText('today.needFolder').closest('button')!)
+  it('opens the row in full and runs the action from the sheet', async () => {
+    phone()
+    fireEvent.click(screen.getByText('today.needDetected:4').closest('button')!)
     const dialog = await screen.findByRole('dialog', { hidden: true })
-    expect(dialog.textContent).toContain('dash.folderHintCollection')
+    expect(dialog.textContent).toContain('today.needDetectedSub')
     expect(dialog.textContent).toContain('today.hide')
-    const anime = Array.from(dialog.querySelectorAll('button')).find((b) => /scopeAnime/.test(b.textContent ?? ''))
-    fireEvent.click(anime!)
-    await waitFor(() =>
-      expect(put).toHaveBeenCalledWith('/api/servers/1/catalog/scope', expect.objectContaining({ kind: 'anime' })),
-    )
+    const view = Array.from(dialog.querySelectorAll('button')).find((b) => /needDetectedAct/.test(b.textContent ?? ''))
+    fireEvent.click(view!)
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe(detectedLink(false)))
   })
 })

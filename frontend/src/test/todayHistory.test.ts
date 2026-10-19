@@ -89,17 +89,16 @@ test('needs: recent failures, watches that wait, new folders', () => {
     { id: 7, remotePath: '/a/Show', attention: ['checkFailed'] } as unknown as Watch,
     { id: 8, remotePath: '/a/Calm', attention: [] } as unknown as Watch,
   ]
-  const hints = [{ serverId: 1, serverName: 'srv', path: '/a/New S2', name: 'New S2', sibling: 'New', kind: 'anime' }]
-  const needs = buildNeeds(t, { downloads, watches, hints: hints as never, now })
-  expect(needs.map((n) => n.key)).toEqual(['dl-1', 'h-1-/a/New S2', 'w-7'])
+  const needs = buildNeeds(t, { downloads, watches, detected: 3, now })
+  expect(needs.map((n) => n.key)).toEqual(['dl-1', 'marks-detected', 'w-7'])
   expect(needs[0].sub).toBe('boom')
   expect(needs[2].why).toBe(true)
-  expect(needs[1].sub).toContain('remote.scopeAnime')
+  expect(needs[1].title).toContain('today.needDetected')
 })
 
 test('needs: a Plex on a pasted token asks to sign in, first', () => {
-  const needs = buildNeeds(t, { downloads: [], watches: [], hints: [], now, plexToken: true })
+  const needs = buildNeeds(t, { downloads: [], watches: [], detected: 0, now, plexToken: true })
   expect(needs.map((n) => n.key)).toEqual(['plex-token'])
   expect(needs[0].kind).toBe('plex')
-  expect(buildNeeds(t, { downloads: [], watches: [], hints: [], now })).toEqual([])
+  expect(buildNeeds(t, { downloads: [], watches: [], detected: 0, now })).toEqual([])
 })

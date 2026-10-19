@@ -4,16 +4,15 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router'
 import { CircleAlert, FolderPlus, Info, KeyRound, RotateCcw, Server, ShieldAlert, Trash2, X } from 'lucide-react'
 import { afterBackEntry, Button, Dialog, haptic, IconButton, SHEET_MQ, useMediaQuery } from 'fluid-lycoris'
-import { api, type Download, type DownloadMeta, type ScopeHint, type ServerInfo, type Watch } from '../../api'
+import { api, type Download, type DownloadMeta, type ServerInfo, type Watch } from '../../api'
 import ActionMenu from '../../components/ActionMenu'
 import FtpsMigrateDialog from '../../components/FtpsMigrate'
 import type { SheetAction } from '../../components/ActionSheet'
 import { filesLink } from '../../components/playLinks'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { useToast } from '../../components/toast'
-import { scopeChanged } from '../../components/useCatalogView'
-import { useNow } from '../../hooks'
-import { buildNeeds, hiddenNeeds, hideForSession, saveHidden, scopeKindLabel, sessionOnly, type Need } from './needs'
+import { useAuth, useNow } from '../../hooks'
+import { buildNeeds, detectedLink, hiddenNeeds, hideForSession, saveHidden, sessionOnly, type Need } from './needs'
 import { seriesTarget } from './shared'
 
 // The rows of the needs list and what they do, shared by the Today section
@@ -122,7 +121,7 @@ function useCommitSwipe(onCommit: (side: 'act' | 'hide') => void) {
 const ICONS = {
   failed: CircleAlert,
   watch: Info,
-  hint: FolderPlus,
+  marks: FolderPlus,
   plex: KeyRound,
   ftp: ShieldAlert,
 }
@@ -287,7 +286,8 @@ export interface NeedListData {
   downloads: Download[]
   meta?: DownloadMeta
   watches: Watch[]
-  hints: ScopeHint[]
+  /** folders WeebSync marked on its own that the user has not looked at yet */
+  detected: number
   /** an admin's Plex runs on a pasted token */
   plexToken?: boolean
   /** Plex and Jellyfin both connected, neither chosen */
@@ -299,12 +299,13 @@ export interface NeedListData {
  * row not hidden, in the list's order; `row` draws one with its actions.
  * Rows hidden here are stored, so every page that lists the needs agrees.
  */
-export function useNeedList({ downloads, meta, watches, hints, plexToken, mediaChoose }: NeedListData) {
+export function useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose }: NeedListData) {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const toast = useToast()
   const navigate = useNavigate()
   const now = useNow()
+  const { data: me } = useAuth()
   const { open } = useSeriesModal()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
@@ -321,7 +322,7 @@ export function useNeedList({ downloads, meta, watches, hints, plexToken, mediaC
     downloads,
     meta,
     watches,
-    hints,
+    detected,
     now,
     plexToken,
     mediaChoose,
@@ -365,15 +366,6 @@ export function useNeedList({ downloads, meta, watches, hints, plexToken, mediaC
             ids: ds.map((d) => d.id),
           }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
-  })
-  // the suggested kind unless the user picked another; "none" waves a folder off for good
-  const mark = useMutation({
-    mutationFn: ({ h, kind }: { h: ScopeHint; kind?: string }) =>
-      api.put(`/api/servers/${h.serverId}/catalog/scope`, {
-        path: h.path,
-        kind: kind ?? h.kind,
-      }),
-    onSuccess: (_, { h }) => scopeChanged(qc, h.serverId),
   })
 
   const unGone = (n: Need) =>
@@ -427,17 +419,15 @@ export function useNeedList({ downloads, meta, watches, hints, plexToken, mediaC
       // a refused login is fixed at the server, not by trying again
       if (n.auth) checkServer()
       else retry(n)
-    } else if (n.hint) {
-      const h = n.hint
-      leave(n, t('today.marked', { name: h.name }), () => mark.mutate({ h }))
+    } else if (n.kind === 'marks') {
+      // the list marks them seen when it opens; the row goes with the count
+      navigate(detectedLink(!!me?.isAdmin))
     }
   }
   const hide = (n: Need) =>
     n.kind === 'failed'
       ? remove(n)
       : leave(n, t('today.hidden'), () => {
-          // a suggested collection stays dismissed on every device: "none" is stored for it
-          if (n.hint?.reason === 'collection') mark.mutate({ h: n.hint, kind: 'none' })
           setHidden((h) => {
             const next = new Set(h).add(n.print)
             // a plain-FTP row only steps aside for this tab: the server stays broken
@@ -450,25 +440,6 @@ export function useNeedList({ downloads, meta, watches, hints, plexToken, mediaC
   // a failed row's other actions, next to the primary one
   const menuFor = (n: Need): SheetAction[] | undefined => {
     const ico = { 'aria-hidden': true, size: '1.1em' } as const
-    // a collection whose titles carry anime tags may be marked as anime instead
-    if (n.hint?.reason === 'collection' && n.hint.altKind) {
-      const h = n.hint
-      const kind = h.altKind
-      return [
-        {
-          key: 'alt',
-          label: t('today.needMarkAs', { kind: scopeKindLabel(t, kind) }),
-          icon: <FolderPlus {...ico} />,
-          onClick: () => leave(n, t('today.marked', { name: h.name }), () => mark.mutate({ h, kind })),
-        },
-        {
-          key: 'hide',
-          label: t('today.hide'),
-          icon: <X {...ico} />,
-          onClick: () => hide(n),
-        },
-      ]
-    }
     if (n.kind !== 'failed') return undefined
     const many = (n.group?.length ?? 1) > 1
     return [

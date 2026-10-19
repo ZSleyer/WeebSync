@@ -1,14 +1,20 @@
-import { downloadLabel, netErrorText, type Download, type DownloadMeta, type ScopeHint, type Watch } from '../../api'
+import { downloadLabel, netErrorText, type Download, type DownloadMeta, type Watch } from '../../api'
 import { attentionInfo } from '../../attention'
 import { isFsErrorCode } from '../../components/FsErrorNote'
 
 type T = (key: string, opts?: Record<string, unknown>) => string
 
 // What needs a hand on the Today page, as one list of rows: failed
-// downloads, auto-syncs that wait on something, new folders that look like
-// marked ones. Each row says what, why in one line, and offers one action.
+// downloads, auto-syncs that wait on something, and one row for the folders
+// WeebSync marked on its own. Each row says what, why in one line, and offers
+// one action.
 
-export type NeedKind = 'failed' | 'watch' | 'hint' | 'plex' | 'ftp'
+const MARKS_KEY = 'marks-detected'
+
+/** Where the folders WeebSync marked on its own are listed: with the matches for an admin, with the servers else. */
+export const detectedLink = (admin: boolean) => `/settings/${admin ? 'matching' : 'servers'}#detected`
+
+export type NeedKind = 'failed' | 'watch' | 'marks' | 'plex' | 'ftp'
 
 export interface Need {
   /** stable per thing: the row's React key and its place in the list */
@@ -38,7 +44,6 @@ export interface Need {
   /** the cause is the login: fixing it comes before trying again */
   auth?: boolean
   watch?: Watch
-  hint?: ScopeHint
 }
 
 /** key and fingerprint prefix of the plain-FTP rows, which are only ever hidden for the session */
@@ -55,7 +60,7 @@ export function buildNeeds(
     downloads,
     meta,
     watches,
-    hints,
+    detected,
     now,
     plexToken,
     mediaChoose,
@@ -65,7 +70,7 @@ export function buildNeeds(
     downloads: Download[]
     meta?: DownloadMeta
     watches: Watch[]
-    hints: ScopeHint[]
+    detected: number
     now: number
     /** an admin's Plex runs on a pasted token: ask to sign in with Plex */
     plexToken?: boolean
@@ -166,20 +171,17 @@ export function buildNeeds(
       auth,
     })
   }
-  for (const h of hints) {
-    const collection = h.reason === 'collection'
+  // the marks WeebSync set on its own are one calm row, not one row per folder
+  if (detected > 0) {
     out.push({
-      key: `h-${h.serverId}-${h.path}`,
-      print: `h-${h.serverId}-${h.path}-${h.kind}`,
-      kind: 'hint',
+      key: MARKS_KEY,
+      print: `${MARKS_KEY}-${detected}`,
+      kind: 'marks',
       tone: 'accent',
-      title: t('today.needFolder', { name: h.name }),
-      sub: collection
-        ? t('dash.folderHintCollection', { server: h.serverName, titles: h.titles, total: h.total })
-        : t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: scopeKindLabel(t, h.kind) }),
-      act: collection ? t('today.needMarkAs', { kind: scopeKindLabel(t, h.kind) }) : t('today.needMark'),
+      title: t('today.needDetected', { count: detected }),
+      sub: t('today.needDetectedSub'),
+      act: t('today.needDetectedAct'),
       why: false,
-      hint: h,
     })
   }
   for (const w of watches) {
@@ -239,7 +241,7 @@ export type NeedGroup = (typeof NEED_GROUPS)[number]
 
 /** Which group a row belongs to: what is broken, what waits for a decision, what Auto-Sync holds back. */
 export function needGroup(n: Need): NeedGroup {
-  return n.kind === 'hint' ? 'decisions' : n.kind === 'watch' ? 'sync' : 'problems'
+  return n.kind === 'marks' ? 'decisions' : n.kind === 'watch' ? 'sync' : 'problems'
 }
 
 /** The rows by group, empty groups left out; within a group the list's own order stays. */

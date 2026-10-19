@@ -34,14 +34,14 @@ import './today/today.css'
  */
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
-  const { now, downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose } = useNeedsData()
+  const { now, downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose } = useNeedsData()
 
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
   // airs, and which background job runs or waits
   const loadingCount = downloads.filter((d) => d.status === 'running' || d.status === 'queued').length
   const hidden = hiddenNeeds()
-  const needCount = buildNeeds(t, { downloads, meta, watches, hints, now, plexToken, mediaChoose }).filter(
+  const needCount = buildNeeds(t, { downloads, meta, watches, detected, now, plexToken, mediaChoose }).filter(
     (n) => !hidden.has(n.print),
   ).length
   const next = upcomingAirings(watches, now, 7).find((a) => a.at * 1000 > now)
@@ -74,7 +74,7 @@ export default function Dashboard() {
               downloads={downloads}
               meta={meta}
               watches={watches}
-              hints={hints}
+              detected={detected}
               plexToken={plexToken}
               mediaChoose={mediaChoose}
               loading={loading}

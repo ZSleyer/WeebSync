@@ -14,7 +14,9 @@ export type PlayStatus = Schemas['api.PlayStatus']
 // A folder's catalog mark and the scope rule around it.
 export type ScopeInfo = Schemas['api.scopeResponse']
 export type ScopeRule = Schemas['api.scopeRule']
-export type ScopeHint = Schemas['api.scopeHint']
+// The folder marks WeebSync set itself, and how many are new to the user.
+export type DetectedMark = Schemas['api.detectedMark']
+export type DetectedMarks = Schemas['api.detectedMarksResponse']
 
 // Which folder a sync creates below the target: none, one named after the
 // remote folder, or one named after the series title.

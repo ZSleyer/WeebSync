@@ -34,7 +34,7 @@ const wire = (downloads: Download[]) => {
     if (path === '/api/downloads') return downloads as never
     if (path === '/api/downloads/meta') return { items: {}, groups: [] } as never
     if (path === '/api/watches') return [] as never
-    if (path === '/api/catalog/scope-hints') return [] as never
+    if (path === '/api/catalog/detected-marks') return [] as never
     if (path === '/api/servers') return [] as never
     return {} as never
   })
@@ -74,6 +74,6 @@ describe('AppBadgeSync', () => {
     const calls = (path: string) => get.mock.calls.filter((c) => c[0] === path).length
     expect(calls('/api/downloads')).toBe(1)
     expect(calls('/api/watches')).toBe(1)
-    expect(calls('/api/catalog/scope-hints')).toBe(1)
+    expect(calls('/api/catalog/detected-marks')).toBe(1)
   })
 })

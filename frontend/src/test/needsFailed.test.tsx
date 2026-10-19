@@ -43,7 +43,7 @@ const fail = (id: number, extra: Partial<Download> = {}): Download =>
 
 const t = (k: string, o?: Record<string, unknown>) => (o ? `${k}:${JSON.stringify(o)}` : k)
 const needs = (downloads: Download[]) =>
-  buildNeeds(t, { downloads, watches: [], hints: [], now: NOW, serverNames: { 1: 'seedbox', 2: 'nas' } })
+  buildNeeds(t, { downloads, watches: [], detected: 0, now: NOW, serverNames: { 1: 'seedbox', 2: 'nas' } })
 
 describe('grouping failed downloads', () => {
   it('folds one cause on one server into a row', () => {
@@ -113,7 +113,7 @@ function setup(downloads: Download[]) {
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={['/']}>
         <Routes>
-          <Route path="*" element={<Needs downloads={downloads} watches={[]} hints={[]} loading={false} />} />
+          <Route path="*" element={<Needs downloads={downloads} watches={[]} detected={0} loading={false} />} />
         </Routes>
         <Where />
       </MemoryRouter>

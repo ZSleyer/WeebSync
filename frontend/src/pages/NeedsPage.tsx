@@ -13,9 +13,9 @@ import './today/today.css'
  */
 export default function NeedsPage() {
   const { t } = useTranslation()
-  const { downloads, isLoading, meta, watches, watchesLoading, hints, plexToken, mediaChoose } = useNeedsData()
+  const { downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose } = useNeedsData()
   const loading = isLoading || watchesLoading
-  const { shown, row, dialog } = useNeedList({ downloads, meta, watches, hints, plexToken, mediaChoose })
+  const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
   const groups = groupNeeds(shown)
   let index = 0
   return (
