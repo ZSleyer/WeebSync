@@ -13,7 +13,16 @@ import { useSeriesModal } from '../../components/SeriesModal'
 import { useToast } from '../../components/toast'
 import { scopeChanged } from '../../components/useCatalogView'
 import { useNow } from '../../hooks'
-import { buildNeeds, hiddenNeeds, hideForSession, moreLink, saveHidden, sessionOnly, type Need } from './needs'
+import {
+  buildNeeds,
+  hiddenNeeds,
+  hideForSession,
+  moreLink,
+  saveHidden,
+  scopeKindLabel,
+  sessionOnly,
+  type Need,
+} from './needs'
 import { seriesTarget, useFold, useRiseOnData } from './shared'
 
 /** rows shown before "N more" */
@@ -248,9 +257,11 @@ export function Needs({
         : api.post('/api/downloads/bulk', { action: 'delete', ids: ds.map((d) => d.id) }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
   })
+  // the suggested kind unless the user picked another; "none" waves a folder off for good
   const mark = useMutation({
-    mutationFn: (h: ScopeHint) => api.put(`/api/servers/${h.serverId}/catalog/scope`, { path: h.path, kind: h.kind }),
-    onSuccess: (_, h) => scopeChanged(qc, h.serverId),
+    mutationFn: ({ h, kind }: { h: ScopeHint; kind?: string }) =>
+      api.put(`/api/servers/${h.serverId}/catalog/scope`, { path: h.path, kind: kind ?? h.kind }),
+    onSuccess: (_, { h }) => scopeChanged(qc, h.serverId),
   })
 
   const unGone = (n: Need) =>
@@ -306,27 +317,43 @@ export function Needs({
       else retry(n)
     } else if (n.hint) {
       const h = n.hint
-      leave(n, t('today.marked', { name: h.name }), () => mark.mutate(h))
+      leave(n, t('today.marked', { name: h.name }), () => mark.mutate({ h }))
     }
   }
   const hide = (n: Need) =>
     n.kind === 'failed'
       ? remove(n)
-      : leave(n, t('today.hidden'), () =>
+      : leave(n, t('today.hidden'), () => {
+          // a suggested collection stays dismissed on every device: "none" is stored for it
+          if (n.hint?.reason === 'collection') mark.mutate({ h: n.hint, kind: 'none' })
           setHidden((h) => {
             const next = new Set(h).add(n.print)
             // a plain-FTP row only steps aside for this tab: the server stays broken
             if (sessionOnly(n)) hideForSession(n.print)
             else saveHidden(next, all)
             return next
-          }),
-        )
+          })
+        })
 
   // a failed row's other actions, next to the primary one
   const menuFor = (n: Need): SheetAction[] | undefined => {
+    const ico = { 'aria-hidden': true, size: '1.1em' } as const
+    // a collection whose titles carry anime tags may be marked as anime instead
+    if (n.hint?.reason === 'collection' && n.hint.altKind) {
+      const h = n.hint
+      const kind = h.altKind
+      return [
+        {
+          key: 'alt',
+          label: t('today.needMarkAs', { kind: scopeKindLabel(t, kind) }),
+          icon: <FolderPlus {...ico} />,
+          onClick: () => leave(n, t('today.marked', { name: h.name }), () => mark.mutate({ h, kind })),
+        },
+        { key: 'hide', label: t('today.hide'), icon: <X {...ico} />, onClick: () => hide(n) },
+      ]
+    }
     if (n.kind !== 'failed') return undefined
     const many = (n.group?.length ?? 1) > 1
-    const ico = { 'aria-hidden': true, size: '1.1em' } as const
     return [
       ...(n.auth
         ? [

@@ -184,14 +184,17 @@ export function buildNeeds(
     })
   }
   for (const h of hints) {
+    const collection = h.reason === 'collection'
     out.push({
       key: `h-${h.serverId}-${h.path}`,
       print: `h-${h.serverId}-${h.path}-${h.kind}`,
       kind: 'hint',
       tone: 'accent',
       title: t('today.needFolder', { name: h.name }),
-      sub: t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: scopeKindLabel(t, h.kind) }),
-      act: t('today.needMark'),
+      sub: collection
+        ? t('dash.folderHintCollection', { server: h.serverName, titles: h.titles, total: h.total })
+        : t('dash.folderHintWhy', { server: h.serverName, sibling: h.sibling, kind: scopeKindLabel(t, h.kind) }),
+      act: collection ? t('today.needMarkAs', { kind: scopeKindLabel(t, h.kind) }) : t('today.needMark'),
       why: false,
       hint: h,
     })
@@ -239,6 +242,7 @@ export function scopeKindLabel(t: T, kind: string): string {
     tv: 'remote.scopeTv',
     movie: 'remote.scopeMovie',
     tvdb: 'remote.scopeTvdb',
+    auto: 'remote.scopeAuto',
   }
   return keys[kind] ? t(keys[kind]) : kind
 }
