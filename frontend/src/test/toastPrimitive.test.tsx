@@ -13,9 +13,12 @@ describe('ToastRegion', () => {
     proto.hidePopover = hide
     try {
       const { rerender } = render(<ToastRegion raise={1} />)
-      const region = screen.getByRole('status', { hidden: true })
+      const polite = screen.getByRole('status', { hidden: true })
+      const region = polite.parentElement!
       expect(region).toHaveAttribute('popover', 'manual')
-      expect(region).toHaveAttribute('aria-live', 'polite')
+      expect(polite).toHaveAttribute('aria-live', 'polite')
+      // errors go to their own assertive wrapper, in the same box
+      expect(screen.getByRole('alert', { hidden: true }).parentElement).toBe(region)
       expect(show).toHaveBeenCalledTimes(1)
       rerender(<ToastRegion raise={1} />)
       expect(show).toHaveBeenCalledTimes(1)

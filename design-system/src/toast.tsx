@@ -4,6 +4,8 @@ const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).j
 
 export interface ToastRegionProps {
   children?: ReactNode
+  /** errors: announced at once (role=alert), above the polite lines */
+  alerts?: ReactNode
   /**
    * changes whenever a toast is raised: the region is shown again, so it
    * lands on top of a dialog or sheet that opened since
@@ -19,7 +21,7 @@ export interface ToastRegionProps {
  * exists before its text. On a phone it sits above the tab bar, on a desktop
  * at the bottom right, left of an open side panel.
  */
-export function ToastRegion({ children, raise, className }: ToastRegionProps) {
+export function ToastRegion({ children, alerts, raise, className }: ToastRegionProps) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -31,9 +33,16 @@ export function ToastRegion({ children, raise, className }: ToastRegionProps) {
       /* not connected yet */
     }
   }, [raise])
+  // two live wrappers that lay out as if they were not there, so the
+  // stacking is one column whichever kind a line is
   return (
-    <div ref={ref} popover="manual" role="status" aria-live="polite" className={cx('t-toast-region', className)}>
-      {children}
+    <div ref={ref} popover="manual" className={cx('t-toast-region', className)}>
+      <div role="alert" style={{ display: 'contents' }}>
+        {alerts}
+      </div>
+      <div role="status" aria-live="polite" style={{ display: 'contents' }}>
+        {children}
+      </div>
     </div>
   )
 }
