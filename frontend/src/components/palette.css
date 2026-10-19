@@ -81,7 +81,7 @@ dialog.pal-dlg > .pal-body {
   color: var(--fg);
   cursor: pointer;
 }
-.pal-row[aria-selected="true"] { background: var(--hover); }
+.pal-row[aria-selected="true"] { background: var(--hover); outline: 2px solid var(--accent); outline-offset: -2px; }
 .pal-cover {
   flex: none;
   width: 1.875rem;
