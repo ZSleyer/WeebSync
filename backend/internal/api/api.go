@@ -76,6 +76,9 @@ type Server struct {
 	fonts    fontIndex
 	webFonts webFontList
 
+	// folders that look like title collections, per server (collection_hints.go)
+	collCache collectionCache
+
 	// unpacked comics and EPUBs the reader serves pieces of (reader.go)
 	books bookShelf
 

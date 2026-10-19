@@ -6658,14 +6658,23 @@
             },
             "api.scopeHint": {
                 "properties": {
+                    "altKind": {
+                        "description": "collection only: \"anime\" when the titles carry anime tags, so the user\nmay pick that instead of the suggested kind; \"\" otherwise",
+                        "enum": [
+                            "",
+                            "anime"
+                        ],
+                        "type": "string"
+                    },
                     "kind": {
-                        "description": "the siblings' mark",
+                        "description": "the suggested mark: the siblings' for reason \"sibling\", \"auto\" for \"collection\"",
                         "enum": [
                             "anime",
                             "manga",
                             "tv",
                             "movie",
-                            "tvdb"
+                            "tvdb",
+                            "auto"
                         ],
                         "type": "string"
                     },
@@ -6675,6 +6684,14 @@
                     "path": {
                         "type": "string"
                     },
+                    "reason": {
+                        "description": "why the folder is pointed out: it looks like a marked sibling, or its\nsubfolders look like single titles although nothing marks it",
+                        "enum": [
+                            "sibling",
+                            "collection"
+                        ],
+                        "type": "string"
+                    },
                     "serverId": {
                         "type": "integer"
                     },
@@ -6682,8 +6699,15 @@
                         "type": "string"
                     },
                     "sibling": {
-                        "description": "a marked sibling's name, for the reason",
+                        "description": "a marked sibling's name, for the reason; \"\" for a collection",
                         "type": "string"
+                    },
+                    "titles": {
+                        "description": "collection only: how many of the Total subfolders look like titles",
+                        "type": "integer"
+                    },
+                    "total": {
+                        "type": "integer"
                     }
                 },
                 "required": [
@@ -6692,7 +6716,11 @@
                     "path",
                     "name",
                     "kind",
-                    "sibling"
+                    "sibling",
+                    "reason",
+                    "titles",
+                    "total",
+                    "altKind"
                 ],
                 "type": "object"
             },
@@ -14039,7 +14067,7 @@
         },
         "/api/catalog/scope-hints": {
             "get": {
-                "description": "Unmarked folders, not covered by a scope rule, beside marked folders whose names have the same shape (numbers and season names vary) - typically a new season folder. Nothing is marked by this call.",
+                "description": "Unmarked folders, not covered by a scope rule, that look like marked folders (reason sibling: same name shape beside a marked one, typically a new season folder) or like a collection of titles (reason collection: most subfolders look like single shows or films). Nothing is marked by this call.",
                 "responses": {
                     "200": {
                         "content": {

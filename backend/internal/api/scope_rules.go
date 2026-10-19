@@ -90,8 +90,19 @@ type scopeHint struct {
 	ServerName string `json:"serverName"`
 	Path       string `json:"path"`
 	Name       string `json:"name"`
-	Kind       string `json:"kind" enums:"anime,manga,tv,movie,tvdb"` // the siblings' mark
-	Sibling    string `json:"sibling"`                                // a marked sibling's name, for the reason
+	// the suggested mark: the siblings' for reason "sibling", "auto" for "collection"
+	Kind string `json:"kind" enums:"anime,manga,tv,movie,tvdb,auto"`
+	// a marked sibling's name, for the reason; "" for a collection
+	Sibling string `json:"sibling"`
+	// why the folder is pointed out: it looks like a marked sibling, or its
+	// subfolders look like single titles although nothing marks it
+	Reason string `json:"reason" enums:"sibling,collection"`
+	// collection only: how many of the Total subfolders look like titles
+	Titles int `json:"titles"`
+	Total  int `json:"total"`
+	// collection only: "anime" when the titles carry anime tags, so the user
+	// may pick that instead of the suggested kind; "" otherwise
+	AltKind string `json:"altKind" enums:",anime"`
 }
 
 // scopeHints finds the folders a user would most likely mark next: unmarked,
@@ -158,7 +169,8 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 			if id, _ := s.ruleScope(g.serverID, p); id != 0 {
 				continue
 			}
-			hints = append(hints, scopeHint{g.serverID, g.serverName, p, name, m.kind, m.name})
+			hints = append(hints, scopeHint{ServerID: g.serverID, ServerName: g.serverName, Path: p, Name: name,
+				Kind: m.kind, Sibling: m.name, Reason: "sibling"})
 		}
 		return hints, kids.Err()
 	}
@@ -171,6 +183,11 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 		}
 		out = append(out, hints...)
 	}
+	more, err := s.collectionHints(userID)
+	if err != nil {
+		return nil, err
+	}
+	out = append(out, more...)
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].ServerName != out[j].ServerName {
 			return out[i].ServerName < out[j].ServerName
@@ -183,7 +200,7 @@ func (s *Server) scopeHints(userID int64) ([]scopeHint, error) {
 // handleScopeHints lists unmarked folders that look like their marked siblings.
 //
 //	@Summary		Folders that look like marked ones
-//	@Description	Unmarked folders, not covered by a scope rule, beside marked folders whose names have the same shape (numbers and season names vary) - typically a new season folder. Nothing is marked by this call.
+//	@Description	Unmarked folders, not covered by a scope rule, that look like marked folders (reason sibling: same name shape beside a marked one, typically a new season folder) or like a collection of titles (reason collection: most subfolders look like single shows or films). Nothing is marked by this call.
 //	@Tags			Catalog
 //	@Produce		json
 //	@Success		200	{array}		scopeHint

@@ -2899,17 +2899,32 @@ export interface Schemas {
   }
   'api.scopeHint': {
     /**
-     * the siblings' mark
+     * collection only: "anime" when the titles carry anime tags, so the user
+     * may pick that instead of the suggested kind; "" otherwise
      */
-    kind: "anime" | "manga" | "tv" | "movie" | "tvdb"
+    altKind: "" | "anime"
+    /**
+     * the suggested mark: the siblings' for reason "sibling", "auto" for "collection"
+     */
+    kind: "anime" | "manga" | "tv" | "movie" | "tvdb" | "auto"
     name: string
     path: string
+    /**
+     * why the folder is pointed out: it looks like a marked sibling, or its
+     * subfolders look like single titles although nothing marks it
+     */
+    reason: "sibling" | "collection"
     serverId: number
     serverName: string
     /**
-     * a marked sibling's name, for the reason
+     * a marked sibling's name, for the reason; "" for a collection
      */
     sibling: string
+    /**
+     * collection only: how many of the Total subfolders look like titles
+     */
+    titles: number
+    total: number
   }
   'api.scopeRequest': {
     /**
