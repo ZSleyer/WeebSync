@@ -2152,7 +2152,7 @@ function SyncForm({
       <header className={`border-b border-border-subtle px-5 ${inPage ? 'py-3' : 'py-4'}`}>
         {/* in the series page its bar names the form, the path stays */}
         {!inPage && (
-          <h3 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h3>
+          <h2 className="font-display font-semibold tracking-wider">{t('remote.syncTitle', { name: entry.name })}</h2>
         )}
         <span className={`block truncate font-mono text-xs text-t-muted ${inPage ? '' : 'mt-1'}`} title={entry.path}>
           {entry.path}

@@ -174,7 +174,7 @@ export function RematchForm({
   return (
     <div className={`overflow-y-auto p-5 ${className}`}>
       {/* in the series page its bar names the form */}
-      {!inPage && <h3 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(t, item)}</h3>}
+      {!inPage && <h2 className="mb-1 font-display font-semibold tracking-wider">{rematchTitle(t, item)}</h2>}
       {item.media && (
         <p className="mb-2 text-xs text-t-muted">
           {t('remote.currentMatch', { title: mediaTitle(item.media), id: item.media.id })}

@@ -120,9 +120,9 @@ export default function History() {
         {!isLoading && days.length === 0 && <p className="td-empty">{t('history.none')}</p>}
         {days.map((day) => (
           <section key={day.day} aria-labelledby={`hs-${day.day}`}>
-            <h3 id={`hs-${day.day}`} className="hs-day">
+            <h2 id={`hs-${day.day}`} className="hs-day">
               {dayName(day.day, day.ago)}
-            </h3>
+            </h2>
             <ul className="t-rows">
               {day.items.map((d) => {
                 const kind = histKind(d)!

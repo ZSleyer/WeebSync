@@ -84,10 +84,10 @@ export function ThreadReader({
     >
       <header className="ws-th-head">
         <div className="ws-th-top">
-          <h3 id={titleId} className="font-display font-semibold tracking-wider">
+          <h2 id={titleId} className="font-display font-semibold tracking-wider">
             {label}
             {label !== title && <span className="sr-only">, {title}</span>}
-          </h3>
+          </h2>
           {!sheet && (
             <IconButton aria-label={t('common.close')} onClick={onClose}>
               <X aria-hidden />

@@ -768,7 +768,7 @@ export default function Watches() {
             {groups.map((g, gi) => (
               <section key={g.key} className="w-group" aria-label={t(g.label, g.values)}>
                 <SectionHeading
-                  level={3}
+                  level={2}
                   tone={g.tone}
                   className="w-group-h"
                   title={t(g.label, g.values)}

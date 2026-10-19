@@ -64,9 +64,9 @@ function TransferView({
         className="anim-route-push w-[clamp(24rem,28vw,28rem)] shrink-0"
       >
         <header className="flex items-center gap-2 border-b border-border-subtle px-5 py-4">
-          <h3 id="transfers-title" className="flex-1 font-display font-semibold tracking-wider">
+          <h2 id="transfers-title" className="flex-1 font-display font-semibold tracking-wider">
             {t('live.title')}
-          </h3>
+          </h2>
           <IconButton aria-label={t('common.close')} onClick={onClose}>
             <X aria-hidden />
           </IconButton>
@@ -87,9 +87,9 @@ function TransferView({
       closeTransition={pill?.isConnected ? (close) => void morphTransition(pill, close, true, true) : undefined}
     >
       <header className="border-b border-border-subtle px-5 py-4">
-        <h3 id="transfers-title" className="font-display font-semibold tracking-wider">
+        <h2 id="transfers-title" className="font-display font-semibold tracking-wider">
           {t('live.title')}
-        </h3>
+        </h2>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{body}</div>
     </Dialog>

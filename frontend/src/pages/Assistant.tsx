@@ -1343,7 +1343,7 @@ function ChatHistory({
   const { data: chats } = useQuery<AiChatSummary[]>({ queryKey: ['ai-chats'], queryFn: () => api.get('/api/ai/chats') })
   return (
     <div className="p-4">
-      <h3 className="font-display font-semibold tracking-wider">{t('assistant.history')}</h3>
+      <h2 className="font-display font-semibold tracking-wider">{t('assistant.history')}</h2>
       {chats && chats.length === 0 && <p className="mt-3 text-sm text-t-muted">{t('assistant.historyEmpty')}</p>}
       <ul className="t-scroll mt-3 max-h-[60vh] divide-y divide-border-subtle">
         {chats?.map((c) => (

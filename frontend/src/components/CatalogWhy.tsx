@@ -46,7 +46,7 @@ export function CatalogWhy({
       bodyClassName="dialog-body"
     >
       <header className="border-b border-border-subtle px-5 py-4">
-        <h3 id={titleId} className="font-display font-semibold tracking-wider">
+        <h2 id={titleId} className="font-display font-semibold tracking-wider">
           {t(
             q.data?.chosen?.manual
               ? 'explain.match.titleManual'
@@ -54,12 +54,12 @@ export function CatalogWhy({
                 ? 'explain.match.titleNone'
                 : 'explain.match.title',
           )}
-        </h3>
+        </h2>
         <p className="mt-1 font-mono text-ctl-sm break-all text-t-secondary">{name}</p>
       </header>
       <div className="grid flex-1 content-start gap-5 overflow-y-auto px-5 py-4">
         <section>
-          <h4 className="mb-1 text-sm font-medium">{t('explain.match.name')}</h4>
+          <h3 className="mb-1 text-sm font-medium">{t('explain.match.name')}</h3>
           <NameTrace name={name} />
         </section>
         {q.isPending ? (
@@ -105,7 +105,7 @@ function Body({ x, onRematch }: { x: CatalogExplain; onRematch?: () => void }) {
       ) : (
         <>
           <section>
-            <h4 className="mb-1 text-sm font-medium">{t('explain.match.searches')}</h4>
+            <h3 className="mb-1 text-sm font-medium">{t('explain.match.searches')}</h3>
             <ol className="m-0 grid list-none gap-1 p-0 text-ctl-sm">
               {x.tried.map((s, i) => (
                 <li key={i} className="flex flex-wrap gap-x-2">
@@ -123,7 +123,7 @@ function Body({ x, onRematch }: { x: CatalogExplain; onRematch?: () => void }) {
           </section>
           {x.candidates.length > 0 && (
             <section>
-              <h4 className="mb-1 text-sm font-medium">{t('explain.match.candidates')}</h4>
+              <h3 className="mb-1 text-sm font-medium">{t('explain.match.candidates')}</h3>
               <ul className="m-0 grid list-none gap-4 p-0">
                 {x.candidates.map((c) => (
                   <CandidateRow key={c.id} c={c} won={c.id === x.pick || c.id === x.sequelFrom} />
