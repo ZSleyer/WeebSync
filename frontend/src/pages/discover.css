@@ -43,7 +43,7 @@
   white-space: nowrap;
 }
 .dc-nav a[aria-current='page'] { color: var(--fg); border-color: var(--accent-2); font-weight: 500; }
-.kbd .dc-nav a:focus-visible { outline-offset: -2px; }
+.dc-nav a:focus-visible { outline-offset: -2px; }
 .dc-count { font-size: 0.75rem; color: var(--fg-3); font-variant-numeric: tabular-nums; font-weight: 400; }
 .dc-body { min-width: 0; }
 
@@ -75,7 +75,7 @@
     justify-content: space-between;
   }
   .dc-nav a[aria-current='page'] { background: color-mix(in oklab, var(--accent) 14%, transparent); }
-  .kbd .dc-nav a:focus-visible { outline-offset: 2px; }
+  .dc-nav a:focus-visible { outline-offset: 2px; }
   .dc-body { max-width: 53.75rem; }
   /* the trending grid and the assistant use the width */
   .dc-body:has(.dc-wide) { max-width: none; }
@@ -167,7 +167,7 @@
 }
 .dc-grp[open] > summary::after { transform: rotate(-135deg); }
 .dc-grp > summary .dc-count { margin-left: auto; font-size: 0.8125rem; }
-.kbd .dc-grp > summary:focus-visible { outline-offset: -2px; }
+.dc-grp > summary:focus-visible { outline-offset: -2px; }
 
 /* ── suggestion rows ── */
 .sg { content-visibility: auto; contain-intrinsic-size: auto 9rem; }
@@ -188,7 +188,7 @@ button.sg-cov { cursor: pointer; }
 .sg-t { flex: 1; min-width: 0; display: block; }
 .sg-t > strong { display: block; font-weight: 500; color: var(--fg); overflow-wrap: anywhere; }
 .sg-t > strong button { all: unset; cursor: pointer; }
-.kbd .sg-t > strong button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+.sg-t > strong button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
 .sg-t > strong .sg-season { color: var(--fg-3); font-weight: 400; }
 .sg-meta { display: block; font-size: 0.8125rem; color: var(--fg-3); }
 .sg-prog,

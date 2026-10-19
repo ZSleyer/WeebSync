@@ -207,7 +207,7 @@
     text-underline-offset: 3px;
   }
 }
-.kbd .w-tile:focus-visible {
+.w-tile:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
