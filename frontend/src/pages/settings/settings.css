@@ -38,7 +38,6 @@
     top: 1rem;
     max-height: calc(100dvh - 6rem);
     overflow-y: auto;
-    scrollbar-width: thin;
     padding: 2px;
   }
   .set-main {
@@ -609,7 +608,8 @@
   font: 0.75rem/1.55 var(--f-mono);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  scrollbar-width: thin;
+  /* forced dark in both themes: the bar and form colours follow */
+  color-scheme: dark;
 }
 
 /* ── The save bar: only while there is something to save ── */

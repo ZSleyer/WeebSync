@@ -16,8 +16,6 @@ html[data-overlay] .app-shell > main > * {
   overflow-x: clip;
   overscroll-behavior: contain;
   container-type: inline-size;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
   --d-bar-h: 3.25rem;
   --d-pad: 1rem;
 }
@@ -535,7 +533,6 @@ html[data-overlay] .app-shell > main > * {
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding: var(--d-pad);
-  scrollbar-width: thin;
 }
 /* no snap under a finger: Chrome caps a fling at the next snap point, so the
    row braked after a tile instead of coasting (see .t-shelf) */
