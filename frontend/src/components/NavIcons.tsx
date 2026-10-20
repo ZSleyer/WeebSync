@@ -3,8 +3,8 @@ import type { LucideProps } from 'lucide-react'
 
 // Two navigation icons drawn in lucide's grid with moving parts, played as
 // their page becomes the current one: the dashboard's columns trade their
-// tiles and back, the folder's front swings open and stays open while the page is
-// current. Lucide's own icons are one piece and can't do that. The folder
+// tiles and back, the folder's front swings open and shut again. Lucide's own
+// icons are one piece and can't do that. The folder
 // morphs its outline with SVG <animate>, which every engine runs (WebKit
 // can't animate the CSS d property).
 
@@ -45,13 +45,6 @@ function useCurrent(ref: RefObject<SVGSVGElement | null>, onChange: (current: bo
     mo.observe(link, { attributes: true, attributeFilter: ['aria-current'] })
     return () => mo.disconnect()
   }, [ref])
-}
-
-/** Plays an <animate>; with motion off it lands on its last frame at once. */
-function play(a: SVGAnimationElement | null) {
-  if (!a) return
-  if (still()) a.beginElementAt(-10)
-  else a.beginElement()
 }
 
 // Heute's sign: lucide's dashboard grid. As the page becomes current the
@@ -98,33 +91,38 @@ export function DashboardIcon(props: LucideProps) {
 
 // the folder's front panel, flat against the back and swung open: the top
 // edge drops and slides forward, so the panel stands slanted over its fixed
-// bottom, the open folder of every icon set (Material folder_open)
+// bottom, the open folder of every icon set (Material folder_open). The back
+// has no bottom of its own (the front draws it) and pulls its right edge up
+// behind the open panel, so no corner pokes out past the slant; both stay
+// inside x <= 22 so the stroke isn't clipped at the viewBox edge.
 const FLAT = 'M2 6L22 6L22 18A2 2 0 0 1 20 20L4 20A2 2 0 0 1 2 18Z'
-const TIPPED = 'M6.4 10L23.4 10L21.1 18.5A2 2 0 0 1 19.2 20L4 20A2 2 0 0 1 2 18Z'
+const TIPPED = 'M6 10L22 10L20.4 18.5A2 2 0 0 1 18.5 20L4 20A2 2 0 0 1 2 18Z'
+const back = (y: number) =>
+  `M22 ${y}V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13`
 
+// Dateien's sign: as the page becomes current the folder swings open, holds
+// a beat and shuts again, once, like the dashboard's tiles
 export function FolderIcon(props: LucideProps) {
   const ref = useRef<SVGSVGElement>(null)
-  const open = useRef<SVGAnimationElement>(null)
-  const close = useRef<SVGAnimationElement>(null)
   useCurrent(ref, (current, first) => {
-    if (first && !current) return
-    play(current ? open.current : close.current)
+    if (!current || first || still()) return
+    ref.current?.querySelectorAll('animate').forEach((a) => a.beginElement())
   })
   const morph = {
     attributeName: 'd',
-    dur: '0.26s',
+    dur: '0.7s',
     begin: 'indefinite',
-    fill: 'freeze',
+    keyTimes: '0;0.35;0.6;1',
     calcMode: 'spline',
-    keyTimes: '0;1',
-    keySplines: '0.3 0 0.2 1',
+    keySplines: '0.3 0 0.2 1;0 0 1 1;0.3 0 0.2 1',
   } as const
   return (
     <svg ref={ref} {...svg(props)}>
-      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+      <path d={back(18)}>
+        <animate {...morph} values={`${back(18)};${back(10)};${back(10)};${back(18)}`} />
+      </path>
       <path d={FLAT}>
-        <animate ref={open} {...morph} values={`${FLAT};${TIPPED}`} />
-        <animate ref={close} {...morph} values={`${TIPPED};${FLAT}`} />
+        <animate {...morph} values={`${FLAT};${TIPPED};${TIPPED};${FLAT}`} />
       </path>
     </svg>
   )
