@@ -426,6 +426,27 @@ func (s *Server) inAnimeIDs(source string, id int) bool {
 	return n > 0
 }
 
+// animeTitles lists the cached AniList titles of the anime a TMDB entry of
+// kind (tv | movie) is mapped to: TMDB names an anime film in the viewer's
+// language and in Japanese ("Maquia - Eine unsterbliche Liebesgeschichte",
+// "さよならの朝に約束の花をかざろう"), the folder in romaji or English. Only
+// what is cached counts; nothing is fetched.
+func (s *Server) animeTitles(kind string, id int) []string {
+	if s.Anilist == nil {
+		return nil
+	}
+	// the first mapped anime only: a TMDB film maps to one AniList entry
+	var a int
+	if s.DB.QueryRow(`SELECT anilist_id FROM anime_ids WHERE tmdb_id = ? AND tmdb_kind = ? LIMIT 1`, id, kind).Scan(&a) != nil {
+		return nil // unmapped, or a failed read: the folder stays as unmatched as before
+	}
+	m, _ := s.Anilist.CachedMedia(a)
+	if m == nil {
+		return nil
+	}
+	return append([]string{m.Title.Romaji, m.Title.English}, m.Synonyms...)
+}
+
 // seriesRules names how series are named and keyed; bumping it settles every
 // series a TVDB or TMDB match sits on once, at startup.
 const seriesRules = "2026-10-tvdb-extended"

@@ -499,7 +499,10 @@ func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, k
 		// the localized name and the original, as the adapter maps them
 		cands := make([]liveCand, 0, len(list))
 		for _, m := range list {
-			cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: []string{m.Title.Romaji, m.Title.English}, anime: s.inAnimeIDs("tmdb:"+kind, m.ID), media: m})
+			titles := []string{m.Title.Romaji, m.Title.English}
+			// an anime is also known by its AniList titles
+			alias := s.animeTitles(kind, m.ID)
+			cands = append(cands, liveCand{id: m.ID, year: m.SeasonYear, titles: append(titles, alias...), anime: len(alias) > 0 || s.inAnimeIDs("tmdb:"+kind, m.ID), media: m})
 		}
 		if c, ok := pickLiveCand(name, lq.accept, cands); ok {
 			mediaID, hit = c.id, &c.media

@@ -168,6 +168,52 @@ func pickLive(name, accept string, cands []liveCand) int {
 			return id
 		}
 	}
+	return breakLiveTie(info.Year, tied, cands)
+}
+
+// liveDominance is how many times the audience of the most watched of tied
+// entries has to exceed every other's for it to be taken: "Flow (2024)" is
+// the Oscar winner, not one of three student shorts of the name.
+const liveDominance = 10
+
+// breakLiveTie picks among entries a folder names equally well, 0 when
+// nothing tells them apart: the one entry from exactly the folder's year
+// ("Luca (2021)", not the 2020 short), else the one whose audience dwarfs the
+// others'. TVDB counts no audience, so there only the year decides.
+func breakLiveTie(year int, tied map[int]bool, cands []liveCand) int {
+	byID := map[int]liveCand{}
+	for _, c := range cands {
+		if tied[c.id] {
+			byID[c.id] = c
+		}
+	}
+	if year != 0 {
+		exact := 0
+		for id, c := range byID {
+			if c.year == year {
+				if exact != 0 {
+					exact = -1
+					break
+				}
+				exact = id
+			}
+		}
+		if exact > 0 {
+			return exact
+		}
+	}
+	top, topPop, second := 0, 0, 0
+	for id, c := range byID {
+		switch p := c.media.Popularity; {
+		case p > topPop:
+			second, top, topPop = topPop, id, p
+		case p > second:
+			second = p
+		}
+	}
+	if top != 0 && topPop >= liveDominance*max(second, 1) {
+		return top
+	}
 	return 0
 }
 

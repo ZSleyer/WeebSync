@@ -1,12 +1,46 @@
 package api
 
 import (
+	"encoding/json"
 	"slices"
 	"testing"
+
+	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
+
+// TMDB names an anime film in German and Japanese; the folder in English.
+// The anime mapping lends the entry its AniList titles.
+func TestTmdbLookupKnowsAnAnimeByItsAniListTitles(t *testing.T) {
+	s := sourceTestServer(t)
+	hit := anilist.Media{ID: 476292, SeasonYear: 2018, Format: "MOVIE", Popularity: 743}
+	hit.Title.Romaji, hit.Title.English = "Maquia - Eine unsterbliche Liebesgeschichte", "さよならの朝に約束の花をかざろう"
+	payload, _ := json.Marshal([]anilist.Media{hit})
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES (?, ?)`,
+		tmdb.SearchCacheKey("movie", "Maquia When the Promised Flower Blooms", 2018), string(payload))
+	full, _ := json.Marshal(hit)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('tmdb:media:movie:476292', ?)`, string(full))
+	name := "Maquia When the Promised Flower Blooms (2018)"
+	if id, _, err := s.tmdbLookup(t.Context(), 1, "/f/"+name, name, "movie", false); err != nil || id != 0 {
+		t.Fatalf("without the mapping: id %d err %v, want 0", id, err)
+	}
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tmdb_id, tmdb_kind) VALUES (99457, 476292, 'movie')`)
+	m := &anilist.Media{ID: 99457, SeasonYear: 2018, Status: "FINISHED"}
+	m.Title.Romaji, m.Title.English = "Sayonara no Asa ni Yakusoku no Hana wo Kazarou", "Maquia: When the Promised Flower Blooms"
+	s.Anilist.CacheMedia(m)
+	if id, _, err := s.tmdbLookup(t.Context(), 1, "/f/"+name, name, "movie", false); err != nil || id != 476292 {
+		t.Fatalf("with the mapping: id %d err %v, want 476292", id, err)
+	}
+}
 
 func cand(id, year int, titles ...string) liveCand {
 	return liveCand{id: id, year: year, titles: titles}
+}
+
+func popular(id, year, pop int, titles ...string) liveCand {
+	c := cand(id, year, titles...)
+	c.media.Popularity = pop
+	return c
 }
 
 // The folders a live-action library got wrong, and the endless anime that
@@ -53,6 +87,12 @@ func TestPickLive(t *testing.T) {
 		// folder does not name, so only the subtitled show is taken
 		{"The Walking Dead The Ones Who Live (2024)", "", []liveCand{twd, twdOnes}, 445590},
 		{"The Walking Dead The Ones Who Live", "", []liveCand{twd}, 0},
+		// two of the name within the year window: the folder's own year decides
+		{"Luca (2021)", "Luca", []liveCand{popular(732554, 2020, 6, "Luca"), popular(508943, 2021, 9183, "Luca")}, 508943},
+		// three of the name in one year: the one with an audience, not the shorts
+		{"Flow (2024)", "Flow", []liveCand{popular(1390255, 2024, 0, "Flow"), popular(823219, 2024, 3112, "Flow", "Straume"), popular(1283979, 2024, 0, "Flow")}, 823219},
+		// two with an audience of a kind: still no guess
+		{"Flow (2024)", "Flow", []liveCand{popular(1, 2024, 300, "Flow"), popular(2, 2024, 100, "Flow")}, 0},
 	}
 	for _, c := range cases {
 		if got := pickLive(c.name, c.accept, c.cands); got != c.want {
