@@ -2199,7 +2199,7 @@ input[type='checkbox'].t-switch:disabled { opacity: 0.6; }
 /* one column that never grows past the field: an implicit column is as wide
    as its widest unbreakable line, and a long error pushed the row and its
    button out of the panel */
-.t-sf { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.375rem; margin: 0.75rem 0 0; }
+.t-sf { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.375rem; margin: 0.75rem 0 0; align-content: start; }
 .t-sf--row { grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 1rem; }
 .t-sf--row > .t-sf-h { grid-column: 1 / -1; }
 .t-sf-l { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--fg); }
