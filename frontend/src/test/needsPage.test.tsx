@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { api, type Download, type Watch } from '../api'
@@ -28,6 +28,15 @@ afterEach(() => {
 })
 
 const NOW = Date.parse('2026-10-14T12:00:00Z')
+// the rows read the clock themselves (useNow): pin it to the fixtures' day, or
+// the failures age past the 7-day window and the tests break a week later
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(NOW)
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 const fail = (id: number): Download =>
   ({
     id,
