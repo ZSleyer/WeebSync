@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -14,7 +15,7 @@ import (
 
 type versionInfo struct {
 	Version         string `json:"version"`
-	Channel         string `json:"channel"` // "stable" | "nightly" | "dev"
+	Channel         string `json:"channel"` // "stable" | "rc" | "nightly" | "dev"
 	Commit          string `json:"commit"`
 	Repo            string `json:"repo"`
 	UpdateCheck     bool   `json:"updateCheck"`     // instance setting: is the check enabled
@@ -49,7 +50,8 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 }
 
 // fillUpdate compares the running build against what upstream has published
-// for its channel: stable the latest release, nightly and dev the commit of the
+// for its channel: stable the latest release, rc the newest release or
+// candidate, nightly and dev the commit of the
 // newest workflow run that built their image. Not the tip of main - a nightly
 // is built once a day and a dev image only once the push's CI is green, so
 // main's tip announced builds that did not exist (a nightly instance was
@@ -73,12 +75,28 @@ func (s *Server) fillUpdate(info *versionInfo) {
 	}
 
 	client := netguard.Client(5 * time.Second)
-	if info.Channel == "stable" {
-		var rel struct {
+	if info.Channel == "stable" || info.Channel == "rc" {
+		type release struct {
 			TagName string `json:"tag_name"`
 			HTMLURL string `json:"html_url"`
 		}
-		if fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/releases/latest", &rel) == nil && rel.TagName != "" {
+		var rel release
+		var err error
+		err = fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/releases/latest", &rel)
+		// releases/latest skips pre-releases: a candidate compared against it
+		// saw the previous month's release as its update. Unless that is the
+		// release this candidate leads to, a candidate looks at the newest
+		// release of any kind. Not the list alone: it is ordered by the
+		// commit's date, and the final release shares its last candidate's
+		// commit, so either could come first
+		if info.Channel == "rc" && (err != nil || !strings.HasPrefix(info.Version, rel.TagName+"-rc")) {
+			var rels []release
+			rel = release{}
+			if err = fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/releases?per_page=1", &rels); err == nil && len(rels) > 0 {
+				rel = rels[0]
+			}
+		}
+		if err == nil && rel.TagName != "" {
 			info.Latest = rel.TagName
 			info.URL = rel.HTMLURL
 			info.UpdateAvailable = rel.TagName != info.Version

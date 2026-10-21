@@ -56,6 +56,7 @@
     "channel": {
       "dev": "Dev",
       "nightly": "Nightly",
+      "rc": "Release candidate",
       "stable": "Stable"
     },
     "updateBuild": "New {{channel}} build {{sha}} available.",

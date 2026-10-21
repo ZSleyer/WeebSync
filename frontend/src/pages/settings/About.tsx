@@ -33,7 +33,11 @@ export default function About() {
       </div>
       <p className="set-about-v">
         {data && (
-          <Badge tone={data.channel === 'stable' ? 'ok' : data.channel === 'nightly' ? 'accent' : 'warn'}>
+          <Badge
+            tone={
+              data.channel === 'stable' ? 'ok' : data.channel === 'nightly' || data.channel === 'rc' ? 'accent' : 'warn'
+            }
+          >
             {t(`about.channel.${data.channel}`, data.channel)}
           </Badge>
         )}

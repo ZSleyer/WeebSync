@@ -3447,7 +3447,7 @@ export interface Schemas {
   }
   'api.versionInfo': {
     /**
-     * "stable" | "nightly" | "dev"
+     * "stable" | "rc" | "nightly" | "dev"
      */
     channel: string
     commit: string

@@ -66,10 +66,12 @@ Versions follow Home Assistant: `YEAR.MONTH.N`. A month's release is `.0`, each 
 
 Before tagging a `.0`:
 
-- **Freeze.** The release commit has run as `:dev` on a real instance for a few days. Only fixes land in that time.
+- **Freeze.** The release commit has run as a release candidate (below) on a real instance for a few days. Only fixes land in that time, each one as the next candidate.
 - **Checks.** `ci` (with the security scans) and CodeQL are green on that exact commit.
 - **Upgrade.** Start the previous stable image on a copy of a real `/data`, stop it, start the release candidate on the same copy. It must migrate and come up. Do this on amd64 and arm64.
 - **Notes.** The draft is up to date with every commit since its last stand. "Before you upgrade" names everything that breaks and asks to back up `/data` first: migrations only go forward, so going back to an older release means restoring that backup.
+
+A release candidate is tagged like a release, with `-rc1`, `-rc2` … after the version: `git tag -s 2026.11.0-rc1 -m 2026.11.0-rc1 && git push origin 2026.11.0-rc1`. The workflow builds `:2026.11.0-rc1` and moves `:rc`, never `:2026.11` or `:latest`. Publish it as a pre-release (`gh release create 2026.11.0-rc1 --verify-tag --prerelease --notes-file …`): installs on stable keep ignoring it, an `:rc` install is told about the next candidate and the final release. The final `.0` is then tagged on the last candidate's commit.
 
 Then:
 

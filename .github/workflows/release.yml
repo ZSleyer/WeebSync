@@ -2,8 +2,10 @@ name: release
 
 # Releases follow the Home Assistant scheme: YEAR.MONTH.N - a month's
 # release is .0, every fix after it counts up (2026.10.0, 2026.10.1,
-# 2026.11.0). workflow_dispatch rebuilds an existing tag with this
-# workflow, for a tag whose own commit predates it.
+# 2026.11.0). A release candidate ahead of a month's release is
+# YEAR.MONTH.N-rcK (2026.11.0-rc1): it gets its own image tag and moves :rc,
+# never the month's line or :latest. workflow_dispatch rebuilds an existing
+# tag with this workflow, for a tag whose own commit predates it.
 on:
   push:
     tags: ["20[0-9][0-9].*"]
@@ -29,18 +31,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # tag name flows into the -ldflags build-arg; reject anything that isn't
-      # strictly YEAR.MONTH.N so a hostile tag can't inject linker flags. TAG
-      # via env (not ${{ }} inlined into the script) so the tag can't inject
-      # shell.
+      # strictly YEAR.MONTH.N or YEAR.MONTH.N-rcK so a hostile tag can't
+      # inject linker flags. TAG via env (not ${{ }} inlined into the script)
+      # so the tag can't inject shell.
       - name: Validate tag is YEAR.MONTH.N
         id: tag
         env:
           TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          if [[ ! "$TAG" =~ ^20[0-9]{2}\.(1[0-2]|[1-9])\.(0|[1-9][0-9]*)$ ]]; then
-            echo "::error::tag '$TAG' is not YEAR.MONTH.N (e.g. 2026.10.0)"; exit 1
+          if [[ ! "$TAG" =~ ^20[0-9]{2}\.(1[0-2]|[1-9])\.(0|[1-9][0-9]*)(-rc[1-9][0-9]*)?$ ]]; then
+            echo "::error::tag '$TAG' is not YEAR.MONTH.N or YEAR.MONTH.N-rcK (e.g. 2026.10.0, 2026.11.0-rc1)"; exit 1
           fi
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$TAG" == *-rc* ]]; then echo "channel=rc"; else echo "channel=stable"; fi >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: refs/tags/${{ steps.tag.outputs.tag }}
@@ -62,15 +65,17 @@ jobs:
           # it to every semver build, an older release rebuilt included
           flavor: latest=false
           # YEAR.MONTH.N reads as semver: the exact release, and the month's
-          # line (2026.10) that moves with its fixes
+          # line (2026.10) that moves with its fixes. A candidate is a semver
+          # pre-release, which the action only ever tags with its version
           # the tag's commit, not the run's: a dispatched rebuild runs on
           # main, and the default label then named main's head
           labels: |
             org.opencontainers.image.revision=${{ steps.sha.outputs.sha }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.tag.outputs.tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }},enable=${{ inputs.moving != 'no' }}
-            type=raw,value=latest,enable=${{ inputs.moving != 'no' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.tag.outputs.tag }},enable=${{ inputs.moving != 'no' && steps.tag.outputs.channel == 'stable' }}
+            type=raw,value=latest,enable=${{ inputs.moving != 'no' && steps.tag.outputs.channel == 'stable' }}
+            type=raw,value=rc,enable=${{ inputs.moving != 'no' && steps.tag.outputs.channel == 'rc' }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
@@ -84,7 +89,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VERSION=${{ steps.tag.outputs.tag }}
-            CHANNEL=stable
+            CHANNEL=${{ steps.tag.outputs.channel }}
             COMMIT=${{ steps.sha.outputs.sha }}
             REPO=${{ github.repository }}
       # signed SLSA provenance in GitHub's attestation store, checkable with

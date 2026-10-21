@@ -7882,7 +7882,7 @@
             "api.versionInfo": {
                 "properties": {
                     "channel": {
-                        "description": "\"stable\" | \"nightly\" | \"dev\"",
+                        "description": "\"stable\" | \"rc\" | \"nightly\" | \"dev\"",
                         "type": "string"
                     },
                     "commit": {
