@@ -90,7 +90,9 @@ export function Hint({ text }: { text: string }) {
     setPos({ top, left, container })
   }
   return (
-    <span ref={ref} className="relative ml-1 inline-block align-middle">
+    // one line tall and one icon wide whatever the button measures: its tap target
+    // overflows centred, so a caption carrying a hint is no taller than one without
+    <span ref={ref} className="relative ml-1 inline-flex h-[1lh] w-4 items-center justify-center align-top">
       <button
         type="button"
         className="group/hint t-iconbtn align-middle focus-visible:outline-1 focus-visible:outline-accent"
