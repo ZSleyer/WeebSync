@@ -1,6 +1,6 @@
 module github.com/ch4d1/weebsync
 
-go 1.26.9
+go 1.26.10
 
 require (
 	github.com/at-wat/ebml-go v0.19.4
