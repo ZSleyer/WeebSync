@@ -133,18 +133,20 @@ func withTitles(h tvdb.Hit) anilist.Media {
 // queueTvdbMovieFetch refreshes a missing or stale TVDB film in the background.
 func (s *Server) queueTvdbMovieFetch(id int) {
 	s.runJob(fmt.Sprintf("tvmf:%d", id), func(ctx context.Context) {
-		// a stale entry that stays only costs the refresh
-		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:movie:media:%d", id))
-		s.Tvdb.Movie(ctx, id)
+		s.refetchCached(fmt.Sprintf("tvdb:movie:media:%d", id), func() error {
+			_, err := s.Tvdb.Movie(ctx, id)
+			return err
+		})
 	})
 }
 
 // queueTvdbFetch refreshes missing/stale TVDB media in the background.
 func (s *Server) queueTvdbFetch(id int) {
 	s.runJob(fmt.Sprintf("tvf:%d", id), func(ctx context.Context) {
-		// a stale entry that stays only costs the refresh
-		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tvdb:media:%d", id))
-		s.Tvdb.Media(ctx, id)
+		s.refetchCached(fmt.Sprintf("tvdb:media:%d", id), func() error {
+			_, err := s.Tvdb.Media(ctx, id)
+			return err
+		})
 	})
 }
 

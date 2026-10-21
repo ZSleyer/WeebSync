@@ -2,6 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -352,5 +354,47 @@ func TestDetachProviderKeepsWhatIsStillUsed(t *testing.T) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM series`).Scan(&n)
 	if n != 0 {
 		t.Fatal("a series without providers stayed")
+	}
+}
+
+// anilistDown makes every AniList request fail, as during an outage.
+func anilistDown(s *Server) {
+	s.Anilist.HTTP = &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return nil, errors.New("anilist down")
+	})}
+	s.Anilist.WithoutRateLimit()
+}
+
+// A refresh while AniList is down keeps the old entry: the watch keeps its
+// title and cover instead of showing no match until AniList is back.
+func TestRefetchCachedKeepsTheEntryWhenTheFetchFails(t *testing.T) {
+	s := sourceTestServer(t)
+	anilistDown(s)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('media:21', '{"id":21}', '2026-10-18 16:53:30')`)
+	s.refetchCached("media:21", func() error {
+		_, err := s.Anilist.Media(t.Context(), 21)
+		return err
+	})
+	var payload, fetched string
+	if err := s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = 'media:21'`).Scan(&payload, &fetched); err != nil {
+		t.Fatalf("entry gone after a failed refresh: %v", err)
+	}
+	if payload != `{"id":21}` || fetched != "2026-10-18 16:53:30" {
+		t.Fatalf("entry changed: %s %s", payload, fetched)
+	}
+}
+
+// AniList down while the folder's main query is answered from the cache: the
+// failed fallback search is no "nothing found", the stored match stays.
+func TestMatchBatchKeepsTheMatchWhenASearchFails(t *testing.T) {
+	s := sourceTestServer(t)
+	anilistDown(s)
+	const folder = "/f/Foo (Bar Baz)"
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES ('search:foo', '[]')`)
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, ?, 42, 'anilist')`, folder)
+	s.matchBatch([]matchJob{{serverID: 1, folder: folder, name: "Foo (Bar Baz)"}})
+	var id int
+	if err := s.DB.QueryRow(`SELECT media_id FROM catalog_matches WHERE folder = ?`, folder).Scan(&id); err != nil || id != 42 {
+		t.Fatalf("media_id %d err %v, want 42 kept", id, err)
 	}
 }

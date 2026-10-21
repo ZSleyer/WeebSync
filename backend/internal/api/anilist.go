@@ -334,7 +334,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	results, infos, _, err := s.searchChain(ctx, batch)
+	results, infos, trace, err := s.searchChain(ctx, batch)
 	if err != nil {
 		return
 	}
@@ -376,6 +376,12 @@ func (s *Server) matchBatch(batch []matchJob) {
 		if !b.force && s.hasManualMatch(b.serverID, b.folder) {
 			continue
 		}
+		// a search that failed (AniList down, the main query answered from
+		// the cache) says nothing: the stored match stays, the next poll asks
+		if picked[i] == nil && searchFailed(trace[i]) {
+			slog.Debug("match skipped", "folder", logSafe(b.folder), "reason", "a search failed")
+			continue
+		}
 		mediaID := 0
 		if picked[i] != nil {
 			mediaID = picked[i].ID
@@ -402,6 +408,16 @@ func (s *Server) matchBatch(batch []matchJob) {
 	hctx, hcancel := context.WithTimeout(context.Background(), time.Minute)
 	defer hcancel()
 	s.hintBatch(hctx, batch, infos, unmatched)
+}
+
+// searchFailed reports whether one of a folder's searches got no answer.
+func searchFailed(steps []searchStep) bool {
+	for _, st := range steps {
+		if st.Hits < 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // rescuable reports whether a non-confident best candidate is kept for the
@@ -668,10 +684,28 @@ func (s *Server) queueMediaFetch(id int) {
 	s.runJob(fmt.Sprintf("f:%d", id), func(ctx context.Context) {
 		// drop first: Media() would otherwise answer from a cache entry that
 		// is still fresh but written with an older field set (see sourceMedia)
-		// a failed drop only means the refetch below may answer from the older entry
-		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("media:%d", id))
-		s.Anilist.Media(ctx, id) // stores into the cache on success
+		s.refetchCached(fmt.Sprintf("media:%d", id), func() error {
+			_, err := s.Anilist.Media(ctx, id) // stores into the cache on success
+			return err
+		})
 	})
+}
+
+// refetchCached drops a cache entry and fetches it again; when the fetch fails
+// (the provider is down) the old entry is put back as it was, still stale, so
+// the folder keeps its title and cover and the next read asks again. Without
+// that an outage emptied every airing show's entry one refresh at a time.
+func (s *Server) refetchCached(key string, fetch func() error) {
+	var payload, fetched string
+	had := s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched) == nil
+	// a failed drop only means the refetch may answer from the older entry
+	_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
+	if fetch() == nil || !had {
+		return
+	}
+	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, ?)`, key, payload, fetched); err != nil {
+		slog.Warn("cache entry not restored after a failed refresh", "key", logSafe(key), "err", err)
+	}
 }
 
 // GuessTitle/GuessAltTitle live in internal/match; the aliases keep the

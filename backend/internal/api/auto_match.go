@@ -340,10 +340,14 @@ func (s *Server) queueAutoFallback(b matchJob, info match.Info) {
 		if !b.force && s.hasManualMatch(b.serverID, b.folder) {
 			return
 		}
-		if src, id := s.autoFallback(ctx, b, info); id != 0 {
+		src, id, failed := s.autoFallback(ctx, b, info)
+		if id != 0 {
 			// persistMatch logs a failure; the next catalog poll retries
 			_ = s.persistMatch(b.serverID, b.folder, id, false, src)
 			return
+		}
+		if failed {
+			return // a provider did not answer: the stored match stays, the next poll asks
 		}
 		_ = s.persistMatch(b.serverID, b.folder, 0, false, "anilist") // logged; the next poll asks again
 		if err := s.hintFolder(ctx, b.serverID, b.folder, b.name, info, b.force); err != nil {
@@ -361,15 +365,18 @@ func hasReleaseTags(name string) bool {
 }
 
 // autoFallback asks the providers after AniList for a folder AniList had no
-// confident pick for. A pick counts only through the strict gate.
-func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) (string, int) {
+// confident pick for. A pick counts only through the strict gate. failed says
+// a provider gave no answer, so "none" is not known.
+func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) (string, int, bool) {
+	failed := false
 	movie := s.autoMovie(b.serverID, b.folder, b.name, info)
 	for _, p := range b.auto.rest {
 		src, id, hit, err := s.westLookup(ctx, b.serverID, b.folder, b.name, p, movie, b.force)
 		if err != nil {
 			slog.Debug("auto match lookup", "folder", logSafe(b.folder), "provider", p, "err", err)
+			failed = true
 			if ctx.Err() != nil {
-				return "", 0
+				return "", 0, true
 			}
 			continue
 		}
@@ -382,7 +389,7 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 			continue
 		}
 		slog.Debug("auto match fell to another provider", "folder", logSafe(b.folder), "source", src, "media", id)
-		return src, id
+		return src, id, false
 	}
 	if !movie {
 		// the series list found nothing and the kind was never conclusive:
@@ -392,18 +399,19 @@ func (s *Server) autoFallback(ctx context.Context, b matchJob, info match.Info) 
 			src, id, hit, err := s.westLookup(ctx, b.serverID, b.folder, b.name, p, true, b.force)
 			if err != nil {
 				slog.Debug("auto match film lookup", "folder", logSafe(b.folder), "provider", p, "err", err)
+				failed = true
 				if ctx.Err() != nil {
-					return "", 0
+					return "", 0, true
 				}
 				continue
 			}
 			if id != 0 && s.westAccept(ctx, src, id, hit, info, b.auto.tier) {
 				slog.Debug("auto match fell to a film", "folder", logSafe(b.folder), "source", src, "media", id)
-				return src, id
+				return src, id, false
 			}
 		}
 	}
-	return "", 0
+	return "", 0, failed
 }
 
 // gateAutoPicks drops the AniList picks of an automatic mark that do not hold up:

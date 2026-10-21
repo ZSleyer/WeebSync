@@ -514,9 +514,10 @@ func (s *Server) tmdbLookup(ctx context.Context, serverID int64, folder, name, k
 // queueTmdbFetch refreshes missing/stale TMDB media in the background.
 func (s *Server) queueTmdbFetch(kind string, id int) {
 	s.runJob(fmt.Sprintf("tf:%s:%d", kind, id), func(ctx context.Context) {
-		// a stale entry that stays only costs the refresh
-		_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("tmdb:media:%s:%d", kind, id))
-		s.Tmdb.Media(ctx, kind, id)
+		s.refetchCached(fmt.Sprintf("tmdb:media:%s:%d", kind, id), func() error {
+			_, err := s.Tmdb.Media(ctx, kind, id)
+			return err
+		})
 	})
 }
 
