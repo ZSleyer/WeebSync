@@ -64,8 +64,18 @@ yarn lint && yarn format:check && yarn test && yarn build
 
 Versions follow Home Assistant: `YEAR.MONTH.N`. A month's release is `.0`, each fix after it counts up (`2026.10.0`, `2026.10.1`, then `2026.11.0`).
 
+Before tagging a `.0`:
+
+- **Freeze.** The release commit has run as `:dev` on a real instance for a few days. Only fixes land in that time.
+- **Checks.** `ci` (with the security scans) and CodeQL are green on that exact commit.
+- **Upgrade.** Start the previous stable image on a copy of a real `/data`, stop it, start the release candidate on the same copy. It must migrate and come up. Do this on amd64 and arm64.
+- **Notes.** The draft is up to date with every commit since its last stand. "Before you upgrade" names everything that breaks and asks to back up `/data` first: migrations only go forward, so going back to an older release means restoring that backup.
+
+Then:
+
 1. Tag the commit, signed and without a `v`: `git tag -s 2026.11.0 -m 2026.11.0 && git push origin 2026.11.0`
-2. The `release` workflow builds `:2026.11.0`, moves `:2026.11` and `:latest`.
-3. Publish a GitHub release for the tag with notes - the update check in the app reads the latest GitHub release.
+2. The `release` workflow builds `:2026.11.0`, moves `:2026.11` and `:latest`, and attaches the SBOM and a signed provenance to the image.
+3. Publish the drafted GitHub release for the tag - the update check in the app reads the latest GitHub release. With immutable releases switched on in the repository settings, a published release is locked: a broken release is fixed by the next `.N`, never by moving or reusing its tag. The notes stay editable, so add known problems there.
+4. Watch the own instance for a day or two. Data loss or a security hole gets a `.N+1` right away.
 
 A fix for an older month goes on a branch from that release's tag. To build a tag whose commit predates the current workflow, run `release` by hand with the tag; set *moving* to `no` for a release older than the newest, so `:latest` stays put.
