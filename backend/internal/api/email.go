@@ -108,10 +108,13 @@ func emailLink(href, label, size string) string {
 }
 
 // emailLines renders escaped content lines in the mail's monospace style.
+// Words wrap at spaces and are hyphenated in the mail's language where the
+// client can; only a token too long for the line (a file name, a URL) breaks
+// mid-word. break-all split every word anywhere, without a hyphen.
 func emailLines(lines []string) string {
 	var items strings.Builder
 	for _, l := range lines {
-		items.WriteString(`<p style="margin:6px 0;color:` + mailFg2 + `;font-family:` + mailMono + `;font-size:13px;line-height:1.5;word-break:break-all">`)
+		items.WriteString(`<p style="margin:6px 0;color:` + mailFg2 + `;font-family:` + mailMono + `;font-size:13px;line-height:1.5;overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto">`)
 		items.WriteString(html.EscapeString(l))
 		items.WriteString(`</p>`)
 	}
