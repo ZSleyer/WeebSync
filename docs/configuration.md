@@ -158,10 +158,11 @@ The compose file drops all capabilities except the four the start-up needs and l
 
 When nobody can sign in any more, set a new password from the shell where the data dir is:
 
+# put in your PUID:PGID if you set others
 ```sh
-docker compose exec -u 1000:1000 -it weebsync /weebsync reset-password admin@example.com
-# plain docker (use your own PUID:PGID; 65532:65532 if you set none):
-docker exec -u 1000:1000 -it weebsync /weebsync reset-password admin@example.com
+docker compose exec -u 65532:65532 -it weebsync /weebsync reset-password admin@example.com
+# plain docker, same ids:
+docker exec -u 65532:65532 -it weebsync /weebsync reset-password admin@example.com
 ```
 
 Run it as the user the app runs as (`-u`, put in your `PUID:PGID`; the shell does not know the values from compose's `.env`): `exec` otherwise starts as root in a container that began as root, and the database it touches would change owner. The compose file sets `WEEBSYNC_DATA=/config`, which the command needs to find the database, because `exec` does not see what the start-up chose. With a plain `docker run`, pass `-e WEEBSYNC_DATA=/config` there too (or `-e WEEBSYNC_DATA=/data` if your volume is on `/data`).
