@@ -44,7 +44,7 @@ services:
       PUID: ${PUID:-65532} # `id -u` of the owner of your media; 65532 keeps what earlier images wrote
       PGID: ${PGID:-65532} # `id -g`
       TZ: ${TZ:-UTC} # log timestamps, any IANA name
-      # UMASK: "022" # permissions of new files, default: the host's
+      # UMASK: "022" # permissions of new files, default: 022
       WEEBSYNC_DATA: /config # picked automatically when /config is mounted; set so `docker compose exec` commands find it too
       # WEEBSYNC_LOG_LEVEL: info # trace|debug|info|warn|error
 

@@ -38,7 +38,7 @@ volumes:
     name: weebsync-data
 ```
 
-The start-up hands `/config` to `PUID:PGID` (65532 unless you set them), and the image creates `/config` owned by 65532, so a fresh named volume is writable without further steps. A volume you created with an older image keeps working: its files are handed over on the first start if you set other ids. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
+The start-up hands `/config` to `PUID:PGID` (65532 unless you set them), and the image creates `/config` owned by 65532, so a fresh named volume is writable without further steps. A volume you created with an older image keeps working: its files are handed over on the first start if you set other ids, but only with `user: "0:0"` plus the `cap_add` from the main [compose file](../docker-compose.yml); without them `PUID` and `PGID` are ignored and the log says so. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
 
 Keeping the whole project in the WSL file system (`\\wsl$\<distro>\home\you\weebsync`, with `./data` next to the compose file) works as well. In that case `./data` is handed to `PUID:PGID` on the first start; run `chown` yourself only if you use `user:` instead.
 
@@ -156,6 +156,7 @@ services:
         target: /media
     environment:
       TZ: ${TZ:-UTC}
+      WEEBSYNC_DATA: /config
       WEEBSYNC_DOWNLOADS: /media:/config/downloads
     restart: unless-stopped
     cap_drop: [ALL]

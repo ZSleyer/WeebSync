@@ -54,7 +54,7 @@ To adopt the new layout:
 
 1. Change the mount target from `/data` to `/config`; the host folder stays. The compose file's volume line is `./data:/config`.
 2. Add the lines from the current compose file (`user: "0:0"`, `PUID`, `PGID`, `cap_add`, `WEEBSYNC_DATA`). Re-downloading the file overwrites your edits, so merge it.
-3. `PUID` and `PGID` default to 65532 in the compose file, the owner your data already has, so the first start changes nothing. Set them to the host user (`id -u`, `id -g`) if you want your own ids. The start-up then hands the config folder, and only that, to the new owner.
+3. `PUID` and `PGID` default to 65532 in the compose file, the owner your data already has, so the first start changes nothing for a setup that ran without `user:`. If you ran with `user: "1000:1000"` (or other ids) before, set `PUID` and `PGID` to those ids, otherwise the config folder is handed to 65532 and the app can no longer write the download folders owned by your user. Set them to the host user (`id -u`, `id -g`) if you want your own ids instead. The start-up then hands the config folder, and only that, to the new owner.
 4. Download and media folders are never walked, so files WeebSync wrote there as 65532 keep that owner. After switching ids, run a one-time `chown -R PUID:PGID` on them on the host. Folders you list in `WEEBSYNC_DOWNLOADS` that sit on a mount of their own need the same.
 
 ## Environment variables
@@ -159,12 +159,12 @@ The compose file drops all capabilities except the four the start-up needs and l
 When nobody can sign in any more, set a new password from the shell where the data dir is:
 
 ```sh
-docker compose exec -u "${PUID:-65532}:${PGID:-65532}" -it weebsync /weebsync reset-password admin@example.com
-# plain docker:
+docker compose exec -u 1000:1000 -it weebsync /weebsync reset-password admin@example.com
+# plain docker (use your own PUID:PGID; 65532:65532 if you set none):
 docker exec -u 1000:1000 -it weebsync /weebsync reset-password admin@example.com
 ```
 
-Run it as the user the app runs as (`-u`, your `PUID:PGID`): `exec` otherwise starts as root in a container that began as root, and the database it touches would change owner. The compose file sets `WEEBSYNC_DATA=/config`, which the command needs to find the database, because `exec` does not see what the start-up chose. With a plain `docker run`, pass `-e WEEBSYNC_DATA=/config` there too (or `-e WEEBSYNC_DATA=/data` if your volume is on `/data`).
+Run it as the user the app runs as (`-u`, put in your `PUID:PGID`; the shell does not know the values from compose's `.env`): `exec` otherwise starts as root in a container that began as root, and the database it touches would change owner. The compose file sets `WEEBSYNC_DATA=/config`, which the command needs to find the database, because `exec` does not see what the start-up chose. With a plain `docker run`, pass `-e WEEBSYNC_DATA=/config` there too (or `-e WEEBSYNC_DATA=/data` if your volume is on `/data`).
 
 It asks for the new password twice without showing it; piped in, it takes the first line. The account's sessions end and its address counts as verified. An admin can also set a password for any account under **Settings → Users**.
 
