@@ -36,6 +36,11 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
       -X github.com/ch4d1/weebsync/internal/version.Commit=$COMMIT \
       -X github.com/ch4d1/weebsync/internal/version.Repo=$REPO" -o /weebsync . \
     && mkdir -p /data/downloads
+# the init that maps PUID/PGID (cmd/entrypoint), a second tiny static binary
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
+    go build -trimpath -ldflags="-s -w" -o /entrypoint ./cmd/entrypoint
 
 # ── ffmpeg ── (Debian's own source package, a smaller configuration)
 # Debian's ffmpeg package links every codec library it knows (x265, aom, flite,
@@ -142,18 +147,33 @@ EOF
 # library, CA certificates and tzdata of Debian 13, and the user nonroot (uid
 # 65532). Everything else is the /rootfs above, the Go binary and the frontend.
 FROM gcr.io/distroless/cc-debian13@sha256:159783207c2cd44c2aa5715961d13c8612368ac9bd450f887e3f08fc8ea461e3
+# static OCI labels; CI adds version, revision and created from the build
+LABEL org.opencontainers.image.title="WeebSync" \
+      org.opencontainers.image.description="Sync anime from S/FTP servers: download manager, auto-sync, rename engine, catalog and player" \
+      org.opencontainers.image.url="https://github.com/ZSleyer/WeebSync" \
+      org.opencontainers.image.source="https://github.com/ZSleyer/WeebSync" \
+      org.opencontainers.image.documentation="https://github.com/ZSleyer/WeebSync/blob/main/docs/configuration.md" \
+      org.opencontainers.image.licenses="AGPL-3.0-only"
 COPY --from=rootfs /rootfs/ /
 COPY --from=build /weebsync /weebsync
+COPY --from=build /entrypoint /entrypoint
 # pre-owned data dir so the nonroot user can write the volume
 COPY --from=build --chown=65532:65532 /data /data
 COPY --from=web /src/frontend/dist /web
+# WEEBSYNC_DATA is chosen by /entrypoint (see below) unless set
 ENV WEEBSYNC_ADDR=:8080 \
-    WEEBSYNC_DATA=/data \
     WEEBSYNC_WEB=/web
 VOLUME /data
 EXPOSE 8080
+# State lives in /config when a volume is mounted there (the linuxserver.io
+# layout, /entrypoint picks it up), else in /data as in earlier images.
+# Starts as nonroot (65532) exactly as before. PUID, PGID and UMASK take effect
+# only when the container is started as root (docker run --user 0 / compose
+# user: "0:0"): /entrypoint then fixes the data dir and drops to PUID:PGID.
+# Not setting USER root here keeps every existing deployment (cap_drop ALL,
+# no user:) working, because root without capabilities could not drop.
 USER 65532:65532
 # the binary probes its own /healthz
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD ["/weebsync", "-healthcheck"]
-ENTRYPOINT ["/weebsync"]
+ENTRYPOINT ["/entrypoint"]
