@@ -4,7 +4,7 @@ services:
     # build: . # build from this checkout instead
     # PUID/PGID: the user and group that own your media. The container starts
     # as root only for this, fixes the ownership of /config and drops to that
-    # user before the app starts. That is why the three capabilities below
+    # user before the app starts. That is why the four capabilities below
     # are added back. Already running with `user: "1000:1000"` instead? Remove
     # the next line and the cap_add, nothing else changes (docs/configuration.md,
     # "File ownership")
@@ -41,8 +41,8 @@ services:
       # or a download folder with the usual name
       # - /srv/downloads:/downloads
     environment:
-      PUID: ${PUID:-1000} # `id -u` of the owner of your media
-      PGID: ${PGID:-1000} # `id -g`
+      PUID: ${PUID:-65532} # `id -u` of the owner of your media; 65532 keeps what earlier images wrote
+      PGID: ${PGID:-65532} # `id -g`
       TZ: ${TZ:-UTC} # log timestamps, any IANA name
       # UMASK: "022" # permissions of new files, default: the host's
       WEEBSYNC_DATA: /config # picked automatically when /config is mounted; set so `docker compose exec` commands find it too
@@ -95,7 +95,7 @@ services:
       # AI_MODEL: ""
       # AI_SEARCH_URL: http://searxng.example.com:8080
     restart: unless-stopped
-    # hardening that travels with the file: no capabilities except the three
+    # hardening that travels with the file: no capabilities except the four
     # the start-up needs to hand /config to PUID:PGID and drop root (they are
     # gone once the app runs; without `user: "0:0"` above none is needed), no
     # privilege gain via setuid, read-only root. Writes go

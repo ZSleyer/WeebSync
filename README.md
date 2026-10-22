@@ -40,7 +40,7 @@ Open `http://localhost:8080` and enter the setup code the server writes to its l
 | Parameter | Function |
 |---|---|
 | `-p 8080:8080` | Web interface and API (plain HTTP) |
-| `-e PUID=1000` / `-e PGID=1000` | User and group id that own the files WeebSync writes (the container starts as root only to switch to them) |
+| `-e PUID=1000` / `-e PGID=1000` | User and group id that own the files WeebSync writes (default 65532; the container starts as root only to switch to them) |
 | `-e TZ=Etc/UTC` | Timezone |
 | `-e UMASK=022` | Permission mask for new files, optional |
 | `-v /path/to/config:/config` | Database, secret key and default downloads |

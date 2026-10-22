@@ -38,7 +38,7 @@ volumes:
     name: weebsync-data
 ```
 
-The start-up hands `/config` to `PUID:PGID` (1000 in the compose file), so a fresh named volume is writable without further steps. A volume you created with an older image stays as it is: its files are handed over on the first start. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
+The start-up hands `/config` to `PUID:PGID` (65532 unless you set them), and the image creates `/config` owned by 65532, so a fresh named volume is writable without further steps. A volume you created with an older image keeps working: its files are handed over on the first start if you set other ids. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
 
 Keeping the whole project in the WSL file system (`\\wsl$\<distro>\home\you\weebsync`, with `./data` next to the compose file) works as well. In that case `./data` is handed to `PUID:PGID` on the first start; run `chown` yourself only if you use `user:` instead.
 
@@ -52,7 +52,7 @@ docker run --rm -v weebsync-data:/data:ro -v "${PWD}:/backup" alpine tar czf /ba
 docker compose start weebsync
 ```
 
-The archive includes `secret.key`. Without it the stored passwords are unreadable, so keep the archive somewhere safe (it holds the key next to the data it protects). Restore into an empty volume with `tar xzf /backup/weebsync-data.tgz -C /data` in the same kind of `docker run`, then `chown -R 1000:1000 /data` (your `PUID:PGID`; the start-up would also do it).
+The archive includes `secret.key`. Without it the stored passwords are unreadable, so keep the archive somewhere safe (it holds the key next to the data it protects). Restore into an empty volume with `tar xzf /backup/weebsync-data.tgz -C /data` in the same kind of `docker run`, then `chown -R 65532:65532 /data` (or your `PUID:PGID`; the start-up hands over the config folder too when you set them).
 
 ## Media drives
 
