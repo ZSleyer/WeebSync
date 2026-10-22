@@ -19,6 +19,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -60,12 +61,14 @@ func run(args, environ []string) error {
 		syscall.Umask(umask)
 	}
 
+	mounts, mountsKnown := readMounts()
+
 	// the state dir: WEEBSYNC_DATA as set, else /config when something is
 	// mounted there (linuxserver.io layout), else /data as before
 	dir := get("WEEBSYNC_DATA")
 	if dir == "" {
 		dir = defaultDir
-		if isMount(configDir) {
+		if mountsKnown && slices.Contains(mounts, configDir) {
 			dir = configDir
 		}
 		env = append(env, "WEEBSYNC_DATA="+dir)
@@ -80,17 +83,18 @@ func run(args, environ []string) error {
 		if err != nil {
 			return err
 		}
-		if uid != 0 {
-			roots := filepath.SplitList(get("WEEBSYNC_DOWNLOADS"))
-			if len(roots) == 0 {
-				roots = []string{filepath.Join(dir, "downloads")}
-			}
-			if err := chownTree(dir, roots, uid, gid); err != nil {
-				return fmt.Errorf("data dir %s: %w (the container needs CHOWN and DAC_READ_SEARCH, see docs/configuration.md)", dir, err)
-			}
-			if err := drop(uid, gid); err != nil {
-				return fmt.Errorf("drop to %d:%d: %w (the container needs SETUID and SETGID, see docs/configuration.md)", uid, gid, err)
-			}
+		roots := filepath.SplitList(get("WEEBSYNC_DOWNLOADS"))
+		if len(roots) == 0 {
+			roots = []string{filepath.Join(dir, "downloads")}
+		}
+		if !mountsKnown {
+			fmt.Fprintln(os.Stderr, "entrypoint: /proc/self/mountinfo is unreadable, handing over only the top of", dir)
+		}
+		if err := chownTree(dir, roots, mounts, mountsKnown, uid, gid, os.Lchown); err != nil {
+			return fmt.Errorf("data dir %s: %w (the container needs CHOWN and DAC_READ_SEARCH, see docs/configuration.md)", dir, err)
+		}
+		if err := drop(uid, gid); err != nil {
+			return fmt.Errorf("drop to %d:%d: %w (the container needs SETUID and SETGID, see docs/configuration.md)", uid, gid, err)
 		}
 	} else if get("PUID") != "" || get("PGID") != "" {
 		fmt.Fprintln(os.Stderr, "entrypoint: PUID/PGID ignored, the container does not start as root")
@@ -99,38 +103,73 @@ func run(args, environ []string) error {
 	return syscall.Exec(app, append([]string{app}, args...), env)
 }
 
-// isMount reports whether path is a mount point of this container.
-func isMount(path string) bool {
+// readMounts lists the mount points of this container. ok is false when
+// the list cannot be read.
+func readMounts() (mounts []string, ok bool) {
 	b, err := os.ReadFile("/proc/self/mountinfo")
-	return err == nil && inMountinfo(string(b), path)
+	if err != nil {
+		return nil, false
+	}
+	return parseMountinfo(string(b)), true
 }
 
-// inMountinfo looks for path as the mount point (5th field) in mountinfo text.
-func inMountinfo(info, path string) bool {
+// parseMountinfo returns the mount points (5th field) of mountinfo text, with
+// the octal escapes (\040 for a space) undone.
+func parseMountinfo(info string) []string {
+	var out []string
 	for _, line := range strings.Split(info, "\n") {
 		f := strings.Fields(line)
-		if len(f) > 4 && f[4] == path {
-			return true
+		if len(f) > 4 {
+			out = append(out, unescapeMount(f[4]))
 		}
 	}
-	return false
+	return out
 }
 
-// fileEnv resolves every FILE__NAME=/path to NAME=<content of path>.
+func unescapeMount(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+4 <= len(s) {
+			if n, err := strconv.ParseUint(s[i+1:i+4], 8, 8); err == nil {
+				b.WriteByte(byte(n))
+				i += 3
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// fileEnv resolves every FILE__NAME=/path to NAME=<content of path>. The file
+// wins over a NAME that is also set directly.
 func fileEnv(environ []string) ([]string, error) {
-	out := make([]string, 0, len(environ))
+	fromFile := map[string]string{}
 	for _, kv := range environ {
 		k, v, _ := strings.Cut(kv, "=")
 		name, ok := strings.CutPrefix(k, "FILE__")
 		if !ok || name == "" {
-			out = append(out, kv)
 			continue
 		}
 		b, err := os.ReadFile(v)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", k, err)
 		}
-		out = append(out, name+"="+strings.TrimRight(string(b), "\r\n"))
+		fromFile[name] = strings.TrimRight(string(b), "\r\n")
+	}
+	out := make([]string, 0, len(environ))
+	for _, kv := range environ {
+		k, _, _ := strings.Cut(kv, "=")
+		if _, over := fromFile[k]; over {
+			continue
+		}
+		if name, ok := strings.CutPrefix(k, "FILE__"); ok && name != "" {
+			continue
+		}
+		out = append(out, kv)
+	}
+	for k, v := range fromFile {
+		out = append(out, k+"="+v)
 	}
 	return out, nil
 }
@@ -142,6 +181,9 @@ func parseID(name, s string) (int, error) {
 	n, err := strconv.ParseUint(s, 10, 31)
 	if err != nil {
 		return 0, fmt.Errorf("%s=%q is not a numeric id", name, s)
+	}
+	if n == 0 {
+		return 0, fmt.Errorf("%s=0 would run the app as root; use the id of an unprivileged user (or leave it unset for %d)", name, defaultID)
 	}
 	return int(n), nil
 }
@@ -178,32 +220,37 @@ func drop(uid, gid int) error {
 	return syscall.Setuid(uid)
 }
 
-// chownTree gives dir and everything below it to uid:gid. It changes only what
-// differs, never follows symlinks, never crosses into another file system (a
-// media mount inside the data dir) and does not descend into the download
-// roots: those hold the media, only their top directory is handed over.
-func chownTree(dir string, skip []string, uid, gid int) error {
+// chownTree gives dir and everything below it to uid:gid through chown. It
+// changes only what differs, never follows symlinks (it chowns the link
+// itself), never enters or touches a mount point below dir (a media volume,
+// even one on the same file system) and does not descend into the download
+// roots: those hold the media, only their top directory is handed over. When
+// the mount list is unknown (mountsKnown false) it hands over dir alone.
+func chownTree(dir string, skip, mounts []string, mountsKnown bool, uid, gid int, chown func(string, int, int) error) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	// /config is a symlink to /data in the image; WalkDir does not follow a
-	// symlink root
+	// the state dir may be given through a symlink; WalkDir does not follow
+	// a symlink root
 	dir, err := filepath.EvalSymlinks(dir)
 	if err != nil {
 		return err
 	}
-	skipped := map[string]bool{}
-	for _, s := range skip {
-		a, err := filepath.Abs(s)
-		if err != nil {
-			continue
+	set := func(paths []string) map[string]bool {
+		m := map[string]bool{}
+		for _, s := range paths {
+			a, err := filepath.Abs(s)
+			if err != nil {
+				continue
+			}
+			if r, err := filepath.EvalSymlinks(a); err == nil {
+				a = r
+			}
+			m[filepath.Clean(a)] = true
 		}
-		if r, err := filepath.EvalSymlinks(a); err == nil {
-			a = r
-		}
-		skipped[filepath.Clean(a)] = true
+		return m
 	}
-	var dev uint64
+	skipped, mounted := set(skip), set(mounts)
 	return filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if errors.Is(err, fs.ErrNotExist) {
@@ -211,28 +258,22 @@ func chownTree(dir string, skip []string, uid, gid int) error {
 			}
 			return err
 		}
-		info, err := d.Info()
-		if err != nil {
-			return err
-		}
-		st, ok := info.Sys().(*syscall.Stat_t)
-		if !ok {
-			return nil
-		}
-		if p == dir {
-			dev = uint64(st.Dev)
-		} else if uint64(st.Dev) != dev {
+		if p != dir && mounted[p] {
 			if d.IsDir() {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if int(st.Uid) != uid || int(st.Gid) != gid {
-			if err := os.Lchown(p, uid, gid); err != nil {
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); ok && (int(st.Uid) != uid || int(st.Gid) != gid) {
+			if err := chown(p, uid, gid); err != nil {
 				return err
 			}
 		}
-		if d.IsDir() && p != dir && skipped[p] {
+		if d.IsDir() && (!mountsKnown || (p != dir && skipped[p])) {
 			return filepath.SkipDir
 		}
 		return nil
