@@ -277,9 +277,9 @@ func (s *Server) sendLoginNotice(userID int64, method string, when time.Time, ip
 		what := tr(locale, "login.body")
 		notMe := tr(locale, "login.notMe")
 		text := what + "\r\n\r\n" + where + "\r\n\r\n" + notMe
-		extra := `<p style="margin:12px 0;color:#8b949e;font-size:12px">` + html.EscapeString(where) + `</p>` +
-			`<p style="margin:12px 0;color:#e6edf3;font-size:13px">` + html.EscapeString(notMe) + `</p>`
-		htmlBody := emailHTML(locale, subject, emailLines([]string{what}), extra, "")
+		extra := `<p style="margin:12px 0;color:` + mailFg3 + `;font-size:12px">` + html.EscapeString(where) + `</p>` +
+			`<p style="margin:12px 0;color:` + mailFg + `;font-size:13px">` + html.EscapeString(notMe) + `</p>`
+		htmlBody := emailHTML(locale, what, subject, emailLines([]string{what}), extra, "")
 		if err := s.sendSecurityMail(to, "WeebSync – "+subject, text, htmlBody); err != nil {
 			slog.Warn("login notice", "err", err)
 		}

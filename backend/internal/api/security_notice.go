@@ -55,9 +55,9 @@ func (s *Server) securityNotice(r *http.Request, userID int64, event string) {
 		where := tr(locale, "email.securityWhere", when, ip, ua)
 		notMe := tr(locale, "email.securityNotMe")
 		text := what + "\r\n\r\n" + where + "\r\n\r\n" + notMe
-		extra := `<p style="margin:12px 0;color:#8b949e;font-size:12px">` + html.EscapeString(where) + `</p>` +
-			`<p style="margin:12px 0;color:#e6edf3;font-size:13px">` + html.EscapeString(notMe) + `</p>`
-		htmlBody := emailHTML(locale, subject, emailLines([]string{what}), extra, "")
+		extra := `<p style="margin:12px 0;color:` + mailFg3 + `;font-size:12px">` + html.EscapeString(where) + `</p>` +
+			`<p style="margin:12px 0;color:` + mailFg + `;font-size:13px">` + html.EscapeString(notMe) + `</p>`
+		htmlBody := emailHTML(locale, what, subject, emailLines([]string{what}), extra, "")
 		if err := s.sendSecurityMail(to, "WeebSync – "+subject, text, htmlBody); err != nil {
 			slog.Warn("security notice", "event", event, "err", err)
 		}

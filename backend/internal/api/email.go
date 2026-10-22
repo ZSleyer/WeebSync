@@ -73,11 +73,45 @@ func origin(raw string) (string, bool) {
 	return u.Scheme + "://" + u.Host, true
 }
 
+// Mail palette and type: the dark Fluid Lycoris tokens from
+// design-system/src/fluid-lycoris.css. Mails stay dark - most clients ignore a
+// light/dark switch, and inline styles cannot read the CSS variables.
+const (
+	mailBg       = "#000000" // --bg
+	mailCard     = "#0b1120" // --card
+	mailLine     = "#1f2a40" // --line
+	mailFg       = "#eef2f7" // --fg
+	mailFg2      = "#bccadb" // --fg-2
+	mailFg3      = "#8ea2b9" // --fg-3
+	mailAccent   = "#ef6177" // --accent, red
+	mailOnAccent = "#1a0509" // --on-accent
+	mailAccent2  = "#33c2b5" // --accent-2, teal
+	mailDisplay  = `'Chakra Petch',Bahnschrift,'DIN Alternate',-apple-system,'Segoe UI',sans-serif`
+	mailSans     = `'IBM Plex Sans',-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif`
+	mailMono     = `'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace`
+)
+
+// emailButton renders the main action of a mail (escaped href and label): a
+// table cell carries the colour so the whole button is filled even where the
+// link's padding is dropped (Outlook's Word engine reads mso-padding-alt).
+func emailButton(href, label, margin string) string {
+	return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:` + margin + `;border-collapse:separate"><tr>` +
+		`<td bgcolor="` + mailAccent + `" style="background:` + mailAccent + `;border-radius:8px;mso-padding-alt:10px 18px">` +
+		`<a href="` + html.EscapeString(href) + `" style="display:inline-block;padding:10px 18px;color:` + mailOnAccent + `;font-family:` + mailSans + `;font-size:15px;font-weight:600;line-height:20px;text-decoration:none">` + html.EscapeString(label) + `</a>` +
+		`</td></tr></table>`
+}
+
+// emailLink renders an inline link, underlined so it does not rest on colour
+// alone (WCAG 1.4.1).
+func emailLink(href, label, size string) string {
+	return `<a href="` + html.EscapeString(href) + `" style="color:` + mailAccent + `;font-size:` + size + `;text-decoration:underline">` + html.EscapeString(label) + `</a>`
+}
+
 // emailLines renders escaped content lines in the mail's monospace style.
 func emailLines(lines []string) string {
 	var items strings.Builder
 	for _, l := range lines {
-		items.WriteString(`<p style="margin:6px 0;color:#9da7b3;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5;word-break:break-all">`)
+		items.WriteString(`<p style="margin:6px 0;color:` + mailFg2 + `;font-family:` + mailMono + `;font-size:13px;line-height:1.5;word-break:break-all">`)
 		items.WriteString(html.EscapeString(l))
 		items.WriteString(`</p>`)
 	}
@@ -94,26 +128,54 @@ func oneLine(s string) string {
 	}), " ")
 }
 
-// emailHTML wraps pre-rendered content in the WeebSync mail layout (inline
-// styles only - email clients ignore stylesheets). manage is the
-// notification-settings URL for the footer ("" hides the link).
-func emailHTML(locale, title, content, extra, manage string) string {
+// emailHTML wraps pre-rendered content in the WeebSync mail layout. Built to
+// the usual mail-client rules: inline styles only (clients drop stylesheets),
+// layout tables marked role="presentation" so screen readers skip them, a lang
+// attribute, one h1, and a hidden preheader - the line an inbox shows next to
+// the subject, which would otherwise be the wordmark. The colour-scheme meta
+// tells Apple Mail the mail is already dark, so it is left as it is. manage is
+// the notification-settings URL for the footer ("" hides the link).
+func emailHTML(locale, preheader, title, content, extra, manage string) string {
+	lang := locale
+	if _, ok := catalog["email.footer"][lang]; !ok {
+		lang = "en" // tr's fallback
+	}
 	footer := html.EscapeString(tr(locale, "email.footer"))
 	if manage != "" {
-		footer += ` · <a href="` + html.EscapeString(manage) + `" style="color:#a685f0;text-decoration:none">` + html.EscapeString(tr(locale, "email.manage")) + `</a>`
+		footer += ` · ` + emailLink(manage, tr(locale, "email.manage"), "12px")
 	}
-	return `<div style="background:#0d1117;padding:24px 12px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
-  <div style="max-width:560px;margin:0 auto;background:#161b22;border:1px solid #30363d">
-    <div style="padding:14px 20px;border-bottom:1px solid #30363d">
-      <span style="color:#e6edf3;font-weight:700;font-size:15px;letter-spacing:3px">WEEB<span style="color:#a685f0">SYNC</span></span>
-    </div>
-    <div style="padding:20px">
-      <h1 style="margin:0 0 12px;font-size:16px;font-weight:600;color:#e6edf3">` + html.EscapeString(title) + `</h1>` +
+	// zero-width fillers keep the client from padding a short preheader with
+	// the body text
+	pad := strings.Repeat("&#847;&zwnj;&nbsp;", 60)
+	// the wordmark as in the app's Brand: WEEB red, SYNC teal
+	return `<!doctype html>
+<html lang="` + html.EscapeString(lang) + `">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="supported-color-schemes" content="dark">
+<title>` + html.EscapeString(title) + `</title>
+<style>:root{color-scheme:dark;supported-color-schemes:dark}</style>
+</head>
+<body style="margin:0;padding:0;background:` + mailBg + `">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all">` + html.EscapeString(oneLine(preheader)) + pad + `</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="` + mailBg + `" style="background:` + mailBg + `"><tr><td align="center" style="padding:24px 12px">
+<!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="` + mailCard + `" style="max-width:560px;background:` + mailCard + `;border:1px solid ` + mailLine + `;border-radius:14px;border-collapse:separate;font-family:` + mailSans + `">
+  <tr><td style="padding:16px 24px;border-bottom:1px solid ` + mailLine + `">
+    <span style="color:` + mailAccent + `;font-family:` + mailDisplay + `;font-weight:700;font-size:16px;letter-spacing:3px">WEEB<span style="color:` + mailAccent2 + `">SYNC</span></span>
+  </td></tr>
+  <tr><td style="padding:24px;color:` + mailFg + `;font-size:15px;line-height:1.5">
+    <h1 style="margin:0 0 12px;font-family:` + mailDisplay + `;font-size:20px;line-height:1.3;font-weight:600;color:` + mailFg + `">` + html.EscapeString(title) + `</h1>` +
 		content + extra + `
-    </div>
-    <div style="padding:10px 20px;border-top:1px solid #30363d;color:#6e7681;font-size:11px">` + footer + `</div>
-  </div>
-</div>`
+  </td></tr>
+  <tr><td style="padding:12px 24px;border-top:1px solid ` + mailLine + `;color:` + mailFg3 + `;font-size:12px;line-height:1.5">` + footer + `</td></tr>
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td></tr></table>
+</body>
+</html>`
 }
 
 // sendVerifyEmail delivers the account-verification link. Fire-and-forget:
@@ -132,9 +194,9 @@ func (s *Server) sendVerifyEmail(to, token, locale string) {
 	link := origin + "/api/auth/verify?token=" + token
 	welcome, intro, ignore := tr(locale, "email.verifyWelcome"), tr(locale, "email.verifyIntro"), tr(locale, "email.verifyIgnore")
 	text := welcome + "\r\n\r\n" + intro + "\r\n" + link + "\r\n\r\n" + ignore
-	button := `<p style="margin:18px 0"><a href="` + html.EscapeString(link) + `" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.verifyButton")) + `</a></p>` +
-		`<p style="margin:6px 0;color:#6e7681;font-size:12px">` + html.EscapeString(ignore) + `</p>`
-	htmlBody := emailHTML(locale, welcome, emailLines([]string{intro}), button, "")
+	button := emailButton(link, tr(locale, "email.verifyButton"), "18px 0") +
+		`<p style="margin:6px 0;color:` + mailFg3 + `;font-size:12px">` + html.EscapeString(ignore) + `</p>`
+	htmlBody := emailHTML(locale, intro, welcome, emailLines([]string{intro}), button, "")
 	if err := s.Mail.Send(to, "WeebSync – "+tr(locale, "email.verifySubject"), text, htmlBody); err != nil {
 		slog.Error("verify email failed", "to", to, "err", err)
 		// clears the resend throttle so the user can ask again; if this fails
@@ -151,9 +213,9 @@ func (s *Server) sendResetEmail(to, token, locale string) {
 	link := s.baseURL() + "/#reset=" + token
 	intro, ignore := tr(locale, "email.resetIntro"), tr(locale, "email.resetIgnore")
 	text := intro + "\r\n" + link + "\r\n\r\n" + ignore
-	button := `<p style="margin:18px 0"><a href="` + html.EscapeString(link) + `" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.resetButton")) + `</a></p>` +
-		`<p style="margin:6px 0;color:#6e7681;font-size:12px">` + html.EscapeString(ignore) + `</p>`
-	htmlBody := emailHTML(locale, tr(locale, "email.resetSubject"), emailLines([]string{intro}), button, "")
+	button := emailButton(link, tr(locale, "email.resetButton"), "18px 0") +
+		`<p style="margin:6px 0;color:` + mailFg3 + `;font-size:12px">` + html.EscapeString(ignore) + `</p>`
+	htmlBody := emailHTML(locale, intro, tr(locale, "email.resetSubject"), emailLines([]string{intro}), button, "")
 	if err := s.Mail.Send(to, "WeebSync – "+tr(locale, "email.resetSubject"), text, htmlBody); err != nil {
 		slog.Warn("reset email", "to", to, "err", err)
 	}
@@ -291,7 +353,7 @@ func (s *Server) NotifyEvent(userID int64, category, title, body, url, icon stri
 	if base := s.baseURL(); base != "" {
 		manage = base + "/settings/notifications"
 	}
-	s.EmailNotify(userID, category, title, oneLine(body), emailHTML(locale, title, "<p>"+html.EscapeString(body)+"</p>", extra, manage))
+	s.EmailNotify(userID, category, title, oneLine(body), emailHTML(locale, body, title, "<p>"+html.EscapeString(body)+"</p>", extra, manage))
 }
 
 // EmailNotify emails a single user for a category they opted into, if their
@@ -408,10 +470,10 @@ func (s *Server) flushDigest(key string, userID int64, category string) {
 	extra, manage := "", ""
 	if base := s.baseURL(); base != "" {
 		manage = base + "/settings/notifications"
-		extra = `<p style="margin:18px 0 4px"><a href="` + html.EscapeString(base) + `/" style="background:#a685f0;color:#0d1117;padding:10px 18px;text-decoration:none;font-weight:600;font-size:14px">` + html.EscapeString(tr(locale, "email.openDashboard")) + `</a></p>`
+		extra = emailButton(base+"/", tr(locale, "email.openDashboard"), "18px 0 4px")
 		text += "\r\n\r\n" + base + "/\r\n" + tr(locale, "email.manage") + ": " + manage
 	}
-	s.EmailNotify(userID, category, subject, text, emailHTML(locale, subject, content, extra, manage))
+	s.EmailNotify(userID, category, subject, text, emailHTML(locale, intro, subject, content, extra, manage))
 }
 
 // downloadsPending reports whether the queue still has work. Paused entries do
@@ -485,16 +547,16 @@ func (s *Server) renderDigest(locale, intro string, items []digestItem) (text, c
 		t.WriteString(g.title)
 		t.WriteString(":\r\n  ")
 		t.WriteString(strings.Join(g.names, "\r\n  "))
-		body := `<p style="margin:0 0 6px;color:#e6edf3;font-size:14px;font-weight:600">` + html.EscapeString(g.title) + `</p>` + emailLines(g.names)
+		body := `<p style="margin:0 0 6px;color:` + mailFg + `;font-size:14px;font-weight:600">` + html.EscapeString(g.title) + `</p>` + emailLines(g.names)
 		if g.plexLink != "" {
-			body += `<p style="margin:4px 0 0"><a href="` + html.EscapeString(g.plexLink) + `" style="color:#a685f0;font-size:12px;text-decoration:none">` + html.EscapeString(tr(locale, "email.openPlex", s.mediaServerName())) + `</a></p>`
+			body += `<p style="margin:4px 0 0">` + emailLink(g.plexLink, tr(locale, "email.openPlex", s.mediaServerName()), "13px") + `</p>`
 			t.WriteString("\r\n  " + s.mediaServerName() + ": ")
 			t.WriteString(g.plexLink)
 		}
 		if g.cover != "" {
 			c.WriteString(`<table role="presentation" style="margin:14px 0 0;border-collapse:collapse"><tr><td style="vertical-align:top;padding-right:12px"><img src="`)
 			c.WriteString(html.EscapeString(g.cover))
-			c.WriteString(`" width="64" alt="" style="display:block;border:1px solid #30363d"></td><td style="vertical-align:top">`)
+			c.WriteString(`" width="64" alt="" style="display:block;border-radius:6px"></td><td style="vertical-align:top">`)
 			c.WriteString(body)
 			c.WriteString(`</td></tr></table>`)
 		} else {
@@ -538,7 +600,7 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 			}
 			// args come from users/remote servers, so the body can carry CR/LF
 			subject, body := tr(rc.locale, subjectKey), oneLine(tr(rc.locale, bodyKey, args...))
-			htmlBody := emailHTML(rc.locale, subject, emailLines([]string{body}), "", s.baseURL()+"/settings/notifications")
+			htmlBody := emailHTML(rc.locale, body, subject, emailLines([]string{body}), "", s.baseURL()+"/settings/notifications")
 			if err := s.Mail.Send(rc.email, "WeebSync – "+subject, body, htmlBody); err != nil {
 				slog.Warn("admin notify email", "to", rc.email, "err", err)
 			}
@@ -663,7 +725,7 @@ func (s *Server) handleSmtpTest(w http.ResponseWriter, r *http.Request) {
 	locale := s.userLocale(u.ID)
 	subject := tr(locale, "email.testSubject")
 	body := tr(locale, "email.testBody")
-	if err := s.Mail.Send(u.Email, "WeebSync – "+subject, body, emailHTML(locale, subject, emailLines([]string{body}), "", "")); err != nil {
+	if err := s.Mail.Send(u.Email, "WeebSync – "+subject, body, emailHTML(locale, body, subject, emailLines([]string{body}), "", "")); err != nil {
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
@@ -698,7 +760,7 @@ func (s *Server) mailApproved(userID int64) {
 		if base := s.baseURL(); base != "" {
 			body += " " + base
 		}
-		if err := s.Mail.Send(to, "WeebSync – "+subject, body, emailHTML(locale, subject, emailLines([]string{body}), "", "")); err != nil {
+		if err := s.Mail.Send(to, "WeebSync – "+subject, body, emailHTML(locale, body, subject, emailLines([]string{body}), "", "")); err != nil {
 			slog.Warn("approval mail", "err", err)
 		}
 	}()
