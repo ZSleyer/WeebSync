@@ -1,6 +1,15 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createMemoryRouter, MemoryRouter, Route, RouterProvider, Routes, Link, useNavigate } from 'react-router'
+import {
+  BrowserRouter,
+  createMemoryRouter,
+  MemoryRouter,
+  Route,
+  RouterProvider,
+  Routes,
+  Link,
+  useNavigate,
+} from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import {
@@ -185,6 +194,133 @@ const observers = () => {
 // the series page's section by its jump link: the section ids come from useId
 const sectionOf = (name: string) =>
   document.getElementById(screen.getByRole('link', { name }).getAttribute('href')!.slice(1))!
+
+// the real history: the router keeps its step counter in history.state.idx
+let legacy = false // the old way: close, then go at once
+function FilesRow() {
+  const series = useSeriesModal()
+  const go = useNavigate()
+  return (
+    <button
+      onClick={() => {
+        if (legacy) {
+          series.close()
+          go('/elsewhere')
+        } else series.close(() => go('/elsewhere'))
+      }}
+    >
+      Dateien
+    </button>
+  )
+}
+function browserApp() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <BrowserRouter>
+        <SeriesModalProvider>
+          <Routes>
+            <Route
+              path="/"
+              element={
+                <>
+                  <Opener />
+                  <FilesRow />
+                </>
+              }
+            />
+            <Route path="/elsewhere" element={<p>anderswo</p>} />
+          </Routes>
+        </SeriesModalProvider>
+      </BrowserRouter>
+    </QueryClientProvider>,
+  )
+}
+const idx = () => (history.state as { idx?: number } | null)?.idx
+const settle = () =>
+  act(async () => {
+    await new Promise((r) => setTimeout(r, 200))
+  })
+async function landsOnTarget(base: number | undefined) {
+  await waitFor(() => expect(screen.getByText('anderswo')).toBeInTheDocument())
+  await settle()
+  expect(screen.getByText('anderswo')).toBeInTheDocument()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(idx()).toBe((base ?? 0) + 1)
+  act(() => history.back())
+  await waitFor(() => expect(screen.getByText('öffnen')).toBeInTheDocument())
+  await settle()
+  expect(screen.queryByRole('dialog')).toBeNull()
+  expect(idx()).toBe(base)
+}
+
+describe('close then go (real history)', () => {
+  afterEach(() => {
+    legacy = false
+    history.replaceState(null, '', '/')
+  })
+
+  it('leaves a plain card for the target in one step', async () => {
+    serve()
+    browserApp()
+    const base = idx()
+    fireEvent.click(screen.getByText('öffnen'))
+    await screen.findByRole('dialog')
+    fireEvent.click(screen.getByText('Dateien'))
+    await landsOnTarget(base)
+    expect(location.pathname).toBe('/')
+  })
+
+  it('leaves a card with a related title opened on top', async () => {
+    serve({
+      extras: {
+        relations: [{ relationType: 'SEQUEL', node: sequel }],
+        recommendations: [],
+        characters: [],
+        links: [],
+        threads: [],
+      },
+    })
+    browserApp()
+    const base = idx()
+    fireEvent.click(screen.getByText('öffnen'))
+    fireEvent.click(await screen.findByRole('button', { name: /Frieren 2/ }))
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Frieren 2'))
+    expect(idx()).toBe((base ?? 0) + 2)
+    fireEvent.click(screen.getByText('Dateien'))
+    await landsOnTarget(base)
+    expect(location.pathname).toBe('/')
+  })
+
+  it('leaves a card with a form open in it', async () => {
+    serve()
+    browserApp()
+    const base = idx()
+    fireEvent.click(screen.getByText('mit Formular'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Jetzt syncen' }))
+    await screen.findByText('Formularinhalt')
+    expect(idx()).toBe((base ?? 0) + 2)
+    fireEvent.click(screen.getByText('Dateien'))
+    await landsOnTarget(base)
+    expect(location.pathname).toBe('/')
+  })
+
+  it('does not step over a page the location already moved to', async () => {
+    serve()
+    browserApp()
+    const base = idx()
+    fireEvent.click(screen.getByText('öffnen'))
+    await screen.findByRole('dialog')
+    // a link followed within the frame of the close: the step back must not
+    // run over it, and the target of the close is no longer wanted
+    fireEvent.click(screen.getByText('Dateien'))
+    fireEvent.click(screen.getByText('weg'))
+    await settle()
+    expect(screen.getByText('anderswo')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(idx()).toBe((base ?? 0) + 2)
+  })
+})
 
 describe('SeriesModalProvider', () => {
   it('opens the one series page with the record and the caller rows', async () => {
@@ -446,6 +582,25 @@ describe('SeriesModalProvider', () => {
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
     fireEvent.click(screen.getByText('zurück'))
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  })
+
+  it('closes, then goes to a page: the step back does not undo the way', async () => {
+    serve()
+    function Row() {
+      const series = useSeriesModal()
+      const go = useNavigate()
+      return <button onClick={() => series.close(() => go('/elsewhere'))}>Dateien</button>
+    }
+    target = { id: 7, media, extra: <Row /> }
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Dateien' }))
+    await waitFor(() => expect(screen.getByText('anderswo')).toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    // let the deferred step back (if any) run: the page must stay
+    await new Promise((r) => setTimeout(r, 100))
+    expect(screen.getByText('anderswo')).toBeInTheDocument()
+    expect(screen.queryByText('öffnen')).toBeNull()
   })
 
   it('opens from its own URL over the page and leaves to the dashboard', async () => {

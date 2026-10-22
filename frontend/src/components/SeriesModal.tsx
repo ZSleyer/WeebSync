@@ -95,7 +95,12 @@ export type SeriesTab = 'overview' | 'episodes' | 'cast' | 'community' | 'simila
 
 interface SeriesModalApi {
   open: (target: SeriesTarget) => void
-  close: () => void
+  /**
+   * Closes the page. `then` runs once the history is back on the page under
+   * it - to go somewhere from there, not from the page's own entry (a
+   * navigation made right away would be undone by the step back).
+   */
+  close: (then?: () => void) => void
 }
 
 const Ctx = createContext<SeriesModalApi | null>(null)
@@ -395,6 +400,19 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     if (!cur) return
     go({ source: t.source || 'anilist', id: t.id, n: cur.n + 1, k: remember(t), bg: cur.bg, direct: cur.direct }, false)
   }
+  // what to do once the step back has landed (see close); only once the step
+  // is taken (armed) - a location left on its own before that drops it
+  const after = useRef<(() => void) | null>(null)
+  const armed = useRef(false)
+  const settled = useCallback(() => {
+    const fn = after.current
+    after.current = null
+    armed.current = false
+    fn?.()
+  }, [])
+  useEffect(() => {
+    if (!entry && armed.current) settled()
+  }, [entry, loc.key, settled])
   const close = useCallback(() => {
     const l = at.current
     const e = entryOf(l)
@@ -407,7 +425,10 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     // its place. Otherwise back to the page, past every related title and
     // the entry of a form that was open - after that form took its own back
     // (useBackEntry), which is queued the same way.
-    if (e.direct) return nav('/', { replace: true })
+    if (e.direct) {
+      armed.current = true
+      return nav('/', { replace: true })
+    }
     // The step back waits for the next frame: the page is gone already, and
     // the router's render of the step would otherwise land in the frame a
     // closing morph snapshots (one long frame instead of two short ones).
@@ -415,11 +436,25 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       const idx = history.state?.idx
       const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : null
       // already back at the page (a step taken meanwhile): nothing to do
-      if (delta !== null && delta >= 0) return
+      if (delta !== null && delta >= 0) return settled()
+      // the location left the page meanwhile (back, a link): no step over it
+      if (!entryOf(at.current)) return void (after.current = null)
+      armed.current = true
       nav(delta ?? -(e.n + 1))
     })
-  }, [nav])
-  const api = useMemo(() => ({ open: (t: SeriesTarget) => void open(t), close }), [open, close])
+  }, [nav, settled])
+  const api = useMemo(
+    () => ({
+      open: (t: SeriesTarget) => void open(t),
+      close: (then?: () => void) => {
+        if (!entryOf(at.current)) return then?.()
+        after.current = then ?? null
+        armed.current = false
+        close()
+      },
+    }),
+    [open, close],
+  )
 
   // The form shown in the page, if any. One at a time: a second replaces the
   // first. The page asks its guard before it closes, and closes it with it.

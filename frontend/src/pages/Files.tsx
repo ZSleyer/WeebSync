@@ -1210,8 +1210,7 @@ export function CatalogGrid({
       icon: <FilesIcon aria-hidden size="1em" />,
       more: true,
       onClick: () => {
-        series.close()
-        onOpenFiles(it.entry.path)
+        series.close(() => onOpenFiles(it.entry.path))
       },
     },
   ]
@@ -1245,8 +1244,7 @@ export function CatalogGrid({
           onRematch={canCurate ? rematchInside : undefined}
           onWhy={(it) => setWhy(it)}
           onFiles={(e) => {
-            series.close()
-            onOpenFiles(e.path)
+            series.close(() => onOpenFiles(e.path))
           }}
           onSync={onSync && ((e) => onSync(e, true))}
           onWatch={onWatch && ((e) => onWatch(e, true))}
