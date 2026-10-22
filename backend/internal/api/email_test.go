@@ -32,9 +32,13 @@ func TestEmailHTMLStructure(t *testing.T) {
 			t.Errorf("old palette colour %s still present", old)
 		}
 	}
-	// break-all cut German words anywhere without a hyphen ("kom" / "men")
-	if lines := emailLines([]string{"x"}); strings.Contains(lines, "break-all") || !strings.Contains(lines, "hyphens:auto") {
-		t.Error("content lines must wrap at word boundaries and hyphenate")
+	// break-all cut German words anywhere without a hyphen ("kom" / "men");
+	// auto hyphens would write a "-" into file names
+	if lines := emailLines([]string{"x"}); strings.Contains(lines, "break-all") || strings.Contains(lines, "hyphens") || !strings.Contains(lines, "overflow-wrap:anywhere") {
+		t.Error("content lines must wrap at word boundaries without hyphenating")
+	}
+	if strings.Count(out, "<table") != strings.Count(out, "</table>") || strings.Count(out, "<!--[if mso]>") != strings.Count(out, "<![endif]-->") {
+		t.Error("unbalanced tables or Outlook conditional comments")
 	}
 	if !strings.Contains(out, `href="https://x/?a=&#34;1&#34;&amp;b=&lt;2&gt;"`) || !strings.Contains(out, "&lt;i&gt;Go&lt;/i&gt;") || strings.Contains(out, "<i>") {
 		t.Error("button href/label not escaped")

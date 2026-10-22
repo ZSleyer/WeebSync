@@ -108,13 +108,14 @@ func emailLink(href, label, size string) string {
 }
 
 // emailLines renders escaped content lines in the mail's monospace style.
-// Words wrap at spaces and are hyphenated in the mail's language where the
-// client can; only a token too long for the line (a file name, a URL) breaks
-// mid-word. break-all split every word anywhere, without a hyphen.
+// Words wrap at spaces; only a token too long for the line (a file name, a
+// URL) breaks mid-word. break-all split every word anywhere, without a
+// hyphen. No automatic hyphenation either: a client that supports it would
+// write a "-" into a file name that does not exist on disk.
 func emailLines(lines []string) string {
 	var items strings.Builder
 	for _, l := range lines {
-		items.WriteString(`<p style="margin:6px 0;color:` + mailFg2 + `;font-family:` + mailMono + `;font-size:13px;line-height:1.5;overflow-wrap:anywhere;-webkit-hyphens:auto;hyphens:auto">`)
+		items.WriteString(`<p style="margin:6px 0;color:` + mailFg2 + `;font-family:` + mailMono + `;font-size:13px;line-height:1.5;overflow-wrap:anywhere">`)
 		items.WriteString(html.EscapeString(l))
 		items.WriteString(`</p>`)
 	}
@@ -133,7 +134,9 @@ func oneLine(s string) string {
 
 // emailHTML wraps pre-rendered content in the WeebSync mail layout. Built to
 // the usual mail-client rules: inline styles only (clients drop stylesheets),
-// layout tables marked role="presentation" so screen readers skip them, a lang
+// layout tables marked role="presentation" so screen readers skip them, an
+// Outlook-only font override (its Word engine shows Times New Roman instead of
+// moving down the stack when the first font is missing), a lang
 // attribute, one h1, and a hidden preheader - the line an inbox shows next to
 // the subject, which would otherwise be the wordmark. The colour-scheme meta
 // tells Apple Mail the mail is already dark, so it is left as it is. manage is
@@ -160,6 +163,7 @@ func emailHTML(locale, preheader, title, content, extra, manage string) string {
 <meta name="supported-color-schemes" content="dark">
 <title>` + html.EscapeString(title) + `</title>
 <style>:root{color-scheme:dark;supported-color-schemes:dark}</style>
+<!--[if mso]><style>body,table,td,h1,p,a,span{font-family:'Segoe UI',Arial,sans-serif !important}</style><![endif]-->
 </head>
 <body style="margin:0;padding:0;background:` + mailBg + `">
 <div style="display:none;max-height:0;overflow:hidden;mso-hide:all">` + html.EscapeString(oneLine(preheader)) + pad + `</div>
