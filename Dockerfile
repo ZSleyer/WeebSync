@@ -35,7 +35,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
       -X github.com/ch4d1/weebsync/internal/version.Channel=$CHANNEL \
       -X github.com/ch4d1/weebsync/internal/version.Commit=$COMMIT \
       -X github.com/ch4d1/weebsync/internal/version.Repo=$REPO" -o /weebsync . \
-    && mkdir -p /data/downloads
+    && mkdir -p /data/downloads /config
 # the init that maps PUID/PGID (cmd/entrypoint), a second tiny static binary
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
@@ -157,8 +157,9 @@ LABEL org.opencontainers.image.title="WeebSync" \
 COPY --from=rootfs /rootfs/ /
 COPY --from=build /weebsync /weebsync
 COPY --from=build /entrypoint /entrypoint
-# pre-owned data dir so the nonroot user can write the volume
+# pre-owned state dirs so the nonroot user can write a fresh volume on either
 COPY --from=build --chown=65532:65532 /data /data
+COPY --from=build --chown=65532:65532 /config /config
 COPY --from=web /src/frontend/dist /web
 # WEEBSYNC_DATA is chosen by /entrypoint (see below) unless set
 ENV WEEBSYNC_ADDR=:8080 \
