@@ -682,7 +682,7 @@ func hasPrequel(edges []anilist.Relation) bool {
 // queueMediaFetch refreshes missing/stale media metadata in the background.
 func (s *Server) queueMediaFetch(id int) {
 	s.runJob(fmt.Sprintf("f:%d", id), func(ctx context.Context) {
-		// drop first: Media() would otherwise answer from a cache entry that
+		// expire first: Media() would otherwise answer from a cache entry that
 		// is still fresh but written with an older field set (see sourceMedia)
 		s.refetchCached(fmt.Sprintf("media:%d", id), func() error {
 			_, err := s.Anilist.Media(ctx, id) // stores into the cache on success
@@ -691,22 +691,29 @@ func (s *Server) queueMediaFetch(id int) {
 	})
 }
 
-// refetchCached drops a cache entry and fetches it again; when the fetch fails
-// (the provider is down) the old entry is put back as it was, still stale, so
-// the folder keeps its title and cover and the next read asks again. Without
-// that an outage emptied every airing show's entry one refresh at a time.
+// refetchCached fetches a cache entry again. The row is never removed: it is
+// only dated back so the client's fresh-only read misses it and asks the
+// provider, while every display read (CachedMedia) keeps showing it. When the
+// fetch fails (the provider is down) its own date comes back, so the daily
+// prune judges it by its real age. Dropping the row instead emptied every
+// airing show's title and cover for as long as an outage lasted, and even
+// with a restore after the failure the row was gone while the retries ran.
 func (s *Server) refetchCached(key string, fetch func() error) {
-	var payload, fetched string
-	had := s.DB.QueryRow(`SELECT payload, fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&payload, &fetched) == nil
-	// a failed drop only means the refetch may answer from the older entry
-	_, _ = s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
+	var fetched string
+	had := s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&fetched) == nil
+	// a failed expiry only means the refetch may answer from the older entry
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, expiredStamp, key)
 	if fetch() == nil || !had {
 		return
 	}
-	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO anilist_cache (key, payload, fetched_at) VALUES (?, ?, ?)`, key, payload, fetched); err != nil {
-		slog.Warn("cache entry not restored after a failed refresh", "key", logSafe(key), "err", err)
+	// a successful store rewrote the date; only an unchanged expired row is reset
+	if _, err := s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ? AND fetched_at = ?`, fetched, key, expiredStamp); err != nil {
+		slog.Warn("cache entry date not restored after a failed refresh", "key", logSafe(key), "err", err)
 	}
 }
+
+// expiredStamp dates a cache row older than any TTL.
+const expiredStamp = "1970-01-01 00:00:00"
 
 // GuessTitle/GuessAltTitle live in internal/match; the aliases keep the
 // call sites (and their tests) in this package unchanged.

@@ -372,6 +372,10 @@ func TestRefetchCachedKeepsTheEntryWhenTheFetchFails(t *testing.T) {
 	anilistDown(s)
 	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('media:21', '{"id":21}', '2026-10-18 16:53:30')`)
 	s.refetchCached("media:21", func() error {
+		// the retries against a dead API take a while: the page reads meanwhile
+		if m, _ := s.Anilist.CachedMedia(21); m == nil {
+			t.Error("entry unreadable while the refresh runs")
+		}
 		_, err := s.Anilist.Media(t.Context(), 21)
 		return err
 	})
