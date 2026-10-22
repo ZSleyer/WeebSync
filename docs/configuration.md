@@ -15,7 +15,53 @@ WeebSync does not terminate TLS. Bind it to loopback (the compose file does) and
 
 A fresh instance takes its first account only with the setup code it writes to the log at startup (`setup_token`), so nobody who reaches it before you can claim it. Set `WEEBSYNC_SETUP_TOKEN` to choose the code up front.
 
+## Parameters
+
+The image's ports, volumes and settings in one table, in the style of the linuxserver.io images. `docker run` and compose take the same values.
+
+| Parameter | Function |
+|---|---|
+| `-p 8080:8080` | The web interface and API (plain HTTP, see [Reverse proxy](#reverse-proxy)) |
+| `-e PUID=1000` | User id that owns the files WeebSync writes |
+| `-e PGID=1000` | Group id that owns them |
+| `-e TZ=Etc/UTC` | Timezone, any [IANA name](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List) |
+| `-e UMASK=022` | Permission mask for new files, optional |
+| `-v /path/to/config:/config` | Database, secret key and default downloads. Earlier images used `/data`, which still works |
+| `-e WEEBSYNC_DATA=/config` | Optional with the volume on `/config` (detected), needed by `docker exec` commands |
+| `-v /path/to/media:/media` | A media library as a sync target, optional. List it in `WEEBSYNC_DOWNLOADS` |
+| `-v /path/to/downloads:/downloads` | A download folder, optional, same rule |
+| `--user 0:0 --cap-drop ALL --cap-add CHOWN --cap-add DAC_READ_SEARCH --cap-add SETUID --cap-add SETGID` | What PUID and PGID need: start as root, change ownership of `/config`, drop to your user. Without `--user 0:0` the container runs as 65532 and ignores both |
+| `--read-only --tmpfs /tmp --tmpfs /var/tmp` | Supported and set in the compose file, see [Hardening](#hardening) |
+
+```bash
+docker run -d --name weebsync \
+  --user 0:0 --cap-drop ALL --cap-add CHOWN --cap-add DAC_READ_SEARCH --cap-add SETUID --cap-add SETGID \
+  --security-opt no-new-privileges:true --read-only --tmpfs /tmp --tmpfs /var/tmp \
+  -e PUID=1000 -e PGID=1000 -e TZ=Etc/UTC -e WEEBSYNC_DATA=/config \
+  -p 127.0.0.1:8080:8080 \
+  -v /path/to/config:/config \
+  --restart unless-stopped \
+  ghcr.io/zsleyer/weebsync:latest
+```
+
+The image checks its own health (`/healthz`), and carries the usual `org.opencontainers.image.*` labels.
+
+### Coming from the `/data` layout
+
+Nothing breaks. A container started the old way (volume on `/data`, no `PUID`, no `user: "0:0"`) runs as 65532 and uses `/data` as before. The image only switches to `/config` when a volume is mounted there; if you mount both, `/config` wins. To switch to the new layout, change the mount target from `/data` to `/config`, keep the host folder, and add the lines from the current compose file (`user: "0:0"`, `PUID`, `PGID`, `cap_add`, `WEEBSYNC_DATA`). Re-downloading the compose file overwrites your own edits: merge it, and note that its volume line is `./data:/config`, the same host folder as before. On the first start the data folder is handed to `PUID:PGID` automatically. If you changed `WEEBSYNC_DOWNLOADS` or `WEEBSYNC_DATA` to paths under `/data`, they keep working.
+
 ## Environment variables
+
+### Container
+
+Read by the image's start-up, before the app runs. They follow the [linuxserver.io](https://docs.linuxserver.io/general/understanding-puid-and-pgid) conventions. The ports and volumes are in [Parameters](#parameters).
+
+| Variable | Default | Description |
+|---|---|---|
+| `PUID` | `65532` | User id the app runs as. Takes effect when the container starts as root, which the [compose file](../docker-compose.yml) does (`user: "0:0"`); see [File ownership](#file-ownership) |
+| `PGID` | `65532` | Group id the app runs as, same condition as `PUID` |
+| `UMASK` | the host's (usually `022`) | Octal permission mask for new files, for example `002` for group-writable media |
+| `FILE__<NAME>` | - | Reads the value of `<NAME>` from the file this points to, for Docker secrets: `FILE__WEEBSYNC_SECRET=/run/secrets/weebsync_secret`. Works for every variable on this page |
 
 ### Runtime
 
@@ -23,8 +69,8 @@ A fresh instance takes its first account only with the setup code it writes to t
 |---|---|---|
 | `TZ` | `UTC` | Timezone for log timestamps, any IANA name |
 | `WEEBSYNC_ADDR` | `:8080` | Listen address |
-| `WEEBSYNC_DATA` | `/data` | SQLite database and default downloads |
-| `WEEBSYNC_DOWNLOADS` | `$WEEBSYNC_DATA/downloads` | `:`-separated allowlist of local roots; the first is the default download dir. Mount your media anywhere and list the mounts (`/media:/data/downloads`) - only these paths are browsable and writable |
+| `WEEBSYNC_DATA` | `/config` if a volume is mounted there, else `/data` | SQLite database, secret key and default downloads. Mount your volume on `/config` (the compose file does) or, as with earlier images, on `/data`. The image picks the one in use; set the variable to be explicit, which `docker exec` commands such as `reset-password` need for `/config` |
+| `WEEBSYNC_DOWNLOADS` | `$WEEBSYNC_DATA/downloads` | `:`-separated allowlist of local roots; the first is the default download dir. Mount your media anywhere and list the mounts (`/media:/config/downloads`) - only these paths are browsable and writable |
 | `WEEBSYNC_SECRET` | auto-generated | Key for stored credentials. Without it, `$WEEBSYNC_DATA/secret.key` is created on first start. **Back it up** - a lost key makes stored passwords unreadable |
 | `WEEBSYNC_LOG_LEVEL` | `info` | `trace`, `debug`, `info`, `warn`, `error` |
 | `WEEBSYNC_SETUP_TOKEN` | random, logged | The code the setup wizard asks for while no account exists |
@@ -80,20 +126,26 @@ What the browser cannot play, the player transcodes. With a GPU that writes 1080
 
 ## File ownership
 
-The container runs as `nonroot` (uid/gid 65532) and has no `PUID`/`PGID` entrypoint. To write your media with your own ids, hand them to Docker:
+By default the app runs as `nonroot` (uid/gid 65532). To write your media with your own ids, give the container `PUID` and `PGID`, as on linuxserver.io images:
 
 ```yaml
 services:
   weebsync:
-    user: "1000:1000"   # $(id -u):$(id -g) of the media owner
-    group_add: ["990"]  # extra groups with write access to the mounts
+    user: "0:0"          # start as root, only to switch user
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETUID, SETGID]
+    environment:
+      PUID: 1000         # `id -u` of the media owner
+      PGID: 1000         # `id -g`
+    group_add: ["990"]   # extra groups with write access to the mounts, optional
 ```
 
-The data dir must belong to that user too: `mkdir -p data && chown 1000:1000 data` before the first start (Docker creates a missing bind dir as root). The Home Assistant add-on is unaffected.
+Next to `cap_drop: [ALL]` from the compose file, that is all it takes. At start the container hands `/config` to `PUID:PGID` (only that folder; it never walks your media mounts, never crosses into another file system and does not descend into the folders listed in `WEEBSYNC_DOWNLOADS`, so a large library starts as fast as an empty one), drops root together with those capabilities and runs the app. Files that already sit in a download folder keep their owner. `group_add` groups are kept.
+
+The other way works as before and needs no capabilities: run as the user directly with `user: "1000:1000"` (no `PUID`, no `cap_add`; `PUID`/`PGID` are then ignored and the log says so). `/config` must belong to that user: `mkdir -p data && chown 1000:1000 data` before the first start (Docker creates a missing bind dir as root). Use this if your setup forbids a container to start as root. The Home Assistant add-on is unaffected.
 
 ## Hardening
 
-The compose file drops all capabilities, sets `no-new-privileges` and mounts the root filesystem read-only - keep those lines when you adapt it. Writes go to `/data`, the media mounts and a `tmpfs` on `/tmp` and `/var/tmp`; SQLite and ffprobe need a writable temp dir and fail in odd ways without one.
+The compose file drops all capabilities except the four the start-up needs and loses them before the app runs, sets `no-new-privileges` and mounts the root filesystem read-only - keep those lines when you adapt it. With `user: "1000:1000"` instead of `PUID`, `cap_add` is not needed. Writes go to `/config`, the media mounts and a `tmpfs` on `/tmp` and `/var/tmp`; SQLite and ffprobe need a writable temp dir and fail in odd ways without one.
 
 ## Locked out
 

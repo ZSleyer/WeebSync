@@ -35,6 +35,19 @@ docker compose up -d
 
 Open `http://localhost:8080` and enter the setup code the server writes to its log (`docker compose logs weebsync | grep setup_token`) - the first account you register becomes the admin. Accounts that sign themselves up later wait for an admin to approve them.
 
+## Parameters
+
+| Parameter | Function |
+|---|---|
+| `-p 8080:8080` | Web interface and API (plain HTTP) |
+| `-e PUID=1000` / `-e PGID=1000` | User and group id that own the files WeebSync writes (the container starts as root only to switch to them) |
+| `-e TZ=Etc/UTC` | Timezone |
+| `-e UMASK=022` | Permission mask for new files, optional |
+| `-v /path/to/config:/config` | Database, secret key and default downloads |
+| `-v /path/to/media:/media` | Media library as a sync target, optional - list it in `WEEBSYNC_DOWNLOADS` |
+
+The compose file sets all of this, with the capabilities PUID/PGID need. Setups from before this layout (volume on `/data`, no `PUID`) keep running unchanged as user 65532. Every variable, `docker run`, `FILE__` secrets and the migration are in [docs/configuration.md](docs/configuration.md#parameters).
+
 On Windows with Docker Desktop, see [docs/windows.md](docs/windows.md) for the PowerShell commands and the settings that differ.
 
 WeebSync speaks plain HTTP; put it behind a TLS reverse proxy (Traefik, Caddy, Nginx). Everything else - media folders, OIDC, mail, metadata keys - is in [docs/configuration.md](docs/configuration.md).

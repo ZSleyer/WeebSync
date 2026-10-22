@@ -14,7 +14,7 @@ curl.exe -O https://raw.githubusercontent.com/ZSleyer/WeebSync/main/docker-compo
 Invoke-WebRequest https://raw.githubusercontent.com/ZSleyer/WeebSync/main/docker-compose.yml -OutFile docker-compose.yml
 ```
 
-The file as shipped works, but two lines want a change on Windows (below): the `/data` volume and your media mount. The [example at the end](#complete-example) has both. Then:
+The file as shipped works, but two lines want a change on Windows (below): the `/config` volume and your media mount. The [example at the end](#complete-example) has both. Then:
 
 ```powershell
 docker compose up -d
@@ -23,24 +23,24 @@ docker compose logs weebsync | Select-String setup_token
 
 Open `http://localhost:8080` and enter the setup code from the log. The first account you register becomes the admin. (`findstr setup_token` instead of `Select-String` works too.)
 
-## Keep /data in a named volume
+## Keep /config in a named volume
 
-`/data` holds the SQLite database (in WAL mode) and the key that encrypts your stored passwords. A bind mount of a Windows folder (`./data` under `C:\...`) goes through Docker Desktop's file sharing, which is slower and less reliable for a database. Docker's own advice for WSL 2 is that bind mounts perform much better from the Linux file system than from Windows paths.
+`/config` (also known as `/data`) holds the SQLite database (in WAL mode) and the key that encrypts your stored passwords. A bind mount of a Windows folder (`./data` under `C:\...`) goes through Docker Desktop's file sharing, which is slower and less reliable for a database. Docker's own advice for WSL 2 is that bind mounts perform much better from the Linux file system than from Windows paths.
 
 Use a named volume instead:
 
 ```yaml
     volumes:
-      - weebsync-data:/data
+      - weebsync-data:/config
 
 volumes:
   weebsync-data:
     name: weebsync-data
 ```
 
-The image creates `/data` owned by its unprivileged user (uid 65532), so a fresh named volume is writable without further steps. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
+The start-up hands `/config` to `PUID:PGID` (1000 in the compose file), so a fresh named volume is writable without further steps. A volume you created with an older image stays as it is: its files are handed over on the first start. The `name:` line keeps the volume called `weebsync-data` instead of getting the folder name as a prefix.
 
-Keeping the whole project in the WSL file system (`\\wsl$\<distro>\home\you\weebsync`, with `./data` next to the compose file) works as well. In that case `./data` must be writable by uid 65532.
+Keeping the whole project in the WSL file system (`\\wsl$\<distro>\home\you\weebsync`, with `./data` next to the compose file) works as well. In that case `./data` is handed to `PUID:PGID` on the first start; run `chown` yourself only if you use `user:` instead.
 
 ### Backup
 
@@ -52,7 +52,7 @@ docker run --rm -v weebsync-data:/data:ro -v "${PWD}:/backup" alpine tar czf /ba
 docker compose start weebsync
 ```
 
-The archive includes `secret.key`. Without it the stored passwords are unreadable, so keep the archive somewhere safe (it holds the key next to the data it protects). Restore into an empty volume with `tar xzf /backup/weebsync-data.tgz -C /data` in the same kind of `docker run`, then `chown -R 65532:65532 /data`.
+The archive includes `secret.key`. Without it the stored passwords are unreadable, so keep the archive somewhere safe (it holds the key next to the data it protects). Restore into an empty volume with `tar xzf /backup/weebsync-data.tgz -C /data` in the same kind of `docker run`, then `chown -R 1000:1000 /data` (your `PUID:PGID`; the start-up would also do it).
 
 ## Media drives
 
@@ -64,12 +64,12 @@ Mount a Windows folder into the container and list the mount in `WEEBSYNC_DOWNLO
         source: D:/Anime
         target: /media
     environment:
-      WEEBSYNC_DOWNLOADS: /media:/data/downloads
+      WEEBSYNC_DOWNLOADS: /media:/config/downloads
 ```
 
 Use forward slashes in the path. In WeebSync, the folder then shows up as `/media` in the file browser and in the targets of watches.
 
-Leave `user:` and `group_add:` out. Those set Linux file ownership, which a Windows drive does not have; the container's default user writes through Docker Desktop's file sharing. See [File ownership](configuration.md#file-ownership) for Linux hosts.
+Leave `PUID` and `PGID` as they are and `group_add:` out. Those set Linux file ownership, which a Windows drive does not have; the app writes through Docker Desktop's file sharing. See [File ownership](configuration.md#file-ownership) for Linux hosts.
 
 ### Files added from Windows
 
@@ -139,7 +139,7 @@ Differences from Docker Desktop:
 
 ## Complete example
 
-`docker-compose.yml` with the hardening kept, a named volume and one media mount. Adjust the drive and the timezone. This file was run unchanged under Docker Desktop (with `C:/anime` as the source): the container became healthy, the log showed the setup code, `http://localhost:8080` answered, and the named volume held `weebsync.db`, `secret.key` and `downloads` owned by uid 65532. Under WSL 2 without Docker Desktop, use `/mnt/d/Anime` as the source.
+`docker-compose.yml` with the hardening kept, a named volume and one media mount. Adjust the drive and the timezone. This file was run unchanged under Docker Desktop (with `C:/anime` as the source): the container became healthy, the log showed the setup code, `http://localhost:8080` answered, and the named volume held `weebsync.db`, `secret.key` and `downloads` owned by uid 65532. The example sets no `PUID`, so the container runs as the image's own user (65532) and needs no extra capabilities. Under WSL 2 without Docker Desktop, use `/mnt/d/Anime` as the source.
 
 ```yaml
 services:
@@ -150,13 +150,13 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
-      - weebsync-data:/data
+      - weebsync-data:/config
       - type: bind
         source: D:/Anime
         target: /media
     environment:
       TZ: ${TZ:-UTC}
-      WEEBSYNC_DOWNLOADS: /media:/data/downloads
+      WEEBSYNC_DOWNLOADS: /media:/config/downloads
     restart: unless-stopped
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
