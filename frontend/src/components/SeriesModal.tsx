@@ -16,15 +16,7 @@ import { matchPath, useLocation, useNavigate, type Location } from 'react-router
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Share2, Trash2 } from 'lucide-react'
-import {
-  Button,
-  ButtonLink,
-  IconButton,
-  localTransition,
-  markOverflow,
-  useBackEntry,
-  useMediaQuery,
-} from 'fluid-lycoris'
+import { Button, IconButton, localTransition, markOverflow, useBackEntry, useMediaQuery } from 'fluid-lycoris'
 import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
 import type { Schemas } from '../api.gen'
 import { focusPosition, useBannerFocus } from './bannerFocus'
@@ -95,6 +87,8 @@ export interface SeriesAction extends SheetAction {
   primary?: boolean
   /** a rare one, behind the ⋯ menu */
   more?: boolean
+  /** the id of an element in the page's `extra` rows: the button jumps there, onClick is not called */
+  target?: string
 }
 
 export type SeriesTab = 'overview' | 'episodes' | 'cast' | 'community' | 'similar' | 'match'
@@ -763,7 +757,7 @@ function SeriesCard({
   const menu: SheetAction[] = [
     ...(lead ? watchMenu(lead) : []),
     ...callerActions.filter((a) => a.more),
-    ...(own && lead
+    ...(own
       ? [
           {
             key: 'provider',
@@ -916,16 +910,19 @@ function SeriesCard({
     return cancel
   }, [current, sections.length])
 
-  const jump = (k: SeriesTab, smooth = true) => {
-    const el = sec.current[k]
+  const jumpTo = (el: HTMLElement | null, smooth = true) => {
     const sc = scroller.current
     if (!el || !sc) return
-    setCurrent(k)
     jumpLock.current = smooth && !reducedMotion() ? performance.now() + 900 : 0
     const top = el.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop - sticky()
     sc.scrollTo?.({ top, behavior: smooth && !reducedMotion() ? 'smooth' : 'auto' })
     // a keyboard user lands in the section, not back at the top of the row
     el.focus({ preventScroll: true })
+  }
+  const jump = (k: SeriesTab, smooth = true) => {
+    if (!sec.current[k]) return
+    setCurrent(k)
+    jumpTo(sec.current[k], smooth)
   }
   // The caller's section: jumped to once it exists - a watch's episodes
   // appear with the watch list - and dropped if the list arrives without it.
@@ -1093,18 +1090,12 @@ function SeriesCard({
                       size="sm"
                       variant={a.primary ? 'primary' : a.danger ? 'danger' : 'default'}
                       data-action={a.key}
-                      onClick={a.onClick}
+                      onClick={a.target ? () => jumpTo(document.getElementById(a.target!)) : a.onClick}
                     >
                       {a.icon}
                       {a.label}
                     </Button>
                   ))}
-                {!lead && !callerActions.some((a) => !a.more) && own && (
-                  <ButtonLink size="sm" href={own.href} target="_blank" rel="noreferrer">
-                    {own.label}
-                    <ExternalLink aria-hidden size="1em" className="ml-1 inline align-[-0.125em]" />
-                  </ButtonLink>
-                )}
                 <ActionMenu label={t('series.moreActions', { name })} title={name} actions={menu} />
                 {act.error && (
                   <p className="ws-d-err basis-full" role="status">

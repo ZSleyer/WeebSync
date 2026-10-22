@@ -1209,7 +1209,18 @@ export function CatalogGrid({
       source: g.items[0].source,
       id,
       media,
-      actions: g.items.length === 1 ? barActions(g.items[0]) : [],
+      actions:
+        g.items.length === 1
+          ? barActions(g.items[0])
+          : [
+              {
+                key: 'versions',
+                label: t('remote.versions', { count: g.items.length }),
+                icon: <ChevronDown aria-hidden size="1em" className={ico} />,
+                target: VERSIONS_ID,
+                onClick: () => {},
+              },
+            ],
       folders: g.items.map((v) => ({ server: serverId, path: v.entry.path })),
       extra: (
         <CatalogVersions
@@ -2262,6 +2273,9 @@ interface CatalogGroup {
   items: CatalogItem[]
 }
 
+// the heading the action row's versions button jumps to
+const VERSIONS_ID = 'ws-catalog-versions'
+
 // CatalogVersions is the catalog's part of the title card: every folder
 // version matched to the title, each selectable for sync and individually
 // re-matchable.
@@ -2292,7 +2306,9 @@ function CatalogVersions({
 
   return (
     <section className="mt-4 border-t border-border-subtle pt-4">
-      <h4 className="t-label mb-2">{t('remote.versions', { count: group.items.length })}</h4>
+      <h4 id={VERSIONS_ID} tabIndex={-1} className="t-label mb-2">
+        {t('remote.versions', { count: group.items.length })}
+      </h4>
       <ul>
         {group.items.map((it) => (
           <li
