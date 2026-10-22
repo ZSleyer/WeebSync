@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -385,6 +386,33 @@ func TestRefetchCachedKeepsTheEntryWhenTheFetchFails(t *testing.T) {
 	}
 	if payload != `{"id":21}` || fetched != "2026-10-18 16:53:30" {
 		t.Fatalf("entry changed: %s %s", payload, fetched)
+	}
+}
+
+// After a failed refresh the same entry is not asked for again until the pause
+// is over; a success lifts the pause.
+func TestRefetchCachedPausesAfterAFailure(t *testing.T) {
+	s := sourceTestServer(t)
+	s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('media:21', '{"id":21}', '2026-10-18 16:53:30')`)
+	calls := 0
+	fail := func() error { calls++; return errors.New("anilist down") }
+	s.refetchCached("media:21", fail)
+	s.refetchCached("media:21", fail)
+	if calls != 1 {
+		t.Fatalf("fetches during the pause: %d, want 1", calls)
+	}
+	var fetched string
+	s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'media:21'`).Scan(&fetched)
+	if fetched != "2026-10-18 16:53:30" {
+		t.Fatalf("skipped refresh touched the entry: %s", fetched)
+	}
+	s.refetchFailed.Store("media:21", time.Now().Add(-refetchRetry-time.Second))
+	s.refetchCached("media:21", func() error { calls++; return nil })
+	if calls != 2 {
+		t.Fatalf("fetches after the pause: %d, want 2", calls)
+	}
+	if _, ok := s.refetchFailed.Load("media:21"); ok {
+		t.Fatal("pause kept after a successful refresh")
 	}
 }
 

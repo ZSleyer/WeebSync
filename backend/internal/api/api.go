@@ -158,6 +158,10 @@ type Server struct {
 	// media-server kind → when its machine id last failed, so a dead server
 	// costs one timeout per plexMachineRetry and not one per link on a page
 	machineFailed sync.Map
+
+	// cache key → when its refresh last failed, so a provider that is down
+	// is asked once per refetchRetry and not on every read of the entry
+	refetchFailed sync.Map
 }
 
 // adminOnly guards admin-only endpoints (settings mutations, user management).

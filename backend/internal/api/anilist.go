@@ -699,11 +699,21 @@ func (s *Server) queueMediaFetch(id int) {
 // airing show's title and cover for as long as an outage lasted, and even
 // with a restore after the failure the row was gone while the retries ran.
 func (s *Server) refetchCached(key string, fetch func() error) {
+	// a refresh failed a moment ago: the provider is likely still down, the
+	// stale entry keeps showing until the pause is over
+	if at, ok := s.refetchFailed.Load(key); ok && time.Since(at.(time.Time)) < refetchRetry {
+		return
+	}
 	var fetched string
 	had := s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = ?`, key).Scan(&fetched) == nil
 	// a failed expiry only means the refetch may answer from the older entry
 	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, expiredStamp, key)
-	if fetch() == nil || !had {
+	if fetch() == nil {
+		s.refetchFailed.Delete(key)
+		return
+	}
+	s.refetchFailed.Store(key, time.Now())
+	if !had {
 		return
 	}
 	// a successful store rewrote the date; only an unchanged expired row is reset
@@ -714,6 +724,10 @@ func (s *Server) refetchCached(key string, fetch func() error) {
 
 // expiredStamp dates a cache row older than any TTL.
 const expiredStamp = "1970-01-01 00:00:00"
+
+// refetchRetry is the pause after a failed refresh before the same entry is
+// asked for again. Kept in memory: a restart asks at once, which is fine.
+const refetchRetry = 15 * time.Minute
 
 // GuessTitle/GuessAltTitle live in internal/match; the aliases keep the
 // call sites (and their tests) in this package unchanged.
