@@ -39,14 +39,14 @@ export default function HostKeyPrompt({
         {t(conflict.code === 'host_key_unknown' ? 'servers.hostKeyUnknown' : 'servers.hostKeyChanged')}
       </p>
       {conflict.oldFingerprint && (
-        <p className="break-all font-mono">
+        <p className="font-mono">
           <span className="text-t-muted">{t('servers.hostKeyOld')}: </span>
-          {conflict.oldFingerprint}
+          <span className="break-all">{conflict.oldFingerprint}</span>
         </p>
       )}
-      <p className="mb-2 break-all font-mono">
+      <p className="mb-2 font-mono">
         <span className="text-t-muted">{t('servers.hostKeyNew')}: </span>
-        {conflict.newFingerprint}
+        <span className="break-all">{conflict.newFingerprint}</span>
       </p>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="danger" onClick={accept}>
