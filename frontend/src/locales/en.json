@@ -678,7 +678,13 @@
     "title": "Files",
     "sub": "local library · servers · sync",
     "local": "Local library",
-    "manageSources": "Manage sources"
+    "manageSources": "Manage sources",
+    "bookmarks": "Bookmarks",
+    "bookmarkAdd": "Bookmark folder",
+    "bookmarkRemove": "Remove bookmark",
+    "bookmarkDelete": "Remove bookmark {{path}}",
+    "bookmarksEmpty": "No bookmarks yet. Bookmark a folder to jump back to it.",
+    "rootFolder": "Root"
   },
   "local": {
     "videoCount_one": "{{count}} video",

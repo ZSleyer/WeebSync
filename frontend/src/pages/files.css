@@ -2,7 +2,7 @@
    picked entry and a multi-selection, and the desktop details panel ═══ */
 
 
-.ws-cl-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+.ws-cl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
 .ws-src { flex: none; }
 .ws-src .t-pill { height: var(--ctl-h); padding: 0 0.625rem 0 0.75rem; gap: 0.5rem; border-radius: 1.25rem; border: 1px solid var(--line-strong); font-weight: 500; }
 .ws-src .t-pill svg:first-child { width: 18px; height: 18px; }
@@ -157,7 +157,8 @@
 .ws-cl-field {
   display: flex;
   flex: 1 1 0;
-  min-width: 0;
+  /* the bookmark buttons beside it stay on the row; the sort wraps below */
+  min-width: min(100%, 12rem);
   align-items: center;
   gap: 0.125rem;
   height: 2.75rem;

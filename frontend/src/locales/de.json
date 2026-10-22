@@ -678,7 +678,13 @@
     "title": "Dateien",
     "sub": "lokale bibliothek · server · sync",
     "local": "Lokale Bibliothek",
-    "manageSources": "Quellen verwalten"
+    "manageSources": "Quellen verwalten",
+    "bookmarks": "Lesezeichen",
+    "bookmarkAdd": "Ordner merken",
+    "bookmarkRemove": "Lesezeichen entfernen",
+    "bookmarkDelete": "Lesezeichen {{path}} entfernen",
+    "bookmarksEmpty": "Noch keine Lesezeichen. Merke dir einen Ordner, um später direkt dorthin zu springen.",
+    "rootFolder": "Hauptordner"
   },
   "local": {
     "videoCount_one": "{{count}} Video",

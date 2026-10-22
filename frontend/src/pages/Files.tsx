@@ -104,6 +104,7 @@ import {
   useTargetFolder,
 } from '../components/useTargetFolder'
 import HostKeyPrompt from '../components/HostKeyPrompt'
+import FolderBookmarks from '../components/FolderBookmarks'
 import SubfolderChoice from '../components/SubfolderChoice'
 import UpcomingSeason from '../components/UpcomingSeason'
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
@@ -299,8 +300,8 @@ export default function Files() {
     if (query.trim()) next.set('q', query)
     if (next.toString() !== params.toString()) setParams(next, { replace: true })
   }, [isLocal, source, path, query, params, setParams, chosen, serversIn])
-  const pickSource = (s: Source) => {
-    go(s, '')
+  const pickSource = (s: Source, to = '') => {
+    go(s, to)
     setSelection(null)
     try {
       localStorage.setItem(SOURCE_KEY, String(s))
@@ -668,6 +669,8 @@ export default function Files() {
                   </label>
                 )}
               </div>
+              {/* a saved folder is one step away, whichever source it is on */}
+              <FolderBookmarks here={{ source, path }} servers={servers} onOpen={(b) => pickSource(b.source, b.path)} />
               {view === 'classic' && !query.trim() && (
                 <Select
                   wrapperClassName="ws-cl-sort"
