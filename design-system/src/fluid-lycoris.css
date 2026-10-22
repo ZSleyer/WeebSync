@@ -1802,8 +1802,10 @@ li.t-swiperow { border-radius: 0; }
 [data-motion="off"] *::before,
 [data-motion="off"] *::after {
   animation-duration: 0.01ms !important;
+  animation-delay: 0ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+  transition-delay: 0ms !important;
   scroll-behavior: auto !important;
 }
 /* the view-transition pseudo-elements hang off <html>; `*` never reaches them */
@@ -1813,8 +1815,10 @@ li.t-swiperow { border-radius: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
   ::view-transition-group(*),
