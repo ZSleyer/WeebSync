@@ -6,6 +6,7 @@ import { LOCALES } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
 import { applyScheme, SCHEME_KEY, SCHEMES, type Scheme } from '../../scheme'
 import { SettingsPanel, SwitchSetting } from './ui'
+import { useTodayJump } from '../today/shared'
 
 const THEMES: ThemePref[] = ['system', 'dark', 'light']
 
@@ -16,6 +17,7 @@ export default function Look() {
   const root = document.documentElement
   const [theme, setTheme] = useState<ThemePref>(readThemePref)
   const [scheme, setScheme] = useState<Scheme>(root.dataset.scheme === 'recoil' ? 'recoil' : 'lycoris')
+  const [jump, setJump] = useTodayJump()
   const [motion, setMotion] = useState(root.dataset.motion !== 'off')
   const lang = LOCALES.find((l) => i18n.language.startsWith(l.code))?.code ?? LOCALES[0].code
   const schemeLabel = useId()
@@ -112,6 +114,12 @@ export default function Look() {
         hint={t('settings.motionHint')}
         checked={motion}
         onChange={pickMotion}
+      />
+      <SwitchSetting
+        label={t('settings.todayJump')}
+        hint={t('settings.todayJumpHint')}
+        checked={jump}
+        onChange={setJump}
       />
     </SettingsPanel>
   )
