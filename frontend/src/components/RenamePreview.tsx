@@ -46,7 +46,7 @@ export default function RenamePreview({
               key={p.old}
               className="flex items-baseline gap-2 border-b border-border-subtle/50 px-2 py-1 font-mono text-ctl-sm"
             >
-              <span className="min-w-0 flex-1 break-all">
+              <span className="min-w-0 flex-1 wrap-anywhere">
                 <span className="text-t-muted">{p.old}</span>
                 {(p.error || p.new !== p.old) && (
                   <>

@@ -125,7 +125,7 @@ function ScreenError({ error, onRetry }: { error: unknown; onRetry: () => void }
     <EmptyState label={t(chunk ? 'app.screenFailed' : 'app.screenBroke')} className="py-16">
       <span className="block">{t(chunk ? 'app.screenFailedHint' : 'app.screenBrokeHint')}</span>
       {!chunk && (
-        <span className="mt-2 block font-mono text-xs break-all">
+        <span className="mt-2 block font-mono text-xs wrap-anywhere">
           {error instanceof Error ? error.message : String(error)}
         </span>
       )}

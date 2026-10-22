@@ -573,7 +573,7 @@ function PlexSections({
                     </label>
                     {/* auto-detected local mounts for this library */}
                     {rootsOf(s).length > 0 && (
-                      <ul className="mt-1 space-y-0.5 pl-[3.25rem] font-mono text-ctl-sm break-all text-t-muted">
+                      <ul className="mt-1 space-y-0.5 pl-[3.25rem] font-mono text-ctl-sm wrap-anywhere text-t-muted">
                         {rootsOf(s).map((p) => (
                           <li key={p}>{p}</li>
                         ))}

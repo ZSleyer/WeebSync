@@ -23,7 +23,7 @@ export function NameTrace({ name, className }: { name: string; className?: strin
   const pieces = q.data.pieces
   return (
     <div className={className}>
-      <p className="font-mono text-ctl-sm break-all text-t-primary">
+      <p className="font-mono text-ctl-sm wrap-anywhere text-t-primary">
         {marked(name, pieces, (k) => t(`explain.piece.${k}`))}
       </p>
       {pieces.length > 0 ? (
@@ -31,7 +31,7 @@ export function NameTrace({ name, className }: { name: string; className?: strin
           {pieces.map((p, i) => (
             <div key={i} className="contents">
               <dt className="text-t-secondary">{t(`explain.piece.${p.kind}`)}</dt>
-              <dd className="m-0 font-mono break-all">{p.value}</dd>
+              <dd className="m-0 font-mono wrap-anywhere">{p.value}</dd>
             </div>
           ))}
         </dl>

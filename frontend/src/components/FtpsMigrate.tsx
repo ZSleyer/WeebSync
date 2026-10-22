@@ -91,7 +91,9 @@ export default function FtpsMigrateDialog({ server, onClose }: { server: ServerI
                 {fail?.code !== 'auth_failed' && fail?.code !== 'connect_failed' && (
                   <p className="sf-note !mt-0">{t('servers.migrate.trySftp')}</p>
                 )}
-                {fail && cause !== fail.text && <p className="font-mono text-xs break-all text-t-muted">{fail.text}</p>}
+                {fail && cause !== fail.text && (
+                  <p className="font-mono text-xs wrap-anywhere text-t-muted">{fail.text}</p>
+                )}
               </div>
             )}
           </div>

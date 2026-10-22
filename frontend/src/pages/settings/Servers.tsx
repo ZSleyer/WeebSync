@@ -161,7 +161,7 @@ export default function Servers() {
               <span className="text-ctl-sm text-t-muted">{t('servers.maxConn', { n: s.maxConnections })}</span>
             </div>
             {testResult[s.id] && testResult[s.id] !== 'ok' && testResult[s.id] !== '…' && !keyConflict[s.id] && (
-              <p className="sf-issue mt-2 break-all" role="alert">
+              <p className="sf-issue mt-2 wrap-anywhere" role="alert">
                 {testResult[s.id]}
               </p>
             )}

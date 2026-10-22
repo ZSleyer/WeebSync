@@ -428,7 +428,7 @@ export function WatchForm({
               />
               <span>
                 {t('watch.moveFiles')}
-                <span className="block font-mono text-ctl-sm break-all text-t-muted">
+                <span className="block font-mono text-ctl-sm wrap-anywhere text-t-muted">
                   {oldFolder} → {newFolder}
                 </span>
               </span>

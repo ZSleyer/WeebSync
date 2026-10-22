@@ -55,7 +55,7 @@ export function CatalogWhy({
                 : 'explain.match.title',
           )}
         </h2>
-        <p className="mt-1 font-mono text-ctl-sm break-all text-t-secondary">{name}</p>
+        <p className="mt-1 font-mono text-ctl-sm wrap-anywhere text-t-secondary">{name}</p>
       </header>
       <div className="grid flex-1 content-start gap-5 overflow-y-auto px-5 py-4">
         <section>
@@ -110,7 +110,7 @@ function Body({ x, onRematch }: { x: CatalogExplain; onRematch?: () => void }) {
               {x.tried.map((s, i) => (
                 <li key={i} className="flex flex-wrap gap-x-2">
                   <span className="text-t-secondary">{t(`explain.match.searchStage.${s.stage}`)}</span>
-                  <span className="min-w-0 font-mono break-all">
+                  <span className="min-w-0 font-mono wrap-anywhere">
                     {s.query}
                     {s.season ? ` · ${t(`explain.match.seasonName.${s.season}`)} ${s.year}` : ''}
                   </span>
