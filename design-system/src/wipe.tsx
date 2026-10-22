@@ -21,7 +21,7 @@ export function wipeOutMs(index: number, reduced: boolean): number {
   return reduced ? 0 : OUT_MS + Math.min(index, MAX_STAGGER) * OUT_STEP_MS
 }
 
-function reducedMotion(): boolean {
+export function reducedMotion(): boolean {
   if (typeof document !== 'undefined' && document.documentElement.dataset.motion === 'off') return true
   return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { BookOpen, Clock, Play } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
+import { Badge, reducedMotion, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
 import { scrollToSection } from './ScrollMemory'
 import { dubProgressLabel } from '../attention'
 import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
@@ -247,7 +247,7 @@ export default function EpisodeList({
     setOpen((s) => new Set(s).add(k))
     setHit(k)
     const el = rows.current.get(k)
-    const still = matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    const still = reducedMotion()
     if (el) scrollToSection(el, 'center', still ? 'auto' : 'smooth')
     const id = setTimeout(() => el?.querySelector<HTMLElement>('.ws-ep-tog')?.focus({ preventScroll: true }), 500)
     return () => clearTimeout(id)
