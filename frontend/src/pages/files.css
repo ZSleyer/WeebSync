@@ -172,7 +172,10 @@
      the ring is drawn like the curve, so the outline is even at any pixel ratio */
   box-shadow: inset 0 0 0 1px var(--line-strong);
 }
-@media (forced-colors: active) { .ws-cl-field { border: 1px solid CanvasText; padding: 0 0.25rem; } }
+@media (forced-colors: active) {
+  .ws-cl-field { border: 1px solid CanvasText; padding: 0 0.25rem; }
+  .ws-cl-field:focus-within { outline: 2px solid Highlight; outline-offset: 2px; }
+}
 @media (width >= 64rem) { .ws-cl-field { flex: 0 1 34rem; } }
 .ws-cl-field:focus-within { box-shadow: inset 0 0 0 1px var(--accent); }
 .ws-cl-field .ws-src .t-pill {
