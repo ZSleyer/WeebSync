@@ -24,11 +24,14 @@ export function PathCrumbs({
   onNavigate,
   fetchPath,
   queryKey,
+  after,
 }: {
   path: string
   onNavigate: (path: string) => void
   fetchPath?: (path: string) => string
   queryKey?: unknown[]
+  /** a control for the folder in view, right behind the crumbs and the pen */
+  after?: ReactNode
 }) {
   const { t } = useTranslation()
   const [editing, setEditing] = useState(false)
@@ -74,8 +77,20 @@ export function PathCrumbs({
   }
 
   const canEdit = !!(fetchPath && queryKey)
+  const edit = () => {
+    setDraft(path)
+    setEditing(true)
+  }
   return (
-    <div className="ws-crumbs-row">
+    // the empty space of the row (not a crumb, the pen or the slot) types a
+    // path like the pen does; keyboard users have the pen and the last crumb
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+    <div
+      className={`ws-crumbs-row${after ? ' ws-crumbs-row--after' : ''}${canEdit ? ' ws-crumbs-row--edit' : ''}`}
+      onClick={(e) => {
+        if (canEdit && (e.target === e.currentTarget || e.target === nav.current)) edit()
+      }}
+    >
       <nav ref={nav} className="ws-crumbs" aria-label={t('remote.path')} onScroll={(e) => cut(e.currentTarget)}>
         <button type="button" aria-label={t('files.root')} onClick={() => onNavigate('')}>
           /
@@ -91,10 +106,7 @@ export function PathCrumbs({
                 aria-current="location"
                 className="ws-crumb-here"
                 title={t('remote.editPath')}
-                onClick={() => {
-                  setDraft(path)
-                  setEditing(true)
-                }}
+                onClick={edit}
               >
                 {c}
               </button>
@@ -118,14 +130,12 @@ export function PathCrumbs({
           className="ws-icon-sm ws-crumbs-edit"
           aria-label={t('remote.editPath')}
           title={t('remote.editPath')}
-          onClick={() => {
-            setDraft(path)
-            setEditing(true)
-          }}
+          onClick={edit}
         >
           <Pencil aria-hidden size={18} />
         </IconButton>
       )}
+      {after}
     </div>
   )
 }
@@ -203,6 +213,7 @@ export function FileBrowser({
   onToggle,
   onContextSelect,
   listClassName,
+  crumbsAfter,
 }: {
   queryKey: unknown[]
   fetchPath: (path: string) => string
@@ -235,6 +246,8 @@ export function FileBrowser({
   onContextSelect?: (e: Entry) => void
   /** extra classes for the scrolling list, for the page that hosts it */
   listClassName?: string
+  /** a control behind the path, for the folder in view */
+  crumbsAfter?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
   // '-date' is newest first; kept across folders and visits
@@ -296,7 +309,7 @@ export function FileBrowser({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} />
+      <PathCrumbs path={path} onNavigate={onNavigate} fetchPath={fetchPath} queryKey={queryKey} after={crumbsAfter} />
       <div className={`t-scroll min-h-0 flex-1${listClassName ? ` ${listClassName}` : ''}`}>
         {isLoading && <SkeletonRows full={sortable} />}
         {conflict ? (

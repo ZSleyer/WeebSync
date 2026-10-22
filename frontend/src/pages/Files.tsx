@@ -104,7 +104,8 @@ import {
   useTargetFolder,
 } from '../components/useTargetFolder'
 import HostKeyPrompt from '../components/HostKeyPrompt'
-import FolderBookmarks from '../components/FolderBookmarks'
+import FolderBookmarks, { BookmarkToggle } from '../components/FolderBookmarks'
+import { useBookmarks } from '../components/bookmarks'
 import SubfolderChoice from '../components/SubfolderChoice'
 import UpcomingSeason from '../components/UpcomingSeason'
 import WatchDialog, { WatchForm, type WatchFields } from '../components/WatchDialog'
@@ -616,6 +617,9 @@ export default function Files() {
       : `/api/servers/${active}/browse${p ? `?path=${encodeURIComponent('/' + p)}` : ''}`
   const [sort, setSort] = useStored<string>('weebsync.files.sort', 'name')
   const selecting = checked.size > 0
+  // saved folders: the toggle sits with the path, the menu with the source
+  const bookmarks = useBookmarks()
+  const here = <BookmarkToggle here={{ source, path }} store={bookmarks} />
   // the phone's bar for a picked entry: up to two actions, the rest in the sheet
   const barActions = selection ? actionsOf(selection).filter((a) => a.key !== 'copy') : []
   const barMain = barActions.slice(0, 2)
@@ -670,7 +674,7 @@ export default function Files() {
                 )}
               </div>
               {/* a saved folder is one step away, whichever source it is on */}
-              <FolderBookmarks here={{ source, path }} servers={servers} onOpen={(b) => pickSource(b.source, b.path)} />
+              <FolderBookmarks store={bookmarks} servers={servers} onOpen={(b) => pickSource(b.source, b.path)} />
               {view === 'classic' && !query.trim() && (
                 <Select
                   wrapperClassName="ws-cl-sort"
@@ -741,6 +745,7 @@ export default function Files() {
             ) : view === 'classic' ? (
               <FileBrowser
                 listClassName="ws-list-scroll"
+                crumbsAfter={here}
                 queryKey={isLocal ? ['local'] : ['remote', active]}
                 fetchPath={browseUrl}
                 path={path}
@@ -766,6 +771,7 @@ export default function Files() {
               <CatalogGrid
                 serverId={active}
                 path={path}
+                crumbsAfter={here}
                 pin={{
                   on: viewValue === 'catalogPersist',
                   toggle: () => setView(viewValue === 'catalogPersist' ? 'catalogOnce' : 'catalogPersist'),
@@ -1047,6 +1053,7 @@ export function CatalogGrid({
   cardActions,
   renaming,
   pin,
+  crumbsAfter,
 }: {
   serverId: number
   path: string
@@ -1067,6 +1074,8 @@ export function CatalogGrid({
   cardActions?: (e: Entry) => TileAction[]
   /** the folder whose name is being edited in place */
   renaming?: Renaming
+  /** a control behind the path, for the folder in view */
+  crumbsAfter?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
   const confirm = useConfirm()
@@ -1494,6 +1503,7 @@ export function CatalogGrid({
       onNavigate={onNavigate}
       fetchPath={browseUrl}
       queryKey={serverId === 0 ? ['local'] : ['remote', serverId]}
+      after={crumbsAfter}
     />
   )
 

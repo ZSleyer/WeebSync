@@ -186,3 +186,9 @@
 .ws-crumbs .ws-crumb-here { color: var(--fg); font-weight: 600; }
 @media (width < 64rem) { .ws-crumbs-edit { display: none !important; } }
 @media (width >= 64rem) { .ws-crumbs-edit { width: 1.75rem !important; height: 1.75rem !important; min-width: 1.75rem; } .ws-crumbs-edit svg { width: 15px; height: 15px; } }
+
+/* the empty space of the row types a path (the pen's job) */
+.ws-crumbs-row--edit, .ws-crumbs-row--edit .ws-crumbs { cursor: text; }
+/* a control behind the path stays next to the pen; the slack goes after it */
+.ws-crumbs-row--after .ws-crumbs { flex: 0 1 auto; }
+.ws-crumbs-row--after > button, .ws-crumbs-row--after > [aria-pressed] { flex: none; }

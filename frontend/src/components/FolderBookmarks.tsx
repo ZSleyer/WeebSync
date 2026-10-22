@@ -2,48 +2,56 @@ import { Bookmark as BookmarkIcon, BookmarkCheck, BookmarkPlus, X } from 'lucide
 import { useTranslation } from 'react-i18next'
 import { IconButton, Menu, useMenu } from 'fluid-lycoris'
 import type { ServerInfo } from '../api'
-import { hasBookmark, useBookmarks, type Bookmark } from './bookmarks'
+import { hasBookmark, type Bookmark, type useBookmarks } from './bookmarks'
 
 // the last two segments say where a deep folder is; the full path is the title
 const tail = (p: string) => p.split('/').filter(Boolean).slice(-2).join('/')
 
+// one store for toggle and menu: the list lives in state, so two separate
+// useBookmarks() calls would not see each other's changes
+type Store = ReturnType<typeof useBookmarks>
+
 /**
- * Saved folders of the Files page: a button that bookmarks the folder in view
- * and a menu that jumps to any saved one, across all sources. Kept in this
- * browser only (localStorage), not on the server.
+ * Bookmarks the folder in view. It acts on the address, so it sits with the
+ * path (like a browser's star in the address bar), not with the menu of saved
+ * folders.
+ */
+export function BookmarkToggle({ here, store }: { here: Bookmark; store: Store }) {
+  const { t } = useTranslation()
+  const saved = hasBookmark(store.list, here)
+  const label = saved ? t('files.bookmarkRemove') : t('files.bookmarkAdd')
+  return (
+    <IconButton size="sm" aria-label={label} title={label} aria-pressed={saved} onClick={() => store.toggle(here)}>
+      {saved ? <BookmarkCheck aria-hidden size="1.2em" /> : <BookmarkPlus aria-hidden size="1.2em" />}
+    </IconButton>
+  )
+}
+
+/**
+ * Saved folders of the Files page: a menu that jumps to any saved one, across
+ * all sources. Kept in this browser only (localStorage), not on the server.
  */
 export default function FolderBookmarks({
-  here,
   servers,
   onOpen,
+  store,
 }: {
-  here: Bookmark
   servers: ServerInfo[]
   onOpen: (b: Bookmark) => void
+  store: Store
 }) {
   const { t } = useTranslation()
-  const { list, toggle, remove } = useBookmarks()
+  const { list, remove } = store
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
-  const saved = hasBookmark(list, here)
   // a bookmark of a deleted server has nowhere to go
   const shown = list.flatMap((b) => {
     if (b.source === 'local') return [{ b, name: t('files.local') }]
     const s = servers.find((x) => x.id === b.source)
     return s ? [{ b, name: s.name }] : []
   })
-  const toggleLabel = saved ? t('files.bookmarkRemove') : t('files.bookmarkAdd')
   const menuLabel = t('files.bookmarks')
   return (
     <div className="flex shrink-0 items-center">
-      <IconButton
-        size="sm"
-        aria-label={toggleLabel}
-        title={toggleLabel}
-        aria-pressed={saved}
-        onClick={() => toggle(here)}
-      >
-        {saved ? <BookmarkCheck aria-hidden size="1.2em" /> : <BookmarkPlus aria-hidden size="1.2em" />}
-      </IconButton>
       <div className="relative" ref={ref} style={anchorStyle}>
         <IconButton
           size="sm"
