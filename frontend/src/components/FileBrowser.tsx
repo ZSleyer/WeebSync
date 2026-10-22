@@ -39,6 +39,7 @@ export function PathCrumbs({
   const crumbs = path.split('/').filter(Boolean)
   // a deep path scrolls: the folder you are in is the part to see
   const nav = useRef<HTMLElement>(null)
+  const down = useRef<EventTarget | null>(null)
   // and the folders before it fade out at the edge while they are cut off
   const cut = (el: HTMLElement) => el.toggleAttribute('data-cut', el.scrollLeft > 1)
   useLayoutEffect(() => {
@@ -87,8 +88,20 @@ export function PathCrumbs({
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div
       className={`ws-crumbs-row${after ? ' ws-crumbs-row--after' : ''}${canEdit ? ' ws-crumbs-row--edit' : ''}`}
+      onPointerDown={(e) => {
+        down.current = e.target
+      }}
       onClick={(e) => {
-        if (canEdit && (e.target === e.currentTarget || e.target === nav.current)) edit()
+        const empty = (el: EventTarget | null) => el === e.currentTarget || el === nav.current
+        // a drag that began on a crumb, or a text selection, is not a click on the space
+        if (
+          canEdit &&
+          (down.current === null || empty(down.current)) &&
+          empty(e.target) &&
+          window.getSelection()?.isCollapsed !== false
+        )
+          edit()
+        down.current = null
       }}
     >
       <nav ref={nav} className="ws-crumbs" aria-label={t('remote.path')} onScroll={(e) => cut(e.currentTarget)}>
