@@ -15,6 +15,7 @@ import {
   createBrowserRouter,
   createRoutesFromElements,
   Link,
+  matchPath,
   Navigate,
   Outlet,
   Route,
@@ -722,6 +723,10 @@ function Shell({ email }: { email: string }) {
   const icon = (n: NavEntry) => <n.icon aria-hidden className="t-nav-icon" data-nav={n.motion} />
   const screenTitle = title ? t(title) : 'WeebSync'
 
+  // Heute lists the transfers itself; its series page keeps the pathname of
+  // the page it was opened on, only a link straight to one stands on Heute
+  const onToday = location.pathname === '/' || !!matchPath(TITLE_PATH, location.pathname)
+
   const sidebar = (
     <aside className="ws-side" aria-label={t('nav.side')}>
       <div className="ws-brand">
@@ -761,7 +766,7 @@ function Shell({ email }: { email: string }) {
           always in the same place; above them what transfers right now */}
       <div className="ws-side-foot">
         <MiniPlayer variant="rail" />
-        <LiveActivity variant="rail" />
+        {!onToday && <LiveActivity variant="rail" />}
         <PhoneHint />
         {/* settings, the account and the way out in one menu; a newer build
             out puts a dot on the button and on the About entry */}
