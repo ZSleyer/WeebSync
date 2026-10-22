@@ -2,10 +2,14 @@ services:
   weebsync:
     image: ghcr.io/zsleyer/weebsync:latest # or :nightly / :dev for unreleased changes, :2026.10.1 to pin
     # build: . # build from this checkout instead
-    # run as the owner of your media instead of the image's nonroot (65532);
-    # `./data` must belong to that user too (docs/configuration.md, "File ownership")
-    # user: "1000:1000"
-    # group_add: ["990"]
+    # PUID/PGID: the user and group that own your media. The container starts
+    # as root only for this, fixes the ownership of /config and drops to that
+    # user before the app starts. That is why the three capabilities below
+    # are added back. Already running with `user: "1000:1000"` instead? Remove
+    # the next line and the cap_add, nothing else changes (docs/configuration.md,
+    # "File ownership")
+    user: "0:0"
+    # group_add: ["990"] # extra groups with write access to the mounts
     # GPU for the player's transcodes (Intel/AMD through VA-API, amd64 image):
     # hand over the render nodes and add the id of the host group that owns
     # them (`getent group render`) to group_add above - the nonroot user has
@@ -28,19 +32,28 @@ services:
       # "8080:8080" only on a trusted host you fully control.
       - "127.0.0.1:8080:8080"
     volumes:
-      - ./data:/data # sqlite db + default downloads (under /data/downloads)
+      # database, secret key and default downloads (under /config/downloads).
+      # Images before this layout used /data: an existing setup that mounts
+      # /data keeps working, nothing to change
+      - ./data:/config
       # media libraries as sync targets - also list them in WEEBSYNC_DOWNLOADS
       # - /srv/media:/media
+      # or a download folder with the usual name
+      # - /srv/downloads:/downloads
     environment:
+      PUID: ${PUID:-1000} # `id -u` of the owner of your media
+      PGID: ${PGID:-1000} # `id -g`
       TZ: ${TZ:-UTC} # log timestamps, any IANA name
+      # UMASK: "022" # permissions of new files, default: the host's
+      WEEBSYNC_DATA: /config # picked automatically when /config is mounted; set so `docker compose exec` commands find it too
       # WEEBSYNC_LOG_LEVEL: info # trace|debug|info|warn|error
 
       # --- storage ---------------------------------------------------------
       # allowlist of local roots (":"-separated), first one is the default
       # download dir; only these are browsable and writable
-      # WEEBSYNC_DOWNLOADS: /media:/data/downloads
+      # WEEBSYNC_DOWNLOADS: /media:/config/downloads
       # key for credential encryption at rest. Unset = auto-generated at
-      # /data/secret.key on first start. Back it up either way.
+      # /config/secret.key on first start. Back it up either way.
       # WEEBSYNC_SECRET: ${WEEBSYNC_SECRET}
 
       # --- behind a reverse proxy ------------------------------------------
@@ -82,11 +95,14 @@ services:
       # AI_MODEL: ""
       # AI_SEARCH_URL: http://searxng.example.com:8080
     restart: unless-stopped
-    # hardening that travels with the file: no capabilities (nonroot on port
-    # 8080 needs none), no privilege gain via setuid, read-only root. Writes go
+    # hardening that travels with the file: no capabilities except the three
+    # the start-up needs to hand /config to PUID:PGID and drop root (they are
+    # gone once the app runs; without `user: "0:0"` above none is needed), no
+    # privilege gain via setuid, read-only root. Writes go
     # to the volumes above; tmpfs covers SQLite's temp files and ffprobe, which
     # both fail quietly without a writable /tmp and /var/tmp.
     cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETUID, SETGID]
     security_opt: [no-new-privileges:true]
     read_only: true
     tmpfs: [/tmp, /var/tmp]
