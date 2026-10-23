@@ -1977,6 +1977,36 @@
                 ],
                 "type": "object"
             },
+            "api.PlayChapter": {
+                "properties": {
+                    "end": {
+                        "example": 180.2,
+                        "type": "number"
+                    },
+                    "kind": {
+                        "description": "Kind is \"op\" or \"ed\" when the title names the opening or the ending,\nwhich the player offers to skip; empty for any other chapter",
+                        "enum": [
+                            "op",
+                            "ed"
+                        ],
+                        "example": "op",
+                        "type": "string"
+                    },
+                    "start": {
+                        "example": 90.1,
+                        "type": "number"
+                    },
+                    "title": {
+                        "example": "Opening",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "start",
+                    "end"
+                ],
+                "type": "object"
+            },
             "api.PlayFont": {
                 "properties": {
                     "index": {
@@ -2008,6 +2038,14 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "chapters": {
+                        "description": "Chapters are the file's chapter marks in order, empty when it has fewer\nthan two",
+                        "items": {
+                            "$ref": "#/components/schemas/api.PlayChapter"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
+                    },
                     "duration": {
                         "type": "number"
                     },
@@ -2034,7 +2072,8 @@
                     "duration",
                     "audio",
                     "subs",
-                    "fonts"
+                    "fonts",
+                    "chapters"
                 ],
                 "type": "object"
             },

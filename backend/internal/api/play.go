@@ -555,6 +555,9 @@ type PlayInfo struct {
 	// fontData is where each font's bytes lie, when the file was walked for
 	// them: /api/play/font then reads just the one asked for
 	fontData map[int]fontFile
+	// Chapters are the file's chapter marks in order, empty when it has fewer
+	// than two
+	Chapters []PlayChapter `json:"chapters"`
 	// Anilist is per user, set on the answer, never on the cached info
 	Anilist *PlayAnilist `json:"anilist,omitempty"`
 }
@@ -596,7 +599,7 @@ func (s *Server) handlePlayInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error) {
-	info := PlayInfo{Audio: []PlayTrack{}, Subs: []PlayTrack{}, Fonts: []PlayFont{}}
+	info := PlayInfo{Audio: []PlayTrack{}, Subs: []PlayTrack{}, Fonts: []PlayFont{}, Chapters: []PlayChapter{}}
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	in, err := s.ffInputFor(ctx, src)
@@ -604,12 +607,13 @@ func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error)
 		return info, err
 	}
 	defer in.done()
-	out, err := ffCommand(ctx, "ffprobe", in, []string{"-print_format", "json", "-show_streams", "-show_format"}, nil).Output()
+	out, err := ffCommand(ctx, "ffprobe", in, []string{"-print_format", "json", "-show_streams", "-show_format", "-show_chapters"}, nil).Output()
 	if err != nil {
 		return info, errors.New("ffprobe could not read the file")
 	}
 	var probed struct {
-		Format struct {
+		Chapters []probedChapter `json:"chapters"`
+		Format   struct {
 			Duration string `json:"duration"`
 		} `json:"format"`
 		Streams []struct {
@@ -638,6 +642,7 @@ func (s *Server) playInfo(ctx context.Context, src playSource) (PlayInfo, error)
 		return info, err
 	}
 	info.Duration, _ = strconv.ParseFloat(probed.Format.Duration, 64)
+	info.Chapters = playChapters(probed.Chapters)
 	// the walk ffInputFor made (or makes now, for a local file) finds each
 	// font's bytes and names; ffprobe and it meet on the file name
 	mf := s.mkvFontsFor(ctx, src, -1)

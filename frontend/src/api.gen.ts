@@ -853,6 +853,16 @@ export interface Schemas {
     mediaId: number
     progress: number
   }
+  'api.PlayChapter': {
+    end: number
+    /**
+     * Kind is "op" or "ed" when the title names the opening or the ending,
+     * which the player offers to skip; empty for any other chapter
+     */
+    kind?: "op" | "ed"
+    start: number
+    title?: string
+  }
   'api.PlayFont': {
     index: number
     names?: string[]
@@ -863,6 +873,11 @@ export interface Schemas {
      */
     anilist?: Schemas['api.PlayAnilist']
     audio: Schemas['api.PlayTrack'][]
+    /**
+     * Chapters are the file's chapter marks in order, empty when it has fewer
+     * than two
+     */
+    chapters: Schemas['api.PlayChapter'][]
     duration: number
     /**
      * Fonts are the font attachments by stream index, for /api/play/font
