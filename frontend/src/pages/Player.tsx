@@ -31,6 +31,7 @@ import {
   MediaLoadingIndicator,
   MediaMuteButton,
   MediaPlayButton,
+  MediaPreviewChapterDisplay,
   MediaPreviewTimeDisplay,
   MediaSeekBackwardButton,
   MediaSeekForwardButton,
@@ -62,11 +63,13 @@ import PlayerInfo, {
   episodeCode,
   trackLabel,
   usePlayTitle,
+  type PlayChapter,
   type PlayInfo,
   type PlayTrack,
 } from './PlayerInfo'
 import { renameFamilies, scaleFonts, scriptFamilies } from './assFonts'
 import { markSeen, resumeFrom, savedPosition, SEEN_AT, storePosition } from './playPosition'
+import { chapterAt, chaptersVtt } from './playerChapters'
 import './player.css'
 
 // A Bluray picture track inside the file: the browser draws it itself (libpgs),
@@ -534,6 +537,53 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     v.addEventListener('ended', ended)
     return () => v.removeEventListener('ended', ended)
   }, [next, data])
+  // the file's chapters as a track media-chrome reads: the time bar splits
+  // into segments, the preview over it names the one under the pointer
+  const chapters = useMemo(() => data?.chapters ?? [], [data])
+  const chaptersUrl = useMemo(
+    () =>
+      chapters.length
+        ? URL.createObjectURL(
+            new Blob([chaptersVtt(chapters, (n) => t('player.chapterN', { n }))], { type: 'text/vtt' }),
+          )
+        : '',
+    [chapters, t],
+  )
+  useEffect(() => () => URL.revokeObjectURL(chaptersUrl), [chaptersUrl])
+  // the chapter playing now, named in the dock; an opening or ending gets a
+  // card to skip it, until it is skipped or waved off (seeking back into it
+  // brings the card again)
+  const [chapter, setChapter] = useState<PlayChapter>()
+  const [skipDone, setSkipDone] = useState<PlayChapter>()
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !chapters.length) {
+      setChapter(undefined)
+      return
+    }
+    let last: PlayChapter | undefined
+    const sync = () => {
+      const c = chapterAt(chapters, v.currentTime)
+      if (c === last) return
+      last = c
+      setChapter(c)
+      setSkipDone(undefined)
+    }
+    sync()
+    v.addEventListener('timeupdate', sync)
+    v.addEventListener('seeked', sync)
+    return () => {
+      v.removeEventListener('timeupdate', sync)
+      v.removeEventListener('seeked', sync)
+    }
+  }, [chapters])
+  const skippable = chapter?.kind && chapter !== skipDone ? chapter : undefined
+  const skipChapter = () => {
+    const v = videoRef.current
+    if (!v || !skippable) return
+    v.currentTime = Math.min(skippable.end, v.duration || Infinity)
+    setSkipDone(skippable)
+  }
   // 90 % of an episode counts as watched: the AniList list moves on by one,
   // never back and never past a gap. The write waits out the toast, whose
   // undo drops it before AniList hears of it
@@ -1056,7 +1106,26 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             // and Firefox one for picture in picture; ours is in the dock (it
             // lifts this for the moment it asks, see togglePip)
             {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
-          />
+          >
+            {chaptersUrl && (
+              <track
+                key={chaptersUrl}
+                kind="chapters"
+                default
+                src={chaptersUrl}
+                // a track added after the media is set is off, and media-chrome
+                // waits for the load only of the one it found back then: wake
+                // the track, then tell media-chrome its cues are in
+                ref={(el) => {
+                  if (!el) return
+                  const loaded = () => videoRef.current?.textTracks.dispatchEvent(new Event('change'))
+                  el.addEventListener('load', loaded)
+                  if (el.track.mode === 'disabled') el.track.mode = 'hidden'
+                  return () => el.removeEventListener('load', loaded)
+                }}
+              />
+            )}
+          </video>
 
           <div slot="top-chrome" className="t-player-top">
             {/* the only way out on a phone, where the player has the whole screen */}
@@ -1176,6 +1245,21 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               </div>
             )
           )}
+          {nextIn === null && offer === null && skippable && (
+            <div className="t-player-card" {...{ noautohide: '' }}>
+              <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={skipChapter}>
+                {t(skippable.kind === 'op' ? 'player.skipOp' : 'player.skipEd')}
+              </button>
+              <button
+                type="button"
+                className="t-pl-ic t-pl-ic--sm"
+                aria-label={t('player.skipDismiss')}
+                onClick={() => setSkipDone(skippable)}
+              >
+                <X aria-hidden size={18} />
+              </button>
+            </div>
+          )}
 
           {/* subtitles and audio are a tap away, each its own menu; the rest
               (episodes, speed, subtitle size) stays behind the sliders */}
@@ -1253,6 +1337,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <div className="t-player-dock">
             <MediaControlBar className="t-player-scrub">
               <MediaTimeRange>
+                {/* slotting the preview replaces media-chrome's own, chapter title included */}
+                <MediaPreviewChapterDisplay slot="preview" />
                 <MediaPreviewTimeDisplay slot="preview" />
               </MediaTimeRange>
             </MediaControlBar>
@@ -1267,6 +1353,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               {/* a narrow player shows the current time only (CSS picks one) */}
               <MediaTimeDisplay showDuration className="t-player-time t-player-time--full" />
               <MediaTimeDisplay className="t-player-time t-player-time--short" />
+              {chapter?.title && (
+                <span className="t-player-chapter" title={chapter.title}>
+                  {chapter.title}
+                </span>
+              )}
               <span className="flex-1" />
               {episodes.length > 1 && (
                 <>

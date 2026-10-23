@@ -367,6 +367,18 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
   align-items: center;
   white-space: nowrap;
 }
+/* the chapter playing now, after the time; it gives way first when room runs out */
+.t-player-chapter {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.875rem;
+  /* the bar sets none of its own */
+  line-height: 1.5rem;
+  color: rgb(255 255 255 / 0.85);
+}
+.t-player-chapter::before { content: '•'; margin-inline: 0.125rem 0.5rem; }
 /* volume slides out of the mute button instead of always taking room */
 .t-player-volume { display: inline-flex; align-items: center; }
 .t-player-volume media-volume-range {
@@ -554,6 +566,8 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
    short): each step is where the buttons left no longer fit */
 @container player (width < 34rem) {
   .t-player-bar :is(media-seek-backward-button, media-seek-forward-button) { display: none; }
+  /* the time bar's preview still names the chapter */
+  .t-player-chapter { display: none; }
 }
 @container player (width < 28.5rem) {
   .t-player-bar :is(.t-player-prev, .t-player-nextep) { display: none; }

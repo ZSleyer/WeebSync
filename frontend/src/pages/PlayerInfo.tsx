@@ -31,6 +31,14 @@ export interface PlayTrack {
   file?: string
 }
 
+export interface PlayChapter {
+  start: number
+  end: number
+  title?: string
+  // the opening or the ending, which the player offers to skip
+  kind?: 'op' | 'ed'
+}
+
 export interface PlayInfo {
   duration: number
   video?: { codec: string; profile?: string; pixFmt?: string; width: number; height: number }
@@ -38,6 +46,8 @@ export interface PlayInfo {
   subs: PlayTrack[]
   // names: what libass may ask for the font by; none for one it cannot name
   fonts: { index: number; names?: string[] }[]
+  // the chapter marks in order, none when the file has fewer than two
+  chapters: PlayChapter[]
   // the AniList entry behind the file, when it is on the user's list
   anilist?: { mediaId: number; episode: number; progress: number }
 }
