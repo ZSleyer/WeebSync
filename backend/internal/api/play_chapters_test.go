@@ -90,6 +90,11 @@ func TestChapterKind(t *testing.T) {
 		{"オープニングテーマ", 90, "op"},
 		{"エンディングテーマ", 90, "ed"},
 		{"エンディングソング", 90, "ed"},
+		{"OPテーマ", 90, "op"},
+		{"ED曲", 90, "ed"},
+		{"オープニング主題歌", 90, "op"},
+		{"オープニング曲「紅蓮華」", 90, "op"},
+		{"OP映像", 90, ""},
 		// still ordinary chapters
 		{"Next Episode Preview", 15, ""},
 		{"Eyecatch", 5, ""},

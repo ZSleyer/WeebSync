@@ -40,10 +40,10 @@ var skipKeywords = map[string]string{
 
 // skipExtras are the words that may follow the keyword before the title moves
 // on to the song's name behind a separator: "Ending Theme Song", "Credits
-// Roll". Japanese writes them onto the keyword: "オープニングテーマ".
+// Roll". Japanese writes them onto the keyword: "オープニングテーマ", "OP曲".
 var skipExtras = map[string]bool{
 	"song": true, "theme": true, "credits": true, "sequence": true, "animation": true, "roll": true, "movie": true,
-	"テーマ": true, "ソング": true, "テーマソング": true,
+	"テーマ": true, "ソング": true, "テーマソング": true, "曲": true, "主題歌": true,
 }
 
 // titleTokens splits a title into lowercased words (letters, with an
@@ -99,9 +99,11 @@ func skipKeyword(toks []string, words []bool) (kind string, n int) {
 	if (toks[0] == "end" || toks[0] == "staff") && len(toks) > 1 && toks[1] == "credits" {
 		return "ed", 2
 	}
-	for _, kw := range []string{"オープニング", "エンディング"} {
+	// an extra written onto the keyword, as Japanese does ("オープニングテーマ",
+	// "OP曲": letters of both scripts make one word)
+	for kw, k := range skipKeywords {
 		if rest, ok := strings.CutPrefix(toks[0], kw); ok && skipExtras[rest] {
-			return skipKeywords[kw], 1
+			return k, 1
 		}
 	}
 	return "", 0
