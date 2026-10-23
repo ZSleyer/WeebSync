@@ -72,13 +72,12 @@ import PlayerInfo, {
   episodeCode,
   trackLabel,
   usePlayTitle,
-  type PlayChapter,
   type PlayInfo,
   type PlayTrack,
 } from './PlayerInfo'
 import { renameFamilies, scaleFonts, scriptFamilies } from './assFonts'
 import { markSeen, resumeFrom, savedPosition, SEEN_AT, storePosition } from './playPosition'
-import { chapterAt, chaptersVtt } from './playerChapters'
+import { chaptersVtt, useChapterSkip } from './playerChapters'
 import './player.css'
 
 // A Bluray picture track inside the file: the browser draws it itself (libpgs),
@@ -572,41 +571,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     },
     [chaptersText],
   )
-  // the chapter playing now, named in the dock; an opening or ending gets a
-  // card to skip it, until it is skipped or waved off (seeking back into it
-  // brings the card again)
-  const [chapter, setChapter] = useState<PlayChapter>()
-  const [skipDone, setSkipDone] = useState<PlayChapter>()
-  useEffect(() => {
-    const v = videoRef.current
-    if (!v || !chapters.length) {
-      setChapter(undefined)
-      return
-    }
-    let last: PlayChapter | undefined
-    const sync = () => {
-      const c = chapterAt(chapters, v.currentTime)
-      if (c === last) return
-      last = c
-      setChapter(c)
-      setSkipDone(undefined)
-    }
-    sync()
-    // seeking, not only seeked: a transcode restarts at the new place and
-    // takes seconds to get there, the chapter has changed at once
-    const events = ['timeupdate', 'seeking', 'seeked']
-    for (const e of events) v.addEventListener(e, sync)
-    return () => {
-      for (const e of events) v.removeEventListener(e, sync)
-    }
-  }, [chapters])
-  const skippable = chapter?.kind && chapter !== skipDone ? chapter : undefined
-  const skipChapter = () => {
-    const v = videoRef.current
-    if (!v || !skippable) return
-    v.currentTime = Math.min(skippable.end, v.duration || Infinity)
-    setSkipDone(skippable)
-  }
+  const { chapter, skippable, skip: skipChapter, dismiss: dismissSkip } = useChapterSkip(videoRef, chapters)
   // 90 % of an episode counts as watched: the AniList list moves on by one,
   // never back and never past a gap. The write waits out the toast, whose
   // undo drops it before AniList hears of it
@@ -1260,7 +1225,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
                 type="button"
                 className="t-pl-ic t-pl-ic--sm"
                 aria-label={t('player.skipDismiss')}
-                onClick={() => setSkipDone(skippable)}
+                onClick={dismissSkip}
               >
                 <X aria-hidden size={18} />
               </button>

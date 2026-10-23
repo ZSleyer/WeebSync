@@ -2,6 +2,7 @@
 // media-chrome reads to split the time bar into segments and name the one
 // under the pointer, and the lookup the skip card and the dock title use.
 
+import { useEffect, useState, type RefObject } from 'react'
 import type { PlayChapter } from './PlayerInfo'
 
 const stamp = (s: number) => {
@@ -27,3 +28,45 @@ export function chaptersVtt(chapters: PlayChapter[], untitled: (n: number) => st
 
 /** The chapter playing at t seconds, if any. */
 export const chapterAt = (chapters: PlayChapter[], t: number) => chapters.find((c) => t >= c.start && t < c.end)
+
+/**
+ * The chapter playing now, followed on the video; an opening or ending is
+ * skippable until it is skipped or waved off (seeking back into it brings it
+ * again).
+ */
+export function useChapterSkip(videoRef: RefObject<HTMLVideoElement | null>, chapters: PlayChapter[]) {
+  const [chapter, setChapter] = useState<PlayChapter>()
+  const [skipDone, setSkipDone] = useState<PlayChapter>()
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !chapters.length) {
+      setChapter(undefined)
+      return
+    }
+    let last: PlayChapter | undefined
+    const sync = () => {
+      const c = chapterAt(chapters, v.currentTime)
+      if (c === last) return
+      last = c
+      setChapter(c)
+      setSkipDone(undefined)
+    }
+    sync()
+    // seeking, not only seeked: a transcode restarts at the new place and
+    // takes seconds to get there, the chapter has changed at once
+    const events = ['timeupdate', 'seeking', 'seeked']
+    for (const e of events) v.addEventListener(e, sync)
+    return () => {
+      for (const e of events) v.removeEventListener(e, sync)
+    }
+  }, [videoRef, chapters])
+  const skippable = chapter?.kind && chapter !== skipDone ? chapter : undefined
+  const skip = () => {
+    const v = videoRef.current
+    if (!v || !skippable) return
+    v.currentTime = Math.min(skippable.end, v.duration || Infinity)
+    setSkipDone(skippable)
+  }
+  const dismiss = () => setSkipDone(skippable)
+  return { chapter, skippable, skip, dismiss }
+}
