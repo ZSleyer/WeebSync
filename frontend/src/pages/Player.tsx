@@ -576,6 +576,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // (none for the moment a new list is in and the chapter still the old one's)
   const chapterIdx = chapter ? chapters.indexOf(chapter) : -1
   const chapterName = chapterIdx < 0 ? undefined : chapter?.title || t('player.chapterN', { n: chapterIdx + 1 })
+  const skipOffered = nextIn === null && offer === null ? skippable : undefined
   // the skip card goes away under the focus (skipped, waved off, chapter
   // over): focus stays in the player, where its keys work, not on the page
   const keepFocusInPlayer = useCallback((el: HTMLDivElement | null) => {
@@ -1229,13 +1230,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               </div>
             )
           )}
-          {nextIn === null && offer === null && skippable && (
+          {/* always there, only its words change: a live region added together
+              with its text is often not read out */}
+          <span className="sr-only" role="status">
+            {skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
+          </span>
+          {skipOffered && (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
-              <span className="sr-only" role="status">
-                {t(skippable.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
-              </span>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={skipChapter}>
-                {t(skippable.kind === 'op' ? 'player.skipOp' : 'player.skipEd')}
+                {t(skipOffered.kind === 'op' ? 'player.skipOp' : 'player.skipEd')}
               </button>
               <button
                 type="button"
