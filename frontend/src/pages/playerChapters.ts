@@ -11,11 +11,13 @@ const stamp = (s: number) => {
   return `${pad(Math.floor(ms / 3600000))}:${pad(Math.floor(ms / 60000) % 60)}:${pad(Math.floor(ms / 1000) % 60)}.${pad(ms % 1000, 3)}`
 }
 
-/** a cue text is one line of plain text: no markup, no line breaks, no arrow */
+/**
+ * A cue text is one line of plain text: no markup, no line breaks, and no
+ * cue arrow, which escaping '>' already rules out ("-->" becomes "--&gt;").
+ */
 const cueText = (s: string) =>
   s
     .replace(/[\r\n]+/g, ' ')
-    .replace(/-->/g, '→')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

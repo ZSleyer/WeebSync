@@ -19,7 +19,7 @@ describe('playerChapters', () => {
 
   it('keeps a title to one plain line', () => {
     const vtt = chaptersVtt([{ start: 0, end: 1, title: 'A <b>&</b>\n--> B' }], String)
-    expect(vtt).toContain('\nA &lt;b&gt;&amp;&lt;/b&gt; → B\n')
+    expect(vtt).toContain('\nA &lt;b&gt;&amp;&lt;/b&gt; --&gt; B\n')
   })
 
   it('writes stamps over an hour and rounds the milliseconds', () => {
@@ -49,10 +49,11 @@ describe('playerChapters', () => {
       const lines = block.split('\n')
       expect(lines).toHaveLength(2)
       expect(lines[0]).toMatch(cue)
-      expect(lines[1]).not.toMatch(/[\r<>]|-->|&(?!amp;|lt;|gt;)/)
+      // '>' alone also rules out a cue arrow ("-->") in the text
+      expect(lines[1]).not.toMatch(/[\r<>]|&(?!amp;|lt;|gt;)/)
     }
     expect(vtt).toContain('00:00:00.000 --> 00:01:00.000\n')
-    expect(vtt).toContain('x y z &lt;i&gt;&amp;&lt;/i&gt; → w')
+    expect(vtt).toContain('x y z &lt;i&gt;&amp;&lt;/i&gt; --&gt; w')
     expect(vtt).toContain('Chapter 2')
   })
 
