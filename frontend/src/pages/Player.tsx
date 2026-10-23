@@ -573,7 +573,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   )
   const { chapter, skippable, skip: skipChapter, dismiss: dismissSkip } = useChapterSkip(videoRef, chapters)
   // an untitled chapter goes by its number, as in the time bar's preview
-  const chapterName = chapter && (chapter.title || t('player.chapterN', { n: chapters.indexOf(chapter) + 1 }))
+  // (none for the moment a new list is in and the chapter still the old one's)
+  const chapterIdx = chapter ? chapters.indexOf(chapter) : -1
+  const chapterName = chapterIdx < 0 ? undefined : chapter?.title || t('player.chapterN', { n: chapterIdx + 1 })
   // the skip card goes away under the focus (skipped, waved off, chapter
   // over): focus stays in the player, where its keys work, not on the page
   const keepFocusInPlayer = useCallback((el: HTMLDivElement | null) => {
