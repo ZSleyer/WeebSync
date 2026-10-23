@@ -60,6 +60,15 @@ describe('playerChapters', () => {
     expect(chaptersVtt([], String).startsWith('WEBVTT\n')).toBe(true)
   })
 
+  it('takes the inner chapter where chapters nest', () => {
+    const nested = [
+      { start: 0, end: 600, title: 'Part A' },
+      { start: 90, end: 180, title: 'Opening', kind: 'op' as const },
+    ]
+    expect(chapterAt(nested, 100)?.kind).toBe('op')
+    expect(chapterAt(nested, 200)?.title).toBe('Part A')
+  })
+
   it('finds the chapter playing at a time', () => {
     expect(chapterAt(chapters, 0)?.title).toBe('Prologue')
     expect(chapterAt(chapters, 90.5)?.kind).toBe('op')

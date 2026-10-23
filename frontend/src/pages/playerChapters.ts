@@ -26,8 +26,11 @@ export function chaptersVtt(chapters: PlayChapter[], untitled: (n: number) => st
   return `WEBVTT\n\n${cues.join('\n\n')}\n`
 }
 
-/** The chapter playing at t seconds, if any. */
-export const chapterAt = (chapters: PlayChapter[], t: number) => chapters.find((c) => t >= c.start && t < c.end)
+/**
+ * The chapter playing at t seconds, if any; where chapters nest (an opening
+ * inside a part), the one that started last, which is the inner one.
+ */
+export const chapterAt = (chapters: PlayChapter[], t: number) => chapters.findLast((c) => t >= c.start && t < c.end)
 
 /**
  * The chapter playing now, followed on the video; an opening or ending is
