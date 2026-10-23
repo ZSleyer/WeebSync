@@ -572,6 +572,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     [chaptersText],
   )
   const { chapter, skippable, skip: skipChapter, dismiss: dismissSkip } = useChapterSkip(videoRef, chapters)
+  // an untitled chapter goes by its number, as in the time bar's preview
+  const chapterName = chapter && (chapter.title || t('player.chapterN', { n: chapters.indexOf(chapter) + 1 }))
   // 90 % of an episode counts as watched: the AniList list moves on by one,
   // never back and never past a gap. The write waits out the toast, whose
   // undo drops it before AniList hears of it
@@ -1324,9 +1326,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               {/* a narrow player shows the current time only (CSS picks one) */}
               <MediaTimeDisplay showDuration className="t-player-time t-player-time--full" />
               <MediaTimeDisplay className="t-player-time t-player-time--short" />
-              {chapter?.title && (
-                <span className="t-player-chapter" title={chapter.title}>
-                  {chapter.title}
+              {chapterName && (
+                <span className="t-player-chapter" title={chapterName}>
+                  {chapterName}
                 </span>
               )}
               <span className="flex-1" />
