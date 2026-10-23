@@ -1,10 +1,10 @@
 package api
 
 import (
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"unicode"
 )
 
 // PlayChapter is one chapter mark of a video, in seconds of the file.
@@ -32,12 +32,16 @@ type probedChapter struct {
 // files without chapter marks get no skip button.
 const maxSkipChapter = 4 * 60
 
-// opWords and edWords are the titles releases give the opening and the
-// ending, compared lowercased as whole words.
-var (
-	opWords = map[string]bool{"op": true, "opening": true, "intro": true, "vorspann": true, "オープニング": true}
-	edWords = map[string]bool{"ed": true, "ending": true, "outro": true, "credits": true, "abspann": true, "エンディング": true}
-)
+// skipTitle is how releases title the opening and the ending, lowercased:
+// the keyword first, then at most a number, a word like "song" or
+// "credits", and a separator before the song's name. A keyword further in
+// ("A Happy Ending") or followed by other words ("Intro to Magic", "Ed's
+// Decision") is an ordinary chapter.
+var skipTitle = regexp.MustCompile(`^[\s\[(]*(op|opening|intro|vorspann|オープニング|ed|ending|outro|credits|abspann|エンディング)` +
+	`\s*\d*\s*(?:(?:song|theme|credits|sequence)\s*\d*\s*)?(?:$|[\])]|[:\-–—|~(\[「『].*$)`)
+
+// edKeywords are the skipTitle keywords that name the ending.
+var edKeywords = map[string]bool{"ed": true, "ending": true, "outro": true, "credits": true, "abspann": true, "エンディング": true}
 
 // playChapters turns ffprobe's chapters into the player's: marks whose times
 // do not parse or that have no length are left out, and a file with a single
@@ -64,20 +68,18 @@ func playChapters(raw []probedChapter) []PlayChapter {
 }
 
 // chapterKind names a chapter "op" or "ed" from its title: "Opening", "OP1",
-// "Ending Credits", "ED - Song". A whole word decides, so "Opened" or
-// "Prologue" stay plain chapters.
+// "Ending Credits", "ED - Song"; see skipTitle.
 func chapterKind(title string, length float64) string {
 	if length > maxSkipChapter {
 		return ""
 	}
-	words := strings.FieldsFunc(strings.ToLower(title), func(r rune) bool { return !unicode.IsLetter(r) })
-	for _, w := range words {
-		switch {
-		case opWords[w]:
-			return "op"
-		case edWords[w]:
-			return "ed"
-		}
+	m := skipTitle.FindStringSubmatch(strings.ToLower(strings.TrimSpace(title)))
+	switch {
+	case m == nil:
+		return ""
+	case edKeywords[m[1]]:
+		return "ed"
+	default:
+		return "op"
 	}
-	return ""
 }

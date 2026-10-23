@@ -36,6 +36,17 @@ func TestChapterKind(t *testing.T) {
 		{"Edward", 90, ""},
 		{"Credited", 90, ""},
 		{"Top", 90, ""},
+		// a keyword names the chapter only as its first word, followed by
+		// nothing, a number, a song/credits word or a separator
+		{"Ed's Decision", 90, ""},
+		{"Ed & Al", 90, ""},
+		{"Intro to Magic", 90, ""},
+		{"A Happy Ending", 90, ""},
+		{"Part A - Opening", 90, ""},
+		{"Opening Theme", 90, "op"},
+		{"Opening (NCOP)", 90, "op"},
+		{"ED | Song Title", 90, "ed"},
+		{"オープニング「紅蓮華」", 90, "op"},
 		{"Opening", 240, "op"},
 		{"Opening", 240.001, ""},
 		{"Ending", 240, "ed"},
