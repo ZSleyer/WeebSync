@@ -24,6 +24,22 @@ func TestChapterKind(t *testing.T) {
 		{"Preview", 15, ""},
 		{"Opening", 20 * 60, ""},
 		{"", 90, ""},
+		{"opening", 90, "op"},
+		{"OPENING", 90, "op"},
+		{"Ed", 90, "ed"},
+		{"EnDiNg", 90, "ed"},
+		{"OP:", 90, "op"},
+		{"[ED]", 90, "ed"},
+		{"Opening - Gurenge", 90, "op"},
+		{"(Intro)", 90, "op"},
+		{"Operation", 90, ""},
+		{"Edward", 90, ""},
+		{"Credited", 90, ""},
+		{"Top", 90, ""},
+		{"Opening", 240, "op"},
+		{"Opening", 240.001, ""},
+		{"Ending", 240, "ed"},
+		{"Ending", 240.001, ""},
 	} {
 		if got := chapterKind(c.title, c.len); got != c.want {
 			t.Errorf("chapterKind(%q, %v) = %q, want %q", c.title, c.len, got, c.want)
@@ -53,4 +69,59 @@ func TestPlayChapters(t *testing.T) {
 	if one := playChapters([]probedChapter{ch("0", "1400", "Chapter 1")}); len(one) != 0 {
 		t.Errorf("a single chapter should be dropped, got %+v", one)
 	}
+}
+
+func TestPlayChaptersEdgeCases(t *testing.T) {
+	ch := func(start, end, title string) probedChapter {
+		c := probedChapter{StartTime: start, EndTime: end}
+		c.Tags.Title = title
+		return c
+	}
+	t.Run("negative start is left out", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("-1", "10", "neg"), ch("10", "20", "a"), ch("20", "30", "b")})
+		if len(got) != 2 || got[0].Title != "a" {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("end equal to start is left out", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("5", "5", "zero"), ch("0", "5", "a"), ch("5", "9", "b")})
+		if len(got) != 2 || got[0].Title != "a" || got[1].Title != "b" {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("end before start is left out", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("9", "5", "back"), ch("0", "5", "a"), ch("5", "9", "b")})
+		if len(got) != 2 {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("unsorted input comes out sorted", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("200", "300", "c"), ch("0", "100", "a"), ch("100", "200", "b")})
+		if len(got) != 3 || got[0].Title != "a" || got[1].Title != "b" || got[2].Title != "c" {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("one broken of two leaves one valid and so none", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("0", "100", "a"), ch("x", "200", "broken")})
+		if got == nil || len(got) != 0 {
+			t.Errorf("want empty non-nil slice, got %#v", got)
+		}
+	})
+	t.Run("nil input gives an empty non-nil slice", func(t *testing.T) {
+		if got := playChapters(nil); got == nil || len(got) != 0 {
+			t.Errorf("got %#v", got)
+		}
+	})
+	t.Run("unparsable end is left out", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("0", "", "a"), ch("0", "5", "b"), ch("5", "9", "c")})
+		if len(got) != 2 {
+			t.Errorf("got %+v", got)
+		}
+	})
+	t.Run("kind follows the chapter length", func(t *testing.T) {
+		got := playChapters([]probedChapter{ch("0", "240", "OP"), ch("240", "480.001", "ED")})
+		if len(got) != 2 || got[0].Kind != "op" || got[1].Kind != "" {
+			t.Errorf("got %+v", got)
+		}
+	})
 }
