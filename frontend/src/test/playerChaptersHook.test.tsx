@@ -114,6 +114,22 @@ describe('useChapterSkip', () => {
     expect(hook.result.current.chapter?.title).toBe('A')
   })
 
+  it('drops the old chapter when the new list has none at the current time', () => {
+    // the next episode in the same player: its chapters leave a gap where the
+    // old opening was
+    const { hook, emit } = setup()
+    emit('timeupdate', 100)
+    expect(hook.result.current.skippable?.kind).toBe('op')
+    hook.rerender({
+      list: [
+        { start: 0, end: 50, title: 'A' },
+        { start: 300, end: 400, title: 'B', kind: 'op' },
+      ],
+    })
+    expect(hook.result.current.chapter).toBeUndefined()
+    expect(hook.result.current.skippable).toBeUndefined()
+  })
+
   it('clears the chapter when the list becomes empty', () => {
     const { hook, emit } = setup()
     emit('timeupdate', 100)

@@ -43,7 +43,9 @@ export function useChapterSkip(videoRef: RefObject<HTMLVideoElement | null>, cha
       setChapter(undefined)
       return
     }
-    let last: PlayChapter | undefined
+    // null: nothing synced for this list yet, so the first sync always sets,
+    // even "no chapter here" after a list that had one at this time
+    let last: PlayChapter | undefined | null = null
     const sync = () => {
       const c = chapterAt(chapters, v.currentTime)
       if (c === last) return
