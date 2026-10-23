@@ -378,7 +378,7 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
   line-height: 1.5rem;
   color: rgb(255 255 255 / 0.85);
 }
-.t-player-chapter::before { content: '•'; margin-inline: 0.125rem 0.5rem; }
+.t-player-chapter::before { content: '•' / ''; margin-inline: 0.125rem 0.5rem; }
 /* volume slides out of the mute button instead of always taking room */
 .t-player-volume { display: inline-flex; align-items: center; }
 .t-player-volume media-volume-range {

@@ -1,4 +1,13 @@
-import { useEffect, useEffectEvent, useMemo, useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router'
@@ -540,16 +549,29 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // the file's chapters as a track media-chrome reads: the time bar splits
   // into segments, the preview over it names the one under the pointer
   const chapters = useMemo(() => data?.chapters ?? [], [data])
-  const chaptersUrl = useMemo(
-    () =>
-      chapters.length
-        ? URL.createObjectURL(
-            new Blob([chaptersVtt(chapters, (n) => t('player.chapterN', { n }))], { type: 'text/vtt' }),
-          )
-        : '',
+  const chaptersText = useMemo(
+    () => (chapters.length ? chaptersVtt(chapters, (n) => t('player.chapterN', { n })) : ''),
     [chapters, t],
   )
-  useEffect(() => () => URL.revokeObjectURL(chaptersUrl), [chaptersUrl])
+  // the cues as a blob of their own per mount (the policy allows blob: media,
+  // not data:), let go of when the track goes. A track added after the media
+  // is set is off, and media-chrome waits for the load only of the one it
+  // found back then: wake the track, then tell media-chrome its cues are in
+  const chaptersTrack = useCallback(
+    (el: HTMLTrackElement | null) => {
+      if (!el) return
+      const url = URL.createObjectURL(new Blob([chaptersText], { type: 'text/vtt' }))
+      const loaded = () => (el.parentElement as HTMLVideoElement | null)?.textTracks.dispatchEvent(new Event('change'))
+      el.addEventListener('load', loaded)
+      el.src = url
+      if (el.track.mode === 'disabled') el.track.mode = 'hidden'
+      return () => {
+        el.removeEventListener('load', loaded)
+        URL.revokeObjectURL(url)
+      }
+    },
+    [chaptersText],
+  )
   // the chapter playing now, named in the dock; an opening or ending gets a
   // card to skip it, until it is skipped or waved off (seeking back into it
   // brings the card again)
@@ -570,11 +592,12 @@ function PlayerView({ server, path }: { server: number; path: string }) {
       setSkipDone(undefined)
     }
     sync()
-    v.addEventListener('timeupdate', sync)
-    v.addEventListener('seeked', sync)
+    // seeking, not only seeked: a transcode restarts at the new place and
+    // takes seconds to get there, the chapter has changed at once
+    const events = ['timeupdate', 'seeking', 'seeked']
+    for (const e of events) v.addEventListener(e, sync)
     return () => {
-      v.removeEventListener('timeupdate', sync)
-      v.removeEventListener('seeked', sync)
+      for (const e of events) v.removeEventListener(e, sync)
     }
   }, [chapters])
   const skippable = chapter?.kind && chapter !== skipDone ? chapter : undefined
@@ -1107,24 +1130,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             // lifts this for the moment it asks, see togglePip)
             {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
           >
-            {chaptersUrl && (
-              <track
-                key={chaptersUrl}
-                kind="chapters"
-                default
-                src={chaptersUrl}
-                // a track added after the media is set is off, and media-chrome
-                // waits for the load only of the one it found back then: wake
-                // the track, then tell media-chrome its cues are in
-                ref={(el) => {
-                  if (!el) return
-                  const loaded = () => videoRef.current?.textTracks.dispatchEvent(new Event('change'))
-                  el.addEventListener('load', loaded)
-                  if (el.track.mode === 'disabled') el.track.mode = 'hidden'
-                  return () => el.removeEventListener('load', loaded)
-                }}
-              />
-            )}
+            {chaptersText && <track key={chaptersText} kind="chapters" default ref={chaptersTrack} />}
           </video>
 
           <div slot="top-chrome" className="t-player-top">
