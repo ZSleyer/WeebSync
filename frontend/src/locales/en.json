@@ -1008,6 +1008,8 @@
     "skipOp": "Skip opening",
     "skipEd": "Skip ending",
     "skipDismiss": "Don't skip",
+    "playingOp": "Opening playing",
+    "playingEd": "Ending playing",
     "chapterN": "Chapter {{n}}",
     "subSize": "Subtitle size",
     "subSize_s": "Small",

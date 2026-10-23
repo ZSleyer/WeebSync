@@ -1008,6 +1008,8 @@
     "skipOp": "Opening überspringen",
     "skipEd": "Ending überspringen",
     "skipDismiss": "Nicht überspringen",
+    "playingOp": "Opening läuft",
+    "playingEd": "Ending läuft",
     "chapterN": "Kapitel {{n}}",
     "subSize": "Untertitelgröße",
     "subSize_s": "Klein",

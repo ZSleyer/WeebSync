@@ -574,6 +574,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const { chapter, skippable, skip: skipChapter, dismiss: dismissSkip } = useChapterSkip(videoRef, chapters)
   // an untitled chapter goes by its number, as in the time bar's preview
   const chapterName = chapter && (chapter.title || t('player.chapterN', { n: chapters.indexOf(chapter) + 1 }))
+  // the skip card goes away under the focus (skipped, waved off, chapter
+  // over): focus stays in the player, where its keys work, not on the page
+  const keepFocusInPlayer = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    const video = el.closest('media-controller')?.querySelector('video')
+    return () => {
+      if (el.contains(document.activeElement)) video?.focus({ preventScroll: true })
+    }
+  }, [])
   // 90 % of an episode counts as watched: the AniList list moves on by one,
   // never back and never past a gap. The write waits out the toast, whose
   // undo drops it before AniList hears of it
@@ -1219,7 +1228,10 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             )
           )}
           {nextIn === null && offer === null && skippable && (
-            <div className="t-player-card" {...{ noautohide: '' }}>
+            <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
+              <span className="sr-only" role="status">
+                {t(skippable.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
+              </span>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={skipChapter}>
                 {t(skippable.kind === 'op' ? 'player.skipOp' : 'player.skipEd')}
               </button>
