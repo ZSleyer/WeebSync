@@ -75,5 +75,7 @@ describe('playerChapters', () => {
     expect(chapterAt(chapters, 179.9)?.kind).toBe('op')
     expect(chapterAt(chapters, 180)?.title).toBeUndefined()
     expect(chapterAt(chapters, 4000)).toBeUndefined()
+    // at the very end of the file the last chapter is over (no skip card on the ended video)
+    expect(chapterAt(chapters, 3725.25)).toBeUndefined()
   })
 })
