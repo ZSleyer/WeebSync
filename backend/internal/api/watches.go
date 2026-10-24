@@ -2165,6 +2165,11 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		}
 		res, err := s.moveFolderContents(from, to)
 		if err != nil {
+			if res.Moved > 0 {
+				// entries that could not go back changed the disk: the
+				// listings must not keep showing them where they were
+				s.forgetUnwatched()
+			}
 			writeErr(w, http.StatusConflict, "files not moved: "+err.Error())
 			return
 		}

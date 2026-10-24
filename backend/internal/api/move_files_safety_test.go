@@ -3,7 +3,9 @@ package api
 import (
 	"errors"
 	"net/http"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -110,5 +112,51 @@ func TestWatchMoveRefusedForASharedFolder(t *testing.T) {
 	}
 	if local := watchLocal(t, s, 1); local != "Season 01" {
 		t.Errorf("local_path = %q, want unchanged", local)
+	}
+}
+
+// One entry cannot be moved (a folder without write permission, a mount of
+// its own): the entries moved before it go back, the watch stays on the old
+// folder, and the answer says what happened instead of "not moved" while half
+// the files sat in the new folder.
+func TestWatchMovePartialFailureMovesBack(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode bits do not deny access")
+	}
+	s, mux, cookie, root := moveTestServer(t)
+	old := filepath.Join(root, "old")
+	writeFiles(t, old, map[string]int64{"a - E01.mkv": 1, "c - E03.mkv": 1})
+	stuck := filepath.Join(old, "b extras")
+	writeFiles(t, stuck, map[string]int64{"x.mkv": 1})
+	// renaming a folder into another parent rewrites its "..": it needs write
+	// permission on the folder itself
+	if err := os.Chmod(stuck, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(stuck, 0o755) })
+	if _, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Show', 'old')`); err != nil {
+		t.Fatal(err)
+	}
+	rec := doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"new","moveFiles":true}`, cookie)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "moved back") {
+		t.Errorf("partial move: %d %s, want 409 saying the moved entries went back", rec.Code, rec.Body)
+	}
+	if n := names(t, old); !n["a - E01.mkv"] || !n["b extras"] || !n["c - E03.mkv"] {
+		t.Errorf("old folder after the failed move: %v, want everything back", n)
+	}
+	// the save's writability probe may have made the folder; it holds nothing
+	if entries, err := os.ReadDir(filepath.Join(root, "new")); err == nil && len(entries) > 0 {
+		t.Errorf("the new folder after the failed move: %v, want empty", entries)
+	}
+	if local := watchLocal(t, s, 1); local != "old" {
+		t.Errorf("local_path = %q, want old", local)
+	}
+	// a new folder the move itself created goes again with the move
+	res, err := s.moveFolderContents("old", "fresh")
+	if err == nil || res.Moved != 0 {
+		t.Errorf("direct move: %+v %v, want an error and nothing moved", res, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "fresh")); !os.IsNotExist(err) {
+		t.Errorf("the folder the failed move created is still there: %v", err)
 	}
 }

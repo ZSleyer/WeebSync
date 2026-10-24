@@ -2,9 +2,11 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
@@ -20,6 +22,21 @@ type moveResult struct {
 	// Kept names the entries left behind because the new folder already has
 	// one of the same name: a move never overwrites
 	Kept []string `json:"kept,omitempty"`
+}
+
+// moveBack renames the moved entries back into the old folder and removes
+// the new folder again when the move created it and it is empty. It returns
+// the entries that could not go back.
+func moveBack(src, dst *transfer.LocalPath, done []string, created bool) (stuck []string) {
+	for _, n := range done {
+		if err := src.Root.Rename(filepath.Join(dst.Name, n), filepath.Join(src.Name, n)); err != nil {
+			stuck = append(stuck, n)
+		}
+	}
+	if created && len(stuck) == 0 {
+		_ = src.Root.Remove(dst.Name) // best effort: only an empty folder goes
+	}
+	return stuck
 }
 
 // sharedWatchFolder names another watch whose files land in the same folder
@@ -97,21 +114,38 @@ func (s *Server) moveFolderContents(oldRel, newRel string) (moveResult, error) {
 	if err != nil {
 		return res, err
 	}
-	if err := src.Root.MkdirAll(dst.Name, 0o755); err != nil {
-		return res, err
-	}
+	// look first: what the new folder already has stays, the rest moves
+	_, statErr := src.Root.Lstat(dst.Name)
+	created := errors.Is(statErr, fs.ErrNotExist)
+	var todo []string
 	for _, e := range entries {
 		if isTrashDir(e) {
 			continue
 		}
-		to := filepath.Join(dst.Name, e.Name())
-		if _, err := src.Root.Lstat(to); err == nil {
+		if _, err := src.Root.Lstat(filepath.Join(dst.Name, e.Name())); err == nil {
 			res.Kept = append(res.Kept, e.Name())
 			continue
 		}
-		if err := src.Root.Rename(filepath.Join(src.Name, e.Name()), to); err != nil {
-			return res, err
+		todo = append(todo, e.Name())
+	}
+	if err := src.Root.MkdirAll(dst.Name, 0o755); err != nil {
+		return res, err
+	}
+	var done []string
+	for _, n := range todo {
+		if err := src.Root.Rename(filepath.Join(src.Name, n), filepath.Join(dst.Name, n)); err != nil {
+			// a half-moved folder splits the library between two places: what
+			// went is moved back, and the answer says so either way
+			stuck := moveBack(src, dst, done, created)
+			res.Moved = len(stuck)
+			if len(stuck) == 0 {
+				return res, fmt.Errorf("%s could not be moved (%w); the %d of %d entries moved before it were moved back, nothing changed",
+					n, err, len(done), len(todo))
+			}
+			return res, fmt.Errorf("%s could not be moved (%w); %d of %d entries could not be moved back and are in the new folder: %s",
+				n, err, len(stuck), len(todo), strings.Join(stuck, ", "))
 		}
+		done = append(done, n)
 		res.Moved++
 	}
 	if len(res.Kept) == 0 {
