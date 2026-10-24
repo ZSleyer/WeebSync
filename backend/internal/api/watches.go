@@ -258,51 +258,60 @@ func (s *Server) WatchLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			interval := time.Duration(s.watchInterval()) * time.Minute
-			cands, err := s.watchCandidates()
-			if err != nil {
-				slog.Warn("watch loop: list watches", "err", err)
-				continue
+			s.checkDueWatches(ctx)
+		}
+	}
+}
+
+// checkDueWatches runs one pass of WatchLoop over the watches that are due.
+func (s *Server) checkDueWatches(ctx context.Context) {
+	interval := time.Duration(s.watchInterval()) * time.Minute
+	cands, err := s.watchCandidates()
+	if err != nil {
+		slog.Warn("watch loop: list watches", "err", err)
+		return
+	}
+	now := time.Now()
+	for _, c := range cands {
+		// shutdown: stop before the next watch, not after all of them
+		if ctx.Err() != nil {
+			return
+		}
+		// a check that failed is on its own short backoff: it decides
+		// alone, in both directions. Letting the interval rule also
+		// speak here would hand a failing watch its normal slot back
+		// and undo the wait.
+		if c.retryAt > 0 {
+			if now.Unix() >= c.retryAt {
+				slog.Debug("watch retry due", "id", c.id)
+				s.runWatch(ctx, c.id)
 			}
-			now := time.Now()
-			for _, c := range cands {
-				// a check that failed is on its own short backoff: it decides
-				// alone, in both directions. Letting the interval rule also
-				// speak here would hand a failing watch its normal slot back
-				// and undo the wait.
-				if c.retryAt > 0 {
-					if now.Unix() >= c.retryAt {
-						slog.Debug("watch retry due", "id", c.id)
-						s.runWatch(c.id)
-					}
-					continue
-				}
-				intervalDue := true
-				stale := true // unparseable/empty last_check counts as stale
-				if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
-					intervalDue = !t.Add(interval).After(now.UTC())
-					stale = now.UTC().Sub(t) > staleRecheck
-				}
-				media := s.watchMedia(c.serverID, c.remotePath)
-				local := c.localPath
-				if c.subfolder {
-					local = path.Join(c.localPath, path.Base(c.remotePath))
-				}
-				minEp := c.fromEpisode
-				if c.aired {
-					minEp = 0
-				}
-				have := s.countVideos(local, minEp)
-				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, watchComplete(media, have), now) {
-					slog.Debug("watch due", "id", c.id, "stale", stale,
-						"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
-					s.runWatch(c.id)
-				} else {
-					// caught up, waiting for the next airing slot (very chatty: per
-					// watch, per minute) - TRACE only
-					logbus.Trace("watch waiting", "id", c.id, "have", have, "aired", c.aired)
-				}
-			}
+			continue
+		}
+		intervalDue := true
+		stale := true // unparseable/empty last_check counts as stale
+		if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
+			intervalDue = !t.Add(interval).After(now.UTC())
+			stale = now.UTC().Sub(t) > staleRecheck
+		}
+		media := s.watchMedia(c.serverID, c.remotePath)
+		local := c.localPath
+		if c.subfolder {
+			local = path.Join(c.localPath, path.Base(c.remotePath))
+		}
+		minEp := c.fromEpisode
+		if c.aired {
+			minEp = 0
+		}
+		have := s.countVideos(local, minEp)
+		if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, watchComplete(media, have), now) {
+			slog.Debug("watch due", "id", c.id, "stale", stale,
+				"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
+			s.runWatch(ctx, c.id)
+		} else {
+			// caught up, waiting for the next airing slot (very chatty: per
+			// watch, per minute) - TRACE only
+			logbus.Trace("watch waiting", "id", c.id, "have", have, "aired", c.aired)
 		}
 	}
 }
@@ -447,8 +456,14 @@ func (s *Server) loadWatch(id int64) (Watch, bool) {
 // runWatch checks one watch now: stamps last_check first (self-reset), then
 // enqueues missing/changed files through the normal transfer queue. It
 // reports what it did for a caller that waits on it; the loop ignores it.
-func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
+func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse) {
 	out.Status = "checked"
+	// canceled (shutdown, or the waiting request is gone): not started, so
+	// neither stamped nor dialed
+	if err := ctx.Err(); err != nil {
+		out.Error = err.Error()
+		return out
+	}
 	w, ok := s.loadWatch(id)
 	if !ok {
 		out.Error = "watch not found"
@@ -463,6 +478,11 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 	skip, err := s.pendingRemotePaths(w.ID)
 	if err != nil {
 		slog.Warn("watch check skipped: waiting files unreadable", "watch", w.ID, "err", err)
+		out.Error = err.Error()
+		return out
+	}
+	// the rename setup may have asked a provider; canceled meanwhile: no dial
+	if err := ctx.Err(); err != nil {
 		out.Error = err.Error()
 		return out
 	}
@@ -1977,7 +1997,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if in.MediaID <= 0 {
 		s.ensureWatchMatch(in.ServerID, in.RemotePath, in.LocalPath)
 	}
-	s.spawn(func() { s.runWatch(id) }) // first sync right away
+	s.spawn(func() { s.runWatch(context.Background(), id) }) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
 
@@ -2099,7 +2119,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		s.ensureWatchMatch(serverID, in.RemotePath, in.LocalPath)
 	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
-		s.spawn(func() { s.runWatch(id) }) // paths changed: check the new folder right away
+		s.spawn(func() { s.runWatch(context.Background(), id) }) // paths changed: check the new folder right away
 	}
 	// The queue only ever covers downloads that come AFTER the preference was
 	// set, so changing it used to do nothing at all to the episodes already in
@@ -2406,10 +2426,10 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	// a button that turns into the progress of what it started has to know
 	// what that was: wait=1 runs the check in the request
 	if r.URL.Query().Get("wait") == "1" {
-		writeJSON(w, http.StatusOK, s.runWatch(id))
+		writeJSON(w, http.StatusOK, s.runWatch(r.Context(), id))
 		return
 	}
-	s.spawn(func() { s.runWatch(id) })
+	s.spawn(func() { s.runWatch(context.Background(), id) })
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
 }
 

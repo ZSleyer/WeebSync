@@ -53,7 +53,7 @@ func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
 	}
 
 	// a waiting caller gets the failure handed back, not only stored
-	if out := s.runWatch(watchID); out.Error == "" || out.Status != "checked" {
+	if out := s.runWatch(t.Context(), watchID); out.Error == "" || out.Status != "checked" {
 		t.Errorf("runWatch = %+v, want the dial error", out)
 	}
 	attempts, retryAt, result := read()
@@ -68,13 +68,13 @@ func TestWatchCheckFailureSchedulesRetry(t *testing.T) {
 	}
 
 	// still down: the count climbs, so the backoff can widen
-	s.runWatch(watchID)
+	s.runWatch(t.Context(), watchID)
 	if attempts, _, _ = read(); attempts != 2 {
 		t.Errorf("check_attempts = %d after the second failure, want 2", attempts)
 	}
 
 	reachable = true
-	s.runWatch(watchID)
+	s.runWatch(t.Context(), watchID)
 	attempts, retryAt, result = read()
 	if attempts != 0 || retryAt != 0 {
 		t.Errorf("after a good check: check_attempts %d retry_at %d, want 0/0", attempts, retryAt)
