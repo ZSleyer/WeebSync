@@ -39,6 +39,18 @@ describe('the compose fix copy button', () => {
     expect(screen.queryByText('settings.hw.copied')).toBeNull()
   })
 
+  it('keeps the failure on screen until the next attempt', async () => {
+    vi.mocked(copyText).mockResolvedValue(false)
+    setup()
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.hw.copy' }))
+    await screen.findByRole('alert')
+    await new Promise((r) => setTimeout(r, 4500))
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+    vi.mocked(copyText).mockResolvedValue(true)
+    fireEvent.click(screen.getByRole('button', { name: 'settings.hw.copy' }))
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  }, 10000)
+
   it('confirms a successful copy without an error', async () => {
     vi.mocked(copyText).mockResolvedValue(true)
     setup()
