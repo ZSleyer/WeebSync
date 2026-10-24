@@ -73,6 +73,42 @@ describe('unlinking the watchlist account', () => {
   }
 })
 
+describe('a refused value is marked at its field', () => {
+  const fields: [string, string][] = [
+    ['plexUrl', 'settings.plexUrl'],
+    ['plexToken', 'settings.plexToken'],
+    ['plexRoots', 'settings.plexRoots'],
+    ['arrCompleteDir', 'settings.arrCompleteDir'],
+    ['arrRoots', 'settings.arrRoots'],
+    ['anilistClientId', 'settings.anilistClientId'],
+    ['anilistClientSecret', 'settings.anilistClientSecret'],
+    ['anilistRedirectUrl', 'settings.anilistRedirectUrl'],
+    ['tmdbApiKey', 'settings.tmdbApiKey'],
+    ['tvdbApiKey', 'settings.tvdbApiKey'],
+    ['animescheduleToken', 'settings.animescheduleToken'],
+    ['jellyfinToken', 'settings.jellyfinToken'],
+    ['aiApiKey', 'settings.aiApiKey'],
+    ['aiModel', 'settings.aiModel'],
+  ]
+  for (const [key, label] of fields) {
+    it(key, async () => {
+      setup()
+      vi.spyOn(api, 'put').mockRejectedValue(new Error(`${key}: not acceptable`))
+      await screen.findByLabelText(label)
+      // looked up again each time: the model field turns from input to list
+      const field = () => screen.getByLabelText(label)
+      fireEvent.change(field(), { target: { value: 'x' } })
+      fireEvent.click(screen.getByText('settings.save'))
+      await waitFor(() => expect(field()).toHaveAttribute('aria-invalid', 'true'))
+      expect(field().getAttribute('aria-describedby') ?? '').not.toBe('')
+      // correcting the field takes the refusal away (the model list is a picker)
+      if (key === 'aiModel') return
+      fireEvent.change(field(), { target: { value: 'y' } })
+      expect(field()).not.toHaveAttribute('aria-invalid')
+    })
+  }
+})
+
 describe('Sonarr / Radarr copy buttons', () => {
   it('name the value they copy', async () => {
     setup()
