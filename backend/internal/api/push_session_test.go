@@ -42,7 +42,8 @@ func TestPushSubscriptionEndsWithItsSession(t *testing.T) {
 	}
 	subscribe := func(c *http.Cookie, name string) {
 		t.Helper()
-		body := `{"endpoint":"https://8.8.8.8/push/` + name + `","keys":{"p256dh":"k","auth":"a"}}`
+		// keys a browser could hand out: Subscribe refuses unusable ones
+		body := `{"endpoint":"https://8.8.8.8/push/` + name + `","keys":{"p256dh":"BCVxsr7N_eNgVRqvHtD0zTZsEc6-VV-JvLexhqUzORcxaOzi6-AYWXvTBHm4bjyPjs7Vd8pZGH6SRpkNtoIAiw4","auth":"BTBZMqHH6r4Tts7J_aSIgg"}}`
 		if rec := doReq(mux, "POST", "/api/push/subscribe", body, c); rec.Code != http.StatusCreated {
 			t.Fatalf("subscribe %s: %d %s", name, rec.Code, rec.Body)
 		}

@@ -45,7 +45,7 @@ func TestPushSubscribeValidatesKeys(t *testing.T) {
 func TestPushUnsubscribeReportsDBError(t *testing.T) {
 	mux, s, c := setupPushTest(t)
 	const endpoint = "https://push.example.net/sub/1"
-	if err := s.Push.Subscribe(1, endpoint, "k", "a"); err != nil {
+	if err := s.Push.Subscribe(1, endpoint, "k", "a", ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.DB.Exec(`CREATE TRIGGER no_unsub BEFORE DELETE ON push_subscriptions

@@ -67,7 +67,7 @@ func TestNotifyHungEndpointDoesNotBlockOthers(t *testing.T) {
 	// the hung device first: sent one after the other, it would starve the rest
 	for i, srv := range []*httptest.Server{hung, hung, fast} {
 		p, a := browserKeys(t)
-		if err := s.Subscribe(1, srv.URL+"/sub/"+string(rune('a'+i)), p, a); err != nil {
+		if err := s.Subscribe(1, srv.URL+"/sub/"+string(rune('a'+i)), p, a, ""); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -38,7 +38,7 @@ func TestNotifyDropsSubscriptionWithUnusableKeys(t *testing.T) {
 	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'one@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Subscribe(1, "https://push.example.net/a", "garbage", "garbage"); err != nil {
+	if err := s.Subscribe(1, "https://push.example.net/a", "garbage", "garbage", ""); err != nil {
 		t.Fatal(err)
 	}
 	s.Notify(1, Notification{Title: "x"})
