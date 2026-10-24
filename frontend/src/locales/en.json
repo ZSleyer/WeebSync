@@ -156,6 +156,7 @@
     "files": "Files"
   },
   "assistant": {
+    "codeBlock": "Code block",
     "allUpgrades": "All upgrades are under Discover",
     "stepsDone_other": "{{count}} steps",
     "stepsDone_one": "{{count}} step",

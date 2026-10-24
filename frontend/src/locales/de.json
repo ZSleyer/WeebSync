@@ -156,6 +156,7 @@
     "files": "Dateien"
   },
   "assistant": {
+    "codeBlock": "Codeblock",
     "allUpgrades": "Alle Upgrades stehen unter Entdecken",
     "stepsDone_other": "{{count}} Schritte",
     "stepsDone_one": "{{count}} Schritt",
