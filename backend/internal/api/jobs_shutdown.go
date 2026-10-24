@@ -15,6 +15,11 @@ func (s *Server) spawn(fn func()) {
 	}()
 }
 
+// Go is spawn for the long-running loops and startup jobs main starts: they
+// are counted like handler work, so Shutdown waits for them before the
+// database closes. A loop must return once its context is canceled.
+func (s *Server) Go(fn func()) { s.spawn(fn) }
+
 // Shutdown cancels the running background jobs and waits until they and the
 // goroutines started with spawn have ended, or ctx is done. Work still writing
 // to the database when the process (or a test) lets go of it is the one thing
