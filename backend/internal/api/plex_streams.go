@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -295,19 +296,28 @@ func planStreams(streams []plex.EpisodeStream, audioLang, subPref string) (audio
 	return audioID, subID, miss
 }
 
-// applyStreams selects the preferred streams on one episode part. ok=false means
-// Plex trouble and is worth another tick; miss names what the file lacks, which
-// is worth another tick too - a dub re-release overwrites the same path and Plex
-// re-analyses it later, so the tracks a file has can change under us.
+// errStreamsNotReady is a part whose streams Plex has not listed yet: it is
+// mid-analysis, which is no failure, just not yet.
+var errStreamsNotReady = errors.New("plex lists no streams for the part yet")
+
+// applyStreams selects the preferred streams on one episode part. An error
+// means the selection did not happen and is worth another tick; a Plex failure
+// (anything but errStreamsNotReady) is logged here with Plex's answer, or a
+// refused selection would retry silently until the give-up window closes. miss
+// names what the file lacks, which is worth another tick too - a dub
+// re-release overwrites the same path and Plex re-analyses it later, so the
+// tracks a file has can change under us.
 //
 // Leaf listings often omit streams (PMS ignores includeStreams there), so they
 // are fetched per episode.
-func applyStreams(c plex.Server, p plex.EpisodePart, audioLang, subPref string) (miss string, ok bool) {
+func applyStreams(c plex.Server, p plex.EpisodePart, audioLang, subPref string) (miss string, err error) {
 	streams := p.Streams
 	if len(streams) == 0 {
 		detail, err := c.PartStreams(p.RatingKey)
 		if err != nil {
-			return "", false
+			slog.Warn("plex stream selection failed", "episode", p.RatingKey, "part", p.PartID,
+				"step", "read streams", "err", err)
+			return "", err
 		}
 		for _, dp := range detail {
 			if dp.PartID == p.PartID {
@@ -316,13 +326,18 @@ func applyStreams(c plex.Server, p plex.EpisodePart, audioLang, subPref string) 
 		}
 	}
 	if len(streams) == 0 {
-		return "", false // no part matched: Plex is mid-analysis, look again
+		return "", errStreamsNotReady // no part matched: look again
 	}
 	audioID, subID, miss := planStreams(streams, audioLang, subPref)
 	if audioID < 0 && subID < 0 {
-		return miss, true // nothing resolved, nothing to send
+		return miss, nil // nothing resolved, nothing to send
 	}
-	return miss, c.SetStreams(p.PartID, audioID, subID) == nil
+	if err := c.SetStreams(p.PartID, audioID, subID); err != nil {
+		slog.Warn("plex stream selection failed", "episode", p.RatingKey, "part", p.PartID,
+			"step", "select streams", "err", err)
+		return miss, err
+	}
+	return miss, nil
 }
 
 // streamGroup is what a drain pass resolves ONE Plex show for. A watch's
@@ -457,9 +472,9 @@ func (s *Server) processPlexStreamQueue() {
 				nudge[path.Dir(abs)] = true
 				continue // not indexed yet, retry
 			}
-			miss, ok := applyStreams(c, p, w.PlexAudioLang, w.PlexSubLang)
-			if !ok {
-				continue // Plex trouble, retry next tick
+			miss, err := applyStreams(c, p, w.PlexAudioLang, w.PlexSubLang)
+			if err != nil {
+				continue // Plex trouble (logged there), retry next tick
 			}
 			seen = true
 			if miss != "" && verdict == "" {
@@ -575,7 +590,7 @@ func (s *Server) applyPlexStreamsJob(wt Watch) {
 				"remote", logSafe(wt.RemotePath), "local", logSafe(abs), "showKey", logSafe(showKey))
 			return
 		}
-		applied, missed, verdict, seen := 0, 0, "", false
+		applied, missed, failed, verdict, seen := 0, 0, 0, "", false
 		for file, p := range byFile {
 			if file != abs && !strings.HasPrefix(file, abs+"/") {
 				continue
@@ -589,8 +604,11 @@ func (s *Server) applyPlexStreamsJob(wt Watch) {
 			if !tracked[epKey(se, ep)] {
 				continue
 			}
-			miss, ok := applyStreams(c, p, wt.PlexAudioLang, wt.PlexSubLang)
-			if !ok {
+			miss, err := applyStreams(c, p, wt.PlexAudioLang, wt.PlexSubLang)
+			if err != nil {
+				if !errors.Is(err, errStreamsNotReady) {
+					failed++ // the cause is logged in applyStreams
+				}
 				continue
 			}
 			seen = true
@@ -609,6 +627,7 @@ func (s *Server) applyPlexStreamsJob(wt Watch) {
 		// applied counts episodes that got everything asked for. The old count
 		// included episodes where nothing was selected at all, which made the
 		// line read like proof that the preference had worked.
-		slog.Info("plex stream preference applied", "watch", wt.ID, "episodes", applied, "missing", missed)
+		slog.Info("plex stream preference applied", "watch", wt.ID, "episodes", applied, "missing", missed,
+			"failed", failed)
 	})
 }
