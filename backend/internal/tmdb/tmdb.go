@@ -80,6 +80,12 @@ func (c *Client) cacheTTL() time.Duration {
 	return 24 * time.Hour
 }
 
+// StatusError is a non-success answer from TMDB, so a caller can tell a
+// rejected session (401) from an outage.
+type StatusError struct{ Code int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("tmdb: HTTP %d", e.Code) }
+
 func (c *Client) get(ctx context.Context, path string, params url.Values, out any) error {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return err
@@ -128,7 +134,7 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
+			return &StatusError{Code: resp.StatusCode}
 		}
 		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 		resp.Body.Close()
