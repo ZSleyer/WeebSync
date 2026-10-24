@@ -115,6 +115,14 @@ const clock = (s: number) => {
   return `${h ? `${h}:${pad2(m)}` : m}:${pad2(Math.floor(s % 60))}`
 }
 const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
+// Desktop Firefox lays its own picture-in-picture toggle over every video;
+// disablePictureInPicture hides that toggle there (and nothing more: its menu
+// still offers it, MDN browser-compat-data for HTMLVideoElement
+// .disablePictureInPicture, read 2026-10-25). Everywhere else the attribute
+// switches the browser's own picture in picture off: Android Chrome's
+// fullscreen-then-Home and the iPhone's gestures
+// (https://developer.chrome.com/blog/picture-in-picture), so it is set here only.
+const NO_NATIVE_PIP = /Firefox\//.test(navigator.userAgent) && !FIREFOX_ANDROID
 // Safari, and every browser on an iPhone (all WebKit), reads no Matroska: a
 // direct .mkv loaded forever without a frame
 // an iPhone has fullscreen for a bare <video> only: iOS's own player, without
@@ -527,10 +535,10 @@ function PlayerView({
     }
   }, [hls, data])
 
-  // Picture in picture through our own button. The video keeps
-  // disablePictureInPicture so no browser lays its own button over it (Firefox
-  // does); the attribute also blocks the request, so it is lifted for the
-  // moment of asking and set again once the window closes.
+  // Picture in picture through our own button. In desktop Firefox the video
+  // keeps disablePictureInPicture so no toggle of the browser lies over it
+  // (NO_NATIVE_PIP); the attribute also blocks the request, so it is lifted for
+  // the moment of asking and set again once the window closes.
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
   const [inPip, setInPip] = useState(false)
   const [ownFs, setOwnFs] = useState(false)
@@ -545,7 +553,7 @@ function PlayerView({
     try {
       await v.requestPictureInPicture()
     } catch {
-      v.disablePictureInPicture = true
+      v.disablePictureInPicture = NO_NATIVE_PIP
     }
   }
   useEffect(() => {
@@ -554,7 +562,7 @@ function PlayerView({
     const enter = () => setInPip(true)
     const leave = () => {
       setInPip(false)
-      v.disablePictureInPicture = true
+      v.disablePictureInPicture = NO_NATIVE_PIP
     }
     v.addEventListener('enterpictureinpicture', enter)
     v.addEventListener('leavepictureinpicture', leave)
@@ -1204,9 +1212,9 @@ function PlayerView({
             playsInline
             // Chrome on Android lays a cast button over every video, and keeps it
             // there: the player has its own controls and no cast target
-            // and Firefox one for picture in picture; ours is in the dock (it
-            // lifts this for the moment it asks, see togglePip)
-            {...{ disableRemotePlayback: true, disablePictureInPicture: true }}
+            // and desktop Firefox one for picture in picture; ours is in the dock
+            // (it lifts this for the moment it asks, see togglePip)
+            {...{ disableRemotePlayback: true, disablePictureInPicture: NO_NATIVE_PIP }}
           >
             {chaptersText && <track key={chaptersText} kind="chapters" default ref={chaptersTrack} />}
           </video>
