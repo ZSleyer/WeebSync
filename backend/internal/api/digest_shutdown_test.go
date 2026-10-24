@@ -1,10 +1,17 @@
 package api
 
 import (
+	"bufio"
 	"context"
+	"fmt"
+	"net"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/db"
+	"github.com/ch4d1/weebsync/internal/mailer"
 )
 
 // A daily digest collects in memory for up to a day; a container restart in
@@ -39,6 +46,87 @@ func TestShutdownFlushesCollectedDigests(t *testing.T) {
 	defer s.digestMu.Unlock()
 	if len(s.digest) != 0 {
 		t.Errorf("digests left after shutdown: %v", s.digest)
+	}
+}
+
+// slowSMTP is a mail server that greets after a pause and takes one message;
+// got is closed once the message's DATA has arrived.
+func slowSMTP(t *testing.T, greetAfter time.Duration) (port string, got <-chan struct{}) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { ln.Close() })
+	done := make(chan struct{})
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		time.Sleep(greetAfter)
+		r := bufio.NewReader(c)
+		say := func(l string) { fmt.Fprintf(c, "%s\r\n", l) }
+		say("220 stub")
+		for {
+			line, err := r.ReadString('\n')
+			if err != nil {
+				return
+			}
+			switch cmd := strings.ToUpper(strings.TrimSpace(line)); {
+			case strings.HasPrefix(cmd, "EHLO"), strings.HasPrefix(cmd, "HELO"):
+				say("250 stub")
+			case cmd == "DATA":
+				say("354 go on")
+				for {
+					l, err := r.ReadString('\n')
+					if err != nil {
+						return
+					}
+					if l == ".\r\n" {
+						break
+					}
+				}
+				close(done)
+				say("250 queued")
+			case cmd == "QUIT":
+				say("221 bye")
+				return
+			default:
+				say("250 ok")
+			}
+		}
+	}()
+	_, port, _ = net.SplitHostPort(ln.Addr().String())
+	return port, done
+}
+
+// The shutdown flush hands the digest mail to EmailNotify, which sends it in
+// the background: Shutdown has to wait for that send too, or the process
+// exits before the SMTP server has the mail.
+func TestShutdownFlushDeliversDigestMail(t *testing.T) {
+	s := digestTestServer(t)
+	defer swapQuiet(t, time.Hour)()
+	s.Mail = mailer.New(s.DB)
+	port, got := slowSMTP(t, 200*time.Millisecond)
+	for k, v := range map[string]string{"smtp_host": "127.0.0.1", "smtp_port": port, "smtp_security": "none", "smtp_from": "weebsync@example.com"} {
+		if err := db.SetSetting(s.DB, k, v); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.DB.Exec(`UPDATE users SET email_verified = 1, email_prefs = 'download_done' WHERE id = 1`); err != nil {
+		t.Fatal(err)
+	}
+	s.NotifyDownload(1, "download_done", digestItem{serverID: 1, remotePath: "/one.mkv"})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	s.Shutdown(ctx)
+	select {
+	case <-got:
+	default:
+		t.Fatal("Shutdown returned before the digest mail reached the mail server")
 	}
 }
 
