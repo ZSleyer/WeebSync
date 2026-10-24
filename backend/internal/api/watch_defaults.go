@@ -481,7 +481,10 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 			}
 		}
 		k.Subfolder = k.SubfolderSource == "remote"
-		if k.LocalPath == "" && k.Template == "" {
+		// a kind is stored when anything at all was chosen for it: a subfolder
+		// or separator choice alone is a setting too, and the form shows it
+		if k.LocalPath == "" && k.Template == "" && k.Separator == "" &&
+			k.SubfolderSource == "none" && k.SubfolderSeparator == "" {
 			continue // nothing set for this kind
 		}
 		clean.Kinds[kind] = k

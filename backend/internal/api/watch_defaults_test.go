@@ -45,6 +45,26 @@ func TestWatchDefaultsRoundTripAndValidation(t *testing.T) {
 	}
 }
 
+// A subfolder choice is a setting of its own: saved before any folder or
+// template, it has to come back, not read as "no subfolder" after a reload.
+func TestWatchDefaultsKeepSubfolderChoiceAlone(t *testing.T) {
+	mux, _, c := setupAiTest(t, nil)
+	body := `{"kinds":{"series":{"localPath":"","template":"","subfolderSource":"title","subfolderSeparator":"_"},"movie":{"localPath":"","template":"","separator":"."},"anime-movie":{"localPath":"","template":"","subfolderSource":"none"}},"common":{}}`
+	if rec := doReq(mux, "PUT", "/api/auth/watch-defaults", body, c); rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body)
+	}
+	got := doReq(mux, "GET", "/api/auth/watch-defaults", "", c).Body.String()
+	for _, want := range []string{`"subfolderSource":"title"`, `"subfolderSeparator":"_"`, `"movie":{`, `"separator":"."`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing %s in %s", want, got)
+		}
+	}
+	// a kind with nothing chosen at all is still not stored
+	if strings.Contains(got, `"anime-movie":`) {
+		t.Errorf("an empty kind is not stored: %s", got)
+	}
+}
+
 // The folder lookup reads the catalog and the remote index of the server it
 // is handed; another user's server is not the caller's to ask about.
 func TestWatchDefaultsFolderNeedsOwnServer(t *testing.T) {
