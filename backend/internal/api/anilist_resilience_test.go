@@ -157,7 +157,7 @@ func TestAnilistMediaResolvesMangaIDs(t *testing.T) {
 func TestStaleUserSuggestionsWritesAgedMarker(t *testing.T) {
 	_, _, _, _, d := linkedServer(t)
 	s := testServer(t, &Server{DB: d})
-	d.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (suggestions:1, {}, datetime('now'))`)
+	d.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('suggestions:1', '{}', datetime('now'))`)
 	s.staleUserSuggestions(1)
 	var marker int
 	d.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ?`, suggestAgedKey).Scan(&marker)
@@ -165,7 +165,7 @@ func TestStaleUserSuggestionsWritesAgedMarker(t *testing.T) {
 		t.Fatal("no suggestions-aged marker after staleUserSuggestions")
 	}
 	var fetched string
-	d.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = suggestions:1`).Scan(&fetched)
+	d.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'suggestions:1'`).Scan(&fetched)
 	if fetched != suggestStaleAt {
 		t.Fatalf("blob not aged: %q", fetched)
 	}
