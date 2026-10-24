@@ -81,6 +81,21 @@ describe('TTL editor', () => {
     await waitFor(() => expect((document.getElementById('ttl-anilist') as HTMLInputElement).value).toBe('24'))
   })
 
+  it('shows the stored value when the refusal is followed by a failed refetch', async () => {
+    setup()
+    const get = vi.mocked(api.get)
+    const el = await field('ttl-anilist')
+    vi.spyOn(api, 'put').mockRejectedValue(new Error('hours must be 0..720 (0 = default)'))
+    const real = get.getMockImplementation()!
+    get.mockImplementation(async (url: string) => {
+      if (url === '/api/admin/jobs') throw new Error('offline')
+      return real(url)
+    })
+    type(el, '721')
+    await screen.findByText('hours must be 0..720 (0 = default)')
+    await waitFor(() => expect((document.getElementById('ttl-anilist') as HTMLInputElement).value).toBe('24'))
+  })
+
   it('does not send a stale rest when two fields are committed before the refetch', async () => {
     setup()
     const put = vi.spyOn(api, 'put').mockImplementation(() => new Promise(() => {}))

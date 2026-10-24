@@ -70,12 +70,17 @@ export default function Data() {
   // text back to the stored value
   const setTtl = useMutation({
     mutationFn: (body: TtlConfig) => api.put('/api/admin/ttl', body),
-    onMutate: (body) => {
+    onMutate: async (body) => {
+      // a poll in flight must not overwrite the shown hours
+      await qc.cancelQueries({ queryKey: ['adminJobs'] })
+      const prev = qc.getQueryData<AdminJobs>(['adminJobs'])
       qc.setQueryData<AdminJobs>(['adminJobs'], (d) => d && { ...d, ttl: body })
+      return { prev }
     },
     ...opts,
-    onError: (e: Error) => {
+    onError: (e: Error, _body, ctx) => {
       setError(e.message)
+      if (ctx?.prev) qc.setQueryData(['adminJobs'], ctx.prev)
       setRefused((n) => n + 1)
       qc.invalidateQueries({ queryKey: ['adminJobs'] })
     },
