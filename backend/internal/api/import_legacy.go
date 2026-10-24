@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"net/http"
-	"regexp"
 	"strconv"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -123,14 +122,10 @@ func (s *Server) importLegacyWatch(userID, serverID int64, p LegacyWatchPlan) er
 	if _, err := s.safeLocal(p.LocalPath); err != nil {
 		return err
 	}
-	// the same checks handleWatchCreate runs
-	if err := checkPatternLen(p.Pattern); err != nil {
+	// the same checks handleWatchCreate runs; a legacy episode floor below 0
+	// meant none, and the import has no provider, ordering or series ID
+	if err := checkWatchRule(p.Mode, p.Pattern, max(p.FromEpisode, 0), 0, "", ""); err != nil {
 		return err
-	}
-	if p.Mode == "regex" && p.Pattern != "" {
-		if _, err := regexp.Compile(p.Pattern); err != nil {
-			return err
-		}
 	}
 	if werr := s.unwritableTarget(p.LocalPath); werr != nil {
 		return errors.New(werr.Error)

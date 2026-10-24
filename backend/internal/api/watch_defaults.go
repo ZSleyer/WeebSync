@@ -28,33 +28,41 @@ func validPattern(w http.ResponseWriter, pattern string) bool {
 }
 
 // validWatchRule answers 400 for a watch rule the sync could not follow,
-// naming the field: a regex that does not compile (the check would fall back
-// to the remote names without a word), a negative episode floor or series ID
-// (the database's CHECK would surface as a conflict), and a provider or
-// ordering the rename engine does not know. Create and update share it.
+// naming the field; see checkWatchRule.
 func validWatchRule(w http.ResponseWriter, mode, pattern string, fromEpisode, seriesID int, provider, ordering string) bool {
-	if !validPattern(w, pattern) {
+	if err := checkWatchRule(mode, pattern, fromEpisode, seriesID, provider, ordering); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return false
+	}
+	return true
+}
+
+// checkWatchRule refuses a watch rule the sync could not follow, naming the
+// field: an overlong pattern, a regex that does not compile (the check would
+// fall back to the remote names without a word), a negative episode floor or
+// series ID (the database's CHECK would surface as a conflict), and a
+// provider or ordering the rename engine does not know. Every path that
+// stores a watch runs it: create, update and the legacy import.
+func checkWatchRule(mode, pattern string, fromEpisode, seriesID int, provider, ordering string) error {
+	if err := checkPatternLen(pattern); err != nil {
+		return err
 	}
 	if mode == "regex" {
 		if _, err := regexp.Compile(pattern); err != nil {
-			writeErr(w, http.StatusBadRequest, "pattern: "+err.Error())
-			return false
+			return errors.New("pattern: " + err.Error())
 		}
 	}
 	switch {
 	case fromEpisode < 0:
-		writeErr(w, http.StatusBadRequest, "fromEpisode: must not be negative")
+		return errors.New("fromEpisode: must not be negative")
 	case seriesID < 0:
-		writeErr(w, http.StatusBadRequest, "renameSeriesId: must not be negative")
+		return errors.New("renameSeriesId: must not be negative")
 	case !slices.Contains(renameProviders, provider):
-		writeErr(w, http.StatusBadRequest, "renameProvider: unknown provider")
+		return errors.New("renameProvider: unknown provider")
 	case !slices.Contains(renameOrderings, ordering):
-		writeErr(w, http.StatusBadRequest, "renameOrdering: unknown ordering")
-	default:
-		return true
+		return errors.New("renameOrdering: unknown ordering")
 	}
-	return false
+	return nil
 }
 
 // checkPatternLen is the size limit of a watch's rename pattern, shared by

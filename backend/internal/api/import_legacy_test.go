@@ -153,3 +153,32 @@ func TestLegacyImportChecksLikeWatchCreate(t *testing.T) {
 		t.Errorf("%d refused rows were stored", n)
 	}
 }
+
+// The import stores a rename rule too: it runs the very validator create and
+// update use, so a broken regex is refused per row and the error names the
+// field the same way.
+func TestLegacyImportUsesTheWatchRuleValidator(t *testing.T) {
+	d := dbtest.Open(t)
+	root := t.TempDir()
+	s := testServer(t, &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d)})
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	commit, _ := json.Marshal(LegacyImportRequest{ServerID: 1, Watches: []LegacyWatchPlan{
+		{ID: "broken", RemotePath: "/a", LocalPath: "ok/a", Mode: "regex", Pattern: "(unclosed"},
+		{ID: "fine", RemotePath: "/c", LocalPath: "ok/c", Mode: "regex", Pattern: `(?P<n>\d+)`, Replacement: "E$n"},
+	}})
+	rec := doReq(mux, "POST", "/api/import/legacy", string(commit), cookieForUser(t, d, 1))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("commit: %d %s", rec.Code, rec.Body)
+	}
+	var res LegacyImportResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Imported != 1 || res.Skipped != 1 || len(res.Errors) != 1 || !strings.Contains(res.Errors[0], "pattern:") {
+		t.Errorf("result = %+v, want the broken regex refused with an error naming pattern", res)
+	}
+}
