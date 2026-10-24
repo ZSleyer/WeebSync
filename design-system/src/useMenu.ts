@@ -43,12 +43,22 @@ export function useMenu<T extends HTMLElement = HTMLDivElement>() {
         setOpen(false)
       }
     }
+    // choosing an item: hand the focus to the trigger before the item's own
+    // handler runs (capture), so a dialog the action opens takes the trigger as
+    // its opener and returns to it, and a plain action does not leave the focus
+    // on an item that is about to unmount
+    const onPick = (e: Event) => {
+      const item = e.target instanceof Element ? e.target.closest('[role="menuitem"], [role="option"]') : null
+      if (item && ref.current?.contains(item)) ref.current.querySelector<HTMLElement>('[aria-expanded]')?.focus()
+    }
+    document.addEventListener('click', onPick, true)
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onDoc)
     // a scroll outside the list moves the anchor, possibly out of its clipping
     // container while the list stays put in the top layer - close instead
     document.addEventListener('scroll', onDoc, true)
     return () => {
+      document.removeEventListener('click', onPick, true)
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onDoc)
       document.removeEventListener('scroll', onDoc, true)

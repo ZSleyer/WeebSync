@@ -5,6 +5,7 @@ import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 // The wrapper ref decides what counts as "inside", so the hook is exercised
 // through the markup it is documented with: one element holding both the
 // trigger and the list, and an unrelated control next to it.
+let seenFocus: Element | null = null
 function MenuHarness() {
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   return (
@@ -15,7 +16,14 @@ function MenuHarness() {
         </button>
         {open && (
           <Menu aria-label="Sortieren nach">
-            <MenuItem selected>Name</MenuItem>
+            <MenuItem
+              selected
+              onClick={() => {
+                seenFocus = document.activeElement
+              }}
+            >
+              Name
+            </MenuItem>
           </Menu>
         )}
       </div>
@@ -119,5 +127,16 @@ describe('useMenu', () => {
     fireEvent.mouseDown(document.body)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('hands the focus to the trigger before the chosen item acts, so a dialog gets it as opener', () => {
+    render(<MenuHarness />)
+    openMenu()
+    const item = screen.getByRole('option', { name: 'Name' })
+    item.focus()
+    seenFocus = null
+    fireEvent.click(item)
+    const trigger = screen.getByRole('button', { name: 'Sortieren' })
+    expect(seenFocus).toBe(trigger)
   })
 })
