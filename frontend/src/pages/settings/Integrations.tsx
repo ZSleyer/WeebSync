@@ -968,7 +968,12 @@ function ArrPanel({
               value={key}
               onFocus={(e) => e.target.select()}
             />
-            <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
+            <Button
+              size="sm"
+              className="shrink-0"
+              aria-label={`${t('settings.apiTokenCopy')}: ${t('settings.arrKeyShowOnce')}`}
+              onClick={() => copy('key', key)}
+            >
               {t('settings.apiTokenCopy')}
             </Button>
           </div>
@@ -1005,7 +1010,12 @@ function ArrPanel({
                   <dt>{label}</dt>
                   <dd>
                     <code>{value}</code>
-                    <Button size="sm" className="shrink-0" onClick={() => copy(id, value)}>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      aria-label={`${t('settings.apiTokenCopy')}: ${label}`}
+                      onClick={() => copy(id, value)}
+                    >
                       {t('settings.apiTokenCopy')}
                     </Button>
                   </dd>
