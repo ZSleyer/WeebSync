@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { CircleCheck, CircleMinus } from 'lucide-react'
 import { Button, ButtonLink, Input, Switch } from 'fluid-lycoris'
 import { api } from '../api'
+import { safeGet } from '../hooks/useStored'
 import SetupSteps, { SetupFoot, SetupHeading, type SetupSummary } from '../components/SetupSteps'
 import { EnvBadge } from './settings/useSettingsForm'
 import Brand from '../components/Brand'
@@ -32,12 +33,27 @@ const OPTIONAL: Step[] = ['oidc', 'import']
 // comes back at step 03. Signed out (initialStep "account") there is no
 // account yet, so nothing past step 01 can be resumed.
 const STEP_KEY = 'weebsync.setup.step'
+// blocked site storage throws; the wizard then just cannot resume after a reload
+function sessionSet(key: string, v: string) {
+  try {
+    sessionStorage.setItem(key, v)
+  } catch {
+    // kept for this page only
+  }
+}
+function sessionRemove(key: string) {
+  try {
+    sessionStorage.removeItem(key)
+  } catch {
+    // nothing stored to forget
+  }
+}
 const storedStep = (initial: Step): Step => {
   if (initial === 'account') return initial
-  const s = sessionStorage.getItem(STEP_KEY) as Step | null
+  const s = safeGet('session', STEP_KEY) as Step | null
   // the save before the closing step can remount the wizard; it comes back
   // on that step, not at the start of the list
-  if (s === 'done' && sessionStorage.getItem(FINISHING_KEY)) return 'done'
+  if (s === 'done' && safeGet('session', FINISHING_KEY)) return 'done'
   return s && s !== 'account' && STEPS.includes(s) ? s : initial
 }
 
@@ -75,7 +91,7 @@ export default function Setup({
   const [setupToken, setSetupToken] = useState(readSetupToken)
   const [step, setStep] = useState<Step>(() => storedStep(initialStep))
   useEffect(() => {
-    sessionStorage.setItem(STEP_KEY, step)
+    sessionSet(STEP_KEY, step)
   }, [step])
   // no local account: step 02 becomes mandatory and the first OIDC login is admin
   const [oidcOnly, setOidcOnly] = useState(false)
@@ -116,7 +132,8 @@ export default function Setup({
     document.title = `${t('setup.title')} - WeebSync`
   }, [t])
   // move focus to the step heading on step CHANGES only - focusing on the
-  // initial render would greet the user with a bare focus ring
+  // initial render would greet the user with a bare focus ring. The OIDC
+  // step turning into its ready screen swaps the focused button out too.
   const mounted = useRef(false)
   useEffect(() => {
     if (!mounted.current) {
@@ -125,7 +142,7 @@ export default function Setup({
     }
     headingRef.current?.focus()
     setError('')
-  }, [step])
+  }, [step, oidcReady])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -202,8 +219,8 @@ export default function Setup({
     })
 
   const finish = () => {
-    sessionStorage.removeItem(FINISHING_KEY)
-    sessionStorage.removeItem(STEP_KEY)
+    sessionRemove(FINISHING_KEY)
+    sessionRemove(STEP_KEY)
     return onDone ? onDone() : qc.invalidateQueries({ queryKey: ['me'] })
   }
 
@@ -395,7 +412,7 @@ export default function Setup({
                   // the first identity the provider sends back becomes the
                   // admin: the server lets it only with the setup code
                   e.preventDefault()
-                  sessionStorage.setItem(STEP_KEY, 'import')
+                  sessionSet(STEP_KEY, 'import')
                   void run(async () => {
                     await api.post('/api/auth/setup/oidc-start', undefined, setupHeader())
                     window.location.href = '/api/auth/oidc/login?remember=1'
@@ -527,7 +544,7 @@ export default function Setup({
             step={step}
             onGo={setStep}
             onFinish={(s) => {
-              sessionStorage.setItem(FINISHING_KEY, '1')
+              sessionSet(FINISHING_KEY, '1')
               setSummary(s)
               setStep('done')
             }}

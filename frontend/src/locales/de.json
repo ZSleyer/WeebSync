@@ -2249,6 +2249,8 @@
     "plexSignInOther": "Anderen Server verbinden",
     "plexPickServer": "Welchen Server soll WeebSync nutzen?",
     "plexNoServers": "Dieses Plex-Konto hat keinen Server.",
+    "plexOtherAccount": "Anderes Plex-Konto verwenden",
+    "plexOpenTab": "plex.tv öffnen",
     "plexConnecting": "Verbinde…",
     "plexShared": "geteilt",
     "plexConnected": "Verbunden mit <b>{{server}}</b> über {{url}}",
