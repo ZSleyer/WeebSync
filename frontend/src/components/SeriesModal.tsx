@@ -703,7 +703,7 @@ function SeriesCard({
   )
   const ids = useId()
   const hid = (k: string) => `${ids}-${k}-h`
-  const name = cur.title || (media ? mediaTitle(media) : '')
+  const name = cur.title || (media ? mediaTitle(media) : t('series.untitled'))
   const now = useNow()
 
   // A form - editing a watch here, syncing or matching from the caller -

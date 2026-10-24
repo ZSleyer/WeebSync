@@ -845,6 +845,7 @@
     },
     "moreWatches": "Weitere Auto-Syncs",
     "noDesc": "{{source}} hat für diesen Titel keine Beschreibung.",
+    "untitled": "Titel",
     "noReviews": "Noch keine Reviews auf {{source}}.",
     "openAt": "Auf {{site}} öffnen",
     "period": {

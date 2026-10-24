@@ -176,6 +176,9 @@ describe('series page without a record', () => {
     fireEvent.click(screen.getByRole('button', { name: 'öffnen' }))
     const retry = await screen.findByRole('button', { name: 'thread.retry' })
     expect(retry.closest('[role="status"]')).toHaveTextContent('series.unavailable')
+    // no record, no title hint: the page still has a name
+    expect(screen.getByRole('dialog', { name: 'series.untitled' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('series.untitled')
     fail = false
     fireEvent.click(retry)
     await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Geladen.'))
