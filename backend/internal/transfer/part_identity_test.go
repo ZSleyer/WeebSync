@@ -109,6 +109,40 @@ func TestCancelRemovesPart(t *testing.T) {
 	}
 }
 
+// The same for a download canceled while paused or queued: if it wrote the
+// .part, the .part goes. One it never wrote to (no progress of its own) belongs
+// to another row and stays.
+func TestCancelIdleRowRemovesItsPart(t *testing.T) {
+	d := newRetryDB(t)
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('max_concurrent', '0')`)
+	root := t.TempDir()
+	m := NewManager(d, nil, root)
+	t.Cleanup(func() { m.Shutdown(t.Context()) })
+	for _, c := range []struct {
+		status      string
+		transferred int64
+		removed     bool
+	}{{"paused", 4, true}, {"queued", 0, false}} {
+		target := filepath.Join(root, c.status+".mkv")
+		if err := os.WriteFile(target+".part", []byte("abcd"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		res, err := d.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, transferred, status)
+			VALUES (1, 1, ?, ?, 8, ?, ?)`, "/x/"+c.status+".mkv", target, c.transferred, c.status)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id, _ := res.LastInsertId()
+		if err := m.Cancel(1, id); err != nil {
+			t.Fatal(err)
+		}
+		_, err = os.Stat(target + ".part")
+		if gone := os.IsNotExist(err); gone != c.removed {
+			t.Errorf("%s row canceled: .part removed = %v, want %v", c.status, gone, c.removed)
+		}
+	}
+}
+
 // A row's own progress still resumes, from what the database knows it wrote.
 func TestOwnPartResumes(t *testing.T) {
 	got, served := partRun(t, "abcdef", 4)

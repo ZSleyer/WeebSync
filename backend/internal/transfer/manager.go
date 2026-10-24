@@ -343,12 +343,7 @@ func (m *Manager) startDownload(id int64) {
 		case ctx.Err() != nil:
 			// a canceled run is not resumed: its partial file is only clutter,
 			// and the next row for this target would find it
-			if local, lerr := OpenLocal(m.roots(), d.LocalPath); lerr == nil {
-				if rerr := local.Root.Remove(local.Name + ".part"); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
-					slog.Warn("partial file of a canceled download not removed", "id", id, "err", rerr)
-				}
-				local.Close()
-			}
+			m.removePart(id, d.LocalPath)
 			m.setStatus(id, "canceled", "", "")
 		case errors.Is(err, remote.ErrServerBusy):
 			// waited for a free connection under the server's limit and did
@@ -1180,7 +1175,28 @@ func (m *Manager) Cancel(userID, id int64) error {
 		return nil
 	}
 	m.mu.Unlock()
-	return m.setStatusOwned(userID, id, "canceled", []string{"queued", "paused", "error"})
+	if err := m.setStatusOwned(userID, id, "canceled", []string{"queued", "paused", "error"}); err != nil {
+		return err
+	}
+	// a canceled row is not resumed: drop its partial file, but only one it
+	// wrote itself (progress of its own; a row that takes the .part over
+	// zeroes everyone else's), never another row's
+	if d, err := m.get(id); err == nil && d.Transferred > 0 {
+		m.removePart(id, d.LocalPath)
+	}
+	return nil
+}
+
+// removePart deletes the .part file of a download that will not be resumed.
+func (m *Manager) removePart(id int64, localPath string) {
+	local, err := OpenLocal(m.roots(), localPath)
+	if err != nil {
+		return
+	}
+	defer local.Close()
+	if err := local.Root.Remove(local.Name + ".part"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		slog.Warn("partial file of a canceled download not removed", "id", id, "err", err)
+	}
 }
 
 // ErrQueueChanged: a reorder named a different set of queued downloads than
