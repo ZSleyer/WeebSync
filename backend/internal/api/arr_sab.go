@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -216,7 +217,8 @@ type sabJob struct {
 // marks failed, blocklists and grabs again.
 func (s *Server) sabJobs() ([]sabJob, error) {
 	rows, err := s.DB.Query(`SELECT j.nzo_id, j.title, j.category, j.job_dir, j.download_id, j.size, j.created_at,
-			COALESCE(d.status, ''), COALESCE(d.error, ''), COALESCE(d.transferred, 0), COALESCE(d.user_id, 0), COALESCE(d.updated_at, j.created_at)
+			COALESCE(d.status, ''), COALESCE(d.error, ''), COALESCE(d.transferred, 0), COALESCE(d.user_id, 0), COALESCE(d.updated_at, j.created_at),
+			COALESCE(d.local_path, '')
 		FROM arr_jobs j LEFT JOIN downloads d ON d.id = j.download_id ORDER BY j.created_at`)
 	if err != nil {
 		return nil, err
@@ -225,18 +227,32 @@ func (s *Server) sabJobs() ([]sabJob, error) {
 	var out []sabJob
 	for rows.Next() {
 		var j sabJob
+		var localPath string
 		if err := rows.Scan(&j.nzo, &j.title, &j.cat, &j.jobDir, &j.downloadID, &j.size, &j.createdAt,
-			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt); err != nil {
+			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt, &localPath); err != nil {
 			return nil, err
 		}
-		if j.downloadID == 0 {
+		if j.downloadID != 0 && !arrJobOwns(j.jobDir, localPath) {
+			// the download was removed, and its id may since belong to another
+			// download: this job no longer has one
+			j.downloadID, j.userID, j.transferred = 0, 0, 0
+			if hasFiles(j.jobDir) {
+				j.status = "done" // the file made it, only the record is gone
+			} else {
+				j.status, j.errMsg = "error", "the download was removed from WeebSync"
+			}
+		} else if j.downloadID == 0 {
 			j.status = "done"
-		} else if j.status == "" {
-			j.status, j.errMsg = "error", "the download was removed from WeebSync"
 		}
 		out = append(out, j)
 	}
 	return out, rows.Err()
+}
+
+// hasFiles reports whether dir holds anything.
+func hasFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return err == nil && len(entries) > 0
 }
 
 // sabValues reads the comma list of nzo ids a delete/pause names.
