@@ -367,9 +367,11 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		}
 		// the folder the browser stands in scopes the search: what is above
 		// or beside it is not what the user is looking at
+		// (a range, not LIKE: LIKE folds ASCII case, /x/Show matched /x/show)
 		if dir := strings.TrimRight(r.URL.Query().Get("path"), "/"); dir != "" {
-			q += ` AND path LIKE ? || '/%' ESCAPE '\'`
-			args = append(args, escapeLike(dir))
+			cond, a := subtreeCond("path", dir)
+			q += ` AND ` + cond
+			args = append(args, a...)
 		}
 		q += ` ORDER BY is_dir DESC, name COLLATE NOCASE LIMIT 50`
 		rows, err := s.DB.Query(q, args...)
