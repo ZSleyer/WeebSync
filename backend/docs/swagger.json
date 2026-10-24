@@ -2991,6 +2991,13 @@
                 "properties": {
                     "path": {
                         "type": "string"
+                    },
+                    "paths": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array",
+                        "uniqueItems": false
                     }
                 },
                 "required": [
@@ -21154,7 +21161,7 @@
         },
         "/api/trash": {
             "delete": {
-                "description": "Deletes one entry (a video with its sidecars, or a folder) for good, or everything in the trash when the path is empty. Admin only.",
+                "description": "Deletes one entry (a video with its sidecars, or a folder) for good, or with paths every listed entry: what the trash page showed. An entry no longer in the trash is skipped; nothing outside the list is touched. Admin only.",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -21165,14 +21172,15 @@
                                     },
                                     {
                                         "$ref": "#/components/schemas/api.TrashRequest",
-                                        "description": "Entry path, empty for everything",
+                                        "description": "Entry path, or the paths of the entries to empty",
                                         "summary": "body"
                                     }
                                 ]
                             }
                         }
                     },
-                    "description": "Entry path, empty for everything"
+                    "description": "Entry path, or the paths of the entries to empty",
+                    "required": true
                 },
                 "responses": {
                     "200": {

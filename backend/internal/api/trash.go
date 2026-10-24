@@ -34,10 +34,12 @@ type trashRow struct {
 	by     string
 }
 
-// TrashRequest names one trash entry by its path. An empty path on delete
-// means everything.
+// TrashRequest names one trash entry by its path. Delete takes Paths instead
+// to empty the trash: the entries the page listed, so a copy that arrived
+// after the list was drawn is never deleted unseen.
 type TrashRequest struct {
-	Path string `json:"path"`
+	Path  string   `json:"path"`
+	Paths []string `json:"paths,omitempty"`
 }
 
 // trashRows lists every recorded trash path with its row, newest first. A
@@ -260,15 +262,15 @@ func restoreTarget(rel string) string {
 	return filepath.Join(filepath.Dir(filepath.Dir(rel)), filepath.Base(rel))
 }
 
-// handleTrashDelete removes an entry now, ahead of the sweep, or the whole
-// trash when no path is given. Admin only: the library is shared.
+// handleTrashDelete removes an entry now, ahead of the sweep, or - with
+// paths - every entry the caller listed. Admin only: the library is shared.
 //
 //	@Summary		Delete from the trash
-//	@Description	Deletes one entry (a video with its sidecars, or a folder) for good, or everything in the trash when the path is empty. Admin only.
+//	@Description	Deletes one entry (a video with its sidecars, or a folder) for good, or with paths every listed entry: what the trash page showed. An entry no longer in the trash is skipped; nothing outside the list is touched. Admin only.
 //	@Tags			Files
 //	@Accept			json
 //	@Produce		json
-//	@Param			body	body		TrashRequest	false	"Entry path, empty for everything"
+//	@Param			body	body		TrashRequest	true	"Entry path, or the paths of the entries to empty"
 //	@Success		200		{object}	OkResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
@@ -281,21 +283,35 @@ func (s *Server) handleTrashDelete(w http.ResponseWriter, r *http.Request) {
 	if r.ContentLength != 0 && !readJSON(w, r, &in) {
 		return
 	}
-	var group []string
-	var err error
-	if in.Path == "" {
-		group, _, err = s.trashRows()
-	} else {
-		group, err = s.trashGroup(in.Path)
-	}
-	if err != nil {
-		dbErrDetail(w, "read the trash", err)
+	if (in.Path == "") == (len(in.Paths) == 0) {
+		writeErr(w, http.StatusBadRequest, "path or paths required, not both")
 		return
 	}
-	if in.Path != "" && group == nil {
-		writeErr(w, http.StatusNotFound, "not in the trash")
+	if in.Path != "" {
+		group, err := s.trashGroup(in.Path)
+		if err != nil {
+			dbErrDetail(w, "read the trash", err)
+			return
+		}
+		if group == nil {
+			writeErr(w, http.StatusNotFound, "not in the trash")
+			return
+		}
+		s.deleteTrash(group)
+		writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 		return
 	}
-	s.deleteTrash(group)
+	// emptying: only what the page listed, each with its sidecars; an entry
+	// restored or swept meanwhile is simply not there any more
+	var all []string
+	for _, p := range in.Paths {
+		group, err := s.trashGroup(p)
+		if err != nil {
+			dbErrDetail(w, "read the trash", err)
+			return
+		}
+		all = append(all, group...)
+	}
+	s.deleteTrash(all)
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }

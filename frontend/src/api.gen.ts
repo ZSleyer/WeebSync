@@ -1270,6 +1270,7 @@ export interface Schemas {
   }
   'api.TrashRequest': {
     path: string
+    paths?: string[]
   }
   'api.TrustHostKeyInput': {
     /**

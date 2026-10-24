@@ -108,7 +108,7 @@ describe('TrashButton', () => {
     fireEvent.click(screen.getByRole('button', { name: 'trash.deleteItem:old' }))
     await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash', { path: entries[1].path }))
     fireEvent.click(screen.getByRole('button', { name: 'trash.empty' }))
-    await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash'))
+    await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash', { paths: entries.map((e) => e.path) }))
   })
 
   it('shows a plain list to everyone else', async () => {
@@ -132,7 +132,10 @@ describe('TrashButton', () => {
     // something lands in the trash after the list was cached
     get.mockResolvedValue([...entries, extra])
     fireEvent.click(screen.getByRole('button', { name: 'trash.empty' }))
-    await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash'))
+    // the server deletes exactly the entries the question named
+    await waitFor(() =>
+      expect(del).toHaveBeenCalledWith('/api/trash', { paths: [...entries, extra].map((e) => e.path) }),
+    )
     expect(confirmFn).toHaveBeenCalledTimes(1)
     expect(confirmFn.mock.calls[0][0].message).toBe('trash.emptyConfirm:3')
   })

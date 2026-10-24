@@ -68,7 +68,13 @@ export default function TrashPage() {
     onSuccess: done,
     onError: fail,
   })
-  const empty = useMutation({ mutationFn: () => api.del('/api/trash'), onSuccess: done, onError: fail })
+  // emptying names the entries it means: whatever lands in the trash after
+  // the question was asked stays
+  const empty = useMutation({
+    mutationFn: (paths: string[]) => api.del('/api/trash', { paths }),
+    onSuccess: done,
+    onError: fail,
+  })
   const busy = restore.isPending || remove.isPending || empty.isPending
   const [now] = useState(() => Date.now() / 1000) // once per opening: the list is short-lived
   const daysLeft = (e: TrashEntry) => Math.max(0, Math.ceil((e.expiresAt - now) / 86_400))
@@ -86,7 +92,7 @@ export default function TrashPage() {
       remove.mutate(e.path)
   }
   const emptyAll = async () => {
-    // the server empties everything, so the question must name what is there now
+    // the question names what is there now, and exactly that is deleted
     let fresh = entries ?? []
     try {
       fresh = await qc.fetchQuery({ ...trashQuery, staleTime: 0 })
@@ -104,7 +110,7 @@ export default function TrashPage() {
         destructive: true,
       })
     )
-      empty.mutate()
+      empty.mutate(fresh.map((e) => e.path))
   }
 
   return (

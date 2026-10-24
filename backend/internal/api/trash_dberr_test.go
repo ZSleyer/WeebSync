@@ -30,8 +30,8 @@ func TestTrashReadFailureIsAnError(t *testing.T) {
 	if rec := doReq(mux, "DELETE", "/api/trash", `{"path":"`+trashed+`"}`, admin); rec.Code != 500 {
 		t.Errorf("delete one: %d %s, want 500", rec.Code, rec.Body)
 	}
-	if rec := doReq(mux, "DELETE", "/api/trash", "", admin); rec.Code == 200 {
-		t.Errorf("empty: %d %s, must not report success", rec.Code, rec.Body)
+	if rec := doReq(mux, "DELETE", "/api/trash", `{"paths":["`+trashed+`"]}`, admin); rec.Code != 500 {
+		t.Errorf("empty: %d %s, want 500", rec.Code, rec.Body)
 	}
 	if _, err := os.Stat(trashed); err != nil {
 		t.Errorf("the trashed copy must still be there: %v", err)

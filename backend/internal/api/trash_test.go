@@ -108,12 +108,37 @@ func TestTrashEndpoints(t *testing.T) {
 		t.Error("the trash folder should be gone with its last entry")
 	}
 
-	// empty everything
+	// empty everything the page showed: the paths it listed go, and only those
 	if err := s.trashPath(filepath.Join(dir, "Show - S01E02.mkv"), trashWhy{Reason: "duplicate"}); err != nil {
 		t.Fatal(err)
 	}
-	if rec := doReq(mux, "DELETE", "/api/trash", "", admin); rec.Code != 200 {
+	seen := list()
+	if len(seen) != 1 {
+		t.Fatalf("before emptying: %+v", seen)
+	}
+	// something lands in the trash after the page listed it
+	writeFiles(t, dir, map[string]int64{"Show - S01E03.mkv": 4})
+	if err := s.trashPath(filepath.Join(dir, "Show - S01E03.mkv"), trashWhy{Reason: "upgrade"}); err != nil {
+		t.Fatal(err)
+	}
+	late := filepath.Join(dir, trashDir, "Show - S01E03.mkv")
+	// without the list nothing is deleted at all
+	if rec := doReq(mux, "DELETE", "/api/trash", "", admin); rec.Code != 400 {
+		t.Errorf("empty without paths: %d %s, want 400", rec.Code, rec.Body)
+	}
+	body, _ := json.Marshal(TrashRequest{Paths: []string{seen[0].Path, "/etc/passwd"}})
+	if rec := doReq(mux, "DELETE", "/api/trash", string(body), admin); rec.Code != 200 {
 		t.Fatalf("empty: %d %s", rec.Code, rec.Body)
+	}
+	if got := list(); len(got) != 1 || got[0].Path != late {
+		t.Errorf("after emptying what was seen, the late copy stays: %+v", got)
+	}
+	if _, err := os.Stat("/etc/passwd"); err != nil {
+		t.Fatal("touched /etc/passwd")
+	}
+	body, _ = json.Marshal(TrashRequest{Paths: []string{late}})
+	if rec := doReq(mux, "DELETE", "/api/trash", string(body), admin); rec.Code != 200 {
+		t.Fatalf("empty the rest: %d %s", rec.Code, rec.Body)
 	}
 	if got := list(); len(got) != 0 {
 		t.Errorf("after emptying: %+v", got)
