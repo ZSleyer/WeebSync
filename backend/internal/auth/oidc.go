@@ -315,7 +315,9 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email, _ := claims["email"].(string)
-	email = normalizeEmail(email)
+	// as sent: findOrCreateOIDCUserNew lowercases it, and also looks for an
+	// account an earlier release stored in this spelling
+	email = strings.TrimSpace(email)
 	if email == "" {
 		callbackFail(w, r, "no_email")
 		return
@@ -461,9 +463,15 @@ func normalizeEmail(email string) string {
 // findOrCreateOIDCUserNew is findOrCreateOIDCUser that also reports whether
 // the account was created just now.
 func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (int64, bool, error) {
+	sent := strings.TrimSpace(email)
 	email = normalizeEmail(email)
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) && sent != email {
+		// stored by an earlier release in the provider's spelling: NOCASE
+		// folds ASCII only, so a non-ASCII capital misses the lowercase lookup
+		err = d.QueryRow(`SELECT id FROM users WHERE email = ?`, sent).Scan(&id)
+	}
 	if err == nil {
 		if admin != nil {
 			if !*admin {
