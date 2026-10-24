@@ -137,7 +137,8 @@
       "delete": "Entf",
       "forget": "aus „Zuletzt geöffnet“ entfernen"
     },
-    "searching": "Durchsucht die Server-Indexe …"
+    "searching": "Durchsucht die Server-Indexe …",
+    "searchFailed": "Die Dateisuche ist fehlgeschlagen. Versuch es noch einmal."
   },
   "nav": {
     "dashboard": "Heute",
