@@ -72,4 +72,22 @@ describe('reply composer focus', () => {
     act(() => hook.result.current.send())
     await waitFor(() => expect(toast).toHaveBeenCalledWith({ message: 'thread.posted' }))
   })
+
+  it('a reply finishing while another composer is open leaves that composer its link', async () => {
+    let done!: (v: { id: number }) => void
+    vi.spyOn(api, 'post').mockImplementation(() => new Promise((res) => (done = res as never)) as never)
+    const { link, field, hook } = setup()
+    const linkB = document.body.appendChild(document.createElement('button'))
+    link.focus()
+    act(() => hook.result.current.open({ parent: 0, top: 0, name: 'op' }))
+    act(() => hook.result.current.setDraft('A'))
+    act(() => hook.result.current.send())
+    linkB.focus()
+    act(() => hook.result.current.open({ parent: 5, top: 5, name: 'b' }))
+    field.focus()
+    await waitFor(() => expect(done).toBeTypeOf('function'))
+    await act(async () => done({ id: 7 }))
+    act(() => hook.result.current.cancel())
+    expect(document.activeElement).toBe(linkB)
+  })
 })

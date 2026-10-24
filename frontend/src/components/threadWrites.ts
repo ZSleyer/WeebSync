@@ -81,12 +81,10 @@ export function useThreadWrites(threadId: number) {
   const [draft, setDraft] = useState('')
   // the "Reply" link that opened the composer: the focus goes back to it
   const opener = useRef<HTMLElement | null>(null)
-  // `keep`: a send in flight may fail and reopen the composer, which then
-  // needs its opener again
-  const close = (keep = false) => {
+  const close = () => {
     setReplyTo(null)
     const el = opener.current
-    if (!keep) opener.current = null
+    opener.current = null
     if (el?.isConnected) el.focus()
   }
 
@@ -140,10 +138,15 @@ export function useThreadWrites(threadId: number) {
         replies: [],
       }
       set((d) => withReply(d, v, pending))
-      close(true)
+      // a send in flight may fail and reopen its composer: it carries its own
+      // opener, other composers opened meanwhile keep theirs
+      const from = opener.current
+      close()
       setDraft('')
+      return from
     },
-    onError: (e, v) => {
+    onError: (e, v, from) => {
+      opener.current = from ?? null
       // only the pending reply goes; a reply written meanwhile stays
       set((d) => withoutComment(d, v.tmp))
       // the words come back into the open composer, nothing typed is lost
@@ -152,7 +155,6 @@ export function useThreadWrites(threadId: number) {
       fail(e)
     },
     onSuccess: (r, v) => {
-      opener.current = null
       set((d) => withId(d, v.tmp, r.id))
       toast({ message: t('thread.posted') })
     },
@@ -170,7 +172,7 @@ export function useThreadWrites(threadId: number) {
       setReplyTo(to)
       setDraft('')
     },
-    cancel: () => close(),
+    cancel: close,
     draft,
     setDraft,
     sending: send.isPending,
