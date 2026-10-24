@@ -217,7 +217,8 @@ func New(name string, o Options) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid pattern: %w", err)
 		}
-		return re.ReplaceAllString(name, o.Replacement), nil
+		// same confinement as template mode; "" means "keep the original name"
+		return sanitize(re.ReplaceAllString(name, o.Replacement)), nil
 	case "template":
 		return templateName(name, o)
 	default:
@@ -228,6 +229,11 @@ func New(name string, o Options) (string, error) {
 func templateName(name string, o Options) (string, error) {
 	parsed := relname.Read(name)
 	dub, sub := LangTags(name)
+	// a subtitle sidecar keeps its language/flag tags: "ger.forced.srt"
+	ext := parsed.Ext
+	if parsed.Sidecar != "" {
+		ext = parsed.Sidecar
+	}
 	vars := map[string]string{
 		"title":      parsed.Title,
 		"season":     "1", // no season marker in the name → season 1
@@ -237,7 +243,7 @@ func templateName(name string, o Options) (string, error) {
 		"resolution": parsed.Resolution,
 		"dub":        dub,
 		"sub":        sub,
-		"ext":        parsed.Ext,
+		"ext":        ext,
 	}
 	if parsed.HasSeason { // "S00E04" keeps its specials season
 		vars["season"] = strconv.Itoa(parsed.Season)
@@ -280,8 +286,9 @@ func templateName(name string, o Options) (string, error) {
 		}
 		// offset and zero-pad apply to integer values only; a fractional
 		// episode (e.g. a "1163.5" special) passes through untouched.
+		// Only the numeric placeholders: {title}/{group} like "007" stay as is.
 		n, err := strconv.Atoi(val)
-		if err != nil {
+		if err != nil || !numericVars[g[1]] || !allDigits(val) {
 			return val
 		}
 		if g[2] != "" { // signed offset, e.g. -1155
@@ -313,10 +320,26 @@ func templateName(name string, o Options) (string, error) {
 		out = strings.ReplaceAll(out, " ", o.Separator)
 	}
 	// keep the original extension unless the template already set one
-	if ext := filepath.Ext(name); ext != "" && !strings.Contains(o.Template, "{ext}") {
-		out += ext
+	if !strings.Contains(o.Template, "{ext}") {
+		if parsed.Sidecar != "" {
+			out += "." + parsed.Sidecar
+		} else if e := filepath.Ext(name); e != "" {
+			out += e
+		}
 	}
 	return sanitize(out), nil
+}
+
+// numericVars are the placeholders that take an offset and zero padding.
+var numericVars = map[string]bool{"season": true, "episode": true, "year": true}
+
+func allDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // num renders a parsed number, "" for the zero that means "not in the name".
