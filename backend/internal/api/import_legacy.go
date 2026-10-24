@@ -123,10 +123,17 @@ func (s *Server) importLegacyWatch(userID, serverID int64, p LegacyWatchPlan) er
 	if _, err := s.safeLocal(p.LocalPath); err != nil {
 		return err
 	}
+	// the same checks handleWatchCreate runs
+	if err := checkPatternLen(p.Pattern); err != nil {
+		return err
+	}
 	if p.Mode == "regex" && p.Pattern != "" {
 		if _, err := regexp.Compile(p.Pattern); err != nil {
 			return err
 		}
+	}
+	if werr := s.unwritableTarget(p.LocalPath); werr != nil {
+		return errors.New(werr.Error)
 	}
 	_, err := s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, title_override, pattern, replacement, from_episode)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
