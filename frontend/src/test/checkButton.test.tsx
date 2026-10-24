@@ -122,4 +122,13 @@ describe('CheckButton as the sync button', () => {
     await waitFor(() => expect(b).toHaveAttribute('data-state', 'done'))
     expect(b.textContent).toContain('series.sync.allHere')
   })
+
+  it('names the button by its visible label and keeps the live status outside it', async () => {
+    setup({ status: 'checked', queued: [7, 8] })
+    expect(screen.getByRole('button', { name: 'watch.checkNow' })).toBeInTheDocument()
+    await act(async () => fireEvent.click(screen.getByRole('button')))
+    const b = screen.getByRole('button', { name: /watch\.checkLoading/ })
+    expect(b.querySelector('[role="status"]')).toBeNull()
+    expect(screen.getByRole('status')).toHaveTextContent('watch.checkLoading')
+  })
 })
