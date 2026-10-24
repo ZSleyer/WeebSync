@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/textproto"
 	"os"
 	"sort"
 	"strconv"
@@ -154,13 +155,24 @@ func deleteSubtree(ex interface {
 
 // gone reports whether a listing failed because the directory is not there
 // (any more) - as opposed to a timeout or a permission the crawler lacks.
-// SFTP says so through fs.ErrNotExist, FTP with a 550 reply.
+// SFTP says so through fs.ErrNotExist. FTP answers 550 for a missing folder
+// and for a refused one alike, so only a 550 whose text says the folder is
+// missing counts; any other FTP reply, and digits that merely appear in an
+// error text (a port, a path), never do.
 func gone(err error) bool {
 	if errors.Is(err, fs.ErrNotExist) || os.IsNotExist(err) {
 		return true
 	}
+	missing := func(msg string) bool {
+		msg = strings.ToLower(msg)
+		return strings.Contains(msg, "no such file") || strings.Contains(msg, "not exist") || strings.Contains(msg, "not found")
+	}
+	var ftpErr *textproto.Error
+	if errors.As(err, &ftpErr) {
+		return ftpErr.Code == 550 && missing(ftpErr.Msg)
+	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "no such file") || strings.Contains(msg, "not exist") || strings.Contains(msg, "550")
+	return strings.Contains(msg, "no such file") || strings.Contains(msg, "not exist")
 }
 
 func pathBase(p string) string {
