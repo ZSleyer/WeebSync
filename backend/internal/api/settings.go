@@ -547,11 +547,11 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		field, value, stored string
 		check                func(string) error
 	}{
-		{"aiBaseUrl", aiURL, cur.AiBaseURL, checkSecretURL},
-		{"aiSearchUrl", searchURL, cur.AiSearchURL, checkOutboundURL},
+		{"aiBaseUrl", aiURL, strings.TrimRight(cur.AiBaseURL, "/"), checkSecretURL},
+		{"aiSearchUrl", searchURL, strings.TrimRight(cur.AiSearchURL, "/"), checkOutboundURL},
 		{"haWebhookUrl", haURL, cur.HaWebhookURL, checkSecretURL},
-		{"plexUrl", plexURL, cur.PlexURL, checkSecretURL},
-		{"jellyfinUrl", jellyfinURL, cur.JellyfinURL, checkSecretURL},
+		{"plexUrl", plexURL, strings.TrimRight(cur.PlexURL, "/"), checkSecretURL},
+		{"jellyfinUrl", jellyfinURL, strings.TrimRight(cur.JellyfinURL, "/"), checkSecretURL},
 		// the issuer signs the ID tokens that carry the admin group: a
 		// forged one over plain HTTP would hand out the instance
 		{"oidcIssuer", in.OidcIssuer, cur.OidcIssuer, checkSecretURL},
@@ -657,7 +657,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	writes.set("oidc_claim", in.OidcClaim)
 	writes.set("oidc_admin_values", in.OidcAdminValues)
 	writes.set("oidc_user_values", in.OidcUserValues)
-	writes.set("plex_url", strings.TrimSpace(in.PlexURL))
+	writes.set("plex_url", plexURL)
 	writes.set("jellyfin_url", jellyfinURL)
 	writes.set("media_server", in.MediaServer)
 	writes.set("plex_sections", in.PlexSections)
