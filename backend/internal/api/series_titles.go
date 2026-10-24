@@ -14,6 +14,14 @@ import (
 // titlesRefresh is how often a series' stored translations are re-fetched.
 const titlesRefresh = 30 * 24 * time.Hour
 
+// titlesRetry is how soon a series is fetched again when a provider failed
+// to answer; titlesRetryOff when a linked provider is switched off (no key),
+// so adding the key later does not wait out the full titlesRefresh.
+const (
+	titlesRetry    = time.Hour
+	titlesRetryOff = 24 * time.Hour
+)
+
 // titlesBudget bounds series handled per sweep tick (each costs up to one
 // TMDB + one TVDB call; AniList titles come from the local media cache).
 const titlesBudget = 20
@@ -36,8 +44,10 @@ func (s *Server) storeSeriesTitle(seriesID int64, source, locale, title string) 
 // provider links: AniList titles come from the cached media (romaji='x-jat',
 // english='en', native='ja'), TMDB and TVDB deliver their full translation
 // sets in one call each. Best effort - a provider error just leaves that
-// source's rows as they are; the stamp is still set so one broken series
-// cannot starve the queue.
+// source's rows as they are, and the stamp is set so the series comes due
+// again after titlesRetry rather than titlesRefresh: soon enough that a
+// passing outage does not cost a month, late enough that one broken series
+// cannot starve the queue. A fetch the context cut short is not stamped.
 func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 	cutoff := time.Now().UTC().Add(-titlesRefresh).Format(time.RFC3339)
 	rows, err := s.DB.Query(`SELECT id FROM series
@@ -61,23 +71,32 @@ func (s *Server) refreshSeriesTitles(ctx context.Context, budget int) {
 		if ctx.Err() != nil {
 			return
 		}
-		if !s.fetchSeriesTitles(ctx, id) {
+		ok, retry := s.fetchSeriesTitles(ctx, id)
+		if !ok {
 			continue // providers unread: no stamp, the next sweep tries again
 		}
-		// a stamp that did not land only repeats the fetch on the next sweep
-		_, _ = s.DB.Exec(`UPDATE series SET titles_fetched_at = ? WHERE id = ?`,
-			time.Now().UTC().Format(time.RFC3339), id)
+		if ctx.Err() != nil {
+			return // shutting down mid-call: the failures say nothing about the provider
+		}
+		// a retry is stamped as if fetched long ago, so it comes due after
+		// retry; a stamp that did not land only repeats the fetch next sweep
+		at := time.Now().UTC()
+		if retry > 0 {
+			at = at.Add(retry - titlesRefresh)
+		}
+		_, _ = s.DB.Exec(`UPDATE series SET titles_fetched_at = ? WHERE id = ?`, at.Format(time.RFC3339), id)
 	}
 }
 
 // fetchSeriesTitles pulls every provider's translations for one series. It
 // reports false when the series' providers could not be read whole or a title
 // could not be stored - a provider that fails to answer is the best-effort case
-// and still true.
-func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
+// and still true, with retry saying how soon to ask again (0: the full
+// titlesRefresh, every provider answered).
+func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) (ok bool, retry time.Duration) {
 	rows, err := s.DB.Query(`SELECT source, media_id FROM series_provider WHERE series_id = ?`, seriesID)
 	if err != nil {
-		return false
+		return false, 0
 	}
 	defer rows.Close()
 	var refs []providerRef
@@ -88,9 +107,14 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 		}
 	}
 	if rows.Err() != nil {
-		return false
+		return false, 0
 	}
 	stored := true
+	retryIn := func(d time.Duration) {
+		if retry == 0 || d < retry {
+			retry = d
+		}
+	}
 	store := func(source, locale, title string) {
 		if err := s.storeSeriesTitle(seriesID, source, locale, title); err != nil {
 			slog.Warn("series title not stored", "series", seriesID, "err", err)
@@ -108,26 +132,36 @@ func (s *Server) fetchSeriesTitles(ctx context.Context, seriesID int64) bool {
 			}
 		case strings.HasPrefix(r.Source, "tmdb:"):
 			if s.Tmdb == nil || !s.Tmdb.Enabled() {
+				retryIn(titlesRetryOff)
 				continue
 			}
 			kind := strings.TrimPrefix(r.Source, "tmdb:")
-			if tr, err := s.Tmdb.Translations(ctx, kind, r.MediaID); err == nil {
-				for loc, title := range tr {
-					store("tmdb", loc, title)
-				}
+			tr, err := s.Tmdb.Translations(ctx, kind, r.MediaID)
+			if err != nil {
+				slog.Debug("series titles not fetched", "series", seriesID, "source", r.Source, "err", err)
+				retryIn(titlesRetry)
+				continue
+			}
+			for loc, title := range tr {
+				store("tmdb", loc, title)
 			}
 		case r.Source == "tvdb":
 			if s.Tvdb == nil || !s.Tvdb.Enabled() {
+				retryIn(titlesRetryOff)
 				continue
 			}
-			if tr, err := s.Tvdb.NameTranslations(ctx, r.MediaID); err == nil {
-				for loc, title := range tr {
-					store("tvdb", loc, title)
-				}
+			tr, err := s.Tvdb.NameTranslations(ctx, r.MediaID)
+			if err != nil {
+				slog.Debug("series titles not fetched", "series", seriesID, "source", r.Source, "err", err)
+				retryIn(titlesRetry)
+				continue
+			}
+			for loc, title := range tr {
+				store("tvdb", loc, title)
 			}
 		}
 	}
-	return stored // a title that was not stored: no stamp, the next sweep fetches again
+	return stored, retry // a title that was not stored: no stamp, the next sweep fetches again
 }
 
 // titleLocaleChain is the display preference: German, English, Romaji.

@@ -150,9 +150,11 @@ func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 	out := []DismissedItem{}
 	for rows.Next() {
 		var d DismissedItem
-		if rows.Scan(&d.Kind, &d.RefKey, &d.Label, &d.DismissedAt, &d.Cover, &d.Section) == nil {
-			out = append(out, d)
+		if err := rows.Scan(&d.Kind, &d.RefKey, &d.Label, &d.DismissedAt, &d.Cover, &d.Section); err != nil {
+			dbErr(w, err)
+			return
 		}
+		out = append(out, d)
 	}
 	if rows.Err() != nil {
 		dbErr(w, rows.Err())

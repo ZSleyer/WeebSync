@@ -1,7 +1,6 @@
 package api
 
 import (
-	"log/slog"
 	"net"
 	"net/http"
 	"net/netip"
@@ -34,6 +33,7 @@ type SecurityCheck struct {
 // @Success      200  {array}   SecurityCheck
 // @Failure      401  {object}  ErrorResponse
 // @Failure      403  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/admin/security-check [get]
 func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
@@ -86,21 +86,28 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		add("registration_open", "info", 0, "")
 	}
 	var pending int
-	countOr := func(n *int, query string) {
-		// the report is a snapshot: a failed count is logged, not shown as zero risk
+	// a count that cannot be read answers the request with an error: shown as
+	// zero, it read as "checked and fine"
+	count := func(n *int, query string) bool {
 		if err := s.DB.QueryRow(query).Scan(n); err != nil {
-			slog.Warn("security check count failed", "err", err)
+			dbErrDetail(w, "security check", err)
+			return false
 		}
+		return true
 	}
-	countOr(&pending, `SELECT COUNT(*) FROM users WHERE approved = 0`)
+	if !count(&pending, `SELECT COUNT(*) FROM users WHERE approved = 0`) {
+		return
+	}
 	if pending > 0 {
 		add("pending_approvals", "info", pending, "")
 	}
 	// admins who sign in with a password alone
 	var weakAdmins int
-	countOr(&weakAdmins, `SELECT COUNT(*) FROM users u WHERE u.is_admin = 1 AND u.password_hash != ''
+	if !count(&weakAdmins, `SELECT COUNT(*) FROM users u WHERE u.is_admin = 1 AND u.password_hash != ''
 		AND NOT EXISTS (SELECT 1 FROM user_totp t WHERE t.user_id = u.id AND t.confirmed_at IS NOT NULL)
-		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = u.id AND (c.passwordless = 0 OR c.uv_required = 1))`)
+		AND NOT EXISTS (SELECT 1 FROM webauthn_credentials c WHERE c.user_id = u.id AND (c.passwordless = 0 OR c.uv_required = 1))`) {
+		return
+	}
 	if weakAdmins > 0 && !s.passwordAuthBlocked() {
 		add("admin_single_factor", "warn", weakAdmins, "")
 	} else {
@@ -124,7 +131,9 @@ func (s *Server) handleSecurityCheck(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var ftp int
-	countOr(&ftp, `SELECT COUNT(*) FROM servers WHERE protocol = 'ftp'`)
+	if !count(&ftp, `SELECT COUNT(*) FROM servers WHERE protocol = 'ftp'`) {
+		return
+	}
 	if ftp > 0 {
 		add("ftp_cleartext", "warn", ftp, "")
 	}

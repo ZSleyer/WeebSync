@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -116,7 +118,10 @@ func (s *Server) handleWatchExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := watchExplainResponse{LastCheck: lastCheck, Template: wt.Template, Skips: []transfer.Skip{}}
-	json.Unmarshal([]byte(skipsJSON), &out.Skips)
+	if err := json.Unmarshal([]byte(skipsJSON), &out.Skips); err != nil {
+		slog.Warn("watch explain: unreadable last_skips", "watch", wt.ID, "err", err)
+		out.Skips = []transfer.Skip{}
+	}
 
 	interval := s.watchInterval()
 	media := s.watchMedia(wt.ServerID, wt.RemotePath)
@@ -241,7 +246,7 @@ func (s *Server) replacedCopy(local, finished string) string {
 	}
 	rows, err := s.DB.Query(`SELECT path, trashed_at FROM trash_files
 		WHERE substr(path, 1, ?) = ? AND trashed_at BETWEEN ? AND ?`,
-		len(prefix), prefix, at.Add(-replacedWindow).Unix(), at.Add(replacedWindow).Unix())
+		utf8.RuneCountInString(prefix), prefix, at.Add(-replacedWindow).Unix(), at.Add(replacedWindow).Unix())
 	if err != nil {
 		return ""
 	}

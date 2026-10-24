@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -71,6 +72,9 @@ func (s *Server) waCredentials(userID int64) []webauthn.Credential {
 		}
 		var c webauthn.Credential
 		if json.Unmarshal(raw, &c) == nil {
+			// the warning is about one ceremony: one stored by an older
+			// release must not refuse every later sign-in
+			c.Authenticator.CloneWarning = false
 			out = append(out, c)
 		}
 	}
@@ -227,10 +231,22 @@ func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, email, pa
 	return true
 }
 
+// cloned reports whether the library flagged the assertion's signature
+// counter as not advancing past the stored one: a second copy of the key may
+// be in use. The library leaves the decision to the relying party; the
+// sign-in is refused and the stored counter kept.
+func cloned(c *webauthn.Credential, userID int64) bool {
+	if !c.Authenticator.CloneWarning {
+		return false
+	}
+	slog.Warn("webauthn sign count did not advance, possibly a cloned authenticator", "user", userID, "count", c.Authenticator.SignCount)
+	return true
+}
+
 // updateCredential re-saves a credential after a login (sign-count bump).
 func (s *Server) updateCredential(c *webauthn.Credential) {
 	if raw, err := json.Marshal(c); err == nil {
-		// the sign count is what tells a cloned authenticator apart
+		// the sign count is what tells a cloned authenticator apart (see cloned)
 		if _, err := s.DB.Exec(`UPDATE webauthn_credentials SET cred_json = ?, last_used = datetime('now') WHERE credential_id = ?`, raw, c.ID); err != nil {
 			slog.Warn("webauthn sign count not stored", "err", err)
 		}
@@ -307,13 +323,30 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: creation.Response})
 }
 
+// waName is the credential's display name from the X-WA-Name header. A header
+// carries only bytes, so the client percent-encodes the name; a value that is
+// no valid encoding (an older client) is kept as sent, and whatever is not
+// UTF-8 is dropped rather than stored.
+func waName(r *http.Request) string {
+	raw := r.Header.Get("X-WA-Name")
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		name = raw
+	}
+	name = strings.ToValidUTF8(name, "")
+	if name == "" {
+		return "Passkey"
+	}
+	return name
+}
+
 // handleWebAuthnRegisterFinish stores a freshly registered credential.
 // @Summary  Finish passkey/security-key registration
 // @Description Completes a WebAuthn registration ceremony and stores the new credential. The ceremony id and metadata travel in headers; the request body is the credential attestation.
 // @Tags     TwoFactor
 // @Produce  json
 // @Param    X-WA-Session header string true "ceremony id from register/begin"
-// @Param    X-WA-Name header string false "display name for the credential"
+// @Param    X-WA-Name header string false "display name for the credential, percent-encoded (UTF-8)"
 // @Param    body body object true "WebAuthn attestation"
 // @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
@@ -352,10 +385,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusBadRequest, "invalid credential public key: "+err.Error())
 		return
 	}
-	name := r.Header.Get("X-WA-Name")
-	if name == "" {
-		name = "Passkey"
-	}
+	name := waName(r)
 	// what kind of credential this is was decided at begin, behind the
 	// password check, and travels in the ceremony; a header on this request
 	// could turn a security key (no user verification) into a passkey
@@ -448,7 +478,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	_, cred, err := wa.ValidatePasskeyLogin(handler, *session, parsed)
-	if err != nil || matched == nil {
+	if err != nil || matched == nil || cloned(cred, matched.id) {
 		writeErr(w, http.StatusUnauthorized, "passkey login failed")
 		return
 	}
@@ -509,7 +539,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// a passkey that verified nobody proves no owner: no reset of the
 	// account's failures, no device cookie
 	if !unverified {
-		s.accountSignedIn(w, r, matched.email)
+		s.accountSignedIn(w, r, strings.ToLower(matched.email))
 	}
 	s.signInAlert(w, r, matched.id, signInPasskey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
@@ -594,14 +624,14 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, user.email); wait > 0 {
+	if wait := s.accountWait(r, strings.ToLower(user.email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	cred, err := wa.FinishLogin(user, *session, r)
-	if err != nil {
+	if err != nil || cloned(cred, userID) {
 		s.failLoginPending(token)
-		s.accountFailed(r, user.email)
+		s.accountFailed(r, strings.ToLower(user.email))
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
@@ -623,7 +653,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(w, r, user.email)
+	s.accountSignedIn(w, r, strings.ToLower(user.email))
 	s.signInAlert(w, r, userID, signInKey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: user.email})
 }

@@ -190,3 +190,41 @@ func TestLoginTotpAcceptsFormattedCodes(t *testing.T) {
 		t.Fatalf("upper-case recovery code without dash: %d %s", rec.Code, rec.Body.String())
 	}
 }
+
+// A code stays valid for three steps. Once a code of a later step got the
+// account in, an earlier one that is still in the window must not: whoever
+// read code A over the owner's shoulder could otherwise use it after the
+// owner signed in again with code B.
+func TestLoginTotpRefusesReplayOfAnOlderStep(t *testing.T) {
+	mux, s, _, sec := totpFixture(t)
+	now := time.Now()
+	codeA, err := totp.Code(sec, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	codeB, _ := totp.Code(sec, now.Add(30*time.Second))
+	if codeA == codeB {
+		t.Skip("two steps share a code")
+	}
+	login := func(code string) int {
+		t.Helper()
+		s.authLimiter.resetAll()
+		token, err := s.newLoginPending(1, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return postTotp(mux, token, code).Code
+	}
+	if c := login(codeA); c != http.StatusOK {
+		t.Fatalf("code A: %d", c)
+	}
+	if c := login(codeA); c != http.StatusUnauthorized {
+		t.Fatalf("code A again: %d", c)
+	}
+	if c := login(codeB); c != http.StatusOK {
+		t.Fatalf("code B of the next step: %d", c)
+	}
+	if c := login(codeA); c != http.StatusUnauthorized {
+		t.Fatalf("code A replayed after code B: %d", c)
+	}
+}

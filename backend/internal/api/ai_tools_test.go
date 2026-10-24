@@ -77,3 +77,32 @@ func TestAiSeriesSeasonsFromTheBundle(t *testing.T) {
 		t.Errorf("unbundled tmdb: %s", e)
 	}
 }
+
+// The catalog holds every user's servers; the tool answers for the caller
+// only. Another user's copy of the same series - server name, folder - must
+// not reach the model.
+func TestAiSeriesSeasonsHidesOtherUsersServers(t *testing.T) {
+	_, s, _ := setupAiTest(t, nil)
+	d := s.DB
+	d.Exec(`INSERT INTO users (id, email) VALUES (2, 'b@example.com')`)
+	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (2, 2, 'Anime-NAS', 'sftp', 'h', 22, 'u', X'00', '/')`)
+	d.Exec(`INSERT INTO series (id, key, title, year) VALUES (5, 'frieren', 'Frieren', 2023)`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist', 154587, 5)`)
+	d.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, series_id) VALUES (1, '/anime/Frieren', 1080, 'tvdb:1', 1, 5)`)
+	d.Exec(`INSERT INTO catalog_variants (server_id, folder, res_rank, show_key, season, series_id) VALUES (2, '/privat/Frieren Geheim', 2160, 'tvdb:1', 1, 5)`)
+
+	for _, c := range []struct {
+		user        int64
+		own, others string
+	}{{1, `"serverName":"srv"`, "Anime-NAS"}, {2, `"serverName":"Anime-NAS"`, `"serverName":"srv"`}} {
+		out, _ := json.Marshal(s.aiSeriesSeasons(context.Background(), c.user, "anilist", 154587))
+		got := string(out)
+		if !strings.Contains(got, c.own) {
+			t.Errorf("user %d: own server missing: %s", c.user, got)
+		}
+		if strings.Contains(got, c.others) || (c.user == 1 && strings.Contains(got, "Geheim")) {
+			t.Errorf("user %d sees another user's server: %s", c.user, got)
+		}
+	}
+}

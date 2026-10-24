@@ -1002,7 +1002,9 @@ func (s *Server) attachPlexIdentity(seriesID int64, g plexGuid, exact bool) {
 					"other", other, "source", r.Source, "mediaId", r.MediaID)
 				continue
 			}
-			s.mergeSeries(other, seriesID)
+			if s.mergeSeries(other, seriesID) != nil {
+				continue // the id stays where it is; the next pass tries again
+			}
 		}
 		if _, err := s.DB.Exec(`INSERT OR IGNORE INTO series_provider (source, media_id, series_id) VALUES (?, ?, ?)`,
 			r.Source, r.MediaID, seriesID); err != nil {

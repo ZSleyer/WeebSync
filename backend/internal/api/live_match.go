@@ -34,7 +34,7 @@ type liveQuery struct{ q, accept string }
 // innerSubtitle finds where a subtitle starts that lost its colon in the
 // folder name ("The Walking Dead The Ones Who Live", "Tomb Raider The Legend
 // of Lara Croft"): an article after the first word.
-var innerSubtitle = regexp.MustCompile(`\S (?:The|A|An|Der|Die|Das) `)
+var innerSubtitle = regexp.MustCompile(`(\S) (?:The|A|An|Der|Die|Das) `)
 
 // japAudio tells a release of a Japanese show by its audio tag ("[JapDub,
 // GerSub]", "[GerJapDub]"), which no live-action release carries.
@@ -83,8 +83,8 @@ func (s *Server) liveQueries(serverID int64, folder, name string) []liveQuery {
 	// last, and only to search: it finds the show the subtitle belongs to as
 	// well, which the folder does not name - the folder's full name, colon
 	// or not, picks the subtitled one among the hits
-	if loc := innerSubtitle.FindStringIndex(title); loc != nil {
-		addAs(title[:loc[0]+1], false)
+	if loc := innerSubtitle.FindStringSubmatchIndex(title); loc != nil {
+		addAs(title[:loc[3]], false) // end of the captured last character
 	}
 	return qs
 }
