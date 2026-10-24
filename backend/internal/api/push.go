@@ -59,6 +59,11 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "endpoint and keys required")
 		return
 	}
+	// keys nothing can be encrypted for would be stored and never get a push
+	if err := push.ValidKeys(in.Keys.P256dh, in.Keys.Auth); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid subscription keys")
+		return
+	}
 	// the push endpoint is fetched server-side on every notification; block
 	// metadata/link-local targets so it can't become an SSRF primitive
 	if u, err := url.Parse(in.Endpoint); err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil ||

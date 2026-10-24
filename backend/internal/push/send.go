@@ -39,6 +39,27 @@ func decodeKey(s string) ([]byte, error) {
 	return base64.RawStdEncoding.DecodeString(s)
 }
 
+// ValidKeys reports whether a subscription's keys can be encrypted for at
+// all: p256dh a point on P-256, auth a 16-byte secret. A subscription that
+// fails this never receives a push.
+func ValidKeys(p256dh, auth string) error {
+	ua, err := decodeKey(p256dh)
+	if err != nil {
+		return fmt.Errorf("push: p256dh: %w", err)
+	}
+	if _, err := ecdh.P256().NewPublicKey(ua); err != nil {
+		return fmt.Errorf("push: p256dh: %w", err)
+	}
+	secret, err := decodeKey(auth)
+	if err != nil {
+		return fmt.Errorf("push: auth: %w", err)
+	}
+	if len(secret) != 16 {
+		return errors.New("push: auth secret is not 16 bytes")
+	}
+	return nil
+}
+
 // generateKeys makes a VAPID key pair.
 func generateKeys() (private, public string, err error) {
 	k, err := ecdh.P256().GenerateKey(rand.Reader)

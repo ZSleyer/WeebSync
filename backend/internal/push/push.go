@@ -192,6 +192,12 @@ func (s *Service) Notify(userID int64, n Notification) {
 			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
 			continue
 		}
+		if err := ValidKeys(x.p256dh, x.auth); err != nil {
+			// keys nothing can be encrypted for fail the same way every time
+			slog.Warn("push subscription dropped", "host", endpointHost(x.endpoint), "err", err)
+			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
+			continue
+		}
 		if err := netguard.PublicAllowed(u.Hostname()); err != nil {
 			slog.Warn("push endpoint blocked", "host", endpointHost(x.endpoint), "err", err)
 			continue
