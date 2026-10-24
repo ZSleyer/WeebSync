@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { useEffect, type KeyboardEvent, type ReactNode } from 'react'
 import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 
 export interface PillOption<T extends string> {
@@ -34,8 +34,33 @@ export default function PillSelect<T extends string>({
 }) {
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   const current = options.find((o) => o.value === value)
+  const trigger = () => ref.current?.querySelector<HTMLElement>('[aria-expanded]')?.focus()
+
+  // APG listbox popup: the list takes the focus on the chosen option (else the
+  // first), so the arrow keys work at once
+  useEffect(() => {
+    if (!open) return
+    const list = ref.current?.querySelector<HTMLElement>('[role="listbox"]')
+    const at = list?.querySelector<HTMLElement>('[aria-selected="true"]') ?? list?.querySelector<HTMLElement>('button')
+    at?.focus({ preventScroll: true })
+  }, [open, ref])
+
+  const onTriggerKey = (e: KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      setOpen(true)
+    }
+  }
+  // Tab leaves the list: close it with the focus on the trigger, where Tab
+  // carries on from
+  const onListKey = (e: KeyboardEvent) => {
+    if (e.key === 'Tab' && open) {
+      trigger()
+      setOpen(false)
+    }
+  }
   return (
-    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle}>
+    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle} onKeyDown={onListKey}>
       <button
         type="button"
         className="t-pill"
@@ -44,6 +69,7 @@ export default function PillSelect<T extends string>({
         aria-label={label}
         title={`${label}: ${current?.label ?? placeholder ?? ''}`}
         onClick={() => setOpen((o) => !o)}
+        onKeyDown={onTriggerKey}
       >
         {current?.icon ?? icon}
         <span className={`truncate ${current ? '' : 'text-t-muted'}`}>{current?.label ?? placeholder ?? label}</span>
@@ -57,6 +83,7 @@ export default function PillSelect<T extends string>({
               selected={o.value === value}
               onClick={() => {
                 onChange(o.value)
+                trigger()
                 setOpen(false)
               }}
             >

@@ -39,6 +39,10 @@ export default function ActionMenu({
               <MenuItem
                 key={a.key}
                 onClick={() => {
+                  // the focused item is about to leave the page: hand the focus
+                  // back first, so a dialog the action opens takes the button
+                  // as its opener and returns to it
+                  ref.current?.querySelector<HTMLElement>('[aria-expanded]')?.focus()
                   setOpen(false)
                   a.onClick()
                 }}
