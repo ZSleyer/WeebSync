@@ -43,19 +43,16 @@ export function useMenu<T extends HTMLElement = HTMLDivElement>() {
         setOpen(false)
       }
     }
-    // choosing an item: hand the focus to the trigger before the item's own
-    // handler runs (capture), so a dialog the action opens takes the trigger as
-    // its opener and returns to it. An item that keeps the menu open (a toggle,
-    // a disabled item) is still there afterwards: it gets its focus back, so
-    // the arrow keys carry on from it.
+    // choosing an item that closes the menu: hand the focus to the trigger
+    // before the item's own handler runs (capture), so a dialog the action
+    // opens takes the trigger as its opener and returns to it. An item that
+    // keeps the menu open (data-keep-open, or aria-disabled) keeps the focus,
+    // so the arrow keys carry on from it.
     const onPick = (e: Event) => {
       const item = e.target instanceof Element ? e.target.closest<HTMLElement>('[role^="menuitem"], [role="option"]') : null
-      const trigger = ref.current?.querySelector<HTMLElement>('[aria-expanded]')
-      if (!item || !trigger || !ref.current?.contains(item)) return
-      trigger.focus()
-      setTimeout(() => {
-        if (item.isConnected && document.activeElement === trigger) item.focus({ preventScroll: true })
-      }, 0)
+      if (!item || !ref.current?.contains(item)) return
+      if (item.hasAttribute('data-keep-open') || item.getAttribute('aria-disabled') === 'true') return
+      ref.current.querySelector<HTMLElement>('[aria-expanded]')?.focus()
     }
     document.addEventListener('click', onPick, true)
     document.addEventListener('mousedown', onDoc)

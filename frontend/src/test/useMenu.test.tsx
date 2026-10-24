@@ -141,23 +141,45 @@ describe('useMenu', () => {
   })
 })
 
+const focusLog: string[] = []
 function PickHarness() {
   const { open, setOpen, ref } = useMenu()
   return (
     <div ref={ref}>
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        onFocus={() => focusLog.push('trigger')}
+      >
         Mehr
       </button>
       {open && (
         <Menu kind="menu" aria-label="Mehr">
-          <MenuItem onClick={() => {}}>Umschalten</MenuItem>
-          <MenuItem aria-disabled onClick={() => {}}>
+          <MenuItem data-keep-open onClick={() => {}}>
+            Umschalten
+          </MenuItem>
+          <MenuItem aria-disabled="true" onClick={() => {}}>
             Gesperrt
           </MenuItem>
-          <MenuItem role="menuitemcheckbox" aria-checked={false} onClick={() => setOpen(false)}>
+          <MenuItem
+            role="menuitemcheckbox"
+            aria-checked={false}
+            onClick={() => {
+              seenFocus = document.activeElement
+              setOpen(false)
+            }}
+          >
             Anpinnen
           </MenuItem>
-          <MenuItem onClick={() => setOpen(false)}>Schließen</MenuItem>
+          <MenuItem
+            onClick={() => {
+              seenFocus = document.activeElement
+              setOpen(false)
+            }}
+          >
+            Schließen
+          </MenuItem>
         </Menu>
       )}
     </div>
@@ -166,41 +188,42 @@ function PickHarness() {
 
 describe('useMenu focus after a pick', () => {
   const start = () => {
+    focusLog.length = 0
     render(<PickHarness />)
     fireEvent.click(screen.getByRole('button', { name: 'Mehr' }))
   }
-  const settle = () => new Promise((r) => setTimeout(r, 10))
 
-  it('keeps the focus on an item that leaves the menu open', async () => {
+  it('leaves the focus alone on an item that keeps the menu open or is aria-disabled', () => {
     start()
     for (const name of ['Umschalten', 'Gesperrt']) {
       const item = screen.getByRole('menuitem', { name })
       item.focus()
       fireEvent.click(item)
-      await settle()
       expect(item).toHaveFocus()
     }
+    expect(focusLog).toEqual([])
     expect(screen.getByRole('menu')).toBeInTheDocument()
   })
 
-  it('returns the focus to the trigger when the pick closes the menu, also for the Enter key', async () => {
+  it('hands the focus to the trigger before a closing item acts, also for the Enter key', () => {
     start()
     const item = screen.getByRole('menuitem', { name: 'Schließen' })
     item.focus()
+    seenFocus = null
     // Enter on a button is a click
     fireEvent.keyDown(item, { key: 'Enter' })
     fireEvent.click(item)
-    await settle()
+    expect(seenFocus).toBe(screen.getByRole('button', { name: 'Mehr' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(screen.getByRole('button', { name: 'Mehr' })).toHaveFocus()
   })
 
-  it('treats menuitemcheckbox as an item too', async () => {
+  it('treats menuitemcheckbox as an item too', () => {
     start()
     const item = screen.getByRole('menuitemcheckbox', { name: 'Anpinnen' })
     item.focus()
+    seenFocus = null
     fireEvent.click(item)
-    await settle()
-    expect(screen.getByRole('button', { name: 'Mehr' })).toHaveFocus()
+    expect(seenFocus).toBe(screen.getByRole('button', { name: 'Mehr' }))
   })
 })
