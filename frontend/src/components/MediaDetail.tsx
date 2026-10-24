@@ -29,7 +29,13 @@ export const mediaLink = (source: string | undefined, id: number) =>
           color: '#fff',
           wide: true,
         }
-      : { href: `https://anilist.co/anime/${id}`, label: 'AniList', icon: anilistMark, color: '#0b1622' }
+      : {
+          // a manga lives under /manga/, the same way Rematch reads such links
+          href: `https://anilist.co/${source === 'anilist:manga' ? 'manga' : 'anime'}/${id}`,
+          label: 'AniList',
+          icon: anilistMark,
+          color: '#0b1622',
+        }
 
 // AniList's YYYYMMDD as "12. Oktober 2026"; a month or a bare year stay short
 export const fuzzyDate = (d?: number) => {

@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import MediaDetail from '../components/MediaDetail'
+import MediaDetail, { mediaLink } from '../components/MediaDetail'
 import type { Media } from '../api'
 
 const media = { id: 1, title: { romaji: 'Demo' }, episodes: 12 } as Media
@@ -51,5 +51,13 @@ describe('MediaDetail outbound links', () => {
     const mark = row(container, 'AniList').querySelector('.ws-d-mark') as HTMLElement
     expect(mark.querySelector('img')).not.toBeNull()
     expect(mark.style.getPropertyValue('--lc')).toBe('#0b1622')
+  })
+})
+
+describe('mediaLink', () => {
+  it('points a manga at the manga page of AniList and everything else AniList at anime', () => {
+    expect(mediaLink('anilist:manga', 5).href).toBe('https://anilist.co/manga/5')
+    expect(mediaLink('anilist', 5).href).toBe('https://anilist.co/anime/5')
+    expect(mediaLink(undefined, 5).href).toBe('https://anilist.co/anime/5')
   })
 })
