@@ -14,12 +14,18 @@ export function CatalogViewSwitch({
   onChange: (v: CatalogViewValue) => void
 }) {
   const { t } = useTranslation()
+  const current = value !== 'classic' ? 'catalog' : 'classic'
   return (
     <Segmented
       className="ws-viewsw"
       aria-label={t('remote.view')}
-      value={value !== 'classic' ? 'catalog' : 'classic'}
-      onChange={(v) => onChange(v === 'classic' ? 'classic' : 'catalogOnce')}
+      value={current}
+      // Segmented also fires for the pressed option; for a saved folder that
+      // would read as "unpin" and drop its shared catalog mark
+      onChange={(v) => {
+        if (v === current) return
+        onChange(v === 'classic' ? 'classic' : 'catalogOnce')
+      }}
       options={[
         { value: 'catalog', label: <LayoutGrid aria-hidden size={17} />, 'aria-label': t('remote.catalog') },
         { value: 'classic', label: <List aria-hidden size={17} />, 'aria-label': t('remote.classic') },
