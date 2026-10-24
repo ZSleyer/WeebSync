@@ -13,6 +13,10 @@ import (
 	"github.com/ch4d1/weebsync/internal/version"
 )
 
+// githubAPI is the GitHub REST base the update check asks; tests point it at
+// a local server.
+var githubAPI = "https://api.github.com"
+
 type versionInfo struct {
 	Version         string `json:"version"`
 	Channel         string `json:"channel"` // "stable" | "rc" | "nightly" | "dev"
@@ -56,7 +60,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 // is built once a day and a dev image only once the push's CI is green, so
 // main's tip announced builds that did not exist (a nightly instance was
 // "outdated" all day long). Best-effort: any error leaves updateAvailable
-// false. Result cached 6h in the shared KV cache.
+// false. An answer is cached 6h in the shared KV cache, a failure a minute.
 func (s *Server) fillUpdate(info *versionInfo) {
 	// the build is part of the key: the answer "a newer build is out" belongs
 	// to the binary that asked. Without it the row the old binary wrote in
@@ -73,8 +77,15 @@ func (s *Server) fillUpdate(info *versionInfo) {
 			return
 		}
 	}
+	// a failed check is held briefly, not for the 6h of an answer: a rate
+	// limit or a missing network must not read as "up to date" for hours
+	failKey := cacheKey + ":fail"
+	if _, held := s.cacheGet(failKey, time.Minute); held {
+		return
+	}
 
 	client := netguard.Client(5 * time.Second)
+	failed := false
 	if info.Channel == "stable" || info.Channel == "rc" {
 		type release struct {
 			TagName string `json:"tag_name"`
@@ -82,7 +93,7 @@ func (s *Server) fillUpdate(info *versionInfo) {
 		}
 		var rel release
 		var err error
-		err = fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/releases/latest", &rel)
+		err = fetchJSON(client, githubAPI+"/repos/"+info.Repo+"/releases/latest", &rel)
 		// releases/latest skips pre-releases: a candidate compared against it
 		// saw the previous month's release as its update. Unless that is the
 		// release this candidate leads to, a candidate looks at the newest
@@ -92,10 +103,11 @@ func (s *Server) fillUpdate(info *versionInfo) {
 		if info.Channel == "rc" && (err != nil || !strings.HasPrefix(info.Version, rel.TagName+"-rc")) {
 			var rels []release
 			rel = release{}
-			if err = fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/releases?per_page=1", &rels); err == nil && len(rels) > 0 {
+			if err = fetchJSON(client, githubAPI+"/repos/"+info.Repo+"/releases?per_page=1", &rels); err == nil && len(rels) > 0 {
 				rel = rels[0]
 			}
 		}
+		failed = err != nil
 		if err == nil && rel.TagName != "" {
 			info.Latest = rel.TagName
 			info.URL = rel.HTMLURL
@@ -107,14 +119,19 @@ func (s *Server) fillUpdate(info *versionInfo) {
 				HeadSHA string `json:"head_sha"`
 			} `json:"workflow_runs"`
 		}
-		if fetchJSON(client, "https://api.github.com/repos/"+info.Repo+"/actions/workflows/"+wf, &runs) == nil &&
-			len(runs.Runs) > 0 && runs.Runs[0].HeadSHA != "" {
+		err := fetchJSON(client, githubAPI+"/repos/"+info.Repo+"/actions/workflows/"+wf, &runs)
+		failed = err != nil
+		if err == nil && len(runs.Runs) > 0 && runs.Runs[0].HeadSHA != "" {
 			sha := runs.Runs[0].HeadSHA
 			info.Latest = sha[:min(7, len(sha))]
 			// what changed between the running build and the new one
 			info.URL = "https://github.com/" + info.Repo + "/compare/" + info.Commit + "..." + sha
 			info.UpdateAvailable = sha != info.Commit
 		}
+	}
+	if failed {
+		s.cacheSet(failKey, "")
+		return
 	}
 
 	payload, _ := json.Marshal(struct {
