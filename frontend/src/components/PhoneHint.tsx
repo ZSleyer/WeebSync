@@ -5,6 +5,7 @@ import { Copy, Smartphone } from 'lucide-react'
 import { Button } from 'fluid-lycoris'
 import makeQR from 'qrcode-generator'
 import { api, type Tips as TipsState } from '../api'
+import { copyText } from '../clipboard'
 import { useToast } from './toast'
 
 const KEY = 'mobile-ui'
@@ -45,9 +46,8 @@ export default function PhoneHint() {
     api.post('/api/auth/tips/dismiss', { key: KEY }).catch(() => {})
   }
   const copy = () =>
-    navigator.clipboard.writeText(url).then(
-      () => toast({ message: t('files.pathCopied') }),
-      () => toast({ message: t('files.copyFailed'), error: true }),
+    copyText(url).then((ok) =>
+      toast(ok ? { message: t('files.pathCopied') } : { message: t('files.copyFailed'), error: true }),
     )
 
   return (
