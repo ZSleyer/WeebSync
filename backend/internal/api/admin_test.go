@@ -345,3 +345,41 @@ func TestAdminMatchesListing(t *testing.T) {
 		t.Errorf("manual row still present after delete")
 	}
 }
+
+// A failing delete must surface as an error and queue nothing; the deletes
+// run in one transaction before any search is queued.
+func TestAdminRematchDeleteFailure(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	res, _ := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	serverID, _ := res.LastInsertId()
+	for _, f := range []string{"/r/A", "/r/B"} {
+		s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, 0, 0, 'tmdb:tv')`, serverID, f)
+	}
+	s.DB.Exec(`CREATE TRIGGER no_del_b BEFORE DELETE ON catalog_matches WHEN OLD.folder = '/r/B'
+		BEGIN SELECT RAISE(ABORT, 'nope'); END`)
+
+	rec := doReq(mux, "POST", "/api/admin/jobs/rematch/run", fmt.Sprintf(`{"serverId":%d}`, serverID), adminC)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("rematch with failing delete: %d %s, want 500", rec.Code, rec.Body)
+	}
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ?`, serverID).Scan(&n)
+	if n != 2 {
+		t.Errorf("rows after rolled-back rematch: %d, want 2 (one transaction)", n)
+	}
+	s.matchMu.Lock()
+	queued := len(s.matchJobs)
+	s.matchMu.Unlock()
+	if queued != 0 {
+		t.Errorf("queued jobs after failure: %d, want 0", queued)
+	}
+
+	// an unreadable table must not read as "0 queued"
+	s.DB.Exec(`DROP TRIGGER no_del_b`)
+	s.DB.Exec(`ALTER TABLE catalog_matches RENAME TO catalog_matches_gone`)
+	rec = doReq(mux, "POST", "/api/admin/jobs/rematch/run", fmt.Sprintf(`{"serverId":%d}`, serverID), adminC)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("rematch with unreadable table: %d %s, want 500", rec.Code, rec.Body)
+	}
+}
