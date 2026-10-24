@@ -110,3 +110,17 @@ describe('Login redirect hold across a reload', () => {
     expect(fresh.readLanding().holdRedirect).toBe(false)
   })
 })
+
+describe('Login redirect hold after a sign-in', () => {
+  it('drops the hold from the history entry once someone signed in', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(cfg)
+    vi.spyOn(api, 'post').mockResolvedValue({ id: 1 })
+    window.history.replaceState({ keep: 1 }, '', '/?loggedout=1')
+    mount()
+    fireEvent.change(await screen.findByLabelText('login.email'), { target: { value: 'a@example.com' } })
+    fireEvent.change(screen.getByLabelText('login.password'), { target: { value: 'secret secret' } })
+    expect(window.history.state).toMatchObject({ keep: 1, wsHoldRedirect: true })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'login.submitLogin' })))
+    expect(window.history.state).toEqual({ keep: 1 })
+  })
+})

@@ -262,7 +262,12 @@ export default function Login() {
   // user) and refetch the identity. Not qc.clear(): that drops the 'me' query
   // out from under App's observer, the invalidate then finds nothing and the
   // login screen stays until a reload.
-  const afterAuth = () => qc.resetQueries()
+  const afterAuth = () => {
+    // signed in: the hold of a logout or refusal is spent, a later reload of this entry must not keep it
+    const { [HOLD_STATE]: _spent, ...rest } = (history.state ?? {}) as Record<string, unknown>
+    if (_spent) history.replaceState(rest, '')
+    return qc.resetQueries()
+  }
   // arm passkey autofill (conditional UI) once, when password login is available:
   // the browser surfaces passkeys in the email field, no explicit button needed
   useEffect(() => {
