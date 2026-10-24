@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { useState, type CSSProperties } from 'react'
 import { coverHue } from 'fluid-lycoris'
 import { lowData, type ImgSet } from '../images'
 
@@ -15,6 +15,8 @@ export interface SmartImgProps {
   eager?: boolean
   priority?: boolean
   className?: string
+  /** the picture itself (not the small preview) could not be loaded */
+  onFail?: () => void
 }
 
 /**
@@ -24,7 +26,7 @@ export interface SmartImgProps {
  * one without a layout shift. On a slow or data-saving connection only the
  * small one loads.
  */
-export function SmartImg({ set, sizes, alt = '', eager, priority, className }: SmartImgProps) {
+export function SmartImg({ set, sizes, alt = '', eager, priority, className, onFail }: SmartImgProps) {
   if (!set) return null
   const common = {
     loading: eager ? ('eager' as const) : ('lazy' as const),
@@ -35,12 +37,13 @@ export function SmartImg({ set, sizes, alt = '', eager, priority, className }: S
     },
   }
   const stack: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
-  if (set.small && lowData()) return <img {...common} alt={alt} src={set.small} className={className} style={stack} />
+  const main = { ...common, onError: onFail }
+  if (set.small && lowData()) return <img {...main} alt={alt} src={set.small} className={className} style={stack} />
   return (
     <>
       {set.small && <img {...common} alt="" aria-hidden src={set.small} className={className} style={stack} />}
       <img
-        {...common}
+        {...main}
         alt={alt}
         src={set.src}
         srcSet={set.srcSet}
@@ -68,7 +71,9 @@ export interface CoverImgProps extends Omit<SmartImgProps, 'className'> {
  * inside a button) with the picture in every size the API delivered.
  */
 export function CoverImg({ set, tint, title, className = '', style, ...img }: CoverImgProps) {
-  if (!set) {
+  // a cover that 404s or is blocked would stay a blank tile: the title stands in
+  const [failed, setFailed] = useState<string>()
+  if (!set || failed === set.src) {
     return (
       <span
         className={`t-cover t-cover--fallback ${className}`}
@@ -83,7 +88,7 @@ export function CoverImg({ set, tint, title, className = '', style, ...img }: Co
       className={`t-cover ${className}`}
       style={{ ...(tint ? { '--cover-tint': tint } : {}), ...style } as CSSProperties}
     >
-      <SmartImg set={set} {...img} />
+      <SmartImg set={set} {...img} onFail={() => setFailed(set.src)} />
     </span>
   )
 }
