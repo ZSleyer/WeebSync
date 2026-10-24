@@ -170,3 +170,29 @@ func TestStaleUserSuggestionsWritesAgedMarker(t *testing.T) {
 		t.Fatalf("blob not aged: %q", fetched)
 	}
 }
+
+// The relations pass failing (a rate limit, AniList down) says nothing about
+// the folder: a low-score sequel pick it was meant to confirm must not turn
+// into "no match" that detaches the stored match.
+func TestMatchBatchKeepsTheMatchWhenRelationsFail(t *testing.T) {
+	s := sourceTestServer(t)
+	tr := &statusTripper{status: http.StatusTooManyRequests, header: map[string]string{"Retry-After": "30"}}
+	s.Anilist.HTTP = &http.Client{Transport: tr}
+	s.Anilist.WithoutRateLimit()
+	const folder = "/f/Foo Season 2"
+	// the search is answered from the cache; only the relations call goes out
+	for _, key := range []string{"search:foo", "search:foo season 2", "search:foo|", "search:foo 2nd season"} {
+		s.DB.Exec(`INSERT INTO anilist_cache (key, payload) VALUES (?, ?)`, key,
+			`[{"id":7,"format":"TV","title":{"romaji":"Foo"}}]`)
+	}
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, source) VALUES (1, ?, 42, 'anilist')`, folder)
+	s.matchBatch([]matchJob{{serverID: 1, folder: folder, name: "Foo Season 2"}})
+	if tr.n.Load() == 0 {
+		t.Fatal("the relations pass never ran: the test does not exercise the rescue path")
+	}
+	var id int
+	var src string
+	if err := s.DB.QueryRow(`SELECT media_id, source FROM catalog_matches WHERE folder = ?`, folder).Scan(&id, &src); err != nil || id != 42 || src != "anilist" {
+		t.Fatalf("media_id %d source %q err %v, want the stored match 42/anilist kept", id, src, err)
+	}
+}

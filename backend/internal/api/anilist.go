@@ -394,7 +394,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 				"candidates", len(results[i]), "reason", "no confident candidate")
 		}
 	}
-	s.fixSequelPicks(ctx, infos, picked, rescue)
+	unjudged := s.fixSequelPicks(ctx, infos, picked, rescue)
 	gateAutoPicks(batch, infos, picked)
 	var unmatched []int
 	for i, b := range batch {
@@ -407,6 +407,11 @@ func (s *Server) matchBatch(batch []matchJob) {
 		// the cache) says nothing: the stored match stays, the next poll asks
 		if picked[i] == nil && searchFailed(trace[i]) {
 			slog.Debug("match skipped", "folder", logSafe(b.folder), "reason", "a search failed")
+			continue
+		}
+		// likewise a relations lookup that failed on the pick it was to confirm
+		if picked[i] == nil && unjudged[i] {
+			slog.Debug("match skipped", "folder", logSafe(b.folder), "reason", "the relations lookup failed")
 			continue
 		}
 		mediaID := 0
@@ -612,7 +617,12 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 // Confident picks are never dropped (never worse than today's first hit);
 // rescue picks (below the confidence threshold) survive only when the
 // relations confirm them.
-func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked []*anilist.Media, rescue []bool) {
+//
+// The returned slice marks the rescue picks dropped because a relations call
+// failed (rate limit, AniList down): that says nothing about the folder, so
+// the caller must not store it as "no match".
+func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked []*anilist.Media, rescue []bool) []bool {
+	unjudged := make([]bool, len(picked))
 	var fix []int
 	frontier := map[int]bool{}
 	for i, m := range picked {
@@ -622,8 +632,9 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		}
 	}
 	if len(fix) == 0 {
-		return
+		return unjudged
 	}
+	relErr := false
 	rels := map[int][]anilist.Relation{}
 	for range [3]int{} {
 		var ids []int
@@ -647,6 +658,7 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 			}
 		}
 		if err != nil {
+			relErr = true
 			break // judge with what we have
 		}
 	}
@@ -655,6 +667,7 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		if !known {
 			if rescue[i] {
 				picked[i] = nil // unconfirmed low-score pick
+				unjudged[i] = relErr
 			}
 			continue
 		}
@@ -668,10 +681,12 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 				"season", infos[i].Season, "base", base)
 		} else if rescue[i] {
 			picked[i] = nil
+			unjudged[i] = relErr
 			slog.Debug("sequel chain unresolved", "base", base, "season", infos[i].Season,
 				"reason", "no season entry in chain, rescue dropped")
 		}
 	}
+	return unjudged
 }
 
 // seasonTarget scans a SEQUEL chain (base first) for the entry representing
