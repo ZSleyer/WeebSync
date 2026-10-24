@@ -2423,6 +2423,7 @@
   },
   "audio": {
     "title": "Playback",
+    "error": "This track could not be played.",
     "open": "Open the audio player",
     "back15": "Back 15 seconds",
     "fwd30": "Forward 30 seconds",
