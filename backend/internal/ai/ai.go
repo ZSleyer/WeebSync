@@ -177,8 +177,10 @@ func (c *Client) auth(req *http.Request) {
 func httpErr(resp *http.Response) error {
 	b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	msg := strings.Join(strings.Fields(string(b)), " ")
-	if len(msg) > 300 {
-		msg = msg[:300]
+	// cut by characters: a provider answering in Japanese would otherwise
+	// end the message inside one
+	if r := []rune(msg); len(r) > 300 {
+		msg = string(r[:300])
 	}
 	if msg == "" {
 		return fmt.Errorf("ai: HTTP %d", resp.StatusCode)

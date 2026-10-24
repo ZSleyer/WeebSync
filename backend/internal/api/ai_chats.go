@@ -47,9 +47,7 @@ func (b *aiChatBody) valid(w http.ResponseWriter) bool {
 		return false
 	}
 	b.Title = strings.TrimSpace(b.Title)
-	if len(b.Title) > aiChatTitleMax {
-		b.Title = b.Title[:aiChatTitleMax]
-	}
+	b.Title, _ = cutRunes(b.Title, aiChatTitleMax)
 	return true
 }
 

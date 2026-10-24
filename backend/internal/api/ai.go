@@ -428,10 +428,22 @@ func toolStats(name string, result []byte) map[string]any {
 // excerpt trims a tool payload to what a transcript can show.
 func excerpt(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
-	if len(s) > n {
-		return s[:n] + "…"
+	if s, cut := cutRunes(s, n); cut {
+		return s + "…"
 	}
 	return s
+}
+
+// cutRunes keeps the first n characters of s, never splitting one; cut
+// reports whether anything was dropped.
+func cutRunes(s string, n int) (string, bool) {
+	if len(s) <= n {
+		return s, false // n bytes hold at most n characters
+	}
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]), true
+	}
+	return s, false
 }
 
 // aiProposal is a vetted action the user can confirm. Fields is the watch
