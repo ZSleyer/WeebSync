@@ -92,6 +92,7 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  OkResponse
 // @Failure      400  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/push/subscribe [delete]
 func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
@@ -100,7 +101,10 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	s.Push.Unsubscribe(u.ID, in.Endpoint)
+	if err := s.Push.Unsubscribe(u.ID, in.Endpoint); err != nil {
+		dbErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
