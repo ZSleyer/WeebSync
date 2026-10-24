@@ -26,6 +26,21 @@ describe('Markdown accessibility and title links', () => {
     expect(screen.getByText(/a fair price, elaborate/)).toBeTruthy()
   })
 
+  it('links a Korean title that carries a particle', () => {
+    render(<Markdown text={'나 혼자만 레벨업은 재밌다'} titles={[{ title: '레벨업', onClick: () => {} }]} />)
+    expect(screen.getByRole('button').textContent).toBe('레벨업')
+  })
+
+  it('links a Latin title next to Japanese text, but not inside a Latin word', () => {
+    render(
+      <Markdown
+        text={'Frierenの旅 と 葬送のFrieren and Frierens'}
+        titles={[{ title: 'Frieren', onClick: () => {} }]}
+      />,
+    )
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Frieren', 'Frieren'])
+  })
+
   it('still links Japanese titles inside running text', () => {
     render(<Markdown text={'今日はナルトの冒険'} titles={[{ title: 'ナルト', onClick: () => {} }]} />)
     expect(screen.getByRole('button').textContent).toBe('ナルト')

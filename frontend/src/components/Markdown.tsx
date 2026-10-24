@@ -107,14 +107,17 @@ const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 // A title matches as a whole word, so "Air" is not found inside "fair". Scripts
 // written without spaces (Han, kana, Thai) have no word edges to respect, and a
 // title that starts or ends in punctuation needs no boundary on that side.
-const UNSPACED = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u
+// (Hangul takes particles right on the word). A CJK neighbour also counts as a
+// boundary for a Latin title: "Frierenの旅".
+const UNSPACED_CLASS = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\p{Script=Thai}'
+const UNSPACED = new RegExp(`[${UNSPACED_CLASS}]`, 'u')
 function wholeWord(title: string): string {
   const body = escapeRe(title)
   if (UNSPACED.test(title)) return body
   const edge = /^[\p{L}\p{N}]$/u
   const chars = [...title]
-  const before = edge.test(chars[0]) ? '(?<![\\p{L}\\p{N}])' : ''
-  const after = edge.test(chars[chars.length - 1]) ? '(?![\\p{L}\\p{N}])' : ''
+  const before = edge.test(chars[0]) ? `(?:(?<![\\p{L}\\p{N}])|(?<=[${UNSPACED_CLASS}]))` : ''
+  const after = edge.test(chars[chars.length - 1]) ? `(?:(?![\\p{L}\\p{N}])|(?=[${UNSPACED_CLASS}]))` : ''
   return `${before}${body}${after}`
 }
 
