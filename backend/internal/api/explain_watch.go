@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -241,7 +242,7 @@ func (s *Server) replacedCopy(local, finished string) string {
 	}
 	rows, err := s.DB.Query(`SELECT path, trashed_at FROM trash_files
 		WHERE substr(path, 1, ?) = ? AND trashed_at BETWEEN ? AND ?`,
-		len(prefix), prefix, at.Add(-replacedWindow).Unix(), at.Add(replacedWindow).Unix())
+		utf8.RuneCountInString(prefix), prefix, at.Add(-replacedWindow).Unix(), at.Add(replacedWindow).Unix())
 	if err != nil {
 		return ""
 	}
