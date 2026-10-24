@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+	"net/textproto"
 	"path"
 	"path/filepath"
 	"slices"
@@ -578,6 +579,20 @@ func (s *Server) handleDeleteLocal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
+// browseMissing reports whether a remote listing failed because the folder
+// is not there, for the browse page's 404. It reads FTP more loosely than the
+// crawler's gone(): every 550 counts, since servers word a missing folder in
+// many ways ("Failed to open directory.", "The system cannot find the path
+// specified."). A wrong guess here only words an error, while gone() deletes
+// an indexed subtree and so stays strict.
+func browseMissing(err error) bool {
+	if gone(err) {
+		return true
+	}
+	var ftpErr *textproto.Error
+	return errors.As(err, &ftpErr) && ftpErr.Code == 550
+}
+
 // @Summary  Browse remote directory
 // @Description Lists entries in a directory on the given remote server. Defaults to the server root when no path is given.
 // @Tags     Browse
@@ -609,7 +624,7 @@ func (s *Server) handleBrowseRemote(w http.ResponseWriter, r *http.Request) {
 		// a folder that is not there is the caller's miss, not a server fault:
 		// a 404 lets the page say "not found" instead of "server error"
 		status := http.StatusBadGateway
-		if gone(err) {
+		if browseMissing(err) {
 			status = http.StatusNotFound
 		}
 		writeErr(w, status, err.Error())

@@ -32,3 +32,30 @@ func TestGoneOnlyForMissingDirectories(t *testing.T) {
 		}
 	}
 }
+
+// The browse page words a listing error, it deletes nothing: any FTP 550 is a
+// folder that is not there for it (404), however the server phrases it, while
+// the crawler's gone() stays strict for the same replies.
+func TestBrowseMissingTakesEvery550(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		browse404 bool
+		crawlGone bool
+	}{
+		{"vsftpd", &textproto.Error{Code: 550, Msg: "Failed to open directory."}, true, false},
+		{"IIS", fmt.Errorf("list: %w", &textproto.Error{Code: 550, Msg: "The system cannot find the path specified."}), true, false},
+		{"proftpd", &textproto.Error{Code: 550, Msg: "/x: No such file or directory"}, true, true},
+		{"sftp", fmt.Errorf("list: %w", fs.ErrNotExist), true, true},
+		{"timeout", errors.New("dial tcp 10.0.0.2:55012: i/o timeout"), false, false},
+		{"ftp 421", &textproto.Error{Code: 421, Msg: "Service not available"}, false, false},
+	}
+	for _, c := range cases {
+		if got := browseMissing(c.err); got != c.browse404 {
+			t.Errorf("%s: browseMissing = %v, want %v", c.name, got, c.browse404)
+		}
+		if got := gone(c.err); got != c.crawlGone {
+			t.Errorf("%s: gone = %v, want %v", c.name, got, c.crawlGone)
+		}
+	}
+}
