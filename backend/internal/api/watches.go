@@ -1997,7 +1997,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if in.MediaID <= 0 {
 		s.ensureWatchMatch(in.ServerID, in.RemotePath, in.LocalPath)
 	}
-	s.spawn(func() { s.runWatch(context.Background(), id) }) // first sync right away
+	s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) }) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
 
@@ -2119,7 +2119,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		s.ensureWatchMatch(serverID, in.RemotePath, in.LocalPath)
 	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
-		s.spawn(func() { s.runWatch(context.Background(), id) }) // paths changed: check the new folder right away
+		s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) }) // paths changed: check the new folder right away
 	}
 	// The queue only ever covers downloads that come AFTER the preference was
 	// set, so changing it used to do nothing at all to the episodes already in
@@ -2429,7 +2429,7 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, s.runWatch(context.WithoutCancel(r.Context()), id))
 		return
 	}
-	s.spawn(func() { s.runWatch(context.Background(), id) })
+	s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) })
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
 }
 

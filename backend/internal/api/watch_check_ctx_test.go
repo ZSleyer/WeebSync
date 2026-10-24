@@ -82,6 +82,23 @@ func TestCanceledCheckIsNotStamped(t *testing.T) {
 	}
 }
 
+// A check a handler fires off in the background ends with the server: once
+// Shutdown has begun it does not start dialing.
+func TestSpawnedCheckStopsOnShutdown(t *testing.T) {
+	s, mux, cookie, dials := watchCtxServer(t)
+	s.Shutdown(t.Context())
+	if rec := doReq(mux, "POST", "/api/watches/1/check", "", cookie); rec.Code != http.StatusAccepted {
+		t.Fatalf("check: %d %s", rec.Code, rec.Body)
+	}
+	s.Shutdown(t.Context()) // waits for the spawned check
+	if n := dials.Load(); n != 0 {
+		t.Errorf("dialed %d times after shutdown", n)
+	}
+	if v := lastCheck(t, s); v != "" {
+		t.Errorf("last_check = %q after shutdown, want it untouched", v)
+	}
+}
+
 // A check the user asked for and waits on runs to the end even when the tab
 // closes: the request's cancel does not reach it.
 func TestWaitedCheckSurvivesClosedTab(t *testing.T) {

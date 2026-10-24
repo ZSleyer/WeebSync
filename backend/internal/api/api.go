@@ -72,6 +72,11 @@ type Server struct {
 	// bg counts the fire-and-forget goroutines handlers start (see spawn), so
 	// Shutdown can wait for them
 	bg atomic.Int64
+	// lifetime is canceled when Shutdown begins (see lifetimeCtx): work a
+	// handler fires off stops at its next check instead of running on
+	lifeOnce   sync.Once
+	life       context.Context
+	lifeCancel context.CancelFunc
 
 	// the DB-IP city database behind the session locations (geoip_job.go);
 	// geoipBase and geoipClient are swapped by tests

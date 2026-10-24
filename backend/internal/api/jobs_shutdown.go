@@ -20,11 +20,20 @@ func (s *Server) spawn(fn func()) {
 // database closes. A loop must return once its context is canceled.
 func (s *Server) Go(fn func()) { s.spawn(fn) }
 
+// lifetimeCtx is the context of the server's own background work, canceled
+// when Shutdown begins. Built on first use, so every Server literal has one.
+func (s *Server) lifetimeCtx() context.Context {
+	s.lifeOnce.Do(func() { s.life, s.lifeCancel = context.WithCancel(context.Background()) })
+	return s.life
+}
+
 // Shutdown cancels the running background jobs and waits until they and the
 // goroutines started with spawn have ended, or ctx is done. Work still writing
 // to the database when the process (or a test) lets go of it is the one thing
 // a clean exit must not leave behind.
 func (s *Server) Shutdown(ctx context.Context) {
+	s.lifetimeCtx()
+	s.lifeCancel()
 	for {
 		s.matchMu.Lock()
 		for _, cancel := range s.matchJobs {
