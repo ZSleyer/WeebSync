@@ -582,9 +582,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const chapterIdx = chapter ? chapters.indexOf(chapter) : -1
   const chapterName = chapterIdx < 0 ? undefined : chapter?.title || t('player.chapterN', { n: chapterIdx + 1 })
   const skipOffered = nextIn === null && offer === null ? skippable : undefined
-  // the skip card goes away under the focus (skipped, waved off, chapter
-  // over): focus stays in the player, where its keys work, not on the page
-  const keepFocusInPlayer = useCallback((el: HTMLDivElement | null) => {
+  // a card or pill goes away under the focus (skipped, waved off, chapter
+  // over, resume answered, sound on): focus stays in the player, where its keys work, not on the page
+  const keepFocusInPlayer = useCallback((el: HTMLElement | null) => {
     if (!el) return
     const video = el.closest('media-controller')?.querySelector('video')
     return () => {
@@ -1151,6 +1151,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               <button
                 type="button"
                 className="t-player-pill t-player-pill--go"
+                ref={keepFocusInPlayer}
                 onClick={() => {
                   const v = videoRef.current
                   if (v) v.muted = false
@@ -1212,7 +1213,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           {/* the offer to go on, and the count to the next episode, as cards
               over the corner above the dock; they stay while the controls fade */}
           {nextIn !== null && next ? (
-            <div className="t-player-card" {...{ noautohide: '' }}>
+            <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
               <span role="status">{t('player.nextIn', { secs: nextIn })}</span>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={() => goTo(next)}>
                 {t('player.nextNow')}
@@ -1228,7 +1229,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             </div>
           ) : (
             offer !== null && (
-              <div className="t-player-card" {...{ noautohide: '' }}>
+              <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
                 <span>{t('player.resumeAt', { time: clock(offer) })}</span>
                 <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={resume}>
                   {t('player.resume')}

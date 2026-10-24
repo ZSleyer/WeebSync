@@ -110,4 +110,46 @@ describe('Player page', () => {
     fireEvent.keyDown(video, { key: 'l' })
     expect(video.currentTime).toBe(100)
   })
+
+  // media-chrome gives the media element tabindex -1 (media-controller.js:422)
+  // so that focus can return to it; jsdom does not upgrade the controller
+  const focusable = (video: HTMLVideoElement) => {
+    video.tabIndex = -1
+    return video
+  }
+
+  it('F01a-4: answering the resume card from the keyboard leaves the focus in the player', async () => {
+    localStorage.setItem('weebsync.player.pos', JSON.stringify({ '0:/a/ep1.mp4': { at: 300, t: 1 } }))
+    const { container } = mount()
+    const go = await screen.findByRole('button', { name: 'Resume' })
+    const video = focusable(container.querySelector('video')!)
+    go.focus()
+    fireEvent.click(go)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull())
+    expect(video).toHaveFocus()
+  })
+
+  it('F01a-4: the unmute pill hands the focus back to the player', async () => {
+    const { container } = mount()
+    const video = await waitFor(() => {
+      const v = container.querySelector('video')
+      expect(v).toBeTruthy()
+      return focusable(v!)
+    })
+    video.play = () => Promise.reject(new DOMException('no', 'NotAllowedError'))
+    // the source effect waits for the device's codec answer: ask until it listens
+    const pill = await waitFor(async () => {
+      await act(async () => {
+        video.dispatchEvent(new Event('loadedmetadata'))
+      })
+      return screen.getByRole('button', { name: 'Sound on' })
+    })
+    pill.focus()
+    fireEvent.click(pill)
+    await act(async () => {
+      video.dispatchEvent(new Event('volumechange'))
+    })
+    expect(screen.queryByRole('button', { name: 'Sound on' })).toBeNull()
+    expect(video).toHaveFocus()
+  })
 })
