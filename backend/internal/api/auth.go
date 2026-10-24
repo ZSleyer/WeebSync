@@ -377,23 +377,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // handleLogout ends the current session.
 // @Summary  Log out
-// @Description Destroys the current session, removes the push subscription made in it and clears the session cookie. Asks the browser to clear its site storage (Clear-Site-Data).
+// @Description Destroys the current session, removes the push subscription made in it and clears the session cookie.
 // @Tags     Auth
 // @Produce  json
 // @Success  200 {object} OkResponse
 // @Router   /api/auth/logout [post]
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
-	// this browser's push subscription goes with its session; a failure to
-	// drop it must not keep the user signed in
-	if tok := auth.SessionToken(r); tok != "" {
-		if _, err := s.DB.Exec(`DELETE FROM push_subscriptions WHERE session_hash = ?`, auth.TokenHash(tok)); err != nil {
-			slog.Error("logout: push subscription not removed", "err", err)
-		}
-	}
-	// the next person at this browser finds none of the account's local data
-	// (localStorage, sessionStorage, IndexedDB, service workers). Only honoured
-	// in a secure context; the client clears its own keys as well.
-	w.Header().Set("Clear-Site-Data", `"storage"`)
+	// the push subscription made in this session goes with it (trigger
+	// sessions_drop_push)
 	if err := auth.DestroySession(s.DB, w, r); err != nil {
 		// the cookie is cleared, but the session is still good on the server
 		slog.Error("logout: session not destroyed", "err", err)

@@ -88,8 +88,8 @@ func TestPushSubscriptionEndsWithItsSession(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("logout: %d", rec.Code)
 	}
-	if got := rec.Header().Get("Clear-Site-Data"); got != `"storage"` {
-		t.Errorf("Clear-Site-Data = %q, want \"storage\"", got)
+	if got := rec.Header().Get("Clear-Site-Data"); got != "" {
+		t.Errorf("Clear-Site-Data = %q, want none (it would wipe theme and language)", got)
 	}
 	want("b")
 
@@ -129,4 +129,53 @@ func sessionList(t *testing.T, mux *http.ServeMux, c *http.Cookie) []sessionInfo
 		t.Fatal(err)
 	}
 	return out
+}
+
+// A password change ends every other session and the idle/expiry sweep ends
+// stale ones; the subscriptions made in them go too, the kept session's stays.
+func TestPushSubscriptionEndsWithPasswordChangeAndSweep(t *testing.T) {
+	dir := t.TempDir()
+	if err := secret.Init(dir); err != nil {
+		t.Fatal(err)
+	}
+	d := dbtest.OpenAt(t, filepath.Join(dir, "test.db"))
+	p, err := push.New(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := testServer(t, &Server{DB: d, Push: p})
+	d.Exec(`INSERT INTO users (id, email) VALUES (1, 'a@example.com')`)
+	login := func(name string) string {
+		t.Helper()
+		rec := httptest.NewRecorder()
+		if err := auth.CreateSession(d, rec, httptest.NewRequest("POST", "/", nil), 1, true); err != nil {
+			t.Fatal(err)
+		}
+		tok := rec.Result().Cookies()[0].Value
+		if err := p.Subscribe(1, "https://8.8.8.8/push/"+name, "k", "a", auth.TokenHash(tok)); err != nil {
+			t.Fatal(err)
+		}
+		return tok
+	}
+	count := func() (n int) {
+		d.QueryRow(`SELECT COUNT(*) FROM push_subscriptions`).Scan(&n)
+		return
+	}
+
+	keep := login("keep")
+	login("other")
+	if err := auth.SetPassword(d, 1, "a-long-unique-passphrase-9371", keep); err != nil {
+		t.Fatal(err)
+	}
+	if count() != 1 {
+		t.Fatalf("after a password change %d subscriptions, want only the kept session's", count())
+	}
+
+	if _, err := d.Exec(`UPDATE sessions SET expires_at = '2000-01-01T00:00:00Z'`); err != nil {
+		t.Fatal(err)
+	}
+	s.expireAuthRows()
+	if count() != 0 {
+		t.Fatalf("after the sweep %d subscriptions, want none", count())
+	}
 }

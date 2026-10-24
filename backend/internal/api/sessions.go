@@ -88,14 +88,6 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cur := auth.TokenHash(auth.SessionToken(r))
-	// the ended browser's push subscription goes first, while the session row
-	// still says which one it was
-	if _, err := s.DB.Exec(`DELETE FROM push_subscriptions WHERE user_id = ? AND session_hash IN
-		(SELECT token_hash FROM sessions WHERE user_id = ? AND substr(token_hash, 1, ?) = ? AND token_hash != ?)`,
-		u.ID, u.ID, sessionIDLen, id, cur); err != nil {
-		dbErr(w, err)
-		return
-	}
 	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND substr(token_hash, 1, ?) = ? AND token_hash != ?`,
 		u.ID, sessionIDLen, id, cur)
 	if err != nil {
@@ -127,11 +119,6 @@ type sessionsEndedResponse struct {
 func (s *Server) handleSessionsEndOthers(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	cur := auth.TokenHash(auth.SessionToken(r))
-	if _, err := s.DB.Exec(`DELETE FROM push_subscriptions WHERE user_id = ? AND session_hash != '' AND session_hash != ?`,
-		u.ID, cur); err != nil {
-		dbErr(w, err)
-		return
-	}
 	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`,
 		u.ID, cur)
 	if err != nil {
