@@ -4,6 +4,7 @@ import (
 	"html"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
@@ -46,7 +47,8 @@ func (s *Server) securityNotice(r *http.Request, userID int64, event string) {
 	}
 	ip, ua := auth.ClientIP(r), r.UserAgent()
 	if len(ua) > 200 {
-		ua = ua[:200]
+		// a cut through a multi-byte character would leave invalid UTF-8
+		ua = strings.ToValidUTF8(ua[:200], "")
 	}
 	when := time.Now().UTC().Format("2006-01-02 15:04 UTC")
 	go func() {
