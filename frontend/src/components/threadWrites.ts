@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../api'
@@ -79,6 +79,14 @@ export function useThreadWrites(threadId: number) {
   const key = ['anilist-thread', threadId]
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
   const [draft, setDraft] = useState('')
+  // the "Reply" link that opened the composer: the focus goes back to it
+  const opener = useRef<HTMLElement | null>(null)
+  const close = () => {
+    setReplyTo(null)
+    const el = opener.current
+    opener.current = null
+    if (el?.isConnected) el.focus()
+  }
 
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.status === 403) {
@@ -130,7 +138,7 @@ export function useThreadWrites(threadId: number) {
         replies: [],
       }
       set((d) => withReply(d, v, pending))
-      setReplyTo(null)
+      close()
       setDraft('')
     },
     onError: (e, v) => {
@@ -151,10 +159,12 @@ export function useThreadWrites(threadId: number) {
     like: (to: LikeTarget) => like.mutate(to),
     replyTo,
     open: (to: ReplyTarget) => {
+      const from = document.activeElement
+      if (from instanceof HTMLElement && from !== document.body) opener.current = from
       setReplyTo(to)
       setDraft('')
     },
-    cancel: () => setReplyTo(null),
+    cancel: close,
     draft,
     setDraft,
     sending: send.isPending,
