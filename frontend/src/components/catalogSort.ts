@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { safeGet } from '../hooks/useStored'
 import { mediaTitle, type CatalogItem, type Media } from '../api'
 
 // Sort orders for the catalog grid, mirroring AniChart's dropdown so the
@@ -70,13 +71,17 @@ export function sortGroups<T extends SortableGroup>(groups: T[], sort: CatalogSo
 // Unset, it opens on popularity, the same default AniChart uses.
 export function useCatalogSort() {
   const [sort, setSort] = useState<CatalogSort>(() => {
-    const saved = localStorage.getItem(SORT_KEY)
+    const saved = safeGet('local', SORT_KEY)
     return CATALOG_SORTS.includes(saved as CatalogSort) ? (saved as CatalogSort) : 'popularity'
   })
   return [
     sort,
     (next: CatalogSort) => {
-      localStorage.setItem(SORT_KEY, next)
+      try {
+        localStorage.setItem(SORT_KEY, next)
+      } catch {
+        // storage is blocked: the choice holds for this visit only
+      }
       setSort(next)
     },
   ] as const
@@ -114,14 +119,18 @@ export function filterByStatus<T extends SortableGroup>(groups: T[], status: Cat
 // useCatalogStatus keeps the status filter like the sort: a viewing preference.
 export function useCatalogStatus() {
   const [status, setStatus] = useState<CatalogStatus | ''>(() => {
-    const saved = localStorage.getItem(STATUS_KEY)
+    const saved = safeGet('local', STATUS_KEY)
     return CATALOG_STATUSES.includes(saved as CatalogStatus) ? (saved as CatalogStatus) : ''
   })
   return [
     status,
     (next: CatalogStatus | '') => {
-      if (next) localStorage.setItem(STATUS_KEY, next)
-      else localStorage.removeItem(STATUS_KEY)
+      try {
+        if (next) localStorage.setItem(STATUS_KEY, next)
+        else localStorage.removeItem(STATUS_KEY)
+      } catch {
+        // storage is blocked: the choice holds for this visit only
+      }
       setStatus(next)
     },
   ] as const
