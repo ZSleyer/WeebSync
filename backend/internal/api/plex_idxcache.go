@@ -27,6 +27,9 @@ type plexIndexCache[T any] struct {
 	have     bool
 	building chan struct{} // non-nil while a build runs, closed when it ends
 	failedAt time.Time
+	// gen counts resets: a build started under an older generation read the
+	// previous server and its result is dropped
+	gen uint64
 }
 
 // get returns the index stored under key. build reports ok=false when the
@@ -57,7 +60,8 @@ func (x *plexIndexCache[T]) get(s *Server, key string, wait bool, build func() (
 	if ch == nil {
 		ch = make(chan struct{})
 		x.building = ch
-		s.spawn(func() { x.run(s, key, build, ch) })
+		gen := x.gen
+		s.spawn(func() { x.run(s, key, build, ch, gen) })
 	}
 	x.mu.Unlock()
 	if !wait {
@@ -69,20 +73,25 @@ func (x *plexIndexCache[T]) get(s *Server, key string, wait bool, build func() (
 	return x.last
 }
 
-func (x *plexIndexCache[T]) run(s *Server, key string, build func() (T, bool), done chan struct{}) {
+func (x *plexIndexCache[T]) run(s *Server, key string, build func() (T, bool), done chan struct{}, gen uint64) {
 	v, ok := build()
-	var payload []byte
-	if ok {
-		payload, _ = json.Marshal(v)
-		s.cacheSet(key, string(payload))
-	}
 	x.mu.Lock()
-	if ok {
+	switch {
+	case x.gen != gen:
+		// the server changed while this build ran: what it read belongs to
+		// the old one and is neither stored nor served
+	case ok:
+		// stored under the lock, so a reset cannot slip in between the check
+		// and the write
+		payload, _ := json.Marshal(v)
+		s.cacheSet(key, string(payload))
 		x.last, x.have, x.failedAt = v, true, time.Time{}
-	} else {
+	default:
 		x.failedAt = time.Now()
 	}
-	x.building = nil
+	if x.building == done {
+		x.building = nil
+	}
 	x.mu.Unlock()
 	close(done)
 }
@@ -93,5 +102,9 @@ func (x *plexIndexCache[T]) reset() {
 	x.mu.Lock()
 	var zero T
 	x.last, x.have, x.failedAt = zero, false, time.Time{}
+	// a build still running reads the old server: callers from now on start
+	// their own, and the old one's result is dropped when it ends
+	x.gen++
+	x.building = nil
 	x.mu.Unlock()
 }

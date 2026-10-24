@@ -144,6 +144,78 @@ func TestPlexIndexCacheSharesOneBuildAndServesTheLastCopy(t *testing.T) {
 	}
 }
 
+// A server change resets the cache while a build against the old server may
+// still run. That build used to land afterwards, under the same key, and
+// served the old server's ids for an hour.
+func TestPlexIndexCacheResetOutrunsARunningBuild(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	var x plexIndexCache[map[string]string]
+	const key = "plex:test"
+
+	started, gate := make(chan struct{}), make(chan struct{})
+	oldServer := func() (map[string]string, bool) {
+		close(started)
+		<-gate
+		return map[string]string{"old": "1"}, true
+	}
+	x.get(s, key, false, oldServer)
+	<-started
+
+	// the switch: forgetMediaServer drops the row, then resets the cache
+	d.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
+	x.reset()
+
+	// the old build ends after the switch: it must leave no trace
+	close(gate)
+	eventually(t, func() bool { return s.bg.Load() == 0 }) // the old run has finished
+	x.mu.Lock()
+	last, have := x.last, x.have
+	x.mu.Unlock()
+	if have || last["old"] != "" {
+		t.Errorf("the old server's build replaced the copy: %v", last)
+	}
+	if p, ok := s.cacheGet(key, time.Hour); ok {
+		t.Errorf("the old server's build was cached after the switch: %q", p)
+	}
+
+	// the next caller builds against the new server
+	newServer := func() (map[string]string, bool) { return map[string]string{"new": "2"}, true }
+	if got := x.get(s, key, true, newServer); got["new"] != "2" {
+		t.Errorf("after the reset got %v, want the new server's index", got)
+	}
+}
+
+// A caller after the switch must not join the old server's build that is
+// still running: it starts its own against the new server.
+func TestPlexIndexCacheResetDoesNotJoinTheOldBuild(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	var x plexIndexCache[map[string]string]
+	const key = "plex:test"
+	started, gate := make(chan struct{}), make(chan struct{})
+	defer close(gate)
+	x.get(s, key, false, func() (map[string]string, bool) {
+		close(started)
+		<-gate
+		return map[string]string{"old": "1"}, true
+	})
+	<-started
+	x.reset()
+	got := make(chan map[string]string, 1)
+	go func() {
+		got <- x.get(s, key, true, func() (map[string]string, bool) { return map[string]string{"new": "2"}, true })
+	}()
+	select {
+	case r := <-got:
+		if r["new"] != "2" {
+			t.Errorf("got %v, want the new server's index", r)
+		}
+	case <-time.After(2 * time.Second):
+		t.Error("the caller after the reset waited on the old server's build")
+	}
+}
+
 // A failed build is not retried for plexIndexRetry, and the last copy stays.
 func TestPlexIndexCacheRemembersAFailure(t *testing.T) {
 	d := dbtest.Open(t)
