@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { NavLink } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
-import { enterPage } from 'fluid-lycoris'
+import { Button, enterPage } from 'fluid-lycoris'
 import { api } from '../api'
 import { useToast, useFailToast } from '../components/toast'
 import { CoverImg } from '../components/SmartImg'
@@ -98,6 +98,32 @@ export function EmptyNote({ title, sub }: { title: ReactNode; sub?: ReactNode })
     <div className="dc-empty" role="status">
       <b>{title}</b>
       {sub && <span>{sub}</span>}
+    </div>
+  )
+}
+
+/**
+ * A list that failed to load. Without any data the error takes the list's
+ * place (an empty note would pass for "nothing here"); with stale data kept
+ * it is one quiet line above them.
+ */
+export function LoadFailed({ stale, onRetry }: { stale?: boolean; onRetry: () => void }) {
+  const { t } = useTranslation()
+  const retry = (
+    <Button size="sm" onClick={onRetry}>
+      {t('app.tryAgain')}
+    </Button>
+  )
+  if (stale)
+    return (
+      <p className="dc-axes-hint flex flex-wrap items-center gap-2" role="status">
+        {t('discover.loadStale')} {retry}
+      </p>
+    )
+  return (
+    <div className="dc-empty" role="alert">
+      <b>{t('discover.loadFailed')}</b>
+      <span>{retry}</span>
     </div>
   )
 }

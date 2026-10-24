@@ -37,6 +37,7 @@ import {
   DiscoverHead,
   DiscoverNav,
   EmptyNote,
+  LoadFailed,
   SkeletonRows,
   SugRow,
   useDismiss,
@@ -223,7 +224,7 @@ function usePrefill() {
  */
 export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | 'recommended' | 'incomplete' }) {
   const { t } = useTranslation()
-  const { data, isLoading } = useSuggestions()
+  const { data, isLoading, isError, refetch } = useSuggestions()
   const [watch, setWatch] = useState<WatchReq | null>(null)
   const [sync, setSync] = useState<WatchReq | null>(null)
   const toast = useToast()
@@ -268,6 +269,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
 
   let body
   if (waiting) body = bucket === 'trending' ? <SkeletonRows n={4} /> : <SkeletonRows />
+  else if (isError && !data) body = <LoadFailed onRetry={() => void refetch()} />
   else if (!items.length)
     body =
       bucket === 'recommended' ? (
@@ -361,6 +363,7 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
           </Link>
         </p>
       )}
+      {isError && data && <LoadFailed stale onRetry={() => void refetch()} />}
       {body}
       {watch &&
         (watch.inCard ? (
@@ -660,7 +663,7 @@ export function IgnoredSection() {
   const fail = useFailToast()
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const { data, isLoading } = useDismissed()
+  const { data, isLoading, isError, refetch } = useDismissed()
   const list = useRef<HTMLDivElement>(null)
   useLateRise(list, !isLoading)
   const items = data ?? []
@@ -675,8 +678,11 @@ export function IgnoredSection() {
   }
   return (
     <div ref={list}>
+      {isError && data && <LoadFailed stale onRetry={() => void refetch()} />}
       {isLoading ? (
         <SkeletonRows n={4} />
+      ) : isError && !data ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : !items.length ? (
         <EmptyNote title={t('discover.empty.ignored')} />
       ) : (
@@ -787,7 +793,7 @@ export function UpgradesSection() {
   const qc = useQueryClient()
   const toast = useToast()
   const fail = useFailToast()
-  const { data, isLoading } = useSuggestions()
+  const { data, isLoading, isError, refetch } = useSuggestions()
   const { data: dims } = usePersistedQuery<UpgradeDims>('upgrade-dims', () => api.get('/api/auth/upgrade-dims'))
   const [sync, setSync] = useState<SyncRequest | null>(null)
   const { open: openSeries } = useSeriesModal()
@@ -825,8 +831,11 @@ export function UpgradesSection() {
   return (
     <div ref={list}>
       <UpgradeAxes />
+      {isError && data && <LoadFailed stale onRetry={() => void refetch()} />}
       {waiting ? (
         <SkeletonRows />
+      ) : isError && !data ? (
+        <LoadFailed onRetry={() => void refetch()} />
       ) : !items.length ? (
         <EmptyNote title={t('suggestions.noUpgrades')} />
       ) : (
@@ -881,7 +890,7 @@ export function DuplicatesSection() {
   const qc = useQueryClient()
   const toast = useToast()
   const { data: user } = useAuth()
-  const { data, isLoading } = useSuggestions()
+  const { data, isLoading, isError, refetch } = useSuggestions()
   const hide = useDismiss()
   const now = useNow()
   const list = useRef<HTMLDivElement>(null)
@@ -926,9 +935,16 @@ export function DuplicatesSection() {
         <SkeletonRows n={3} />
       </div>
     )
+  if (isError && !data)
+    return (
+      <div ref={list}>
+        <LoadFailed onRetry={() => void refetch()} />
+      </div>
+    )
   if (!items.length)
     return (
       <div ref={list}>
+        {isError && <LoadFailed stale onRetry={() => void refetch()} />}
         <EmptyNote
           title={t('discover.empty.duplicates')}
           sub={data?.builtAt ? asOfLine(data.builtAt * 1000, now, i18n.language, t) : t('discover.recheck')}
@@ -937,6 +953,7 @@ export function DuplicatesSection() {
     )
   return (
     <div ref={list}>
+      {isError && <LoadFailed stale onRetry={() => void refetch()} />}
       {user?.isAdmin && <p className="dc-axes-hint">{t('suggestions.dupTrashHint')}</p>}
       <Rows>
         {items.map((d) => (

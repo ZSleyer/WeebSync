@@ -111,7 +111,13 @@ interface RowAction {
 // the same data. The list polls, so check results appear live.
 export default function Watches() {
   const { t } = useTranslation()
-  const { data: watches = [], isLoading } = useQuery<Watch[]>({
+  const {
+    data: watches = [],
+    isLoading,
+    isError,
+    refetch,
+    data: loaded,
+  } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
     refetchInterval: 10_000,
@@ -649,6 +655,15 @@ export default function Watches() {
         </div>
       )}
 
+      {isError && loaded && (
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-ctl-sm text-t-muted" role="status">
+          {t('discover.loadStale')}{' '}
+          <Button size="sm" onClick={() => void refetch()}>
+            {t('app.tryAgain')}
+          </Button>
+        </p>
+      )}
+
       {isLoading ? (
         // the tiles' real heights, so nothing below jumps when they arrive
         <ul className="w-grid w-skel" aria-busy="true" aria-label={t('watch.title')}>
@@ -660,6 +675,14 @@ export default function Watches() {
             </li>
           ))}
         </ul>
+      ) : isError && !loaded ? (
+        // a failed load is not "no watches": that text invites to create them again
+        <EmptyState>
+          <span role="alert">{t('watch.loadFailed')}</span>{' '}
+          <Button size="sm" onClick={() => void refetch()}>
+            {t('app.tryAgain')}
+          </Button>
+        </EmptyState>
       ) : watches.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="watch.empty" components={{ go: <Link to="/files" className="t-link t-link--2" /> }} />
