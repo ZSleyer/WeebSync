@@ -16,7 +16,16 @@ const files = [...walk(resolve(process.cwd(), 'src')), ...walk(resolve(process.c
 
 // focus that is not the user's to see: moved by the router, or a field whose
 // own border takes the full accent colour (3:1) instead of an outline
-const EXEMPT = ['.app-shell > main', '.ws-detail:focus', '.t-input:focus', '.t-select:focus']
+const EXEMPT = new Set([
+  '.app-shell > main:focus',
+  '.app-shell > main h1:focus',
+  '.ws-detail:focus',
+  '.t-input:focus',
+  '.t-select:focus',
+])
+// exact selectors only: a looser match would let `.t-input:focus-visible` or
+// `.app-shell > main button:focus` slip through
+const exempt = (sel: string) => EXEMPT.has(sel.replace(/\s+/g, ' ').trim())
 
 // a selector list split at its top-level commas (not those inside :is(...))
 const split = (list: string): string[] => {
@@ -54,13 +63,17 @@ describe('focus ring policy', () => {
     expect(rules.length).toBeGreaterThan(200)
   })
 
+  it('exempts exact selectors only', () => {
+    expect(exempt('.t-input:focus')).toBe(true)
+    expect(exempt('.t-input:focus-visible')).toBe(false)
+    expect(exempt('.app-shell > main button:focus')).toBe(false)
+  })
+
   it('removes an outline on :focus only behind a pointer gate', () => {
     const bad = rules.flatMap((r) =>
       /outline:\s*(none|0)\b/.test(r.body)
         ? r.selectors
-            .filter(
-              (s) => /:focus/.test(s) && !/data-input=['"]pointer['"]/.test(s) && !EXEMPT.some((e) => s.includes(e)),
-            )
+            .filter((s) => /:focus/.test(s) && !/data-input=['"]pointer['"]/.test(s) && !exempt(s))
             .map((s) => `${r.file}: ${s}`)
         : [],
     )
