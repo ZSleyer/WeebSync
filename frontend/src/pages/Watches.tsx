@@ -121,16 +121,13 @@ export default function Watches() {
   const [more, setMore] = useState<Watch | null>(null)
   const narrow = useMediaQuery(SHEET_MQ)
   const wide = useMediaQuery(WIDE_MQ)
-  const { applyPlexStreams, del, save, error, notice } = useWatchActions()
+  const { applyPlexStreams, del, save, error } = useWatchActions()
   const toast = useToast()
   const fail = useFailToast()
   // what the actions report goes to the toast, as everywhere else
   useEffect(() => {
     if (error) toast({ message: error, error: true })
   }, [error, toast])
-  useEffect(() => {
-    if (notice) toast({ message: notice })
-  }, [notice, toast])
 
   // one page, three ways to look at it; the grid of covers first
   const [mode, setMode] = usePersistedView(
