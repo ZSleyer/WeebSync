@@ -340,6 +340,9 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
 		return nil
 	}
+	if err := m.guardReplace(d.UserID, local, d.LocalPath); err != nil {
+		return err // before a byte is fetched for a file that may not land
+	}
 
 	part := local.Name + ".part"
 	if err := local.Root.MkdirAll(filepath.Dir(part), 0o755); err != nil {
@@ -428,6 +431,10 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if transferred < size {
 		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
 	}
+	// again at the last moment: the file may have arrived while this one ran
+	if err := m.guardReplace(d.UserID, local, d.LocalPath); err != nil {
+		return err
+	}
 	if err := local.Root.Rename(part, local.Name); err != nil {
 		return err
 	}
@@ -438,6 +445,38 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 // ── public API used by handlers ─────────────────────────────
 
 var ErrNotFound = fmt.Errorf("download not found")
+
+// ErrForeignTarget: the target already holds a file the download's owner may
+// not replace (see mayReplace).
+var ErrForeignTarget = errors.New("a file is already at the target and only an admin may replace it")
+
+// mayReplace reports whether userID may replace the file already at local (an
+// absolute target): replacing what is in the shared library is an admin's
+// call, but anyone may replace what one of their own downloads put there.
+func (m *Manager) mayReplace(userID int64, local string) (bool, error) {
+	var ok bool
+	err := m.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND is_admin = 1)
+		OR EXISTS (SELECT 1 FROM downloads WHERE user_id = ? AND local_path = ? AND status = 'done')`,
+		userID, userID, local).Scan(&ok)
+	return ok, err
+}
+
+// guardReplace fails with ErrForeignTarget when a regular file sits at the
+// target and userID may not replace it. A database error fails it too.
+func (m *Manager) guardReplace(userID int64, local *LocalPath, abs string) error {
+	fi, err := local.Root.Stat(local.Name)
+	if err != nil || !fi.Mode().IsRegular() {
+		return nil // nothing to replace (a directory fails the rename by itself)
+	}
+	ok, err := m.mayReplace(userID, abs)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrForeignTarget
+	}
+	return nil
+}
 
 // ErrQueueStore marks an Enqueue failure in the local queue database rather
 // than at the remote, so a handler can tell its own fault from the server's.
@@ -575,7 +614,7 @@ type EnqueueResult struct {
 // Skip is one file a check did not queue, and why.
 type Skip struct {
 	Path   string `json:"path"`
-	Reason string `json:"reason" enums:"outside_roots,language,worse_variant,owned,uploading,queued,blocked"`
+	Reason string `json:"reason" enums:"outside_roots,language,worse_variant,owned,uploading,queued,blocked,foreign_target"`
 	Detail string `json:"detail,omitempty"` // worse_variant: the release kept instead
 }
 
@@ -736,6 +775,19 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 		if serr == nil && fi.Mode().IsRegular() && fi.Size() == j.size {
 			res.Skipped++
 			continue
+		}
+		// a file of another size is there: replacing it is the caller's only
+		// when they are an admin or one of their own downloads put it there
+		if serr == nil && fi.Mode().IsRegular() {
+			ok, err := m.mayReplace(userID, local)
+			if err != nil {
+				m.Wake()
+				return res, fmt.Errorf("%w: %w", ErrQueueStore, err)
+			}
+			if !ok {
+				res.skip(j.remote, "foreign_target", "")
+				continue
+			}
 		}
 		// the uploader renamed the release ("x264" corrected to "h265"): the
 		// same episode with the very same bytes lies beside the target under
@@ -1061,6 +1113,7 @@ const (
 	ErrCodeReadOnly         = "read_only"         // target mounted read-only
 	ErrCodeRenameFailed     = "rename_failed"     // the finished file cannot take its final name
 	ErrCodeAuthFailed       = "auth_failed"       // the remote server rejected the login
+	ErrCodeForeignTarget    = "foreign_target"    // the target holds a file the user may not replace
 )
 
 // classifyError maps a transfer failure onto one of the error codes above.
@@ -1083,6 +1136,8 @@ func classifyError(err error) string {
 		return ErrCodeReadOnly
 	case errors.Is(err, remote.ErrAuthRejected):
 		return ErrCodeAuthFailed
+	case errors.Is(err, ErrForeignTarget):
+		return ErrCodeForeignTarget
 	}
 	// A refused rename is its own cause and needs its own answer: the directory
 	// took every byte of the download, only the final swap was denied. Calling
@@ -1113,7 +1168,7 @@ func classifyError(err error) string {
 // (a dropped connection, a short read, a target another process holds open) is
 // retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed}, code)
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed, ErrCodeForeignTarget}, code)
 }
 
 // CheckWritableAt reports whether a download can finish in local.Name, as the

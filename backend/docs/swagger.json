@@ -8311,7 +8311,8 @@
                             "owned",
                             "uploading",
                             "queued",
-                            "blocked"
+                            "blocked",
+                            "foreign_target"
                         ],
                         "type": "string"
                     }
