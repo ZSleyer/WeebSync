@@ -384,6 +384,9 @@ func (s *Server) BackfillSeries() {
 		return // the flag below would leave the unread matches unlinked for good
 	}
 	for _, r := range all {
+		if s.stopping() {
+			return
+		}
 		s.linkSeries(r.source, r.mediaID)
 		s.refreshVariant(r.serverID, r.folder)
 	}
@@ -394,7 +397,8 @@ func (s *Server) BackfillSeries() {
 // blob changes (e.g. localized titles), so a deploy drops stale blobs once
 // instead of waiting out the 30-minute TTL.
 // v11: blobs carry only the user's own servers, and upgrade plans always send replace.
-const suggestionFormat = "libscope-v11"
+// v12: blobs carry the TMDB watchlist and trending errors of their build.
+const suggestionFormat = "libscope-v12"
 
 // ClearStaleSuggestionCache drops the cached per-user suggestion blobs once when
 // the suggestion format version changed since the last boot. Cheap no-op after
@@ -537,6 +541,9 @@ func (s *Server) BackfillUnits() {
 		return
 	}
 	for _, x := range todo {
+		if s.stopping() {
+			return
+		}
 		s.refreshVariant(x.sid, x.folder)
 	}
 	// stale server-0 rows are the OLD per-show Plex index (no show_key). Drop them

@@ -80,6 +80,10 @@ func (s *Server) anilistAccount(userID int64) (anilistUserID int, token string, 
 	return anilistUserID, token, nil
 }
 
+// anilistStateCookie binds the OAuth callback to the browser that started
+// it; host-prefixed under HTTPS (auth.FlowCookie).
+const anilistStateCookie = "weebsync_anilist_state"
+
 // handleAnilistConnect starts the OAuth flow.
 //
 //	@Summary		Connect AniList
@@ -101,10 +105,7 @@ func (s *Server) handleAnilistConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	state := randToken()
 	rememberLinkFlow("anilist", state, u.ID)
-	auth.SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_anilist_state", Value: state, Path: "/api/anilist",
-		MaxAge: 600,
-	})
+	auth.SetCookie(w, r, auth.FlowCookie(r, anilistStateCookie, "/api/anilist", state, 600))
 	q := url.Values{
 		"client_id":     {clientID},
 		"redirect_uri":  {redirect},
@@ -138,18 +139,15 @@ func requestOrigin(r *http.Request) string {
 //	@Router			/api/anilist/callback [get]
 func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	stateCookie, err := r.Cookie("weebsync_anilist_state")
-	if err != nil || r.URL.Query().Get("state") != stateCookie.Value || !ownsLinkFlow("anilist", stateCookie.Value, u.ID) {
+	state := auth.FlowCookieValue(r, anilistStateCookie)
+	if state == "" || r.URL.Query().Get("state") != state || !ownsLinkFlow("anilist", state, u.ID) {
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return
 	}
 	// state is single-use: invalidate the cookie so the callback URL
 	// cannot be replayed within the cookie's lifetime
-	auth.SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_anilist_state", Value: "", Path: "/api/anilist",
-		MaxAge: -1,
-	})
-	forgetLinkFlow("anilist", stateCookie.Value)
+	auth.SetCookie(w, r, auth.FlowCookie(r, anilistStateCookie, "/api/anilist", "", -1))
+	forgetLinkFlow("anilist", state)
 	code := r.URL.Query().Get("code")
 	if code == "" {
 		http.Error(w, "missing code", http.StatusBadRequest)

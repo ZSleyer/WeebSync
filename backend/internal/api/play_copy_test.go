@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 )
 
 // mkvElem writes an EBML element with an 8-byte size.
@@ -84,5 +85,26 @@ func TestCutCacheBounded(t *testing.T) {
 	c.mu.Unlock()
 	if n > cutCacheMax {
 		t.Fatalf("%d entries", n)
+	}
+}
+
+// A file's Cues can name keyframes far past any real length (forged, or a
+// broken file) within the 16 MiB a header element may take. The segments are
+// capped like the transcode playlist, by hlsMaxDuration, whatever the index says.
+func TestCutsFromCapped(t *testing.T) {
+	kf := make([]time.Duration, 0, 200000)
+	for i := range 200000 {
+		kf = append(kf, time.Duration(i)*hlsSegSec*time.Second)
+	}
+	cuts := cutsFrom(kf)
+	if limit := hlsMaxDuration/hlsSegSec + 1; len(cuts) > limit {
+		t.Fatalf("%d segments, want at most %d", len(cuts), limit)
+	}
+	if last := cuts[len(cuts)-1]; last > hlsMaxDuration {
+		t.Fatalf("a segment starts at %.0fs, past the %ds clamp", last, hlsMaxDuration)
+	}
+	// a normal episode keeps every cut
+	if got := cutsFrom(kf[:240]); len(got) != 240 {
+		t.Fatalf("a 24-minute file cut into %d segments, want 240", len(got))
 	}
 }

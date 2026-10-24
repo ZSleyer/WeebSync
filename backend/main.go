@@ -128,10 +128,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// a push service that cannot start (VAPID keys unreadable) costs push
+	// notifications, not the app: Push stays nil and its routes answer 503
 	pushSvc, err := push.New(database)
 	if err != nil {
-		slog.Error("push init", "err", err)
-		os.Exit(1)
+		slog.Error("push init failed, web push disabled", "err", err)
+		pushSvc = nil
 	}
 
 	srv := &api.Server{

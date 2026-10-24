@@ -36,7 +36,7 @@ func TestUnpackComic(t *testing.T) {
 	fi, _ := in.Stat()
 	out := filepath.Join(tmp, "out")
 	os.Mkdir(out, 0o700)
-	if err := unpack(&playFile{ReadSeeker: in, size: fi.Size()}, out); err != nil {
+	if err := unpack(context.Background(), &playFile{ReadSeeker: in, size: fi.Size()}, out); err != nil {
 		t.Fatal(err)
 	}
 	// names that pointed out of the folder land inside it
@@ -209,7 +209,7 @@ func TestUnpackStopsAtDiskBudget(t *testing.T) {
 		fi, _ := in.Stat()
 		out := filepath.Join(tmp, name+".out")
 		os.Mkdir(out, 0o700)
-		err := unpack(&playFile{ReadSeeker: in, size: fi.Size()}, out)
+		err := unpack(context.Background(), &playFile{ReadSeeker: in, size: fi.Size()}, out)
 		in.Close()
 		if name == "small.cbz" && err != nil {
 			t.Errorf("%s within the room: %v", name, err)
@@ -239,7 +239,7 @@ func TestUnpackRar(t *testing.T) {
 	defer in.Close()
 	out := filepath.Join(tmp, "out")
 	os.Mkdir(out, 0o700)
-	if err := unpack(&playFile{ReadSeeker: in, size: int64(len(raw))}, out); err != nil {
+	if err := unpack(context.Background(), &playFile{ReadSeeker: in, size: int64(len(raw))}, out); err != nil {
 		t.Fatal(err)
 	}
 	if got, want := comicPages(out), []string{"ch/2.png", "ch/10.png"}; !slices.Equal(got, want) {

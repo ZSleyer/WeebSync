@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"path"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -477,7 +479,49 @@ func (s *Server) flushDigest(key string, userID int64, category string) {
 	delete(s.digest, key)
 	delete(s.digestTimer, key)
 	s.digestMu.Unlock()
+	s.sendDigest(userID, category, items)
+}
 
+// flushDigests sends every digest still collecting, without waiting for the
+// queue or the quiet period: Shutdown calls it so a restart does not drop
+// what was collected in memory. It returns when the sends are done or ctx
+// is, whichever comes first - the shutdown budget bounds it.
+func (s *Server) flushDigests(ctx context.Context) {
+	s.digestMu.Lock()
+	pending := s.digest
+	for _, t := range s.digestTimer {
+		t.Stop()
+	}
+	s.digest, s.digestTimer = nil, nil
+	s.digestMu.Unlock()
+	if len(pending) == 0 {
+		return
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for key, items := range pending {
+			uid, category, _ := strings.Cut(key, "|")
+			userID, err := strconv.ParseInt(uid, 10, 64)
+			if err != nil {
+				continue // every key is built by NotifyDownload
+			}
+			s.sendDigest(userID, category, items)
+		}
+	}()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		slog.Warn("download digests not all sent before shutdown", "digests", len(pending))
+	}
+}
+
+// sendDigest is the push and the mail for one flushed digest.
+func (s *Server) sendDigest(userID int64, category string, items []digestItem) {
+	if s.digestSend != nil {
+		s.digestSend(userID, category, items)
+		return
+	}
 	locale := s.userLocale(userID)
 	s.pushDigest(userID, category, locale, items)
 	if s.Mail == nil || !s.Mail.Configured() {

@@ -61,7 +61,23 @@ func whyUpgrade(locale string, from, to UpgradeVariant) string {
 	if len(gains) == 0 {
 		return ""
 	}
-	return tr(locale, "why.upgrade", to.ServerName, strings.Join(gains, ", "))
+	line := tr(locale, "why.upgrade", to.ServerName, strings.Join(gains, ", "))
+	// what the remote copy gives up, on the axes loses checks: such a card
+	// syncs with replace=false, and the line says why the local copy stays
+	var losses []string
+	if resTier(to.ResRank) < resTier(from.ResRank) {
+		losses = append(losses, tr(locale, "why.lossRes", to.ResRank, from.ResRank))
+	}
+	if drop := newCodes(to.Dub, from.Dub); drop != "" {
+		losses = append(losses, tr(locale, "why.lossDub", drop))
+	}
+	if drop := newCodes(to.Sub, from.Sub); drop != "" {
+		losses = append(losses, tr(locale, "why.lossSub", drop))
+	}
+	if len(losses) > 0 {
+		line += " " + tr(locale, "why.loses", strings.Join(losses, ", "))
+	}
+	return line
 }
 
 // newCodes lists the language codes in to that from lacks, "Und" aside.

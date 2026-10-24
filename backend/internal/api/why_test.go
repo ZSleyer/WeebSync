@@ -31,6 +31,27 @@ func TestWhyUpgrade(t *testing.T) {
 	}
 }
 
+// A card kept with replace=false must say what the remote copy gives up, not
+// only what it adds: 720p with German subtitles against a local 1080p copy
+// with English subtitles loses on two axes, and the line has to say so.
+func TestWhyUpgradeNamesLosses(t *testing.T) {
+	from := UpgradeVariant{ResRank: 1080, Dub: []string{"Jap"}, Sub: []string{"Eng"}}
+	to := UpgradeVariant{ServerName: "Anime-Server", ResRank: 720, Dub: []string{"Jap"}, Sub: []string{"Ger"}}
+	if !loses(from, to) {
+		t.Fatal("precondition: the remote copy loses")
+	}
+	want := "Anime-Server bietet Untertitel Ger. Dafür nur 720p statt 1080p, keine Untertitel Eng, die lokale Kopie bleibt."
+	if got := whyUpgrade("de", from, to); got != want {
+		t.Errorf("de why = %q, want %q", got, want)
+	}
+	from = UpgradeVariant{ResRank: 1080, Dub: []string{"Ger", "Jap"}}
+	to = UpgradeVariant{ServerName: "S", ResRank: 1080, Dub: []string{"Jap"}, Sub: []string{"Ger"}}
+	want = "S has subtitles Ger. But it has no dub Ger, so the local copy is kept."
+	if got := whyUpgrade("en", from, to); got != want {
+		t.Errorf("en why = %q, want %q", got, want)
+	}
+}
+
 func TestRemoteShowRootSkipsWholeShowFolders(t *testing.T) {
 	s, _ := sizeTestServer(t)
 	addRemoteFiles(t, s, 1, "/x/Game of Thrones (2011)", map[string]int64{"Game.of.Thrones.S01E01.mkv": 1, "Game.of.Thrones.S02E01.mkv": 1})

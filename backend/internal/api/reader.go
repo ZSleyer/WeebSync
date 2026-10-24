@@ -289,7 +289,7 @@ func (s *Server) unpackBook(ctx context.Context, src playSource) (*book, error) 
 	rand.Read(tok)
 	b.token = hex.EncodeToString(tok)
 	start := time.Now()
-	if err := unpack(f, dir); err != nil {
+	if err := unpack(ctx, f, dir); err != nil {
 		os.RemoveAll(dir)
 		return nil, err
 	}
@@ -306,7 +306,9 @@ func (s *Server) unpackBook(ctx context.Context, src playSource) (*book, error) 
 
 // unpack writes the archive in f into dir. The format is read from the first
 // bytes, not the name: plenty of .cbr files are zips and the odd .cbz a rar.
-func unpack(f *playFile, dir string) error {
+// It stops once ctx is done (the reader went away, the server shuts down):
+// every read of an entry checks it, so not even one large page is finished.
+func unpack(ctx context.Context, f *playFile, dir string) error {
 	head := make([]byte, 8)
 	n, _ := io.ReadFull(f, head)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
@@ -325,6 +327,9 @@ func unpack(f *playFile, dir string) error {
 			return err
 		}
 		for {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			h, err := rr.Next()
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -335,7 +340,7 @@ func unpack(f *playFile, dir string) error {
 			if h.IsDir {
 				continue
 			}
-			if err := w.write(h.Name, rr); err != nil {
+			if err := w.write(h.Name, ctxReader{ctx, rr}); err != nil {
 				return err
 			}
 		}
@@ -349,6 +354,9 @@ func unpack(f *playFile, dir string) error {
 			return err
 		}
 		for _, e := range zr.File {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if e.FileInfo().IsDir() {
 				continue
 			}
@@ -356,7 +364,7 @@ func unpack(f *playFile, dir string) error {
 			if err != nil {
 				return err
 			}
-			err = w.write(e.Name, rc)
+			err = w.write(e.Name, ctxReader{ctx, rc})
 			rc.Close()
 			if err != nil {
 				return err
@@ -365,6 +373,19 @@ func unpack(f *playFile, dir string) error {
 		return nil
 	}
 	return errors.New("not a zip or rar archive")
+}
+
+// ctxReader fails every read once ctx is done.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
 }
 
 // openBookFile opens the archive to unpack. A local file is read in place. A

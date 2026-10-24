@@ -12,12 +12,42 @@ if (!TOKEN && !(LOGIN.email && LOGIN.password)) {
   process.exit(2)
 }
 
+/**
+ * The session cookie for token at base, by the server's rules
+ * (backend/internal/auth/session.go). Under HTTPS the session is
+ * __Host-weebsync_session (Secure, Path=/, no Domain) and its token starts
+ * with "h"; an unmarked token from before the prefix is still read under the
+ * plain name there. Over plain HTTP the plain name holds it, and a token
+ * starting with "h" is never taken. A token the instance would ignore stops
+ * the pass instead of auditing the login screen.
+ */
+export function sessionCookie(token, base) {
+  const url = new URL(base)
+  const https = url.protocol === 'https:'
+  if (https && token.startsWith('h')) {
+    // url instead of domain/path: Path=/ on this host, Secure from the scheme
+    return { name: '__Host-weebsync_session', value: token, url: url.origin + '/', httpOnly: true, sameSite: 'Lax' }
+  }
+  if (https && token.startsWith('p')) {
+    throw new Error('WS_TOKEN starts with "p": a session made over plain HTTP, which an HTTPS instance does not take. Use one made over HTTPS (it starts with "h").')
+  }
+  if (!https && token.startsWith('h')) {
+    throw new Error('WS_TOKEN starts with "h": a session made over HTTPS, which a plain-HTTP instance does not take. Use one made over HTTP (it starts with "p").')
+  }
+  return { name: 'weebsync_session', value: token, domain: url.hostname, path: '/', httpOnly: true, secure: https, sameSite: 'Lax' }
+}
+
 /** Signs the page's context in: the session cookie, or a password login. */
 export async function signIn(ctx, page, base) {
   if (TOKEN) {
-    await ctx.addCookies([
-      { name: 'weebsync_session', value: TOKEN, domain: new URL(base).hostname, path: '/', httpOnly: true, sameSite: 'Lax' },
-    ])
+    let cookie
+    try {
+      cookie = sessionCookie(TOKEN, base)
+    } catch (e) {
+      console.error(e.message)
+      process.exit(2)
+    }
+    await ctx.addCookies([cookie])
     return
   }
   if (!page.url().startsWith(base)) await page.goto(base + '/', { waitUntil: 'domcontentloaded' })

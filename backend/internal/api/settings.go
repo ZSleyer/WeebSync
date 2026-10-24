@@ -540,7 +540,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	// which server runs the library features when both are connected; empty
 	// only while none is, refreshPlexRoots fills it with the first one
 	if in.MediaServer != cur.MediaServer && in.MediaServer != "plex" && in.MediaServer != "jellyfin" {
-		writeErr(w, http.StatusBadRequest, "mediaServer must be plex or jellyfin")
+		bad("mediaServer", "must be plex or jellyfin")
 		return
 	}
 	for _, f := range []struct {

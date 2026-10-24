@@ -2816,6 +2816,13 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "trendingError": {
+                        "description": "TrendingError: \"unavailable\" when the TMDB trending list could not be\nread at the build",
+                        "enum": [
+                            "unavailable"
+                        ],
+                        "type": "string"
+                    },
                     "upgrades": {
                         "items": {
                             "$ref": "#/components/schemas/api.UpgradeSuggestion"
@@ -2829,6 +2836,14 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "watchlistError": {
+                        "description": "WatchlistError: the TMDB watchlist at the build, \"unauthorized\" when\nTMDB no longer accepts the linked session (link again), \"unavailable\"\nwhen it could not be read",
+                        "enum": [
+                            "unauthorized",
+                            "unavailable"
+                        ],
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -8358,8 +8373,9 @@
                 "type": "apiKey"
             },
             "CookieAuth": {
-                "in": "header",
-                "name": "Authorization",
+                "description": "The session cookie: weebsync_session over plain HTTP, __Host-weebsync_session under HTTPS.",
+                "in": "cookie",
+                "name": "weebsync_session",
                 "type": "apiKey"
             }
         }
@@ -13525,6 +13541,16 @@
                         },
                         "description": "Unauthorized"
                     },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -13788,6 +13814,16 @@
                         },
                         "description": "Forbidden"
                     },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -13945,6 +13981,16 @@
                             }
                         },
                         "description": "Forbidden"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
                     },
                     "500": {
                         "content": {
@@ -17887,6 +17933,16 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -17963,6 +18019,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -18047,6 +18113,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -18073,6 +18149,16 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [

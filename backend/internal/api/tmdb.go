@@ -354,6 +354,9 @@ func (s *Server) RepairCatalog() {
 	var cleared int64
 	rematched := 0
 	for _, m := range marks {
+		if s.stopping() {
+			return
+		}
 		c, r := s.clearStaleSubRows(m.server, m.path, m.kind)
 		cleared += c
 		rematched += r
@@ -369,13 +372,16 @@ func (s *Server) RepairCatalog() {
 
 // providerRecords names how TVDB and TMDB records are cached; bumping it
 // drops the cached ones once so they are fetched again in the new shape.
-const providerRecords = "2026-10-overviews-de-en"
+const providerRecords = "2026-10-translation-errors"
 
 // RefreshProviderRecords drops the cached TVDB and TMDB records once per
 // providerRecords. Those cached before carry one overview - TVDB's in the
 // show's own language, Japanese for an anime, TMDB's in German for every
 // reader - where they now carry German and English, and a finished show is
 // never fetched again by itself. They come back as they are needed.
+// "2026-10-translation-errors" drops them once more: until then a TVDB
+// translation call that failed (timeout, 429, 5xx) was cached as "no
+// translation", a degraded record a finished show kept for good.
 func (s *Server) RefreshProviderRecords() {
 	if db.Setting(s.DB, "provider_records") == providerRecords {
 		return

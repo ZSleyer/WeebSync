@@ -51,6 +51,10 @@ func (s *Server) RevalidateMatches() {
 	}
 	dropped, failed := 0, 0
 	for _, r := range all {
+		if s.stopping() {
+			failed++ // the rest is unjudged: judge it all again next start
+			break
+		}
 		m := s.cachedMedia(r.source, r.mediaID)
 		if m == nil {
 			continue
@@ -174,6 +178,9 @@ func (s *Server) BackfillWatchMatches() int {
 	}
 	queued := 0
 	for _, w := range all {
+		if s.stopping() {
+			return queued // unstamped: the next start retries the rest
+		}
 		if (w.missing || retryMisses) && s.matchWatch(w.serverID, w.remote, w.local, retryMisses) {
 			queued++
 		}

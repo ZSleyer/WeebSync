@@ -109,11 +109,17 @@ func (s *Server) copyCuts(ctx context.Context, src playSource, recheck bool) []f
 }
 
 // cutsFrom lays segments on the keyframes: one starts at 0, every next one on
-// the first keyframe at least hlsSegSec after the last start.
+// the first keyframe at least hlsSegSec after the last start. Nothing past
+// hlsMaxDuration is cut, the same clamp the transcode playlist has: the
+// index is the file's own claim, and only the 16 MiB header cap bounded it.
 func cutsFrom(kf []time.Duration) []float64 {
 	cuts := []float64{0}
 	for _, k := range kf {
-		if t := k.Seconds(); t-cuts[len(cuts)-1] >= hlsSegSec {
+		t := k.Seconds()
+		if t > hlsMaxDuration || len(cuts) > hlsMaxDuration/hlsSegSec {
+			break
+		}
+		if t-cuts[len(cuts)-1] >= hlsSegSec {
 			cuts = append(cuts, t)
 		}
 	}

@@ -483,6 +483,9 @@ func (s *Server) SettleMatchedSeries() {
 		return
 	}
 	for _, r := range refs {
+		if s.stopping() {
+			return
+		}
 		s.settleSeries(r.Source, r.MediaID)
 	}
 	slog.Info("matched series settled", "matches", len(refs))

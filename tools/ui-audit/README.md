@@ -91,7 +91,11 @@ minutes; the default five take roughly ten.
 
 `auth.mjs` is how every pass gets in: `WS_TOKEN` (the raw token whose SHA-256
 sits in the `sessions` table, the way in when the instance is OIDC-only) wins,
-otherwise a password login with `WS_EMAIL` and `WS_PASSWORD`. There are no
+otherwise a password login with `WS_EMAIL` and `WS_PASSWORD`. The token
+goes in under the name the instance reads: `__Host-weebsync_session` for an
+`https://` base (a token made over HTTPS starts with `h`), `weebsync_session`
+over plain HTTP (a token starting with `p`, or an unmarked one from before
+the marks). A token the instance would ignore stops the pass. There are no
 default credentials; a pass started without either stops before it opens a
 browser, and one whose login is refused stops too, rather than auditing the
 login screen and calling it clean.
