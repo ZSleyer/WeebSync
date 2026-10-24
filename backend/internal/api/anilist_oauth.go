@@ -54,6 +54,8 @@ func (s *Server) AnilistToken() string {
 			return t
 		}
 	}
+	// a read that broke off leaves the lookups anonymous
+	_ = rows.Err()
 	return ""
 }
 
