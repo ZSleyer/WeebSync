@@ -200,8 +200,10 @@ var dataStores = []dataStore{
 		needs: []string{"catalog-matches"}, keptOnReset: true},
 	// The copies an upgrade sync moved aside, waiting for their grace period
 	// to end. Dropping the rows leaves the files in their .weebsync-trash
-	// folders for hand cleanup; nothing refills the list.
-	{name: "trash", tables: []string{"trash_files"}, kind: kindDerived, timeCol: "trashed_at"},
+	// folders for hand cleanup; nothing refills the list. So the bulk reset
+	// walks past it, like the airings: the rows are the only handle on files
+	// that could still be restored, and the sweep needs them to delete them.
+	{name: "trash", tables: []string{"trash_files"}, kind: kindDerived, timeCol: "trashed_at", keptOnReset: true},
 
 	// Human decisions. Nothing rebuilds these, so the reset only touches them
 	// when explicitly asked to.

@@ -483,6 +483,10 @@ func TestDataReset(t *testing.T) {
 	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
 		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
 	seedDerived(t, s)
+	// a copy waiting in the trash: its row is the only handle on the file
+	if _, err := s.DB.Exec(`INSERT INTO trash_files (path, trashed_at, reason, replaced_by) VALUES ('/m/Show/.weebsync-trash/E01.mkv', 1, 'upgrade', '')`); err != nil {
+		t.Fatal(err)
+	}
 
 	rec := doReq(mux, "POST", "/api/admin/data/reset", `{"requeue":false}`, adminC)
 	if rec.Code != http.StatusOK {
@@ -520,9 +524,14 @@ func TestDataReset(t *testing.T) {
 	if n := count(t, s, `SELECT COUNT(*) FROM remote_index`); n != 1 {
 		t.Errorf("remote_index after reset: got %d, want 1 (a re-crawl is not free)", n)
 	}
+	// nothing refills the trash list: without its rows the files could neither
+	// be restored nor swept
+	if n := count(t, s, `SELECT COUNT(*) FROM trash_files`); n != 1 {
+		t.Errorf("trash_files after reset: got %d, want 1", n)
+	}
 	// the omission has to be visible in the answer, not just in the database
 	kept := strings.Join(out.Kept, ",")
-	for _, name := range []string{"remote-index", "catalog-decisions", "suggestion-dismissals"} {
+	for _, name := range []string{"remote-index", "catalog-decisions", "suggestion-dismissals", "trash"} {
 		if !strings.Contains(kept, name) {
 			t.Errorf("kept: got %q, want it to name %q", kept, name)
 		}
@@ -550,10 +559,11 @@ func TestDataReset(t *testing.T) {
 			t.Errorf("%s after reset with decisions: got %d, want 0", table, n)
 		}
 	}
-	// the two stores nothing can refill: a re-crawl is merely expensive, but the
-	// airings the providers have already dropped are gone for good
-	if len(out.Kept) != 2 || out.Kept[0] != "remote-index" || out.Kept[1] != "airings" {
-		t.Errorf("kept with decisions: got %v, want [remote-index airings]", out.Kept)
+	// the stores nothing can refill: a re-crawl is merely expensive, but the
+	// airings the providers have already dropped are gone for good, and so is
+	// the only record of the copies waiting in the trash
+	if len(out.Kept) != 3 || out.Kept[0] != "remote-index" || out.Kept[1] != "airings" || out.Kept[2] != "trash" {
+		t.Errorf("kept with decisions: got %v, want [remote-index airings trash]", out.Kept)
 	}
 	// user data is never in reach of this endpoint
 	if n := count(t, s, `SELECT COUNT(*) FROM servers`); n != 1 {
