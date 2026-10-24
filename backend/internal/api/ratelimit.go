@@ -30,6 +30,12 @@ type ipLimiter struct {
 	burst int
 	// buckets beyond this many trigger a sweep of the full ones
 	sweepAt int
+	// after a sweep the next one waits until the map has doubled: drained
+	// buckets survive a sweep, and a flood of them would otherwise make
+	// every new key walk the whole map under the lock
+	nextSweep int
+	// buckets looked at by sweeps so far (tests count the work with it)
+	sweepVisits int
 	// trusted returns true for IPs that bypass the limit entirely (admin-
 	// configured safe networks). May be nil.
 	trusted func(ip string) bool
@@ -146,16 +152,19 @@ func (l *ipLimiter) take(ip string) (bool, time.Duration) {
 	defer l.mu.Unlock()
 	e, ok := l.ips[ip]
 	if !ok {
-		// ponytail: O(n) sweep on new IPs, bounded by the map cap below.
+		// An O(n) sweep, amortised: the next one waits until the map has
+		// doubled since this one, so each new key pays O(1) on average.
 		// A bucket back at full tokens is the same as no bucket, so those
 		// go whatever their age; a drained one stays, which is what keeps
 		// a blocked address blocked through a flood of one-hit peers.
-		if len(l.ips) > l.sweepAt {
+		if len(l.ips) > max(l.sweepAt, l.nextSweep) {
 			for k, v := range l.ips {
+				l.sweepVisits++
 				if v.lim.Tokens() >= float64(l.burst) {
 					delete(l.ips, k)
 				}
 			}
+			l.nextSweep = 2 * len(l.ips)
 		}
 		e = &ipEntry{lim: rate.NewLimiter(l.rate, l.burst)}
 		l.ips[ip] = e
