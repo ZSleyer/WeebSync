@@ -174,7 +174,7 @@ func (s *Server) reconcilePlex(budget int) {
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
-		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.folder = cm.folder)
+		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.server_id = cm.server_id AND r.folder = cm.folder)
 		LIMIT ?`, budget)
 	if err != nil {
 		return
@@ -222,13 +222,13 @@ func (s *Server) reconcilePlex(budget int) {
 			g, ok = guidForShowKey(idx, showKey)
 		}
 		if !ok {
-			_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder) // a lost marker only means one more retry next sweep
+			_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (server_id, folder, checked_at) VALUES (?, ?, datetime('now'))`, h.serverID, h.folder) // a lost marker only means one more retry next sweep
 			continue
 		}
 		s.attachPlexIdentity(h.seriesID, g, false)
 		// remember the folder either way: a folder whose title does not resolve
 		// must not be retried on every sweep, and one that did is done
-		_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, h.folder) // a lost marker only means one more retry next sweep
+		_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (server_id, folder, checked_at) VALUES (?, ?, datetime('now'))`, h.serverID, h.folder) // a lost marker only means one more retry next sweep
 		if g.TVDB != 0 || g.TMDB != 0 || g.IMDB != 0 || g.RatingKey != "" {
 			enriched++
 			// series gained its cross-provider ids from Plex ground truth

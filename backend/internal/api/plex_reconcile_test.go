@@ -28,7 +28,7 @@ func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
-		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.folder = cm.folder)
+		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.server_id = cm.server_id AND r.folder = cm.folder)
 		LIMIT 1`).Scan(&folder, &seriesID)
 	if err != nil {
 		t.Fatalf("a series with an id of its own must still be a candidate: %v", err)
@@ -39,11 +39,11 @@ func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
 
 	// once looked at, it stops coming back - otherwise every sweep would redo
 	// the title lookup for every folder forever
-	d.Exec(`INSERT OR REPLACE INTO plex_reconciled (folder, checked_at) VALUES (?, datetime('now'))`, folder)
+	d.Exec(`INSERT OR REPLACE INTO plex_reconciled (server_id, folder, checked_at) VALUES (1, ?, datetime('now'))`, folder)
 	if err := d.QueryRow(`SELECT cm.folder FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
-		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.folder = cm.folder)
+		  AND NOT EXISTS (SELECT 1 FROM plex_reconciled r WHERE r.server_id = cm.server_id AND r.folder = cm.folder)
 		LIMIT 1`).Scan(&folder); err == nil {
 		t.Error("an already reconciled folder came back as a candidate")
 	}
@@ -56,6 +56,34 @@ func TestReconcileReachesSeriesThatAlreadyHaveAnID(t *testing.T) {
 	d.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE series_id=1 AND source='tvdb'`).Scan(&n)
 	if n != 2 {
 		t.Errorf("tvdb rows = %d, want 2", n)
+	}
+}
+
+// Two servers often share a path ("/Anime/Frieren" on two seedboxes). The
+// marker knew only the folder, so the second server's folder counted as done
+// once the first one had been looked at, and its series never met Plex.
+func TestReconcileMarkerIsPerServer(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO users (id, email) VALUES (1,'a@example.com'), (2,'b@example.com')`)
+	d.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
+		VALUES (1,1,'a','sftp','h',22,'u',x'00'), (2,2,'b','sftp','h2',22,'u',x'00')`)
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'frieren','Frieren'), (2,'frieren b','Frieren')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('anilist',154587,1), ('anilist',154588,2)`)
+	seedGuidIndex(t, s, `{"frieren":{"tvdb":424536,"ratingKey":"77"}}`)
+
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
+		VALUES (1,'/Anime/Frieren',154587,0,'anilist')`)
+	s.reconcilePlex(10)
+	// the second user's server comes later, with the same path
+	d.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
+		VALUES (2,'/Anime/Frieren',154588,0,'anilist')`)
+	s.reconcilePlex(10)
+
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM plex_reconciled`).Scan(&n)
+	if n != 2 {
+		t.Errorf("%d reconcile markers, want one per server: the second server's folder was never looked at", n)
 	}
 }
 
