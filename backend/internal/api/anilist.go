@@ -20,6 +20,18 @@ import (
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
+// writeAnilistErr answers a failed AniList call: a rate limit is the caller's
+// to retry (503 with the wait), anything else a bad gateway.
+func writeAnilistErr(w http.ResponseWriter, err error) {
+	var rl *anilist.RateLimitError
+	if errors.As(err, &rl) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(rl.RetryAfter.Seconds())+1))
+		writeErr(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	writeErr(w, http.StatusBadGateway, err.Error())
+}
+
 // handleAnilistSearch searches AniList by title for the match dialog.
 //
 //	@Summary		Search AniList
@@ -32,6 +44,7 @@ import (
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
+//	@Failure		503		{object}	ErrorResponse
 //	@Router			/api/anilist/search [get]
 func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -42,7 +55,7 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("type") == "manga" {
 		res, err := s.Anilist.SearchBatch(r.Context(), []anilist.SearchReq{{Query: q, Manga: true}})
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, err.Error())
+			writeAnilistErr(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, append([]anilist.Media{}, res[0]...))
@@ -50,7 +63,7 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := s.Anilist.Search(r.Context(), q)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -66,12 +79,13 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 //	@Success		200	{object}	anilist.Media
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
+//	@Failure		503	{object}	ErrorResponse
 //	@Router			/api/anilist/media/{id} [get]
 func (s *Server) handleAnilistMedia(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
 	m, err := s.Anilist.Media(r.Context(), id)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, m)

@@ -51,7 +51,7 @@ func (s *Server) handleAnilistThread(w http.ResponseWriter, r *http.Request) {
 	var tp *anilist.ThreadPage
 	tp, err := s.Anilist.ThreadAs(r.Context(), token, viewer, id, page)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, tp)
@@ -128,7 +128,7 @@ func (s *Server) handleAnilistReply(w http.ResponseWriter, r *http.Request) {
 	}
 	cid, err := s.Anilist.SaveThreadComment(r.Context(), token, id, in.ParentCommentID, text)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	s.Anilist.InvalidateThread(id)
@@ -181,7 +181,7 @@ func (s *Server) handleAnilistLike(w http.ResponseWriter, r *http.Request) {
 	}
 	liked, likes, err := s.Anilist.ToggleLike(r.Context(), token, in.ID, in.Type)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	thread := in.ThreadID

@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -243,6 +244,13 @@ type Client struct {
 	// account's token, or an operator-provided one). Nil/empty = anonymous.
 	TokenSource func() string
 	limiter     *rate.Limiter
+
+	mu sync.Mutex
+	// blockedUntil is the shared cooldown after a 429: every caller sees it,
+	// none sleeps through it
+	blockedUntil time.Time
+	// missing remembers ids AniList reported as not found, until the time given
+	missing map[string]time.Time
 }
 
 func New(d *sql.DB) *Client {
@@ -324,7 +332,10 @@ func tokenRejected(err error) bool {
 // account calls: lists, mutations). Empty token = anonymous.
 func (c *Client) queryAs(ctx context.Context, token, query string, variables map[string]any, out any) error {
 	body, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	for attempt := 0; ; attempt++ {
+	{
+		if d := c.cooldown(); d > 0 {
+			return &RateLimitError{RetryAfter: d}
+		}
 		if err := c.limiter.Wait(ctx); err != nil {
 			return err
 		}
@@ -341,19 +352,18 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		if err != nil {
 			return err
 		}
-		// hard limit hit: honor Retry-After once, then give up
-		if resp.StatusCode == http.StatusTooManyRequests && attempt == 0 {
+		// hard limit hit: every caller backs off for the Retry-After, and this
+		// one is told at once instead of sleeping in a request path
+		if resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
 			wait := 60 * time.Second
 			if ra, perr := strconv.Atoi(resp.Header.Get("Retry-After")); perr == nil && ra > 0 {
 				wait = time.Duration(ra) * time.Second
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(wait):
-				continue
-			}
+			c.mu.Lock()
+			c.blockedUntil = time.Now().Add(wait)
+			c.mu.Unlock()
+			return &RateLimitError{RetryAfter: wait}
 		}
 		// nearly out of budget: slow the next request down
 		if rem, perr := strconv.Atoi(resp.Header.Get("X-RateLimit-Remaining")); perr == nil && rem < 5 {
@@ -385,6 +395,21 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		}
 		return json.Unmarshal(raw, out)
 	}
+}
+
+// RateLimitError is AniList's 429 (or the cooldown it started): nothing was
+// sent, and RetryAfter is how long until sending is worth trying again.
+type RateLimitError struct{ RetryAfter time.Duration }
+
+func (e *RateLimitError) Error() string {
+	return "anilist: rate limited, retry in " + e.RetryAfter.Round(time.Second).String()
+}
+
+// cooldown is how long a 429 still blocks requests, 0 when none does.
+func (c *Client) cooldown() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Until(c.blockedUntil)
 }
 
 // GraphQLError is an error AniList reported in its answer's body. Status

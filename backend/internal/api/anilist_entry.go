@@ -94,12 +94,12 @@ func (s *Server) anilistEntryOf(w http.ResponseWriter, ctx context.Context, user
 	out := anilistEntryResponse{Linked: true, CanEdit: s.anilistPerms(userID).List}
 	format, err := s.Anilist.ScoreFormat(ctx, token, alID)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return out, false
 	}
 	out.ScoreFormat = format
 	if out.Entry, err = s.Anilist.ListEntry(ctx, token, alID, mediaID); err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return out, false
 	}
 	out.Episodes = s.mediaEpisodes(ctx, mediaID)
@@ -156,7 +156,7 @@ func (s *Server) handleAnilistEntrySave(w http.ResponseWriter, r *http.Request) 
 		Status: in.Status, Progress: in.Progress, ScoreRaw: in.ScoreRaw,
 	})
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	s.Anilist.InvalidateUserList(alID)
@@ -198,7 +198,7 @@ func (s *Server) handleAnilistEntryDelete(w http.ResponseWriter, r *http.Request
 	}
 	if out.Entry != nil {
 		if err := s.Anilist.DeleteListEntry(r.Context(), token, out.Entry.ID); err != nil {
-			writeErr(w, http.StatusBadGateway, err.Error())
+			writeAnilistErr(w, err)
 			return
 		}
 		s.Anilist.InvalidateUserList(alID)

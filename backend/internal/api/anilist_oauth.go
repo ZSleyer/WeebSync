@@ -376,7 +376,7 @@ func (s *Server) handleAnilistProgress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Anilist.SaveProgress(r.Context(), token, in.MediaID, in.Progress); err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	s.Anilist.InvalidateUserList(alID)

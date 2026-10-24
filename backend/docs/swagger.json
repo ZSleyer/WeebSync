@@ -10823,6 +10823,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -11043,6 +11053,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
