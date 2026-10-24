@@ -54,6 +54,7 @@ func env(key, fallback string) string {
 // @securityDefinitions.apikey CookieAuth
 // @in cookie
 // @name weebsync_session
+// @description The session cookie: weebsync_session over plain HTTP, __Host-weebsync_session under HTTPS.
 //
 // @securityDefinitions.apikey BearerAuth
 // @in header
