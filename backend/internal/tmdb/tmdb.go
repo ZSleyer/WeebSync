@@ -624,10 +624,18 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	return &m, nil
 }
 
+// ValidKind reports whether kind is a TMDB media kind ("tv" or "movie"). The
+// kind goes into the request path and the cache key, so any string that comes
+// from outside must pass this first.
+func ValidKind(kind string) bool { return kind == "tv" || kind == "movie" }
+
 // Extras returns what the detail dialog shows beyond the record: the
 // recommended titles and the main cast. Cached under tmdb:extras1:<kind>:<id>.
 // No threads and no external links here; TMDB has neither in a usable form.
 func (c *Client) Extras(ctx context.Context, kind string, id int) ([]anilist.Media, []anilist.Character, error) {
+	if !ValidKind(kind) {
+		return nil, nil, fmt.Errorf("tmdb: unknown kind %q", kind)
+	}
 	cacheKey := fmt.Sprintf("tmdb:extras1:%s:%d", kind, id)
 	type extras struct {
 		Recommendations []anilist.Media     `json:"recommendations"`
