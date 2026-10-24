@@ -3,9 +3,60 @@ package api
 import (
 	"context"
 	"errors"
+	"os"
+	"slices"
 	"testing"
 	"time"
 )
+
+// A copy file replaced at the same path (more keyframes now) while its
+// session lives: the request's cuts are not the session's. The old session
+// gives way, and a segment past a session's own cuts is an error, never a
+// panic that leaves the session locked.
+func TestHLSCopySessionFollowsReplacedFile(t *testing.T) {
+	defer func(f func(*Server, context.Context, playSource) (*ffInput, error)) { hlsInput = f }(hlsInput)
+	hlsInput = func(*Server, context.Context, playSource) (*ffInput, error) {
+		return &ffInput{done: func() {}}, nil
+	}
+	s := &Server{}
+	s.hls.reap.Do(func() {}) // no reaper in a test
+	key := hlsKey{src: playSource{userID: 1, path: "a.mkv"}, copy: true}
+	old, err := s.hlsSession(key, []float64{0, 6})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuts := []float64{0, 6, 12, 18, 24, 30}
+	sess, err := s.hlsSession(key, cuts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(sess.stop)
+	if sess == old || !slices.Equal(sess.cuts, cuts) {
+		t.Fatalf("the session kept the old cuts %v", sess.cuts)
+	}
+	if _, err := os.Stat(old.dir); !os.IsNotExist(err) {
+		t.Error("the old session was not stopped")
+	}
+
+	// a segment the session's own cuts do not reach
+	done := make(chan error, 1)
+	go func() {
+		_, err := old.segment(t.Context(), s, 4)
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("no error past the cuts")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the segment request hung")
+	}
+	if !old.mu.TryLock() {
+		t.Fatal("the session stayed locked")
+	}
+	old.mu.Unlock()
+}
 
 // A segment request that has to dial a busy remote must not hold its session
 // while it waits: the status poll, the eviction scan (which runs under the
