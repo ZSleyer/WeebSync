@@ -9,8 +9,7 @@ function answer(status: number, error: string) {
   vi.stubGlobal(
     'fetch',
     vi.fn(
-      async () =>
-        new Response(JSON.stringify({ error }), { status, headers: { 'Content-Type': 'application/json' } }),
+      async () => new Response(JSON.stringify({ error }), { status, headers: { 'Content-Type': 'application/json' } }),
     ),
   )
 }
