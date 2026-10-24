@@ -37,7 +37,16 @@ export function SmartImg({ set, sizes, alt = '', eager, priority, className, onF
     },
   }
   const stack: CSSProperties = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }
-  const main = { ...common, onError: onFail }
+  // a picture that failed before hydration never fires `error` for React to hear:
+  // it is already complete with no width, so the ref callback reports it
+  const main = {
+    ...common,
+    onError: onFail,
+    ref: (img: HTMLImageElement | null) => {
+      loaded(img)
+      if (img?.complete && img.naturalWidth === 0 && img.getAttribute('src')) onFail?.()
+    },
+  }
   if (set.small && lowData()) return <img {...main} alt={alt} src={set.small} className={className} style={stack} />
   return (
     <>
