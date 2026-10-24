@@ -217,7 +217,8 @@ func New(name string, o Options) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("invalid pattern: %w", err)
 		}
-		return re.ReplaceAllString(name, o.Replacement), nil
+		// same confinement as template mode; "" means "keep the original name"
+		return sanitize(re.ReplaceAllString(name, o.Replacement)), nil
 	case "template":
 		return templateName(name, o)
 	default:
