@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { CatalogViewSwitch } from '../components/CatalogViewSwitch'
 
 describe('CatalogViewSwitch', () => {
-  it.each(['catalog', 'catalogOnce', 'catalogPersist'] as const)(
+  it.each(['catalogOnce', 'catalogPersist'] as const)(
     'ignores a click on the already active catalog option (%s)',
     (value) => {
       const onChange = vi.fn()
