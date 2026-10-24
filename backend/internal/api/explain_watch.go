@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -117,7 +118,10 @@ func (s *Server) handleWatchExplain(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	out := watchExplainResponse{LastCheck: lastCheck, Template: wt.Template, Skips: []transfer.Skip{}}
-	json.Unmarshal([]byte(skipsJSON), &out.Skips)
+	if err := json.Unmarshal([]byte(skipsJSON), &out.Skips); err != nil {
+		slog.Warn("watch explain: unreadable last_skips", "watch", wt.ID, "err", err)
+		out.Skips = []transfer.Skip{}
+	}
 
 	interval := s.watchInterval()
 	media := s.watchMedia(wt.ServerID, wt.RemotePath)
