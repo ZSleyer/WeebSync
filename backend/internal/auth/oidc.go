@@ -307,6 +307,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email, _ := claims["email"].(string)
+	email = normalizeEmail(email)
 	if email == "" {
 		callbackFail(w, r, "no_email")
 		return
@@ -442,9 +443,17 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 	return id, err
 }
 
+// normalizeEmail is the stored spelling of an address the provider sends:
+// the password sign-in lowercases what is typed, and an account stored with
+// capitals counted its failures and its device cookie under another key.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 // findOrCreateOIDCUserNew is findOrCreateOIDCUser that also reports whether
 // the account was created just now.
 func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (int64, bool, error) {
+	email = normalizeEmail(email)
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
 	if err == nil {

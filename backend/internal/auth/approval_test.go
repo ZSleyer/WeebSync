@@ -32,3 +32,21 @@ func TestOIDCNewIdentityWaitsForApproval(t *testing.T) {
 		t.Error("an admin by the provider's groups waits for approval")
 	}
 }
+
+// The provider's spelling of an address is stored lowercased, like the
+// password sign-in keys it, and finds the same account again.
+func TestOIDCStoresTheAddressLowercased(t *testing.T) {
+	d := dbtest.Open(t)
+	no := false
+	id, created, err := findOrCreateOIDCUserNew(d, " Alice@Example.COM ", &no, true)
+	if err != nil || !created {
+		t.Fatalf("created=%v err=%v", created, err)
+	}
+	var stored string
+	if err := d.QueryRow(`SELECT email FROM users WHERE id = ?`, id).Scan(&stored); err != nil || stored != "alice@example.com" {
+		t.Errorf("stored %q (err %v)", stored, err)
+	}
+	if again, created, _ := findOrCreateOIDCUserNew(d, "ALICE@example.com", &no, true); created || again != id {
+		t.Errorf("same address in other capitals: id %d created %v", again, created)
+	}
+}

@@ -262,14 +262,16 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// the code counts against the account like the password does: a fresh
-	// pending token per correct password must not reset the guessing
+	// pending token per correct password must not reset the guessing. Keyed
+	// by the lowercased address like the password sign-in, which lowercases
+	// what was typed: a stored address with capitals had two counters.
 	var email string
 	if err := s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
 		// an empty email would put the attempt on nobody's counter
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, email); wait > 0 {
+	if wait := s.accountWait(r, strings.ToLower(email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
@@ -277,7 +279,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	code := normalizeTotpCode(in.Code)
 	if !ok || (!s.totpValid(userID, code, sec) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
 		s.failLoginPending(in.Token)
-		s.accountFailed(r, email)
+		s.accountFailed(r, strings.ToLower(email))
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
@@ -298,7 +300,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(w, r, email)
+	s.accountSignedIn(w, r, strings.ToLower(email))
 	s.signInAlert(w, r, userID, signInPassword2FA)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }

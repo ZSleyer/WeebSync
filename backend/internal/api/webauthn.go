@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -524,7 +525,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// a passkey that verified nobody proves no owner: no reset of the
 	// account's failures, no device cookie
 	if !unverified {
-		s.accountSignedIn(w, r, matched.email)
+		s.accountSignedIn(w, r, strings.ToLower(matched.email))
 	}
 	s.signInAlert(w, r, matched.id, signInPasskey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: matched.id, Email: matched.email})
@@ -609,14 +610,14 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, user.email); wait > 0 {
+	if wait := s.accountWait(r, strings.ToLower(user.email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	cred, err := wa.FinishLogin(user, *session, r)
 	if err != nil || cloned(cred, userID) {
 		s.failLoginPending(token)
-		s.accountFailed(r, user.email)
+		s.accountFailed(r, strings.ToLower(user.email))
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
@@ -638,7 +639,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(w, r, user.email)
+	s.accountSignedIn(w, r, strings.ToLower(user.email))
 	s.signInAlert(w, r, userID, signInKey)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: user.email})
 }
