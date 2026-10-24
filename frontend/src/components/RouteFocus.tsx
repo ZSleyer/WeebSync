@@ -21,6 +21,11 @@ export function focusMain(): boolean {
   return true
 }
 
+const keepsFocus = () => {
+  const el = document.activeElement
+  return !!el && el !== document.body && el.isConnected
+}
+
 /**
  * Route changes for keyboard and screen reader users (WCAG 2.4.1, 4.1.3): the
  * first focusable element is a link past the navigation; after a push or a
@@ -38,7 +43,9 @@ export default function RouteFocus({ title }: { title: string }) {
     if (last.current === pathname) return
     last.current = pathname
     setSaid(title)
-    if (navType === 'POP') return
+    // a step back or forward keeps focus where it is - unless that element
+    // went with the old page, which leaves the focus on <body>
+    if (navType === 'POP' && keepsFocus()) return
     // once the new page has painted: its own autofocus has run by then
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => focusMain())

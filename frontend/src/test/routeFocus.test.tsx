@@ -32,6 +32,15 @@ const routes = [
     children: [
       { path: '/a', element: <h1>A</h1> },
       { path: '/b', element: <h1>B</h1> },
+      {
+        path: '/c',
+        element: (
+          <>
+            <h1>C</h1>
+            <button>inside</button>
+          </>
+        ),
+      },
       { path: '/field', element: <input aria-label="field" autoFocus /> },
     ],
   },
@@ -86,6 +95,17 @@ describe('RouteFocus', () => {
     await frames()
     expect(screen.getByRole('heading', { name: 'A' })).toBeInTheDocument()
     expect(document.activeElement).toBe(back)
+  })
+
+  it('moves focus to the heading on back when the focused element is gone', async () => {
+    const router = createMemoryRouter(routes, { initialEntries: ['/a', '/c'], initialIndex: 1 })
+    render(<RouterProvider router={router} />)
+    screen.getByText('inside').focus()
+    await act(async () => {
+      await router.navigate(-1)
+    })
+    await frames()
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'A' }))
   })
 
   it('does nothing for a change of the query only', async () => {
