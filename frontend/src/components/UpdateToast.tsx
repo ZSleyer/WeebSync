@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useMatches } from 'react-router'
 import { Button } from 'fluid-lycoris'
 import { assetRefs } from './assetRefs'
 
@@ -48,6 +49,10 @@ export default function UpdateToast() {
   const [stale, setStale] = useState(false)
   const [left, setLeft] = useState(COUNTDOWN)
   const lastCheck = useRef(0)
+  // the player and the viewer (App.tsx marks them `immersive`): reading or a
+  // paused video holds state no reload may drop, wide screen or not - the
+  // toast stays, the reload is the user's to press
+  const immersive = useMatches().some((m) => (m.handle as { immersive?: boolean } | undefined)?.immersive)
   // the countdown restarts with every new alarm, not with every render
   const arm = () => {
     setLeft(COUNTDOWN)
@@ -92,13 +97,13 @@ export default function UpdateToast() {
   useEffect(() => {
     if (!stale) return
     // the countdown starts over while there is input a reload would lose
-    const tick = setInterval(() => setLeft((s) => (editing() ? COUNTDOWN : s - 1)), 1000)
+    const tick = setInterval(() => setLeft((s) => (immersive || editing() ? COUNTDOWN : s - 1)), 1000)
     return () => clearInterval(tick)
-  }, [stale])
+  }, [stale, immersive])
 
   useEffect(() => {
-    if (stale && left <= 0 && !editing()) window.location.reload()
-  }, [stale, left])
+    if (stale && left <= 0 && !immersive && !editing()) window.location.reload()
+  }, [stale, left, immersive])
 
   if (!stale) return null
   return (
