@@ -54,6 +54,15 @@ describe('Login passkey autofill', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
+  it('stays silent when the instance is reached by an IP address (passkeys need a host name)', async () => {
+    vi.mocked(webauthn.conditionalPasskeyLogin).mockRejectedValue(new ApiError(409, 'passkeys need a host name'))
+    mount()
+    await screen.findByLabelText('login.email')
+    await waitFor(() => expect(webauthn.conditionalPasskeyLogin).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('stays silent when the ceremony is aborted', async () => {
     vi.mocked(webauthn.conditionalPasskeyLogin).mockRejectedValue(new DOMException('x', 'AbortError'))
     mount()

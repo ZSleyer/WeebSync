@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -92,6 +93,19 @@ func (s *Server) userByHandle(handle []byte) (*waUser, error) {
 	return s.loadWAUser(id)
 }
 
+// errWebAuthnNeedsHost: the instance is reached by an IP address.
+var errWebAuthnNeedsHost = errors.New("passkeys need a host name")
+
+// waConfigErr answers a failed webauthnFor: an IP address is the caller's
+// setup (409), anything else a fault of ours.
+func waConfigErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, errWebAuthnNeedsHost) {
+		writeErr(w, http.StatusConflict, "passkeys need a host name, not an IP address")
+		return
+	}
+	writeErr(w, http.StatusInternalServerError, "webauthn config error")
+}
+
 // webauthnFor builds a WebAuthn instance for this request. RP-ID/origin come from
 // the configured base_url (stable), falling back to the request origin.
 func (s *Server) webauthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
@@ -102,6 +116,11 @@ func (s *Server) webauthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
 	u, err := url.Parse(origin)
 	if err != nil {
 		return nil, err
+	}
+	// an IP address is no valid relying party ID; the library refuses it too,
+	// but with an error that cannot be told from a real fault
+	if net.ParseIP(u.Hostname()) != nil {
+		return nil, errWebAuthnNeedsHost
 	}
 	return webauthn.New(&webauthn.Config{
 		RPID:          u.Hostname(),
@@ -346,6 +365,7 @@ type WebAuthnBeginResponse struct {
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
@@ -355,7 +375,7 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	u := auth.UserFrom(r.Context())
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	var in reauthRequest
@@ -422,6 +442,7 @@ func waName(r *http.Request) string {
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/register/finish [post]
@@ -436,7 +457,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	}
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	user, err := s.loadWAUser(u.ID)
@@ -485,6 +506,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 // @Produce  json
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  403 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Failure  429 {object} ErrorResponse
 // @Router   /api/auth/webauthn/login/begin [post]
@@ -495,7 +517,7 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 	}
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	assertion, session, err := wa.BeginDiscoverableLogin()
@@ -517,6 +539,7 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Router   /api/auth/webauthn/login/finish [post]
 func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Request) {
@@ -531,7 +554,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	}
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	var matched *waUser
@@ -628,6 +651,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Failure  429 {object} ErrorResponse
 // @Router   /api/auth/webauthn/2fa/begin [post]
@@ -645,7 +669,7 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 	}
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	user, err := s.loadWAUser(userID)
@@ -672,6 +696,7 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 // @Success  200 {object} LoginResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Router   /api/auth/webauthn/2fa/finish [post]
 func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request) {
@@ -689,7 +714,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 	}
 	wa, err := s.webauthnFor(r)
 	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "webauthn config error")
+		waConfigErr(w, err)
 		return
 	}
 	user, err := s.loadWAUser(userID)

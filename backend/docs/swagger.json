@@ -13541,6 +13541,16 @@
                         },
                         "description": "Unauthorized"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
                     "429": {
                         "content": {
                             "application/json": {
@@ -13633,6 +13643,16 @@
                             }
                         },
                         "description": "Unauthorized"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
                     },
                     "500": {
                         "content": {
@@ -13814,6 +13834,16 @@
                         },
                         "description": "Forbidden"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
                     "429": {
                         "content": {
                             "application/json": {
@@ -13908,6 +13938,16 @@
                         },
                         "description": "Forbidden"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -13981,6 +14021,16 @@
                             }
                         },
                         "description": "Forbidden"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Conflict"
                     },
                     "429": {
                         "content": {
@@ -14093,7 +14143,14 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                    "oneOf": [
+                                        {
+                                            "$ref": "#/components/schemas/api.ErrorResponse"
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/api.ErrorResponse"
+                                        }
+                                    ]
                                 }
                             }
                         },
