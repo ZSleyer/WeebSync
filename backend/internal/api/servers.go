@@ -451,6 +451,7 @@ type HostKeyConflict struct {
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
 // @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
+// @Failure  500 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/servers/{id}/test [post]
@@ -463,7 +464,17 @@ func (s *Server) handleServerTest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// a test is the user asking again: let it through a tripped auth breaker
+	// a test is the user asking again: let it through a tripped auth breaker -
+	// but only the owner, or anyone could reopen it on another user's server
+	var owned int
+	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned); err != nil {
+		dbErr(w, err)
+		return
+	}
+	if owned == 0 {
+		writeErr(w, http.StatusNotFound, errNotFound.Error())
+		return
+	}
 	s.Conns.ResetAuth(id)
 	client, rootPath, err := s.DialServer(u.ID, id)
 	if err != nil {
