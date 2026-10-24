@@ -127,13 +127,18 @@ func remoteIP(r *http.Request) string {
 // single forged header was enough to pick an arbitrary rate-limit bucket or
 // to land inside a trusted network. With trustAll there is no list to skip,
 // so the rightmost entry wins - the one address our own peer recorded.
+//
+// Every X-Forwarded-For line counts, joined in order (RFC 9110 section 5.3
+// treats repeated lines as one comma-separated list): HAProxy's
+// "option forwardfor" appends its own line after the client's rather than
+// extending it, so reading only the first line would return the forged one.
 func ClientIP(r *http.Request) string {
 	remote := remoteIP(r)
 	cfg := proxyCfg.Load()
 	if cfg == nil || !cfg.trustsPeer(remote) {
 		return remote
 	}
-	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(parts) - 1; i >= 0; i-- {
 		p := strings.TrimSpace(parts[i])
 		if p == "" || cfg.proxies.Contains(p) {
@@ -220,22 +225,81 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 		// a cut through a multi-byte character would leave invalid UTF-8
 		ua = strings.ToValidUTF8(ua[:300], "")
 	}
+	// every token handed out now says under which cookie it went out; only
+	// unmarked ones - from before the host-prefixed cookie - are carried
+	// over from the legacy name (see sessionCookieFrom)
+	if isHTTPS(r) {
+		token = hostTokenMark + token
+	} else {
+		token = plainTokenMark + token
+	}
 	stamp := now.UTC().Format(time.RFC3339)
 	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember, ClientIP(r)); err != nil {
 		return err
 	}
-	c := &http.Cookie{Name: "weebsync_session", Value: token, Path: "/"}
+	setSessionCookie(w, r, token, remember, expires)
+	return nil
+}
+
+const (
+	sessionCookie = "weebsync_session"
+	// hostTokenMark starts every token handed out under the host-prefixed
+	// cookie, plainTokenMark every one handed out under the legacy name over
+	// plain HTTP. A token from before either is bare hex, which contains
+	// neither letter, so the three never mix up.
+	hostTokenMark  = "h"
+	plainTokenMark = "p"
+)
+
+// setSessionCookie hands the browser its session, host-prefixed under HTTPS,
+// and drops a legacy-named one it may still carry.
+func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, remember bool, expires time.Time) {
+	c := &http.Cookie{Name: cookieName(r, sessionCookie), Value: token, Path: "/"}
 	if remember {
 		c.Expires = expires
 	}
 	SetCookie(w, r, c)
-	return nil
+	if c.Name != sessionCookie {
+		if _, err := r.Cookie(sessionCookie); err == nil {
+			SetCookie(w, r, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
+		}
+	}
+}
+
+// sessionCookieFrom is the request's session cookie. Under HTTPS that is the
+// host-prefixed one. The legacy name is the migration path for sessions from
+// before the prefix: over HTTPS it only counts when no host-prefixed cookie
+// came at all, and only for an unmarked token, one handed out before marks
+// existed; legacy reports that, so the caller moves it over. A sister
+// subdomain can set the legacy name, but not to any session made since - an
+// attacker's own over HTTPS or plain HTTP included. The decision rests on
+// the token alone: no clock (a Pi without RTC is wrong until NTP syncs) and
+// no row order (SQLite reuses and VACUUM renumbers rowids). Over plain HTTP
+// the legacy name is the session cookie, but a host-prefixed token is never
+// taken under it.
+func sessionCookieFrom(r *http.Request) (c *http.Cookie, legacy bool) {
+	name := cookieName(r, sessionCookie)
+	if name != sessionCookie {
+		if c, err := r.Cookie(name); err == nil {
+			return c, false
+		}
+		c, err := r.Cookie(sessionCookie)
+		if err != nil || strings.HasPrefix(c.Value, hostTokenMark) || strings.HasPrefix(c.Value, plainTokenMark) {
+			return nil, false
+		}
+		return c, true
+	}
+	c, err := r.Cookie(sessionCookie)
+	if err != nil || strings.HasPrefix(c.Value, hostTokenMark) {
+		return nil, false
+	}
+	return c, false
 }
 
 // SessionToken is the raw session token the request carries, "" without one.
 func SessionToken(r *http.Request) string {
-	if c, err := r.Cookie("weebsync_session"); err == nil {
+	if c, _ := sessionCookieFrom(r); c != nil {
 		return c.Value
 	}
 	return ""
@@ -249,6 +313,12 @@ func SessionToken(r *http.Request) string {
 // mail's link, or the signed-in account itself). sql.ErrNoRows when the
 // account does not exist.
 func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
+	return SetPasswordContext(context.Background(), d, userID, password, keepToken)
+}
+
+// SetPasswordContext is SetPassword for a request: ErrHashBusy when no
+// password hashing slot frees up in time.
+func SetPasswordContext(ctx context.Context, d *sql.DB, userID int64, password, keepToken string) error {
 	var email string
 	if err := d.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
 		return err
@@ -256,7 +326,7 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 	if err := ValidatePassword(password, email); err != nil {
 		return err
 	}
-	hash, err := HashPassword(password)
+	hash, err := HashPasswordContext(ctx, password)
 	if err != nil {
 		return err
 	}
@@ -280,12 +350,15 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 // cookie goes either way; the error says the session row is still there.
 func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) error {
 	var delErr error
-	if c, err := r.Cookie("weebsync_session"); err == nil {
+	if c, _ := sessionCookieFrom(r); c != nil {
 		_, delErr = d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
 	}
 	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_session", Value: "", Path: "/", MaxAge: -1,
+		Name: cookieName(r, sessionCookie), Value: "", Path: "/", MaxAge: -1,
 	})
+	if isHTTPS(r) {
+		SetCookie(w, r, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
+	}
 	return delErr
 }
 
@@ -334,19 +407,24 @@ func IsHTTPS(r *http.Request) bool { return isHTTPS(r) }
 func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c, err := r.Cookie("weebsync_session")
-			if err == nil {
+			c, legacy := sessionCookieFrom(r)
+			if c != nil {
 				var u User
 				var expires, lastSeen string
 				var isAdmin int
 				var remember bool
-				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
+				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ? AND u.approved = 1`, hashToken(c.Value)).
 					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
 				if err == nil {
 					now := time.Now()
 					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, ClientIP(r), remember, now) {
+						if legacy {
+							// moved over once; from now on it comes back
+							// under the host-prefixed name
+							setSessionCookie(w, r, c.Value, remember, exp)
+						}
 						if u.Upgrade != "" && !upgradeAllows(u.Upgrade, r) {
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusForbidden)

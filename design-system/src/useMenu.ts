@@ -43,12 +43,25 @@ export function useMenu<T extends HTMLElement = HTMLDivElement>() {
         setOpen(false)
       }
     }
+    // choosing an item that closes the menu: hand the focus to the trigger
+    // before the item's own handler runs (capture), so a dialog the action
+    // opens takes the trigger as its opener and returns to it. An item that
+    // keeps the menu open (data-keep-open, or aria-disabled) keeps the focus,
+    // so the arrow keys carry on from it.
+    const onPick = (e: Event) => {
+      const item = e.target instanceof Element ? e.target.closest<HTMLElement>('[role^="menuitem"], [role="option"]') : null
+      if (!item || !ref.current?.contains(item)) return
+      if (item.hasAttribute('data-keep-open') || item.getAttribute('aria-disabled') === 'true') return
+      ref.current.querySelector<HTMLElement>('[aria-expanded]')?.focus()
+    }
+    document.addEventListener('click', onPick, true)
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onDoc)
     // a scroll outside the list moves the anchor, possibly out of its clipping
     // container while the list stays put in the top layer - close instead
     document.addEventListener('scroll', onDoc, true)
     return () => {
+      document.removeEventListener('click', onPick, true)
       document.removeEventListener('mousedown', onDoc)
       document.removeEventListener('keydown', onDoc)
       document.removeEventListener('scroll', onDoc, true)

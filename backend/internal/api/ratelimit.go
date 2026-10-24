@@ -134,18 +134,6 @@ func resetKey(ip string) string {
 	return limitKey(ip)
 }
 
-// blockedFor reports how long key still has to wait, without spending
-// anything; 0 when it may go ahead.
-func (l *ipLimiter) blockedFor(key string) time.Duration {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	e, ok := l.ips[key]
-	if !ok || e.lim.Tokens() >= 1 {
-		return 0
-	}
-	return time.Duration((1 - e.lim.Tokens()) / float64(l.rate) * float64(time.Second))
-}
-
 // allow reports whether the ip may proceed, consuming one token.
 func (l *ipLimiter) allow(ip string) bool {
 	ok, _ := l.take(ip)
@@ -306,10 +294,13 @@ func tooMany(w http.ResponseWriter, wait time.Duration) {
 // botnet or an IPv6 /64 spread guesses at one account over as many addresses
 // as it has; this counts the failures against the account itself. Keyed by
 // the email as typed, whether or not an account has it, so a 429 says nothing
-// about which addresses are registered. Only failures spend, and a bucket
-// refills instead of locking, so a stranger can slow an owner down but never
-// shut them out for good - and not at all from a trusted network, which is
-// the way back in for an owner whose account is under attack.
+// about which addresses are registered. Every attempt spends before it is
+// checked - counting only the failures afterwards let parallel guesses all
+// pass the check before the first one was counted - and a successful sign-in
+// gives the bucket back in full. A bucket refills instead of locking, so a
+// stranger can slow an owner down but never shut them out for good - and not
+// at all from a trusted network, which is the way back in for an owner whose
+// account is under attack.
 
 //
 // A browser that once signed in to the account carries a device cookie for
@@ -318,19 +309,16 @@ func tooMany(w http.ResponseWriter, wait time.Duration) {
 // owner out for as long as the stranger cares to. The per-address limit still
 // applies to it.
 
-// accountWait is how long the account behind email must wait; 0 lets it in.
-func (s *Server) accountWait(r *http.Request, email string) time.Duration {
+// accountTake spends one attempt at the account behind email before the
+// password or second factor is checked; refused, it says how long to wait.
+func (s *Server) accountTake(r *http.Request, email string) time.Duration {
 	if s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r)) || s.knownDevice(r, email) {
 		return 0
 	}
-	return s.accountLimiter.blockedFor(accountKey(email))
-}
-
-// accountFailed counts a wrong password or second factor against email.
-func (s *Server) accountFailed(r *http.Request, email string) {
-	if s.accountLimiter != nil && !s.ipTrusted(auth.ClientIP(r)) && !s.knownDevice(r, email) {
-		s.accountLimiter.take(accountKey(email))
+	if ok, wait := s.accountLimiter.take(accountKey(email)); !ok {
+		return max(wait, time.Second)
 	}
+	return 0
 }
 
 // accountSignedIn forgets the failures once the whole sign-in succeeded, and

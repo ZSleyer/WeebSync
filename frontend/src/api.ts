@@ -310,6 +310,15 @@ const ERROR_KEYS: Record<string, string> = {
   'another download for the same file is still in the queue': 'errors.targetBusy',
   'ssh host key not trusted yet - review its fingerprint and accept it': 'errors.hostKeyUnknown',
   'ssh host key mismatch - server changed or MITM': 'errors.hostKeyChanged',
+  // the Plex watchlist when plex.tv no longer accepts the linked account (403)
+  'plex.tv link expired, link the account again': 'errors.plexLinkExpired',
+  // signing in to a media server whose connection the environment fixes (409)
+  'the Plex connection is set by PLEX_URL/PLEX_TOKEN in the environment': 'errors.plexEnvSet',
+  'the Jellyfin connection is set by JELLYFIN_URL/JELLYFIN_TOKEN in the environment': 'errors.jellyfinEnvSet',
+  'Quick Connect is disabled on this Jellyfin server': 'errors.jellyfinQcOff',
+  'that Jellyfin account is no administrator': 'errors.jellyfinNotAdmin',
+  'no Jellyfin server connected': 'errors.jellyfinNone',
+  'that Plex show is already bound to another series': 'errors.plexShowBound',
 }
 
 // transport failures from the backend arrive as Go's raw error strings

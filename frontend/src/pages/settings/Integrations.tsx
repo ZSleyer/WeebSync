@@ -198,6 +198,7 @@ export default function Integrations() {
         onAnime={(v) => set('plexSectionAnime', v)}
         tvdb={form.tvdbApiKeySet}
         libraries={form.plexLibraries}
+        issue={issue('plexSections') ?? issue('plexSectionSources') ?? issue('plexSectionAnime')}
       />
       <ListSetting
         label={t('settings.plexRoots')}
@@ -288,6 +289,8 @@ export default function Integrations() {
               id="media-server"
               value={form.mediaServer}
               disabled={locked('mediaServer')}
+              aria-invalid={issue('mediaServer') ? true : undefined}
+              aria-describedby={issue('mediaServer') ? 'media-server-i' : undefined}
               onChange={(e) => set('mediaServer', e.target.value)}
             >
               {!form.mediaServer && (
@@ -298,6 +301,7 @@ export default function Integrations() {
               <option value="plex">Plex</option>
               <option value="jellyfin">Jellyfin</option>
             </Select>
+            <FieldIssue id="media-server-i" msg={issue('mediaServer')} />
           </SettingsField>
         </SettingsPanel>
       )}
@@ -466,6 +470,7 @@ function PlexSections({
   onAnime,
   tvdb,
   libraries,
+  issue,
 }: {
   value: string
   onChange: (v: string) => void
@@ -475,6 +480,8 @@ function PlexSections({
   onAnime: (v: string) => void
   tvdb: boolean
   libraries?: { title: string; roots: string[] }[] // auto-detected local mounts per library
+  /** what the save refused about the sections, sources or anime flags */
+  issue?: string
 }) {
   const { t } = useTranslation()
   const { data: sections = [], error } = useQuery<PlexSection[]>({
@@ -553,7 +560,7 @@ function PlexSections({
           {(error as Error).message}
         </p>
       ) : (
-        <table className="cat-t cat-t--lib" role="table">
+        <table className="cat-t cat-t--lib" role="table" aria-describedby={issue ? 'plex-sections-i' : undefined}>
           <thead role="rowgroup">
             <tr role="row">
               <th scope="col" role="columnheader">
@@ -649,6 +656,7 @@ function PlexSections({
           </tbody>
         </table>
       )}
+      <FieldIssue id="plex-sections-i" msg={issue} />
     </SettingsField>
   )
 }

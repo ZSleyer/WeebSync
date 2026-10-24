@@ -81,6 +81,27 @@ func TestClientIPTrustAllTakesTheLastHop(t *testing.T) {
 	}
 }
 
+// HAProxy's "option forwardfor" adds its own X-Forwarded-For line after the
+// one the client sent instead of extending it. Reading only the first line
+// handed the caller the address it forged.
+func TestClientIPReadsEveryForwardedLine(t *testing.T) {
+	restore(t)
+	SetProxyConfig("172.30.0.0/16", false)
+	r := req("172.30.33.9", "")
+	r.Header.Add("X-Forwarded-For", "192.168.1.10")
+	r.Header.Add("X-Forwarded-For", "203.0.113.7")
+	if got := ClientIP(r); got != "203.0.113.7" {
+		t.Fatalf("got %q, want the address our proxy appended on its own line", got)
+	}
+	// a line our own proxy chain added after the client's is still skipped
+	r = req("172.30.33.9", "")
+	r.Header.Add("X-Forwarded-For", "9.9.9.9, 203.0.113.7")
+	r.Header.Add("X-Forwarded-For", "172.30.0.4")
+	if got := ClientIP(r); got != "203.0.113.7" {
+		t.Fatalf("got %q, want the first address that is not ours", got)
+	}
+}
+
 func TestForceHTTPSAndForwardedProto(t *testing.T) {
 	restore(t)
 

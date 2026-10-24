@@ -735,6 +735,7 @@ export default function Assistant() {
               <MenuItem
                 selected={webTools.search || webTools.research}
                 aria-disabled={!webReady}
+                data-keep-open
                 title={webReady ? undefined : t('assistant.webSearchOff')}
                 trailing={
                   (webTools.search || webTools.research) && <Check aria-hidden size="1.2em" className="shrink-0" />
@@ -753,6 +754,7 @@ export default function Assistant() {
               <MenuItem
                 selected={webTools.research}
                 aria-disabled={!webReady}
+                data-keep-open
                 title={webReady ? t('assistant.researchHint') : t('assistant.webSearchOff')}
                 trailing={webTools.research && <Check aria-hidden size="1.2em" className="shrink-0" />}
                 onClick={() => {

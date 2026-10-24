@@ -96,6 +96,14 @@ const BLANK_SECRETS = {
 // leaves out and checks only what changed, so a stale tab no longer reverts
 // another tab's save (edits are kept as a patch, never as a snapshot), and a value on another page that went bad since does
 // not block this one.
+// The refusal of one field in a save error: the backend writes "field: reason",
+// and "field must be ..." for the one check (mediaServer) that predates the prefix.
+function refusal(msg: string | undefined, k: string): string | undefined {
+  if (msg?.startsWith(`${k}:`)) return msg.slice(k.length + 1).trim()
+  if (msg?.startsWith(`${k} `)) return msg.slice(k.length + 1).trim()
+  return undefined
+}
+
 export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) {
   const qc = useQueryClient()
   // `enabled: false` for a page that also opens for non-admins: GET
@@ -177,7 +185,7 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
 
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => {
     // a refusal of this field is stale once it is edited
-    if (save.error?.message.startsWith(`${k}:`)) save.reset()
+    if (refusal(save.error?.message, k) !== undefined) save.reset()
     setEdits((e) => ({ ...e, [k]: v }))
   }
 
@@ -195,7 +203,8 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
   // (host no longer resolves); editing the field hides the latter.
   const issue = (k: keyof SettingsState) => {
     const msg = save.error?.message
-    if (msg?.startsWith(`${k}:`)) return msg.slice(k.length + 1).trim()
+    const refused = refusal(msg, k)
+    if (refused !== undefined) return refused
     if (data?.fieldIssues?.[k] && form?.[k] === data[k]) return data.fieldIssues[k]
     return undefined
   }

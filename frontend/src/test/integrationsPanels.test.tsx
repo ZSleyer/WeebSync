@@ -109,6 +109,48 @@ describe('a refused value is marked at its field', () => {
   }
 })
 
+describe('a refused media server choice and library table', () => {
+  const both = { jellyfinUrl: 'https://jf.example.com', jellyfinTokenSet: true, mediaServer: 'plex' }
+  const withSections = (extra: Record<string, unknown>) => {
+    Object.assign(settings, extra)
+    setup()
+    const get = api.get as unknown as ReturnType<typeof vi.spyOn>
+    const base = get.getMockImplementation()!
+    get.mockImplementation(async (url: string) =>
+      url === '/api/plex/sections' ? ([{ key: '1', type: 'show', title: 'Anime' }] as never) : base(url),
+    )
+  }
+  afterEach(() => {
+    for (const k of Object.keys(both)) delete (settings as Record<string, unknown>)[k]
+  })
+
+  it('marks the mediaServer select, also for the unprefixed backend wording', async () => {
+    withSections(both)
+    vi.spyOn(api, 'put').mockRejectedValue(new Error('mediaServer must be plex or jellyfin'))
+    const sel = await screen.findByLabelText('settings.mediaServerUse')
+    fireEvent.click(sel)
+    fireEvent.click(await screen.findByRole('option', { name: 'Jellyfin' }))
+    fireEvent.click(screen.getByText('settings.save'))
+    await waitFor(() =>
+      expect(screen.getByLabelText('settings.mediaServerUse')).toHaveAttribute('aria-invalid', 'true'),
+    )
+    expect(screen.getByLabelText('settings.mediaServerUse').getAttribute('aria-describedby')).toBe('media-server-i')
+    expect(document.getElementById('media-server-i')).toHaveTextContent('must be plex or jellyfin')
+  })
+
+  for (const key of ['plexSections', 'plexSectionSources', 'plexSectionAnime']) {
+    it(`describes the library table by the ${key} refusal`, async () => {
+      withSections({})
+      vi.spyOn(api, 'put').mockRejectedValue(new Error(`${key}: unknown section`))
+      const row = await screen.findByText('Anime')
+      fireEvent.click(row.closest('label')!.querySelector('[role="switch"], input')!)
+      fireEvent.click(screen.getByText('settings.save'))
+      await waitFor(() => expect(document.getElementById('plex-sections-i')).toHaveTextContent('unknown section'))
+      expect(screen.getByRole('table')).toHaveAttribute('aria-describedby', 'plex-sections-i')
+    })
+  }
+})
+
 describe('Sonarr / Radarr copy buttons', () => {
   it('name the value they copy', async () => {
     setup()

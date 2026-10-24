@@ -63,6 +63,7 @@ function CandidateRow({ c }: { c: HwCandidate }) {
 function Fix({ title, hint, code }: { title: string; hint?: string; code: string }) {
   const { t } = useTranslation()
   const [copied, setCopied] = useState(false)
+  const [failed, setFailed] = useState(false)
   return (
     <div className="hw-fix">
       <p className="sf-note">
@@ -77,12 +78,22 @@ function Fix({ title, hint, code }: { title: string; hint?: string; code: string
       <Button
         size="sm"
         onClick={async () => {
-          setCopied(await copyText(code))
-          setTimeout(() => setCopied(false), 2000)
+          // cleared first, so a repeated failure is announced again
+          setFailed(false)
+          const ok = await copyText(code)
+          setCopied(ok)
+          setFailed(!ok)
+          // the confirmation fades; the failure stays until the next attempt
+          if (ok) setTimeout(() => setCopied(false), 2000)
         }}
       >
         {copied ? t('settings.hw.copied') : t('settings.hw.copy')}
       </Button>
+      {failed && (
+        <p className="sf-issue" role="alert">
+          {t('settings.hw.copyFailed')}
+        </p>
+      )}
     </div>
   )
 }

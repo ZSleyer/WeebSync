@@ -17,6 +17,7 @@ import {
   sourceLabel,
   splitFolder,
   syncFields,
+  loses,
   variantQuality,
 } from './upgradeQuality'
 
@@ -90,7 +91,15 @@ export default function UpgradeCard({
   const [more, setMore] = useState(false)
   // moving the old copy aside acts on the shared library: an admin's
   const { data: me } = useAuth()
-  const [replaceOld, setReplaceOld] = useState(u.sync?.replace ?? true)
+  const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
+  // The plan's replace was computed for the top copy. For another one the same
+  // rule applies (backend loses()): replace only if that copy loses nothing.
+  const planReplace = isChosen(u.to) ? (u.sync?.replace ?? true) : !loses(u.from, chosen)
+  // the user's own tick counts for the copy it was made on only
+  const chosenKey = `${chosen.serverId}\0${chosen.folder}`
+  const [ticked, setTicked] = useState<{ key: string; on: boolean }>()
+  const replaceOld = ticked?.key === chosenKey ? ticked.on : planReplace
+  const setReplaceOld = (on: boolean) => setTicked({ key: chosenKey, on })
   const replace = !!me?.isAdmin && replaceOld
   // a load on its way: a second click would queue the same folder twice
   const [loading, setLoading] = useState(false)
@@ -106,7 +115,6 @@ export default function UpgradeCard({
       setLoading(false)
     }
   }
-  const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
   const options: UpgradeVariant[] = u.options ?? []
   const others = options.filter((o) => !isChosen(o))
   // a language gain the two copies cannot settle between them: shown as
@@ -115,7 +123,7 @@ export default function UpgradeCard({
   const req = (): SyncRequest => ({
     serverId: chosen.serverId,
     name: u.title,
-    initial: syncFields(u.sync!, u.title, chosen.folder),
+    initial: syncFields({ ...u.sync!, replace: replaceOld }, u.title, chosen.folder),
     info: [
       t('watch.infoSource', {
         server: chosen.serverName || t('suggestions.localPlex'),

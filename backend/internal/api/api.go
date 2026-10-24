@@ -122,7 +122,7 @@ type Server struct {
 
 	// per-IP brute-force limiter on the auth endpoints; admin-inspectable
 	authLimiter *ipLimiter
-	// failed sign-ins per account (see accountWait), admin-inspectable too
+	// sign-in attempts per account (see accountTake), admin-inspectable too
 	accountLimiter *ipLimiter
 	// the cross-site request guard (see CrossOrigin), swapped whole on every
 	// settings save so a trusted origin can also go away

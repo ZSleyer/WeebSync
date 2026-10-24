@@ -30,7 +30,14 @@
     "tooManyWait_other": "Too many attempts. Try again in {{count}} seconds.",
     "targetBusy": "Another download for the same file is still in the queue. Let it finish or cancel it first.",
     "hostKeyUnknown": "The server's SSH host key is not trusted yet. Run the connection test in the server settings to check and accept it, then try again.",
-    "hostKeyChanged": "The server's SSH host key has changed. Review it with the connection test in the server settings before trying again."
+    "hostKeyChanged": "The server's SSH host key has changed. Review it with the connection test in the server settings before trying again.",
+    "plexLinkExpired": "Plex no longer accepts the linked account. Link Plex again in the settings.",
+    "plexEnvSet": "The Plex connection is set by the PLEX_URL and PLEX_TOKEN environment variables. Change it there.",
+    "jellyfinEnvSet": "The Jellyfin connection is set by the JELLYFIN_URL and JELLYFIN_TOKEN environment variables. Change it there.",
+    "jellyfinQcOff": "Quick Connect is disabled on this Jellyfin server. Enable it in the Jellyfin dashboard.",
+    "jellyfinNotAdmin": "That Jellyfin account is not an administrator. Sign in with an administrator account.",
+    "jellyfinNone": "No Jellyfin server is connected yet. Connect one first.",
+    "plexShowBound": "That Plex show is already bound to another series."
   },
   "common": {
     "undo": "Undo",
@@ -1627,6 +1634,7 @@
       "fixNvencHint": "Needs the NVIDIA container toolkit on the host. In your compose file:",
       "copy": "Copy",
       "copied": "Copied",
+      "copyFailed": "Copying is not possible here; select the code and copy it by hand.",
       "retest": "Test again",
       "testing": "Testing, this takes a few seconds",
       "testedAt": "Tested {{when}}",
