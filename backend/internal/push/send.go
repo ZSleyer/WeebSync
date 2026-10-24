@@ -7,6 +7,7 @@ package push
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
@@ -188,7 +189,7 @@ func vapid(endpoint, subscriber, public, private string, now time.Time) (string,
 }
 
 // send delivers payload to one subscription. The caller closes the body.
-func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int, urgency string) (*http.Response, error) {
+func send(ctx context.Context, client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int, urgency string) (*http.Response, error) {
 	ua, err := decodeKey(p256dh)
 	if err != nil {
 		return nil, fmt.Errorf("push: p256dh: %w", err)
@@ -205,7 +206,7 @@ func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, su
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

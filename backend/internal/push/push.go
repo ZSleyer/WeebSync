@@ -3,6 +3,7 @@
 package push
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -185,6 +187,7 @@ func (s *Service) Notify(userID int64, n Notification) {
 	}
 
 	payload, _ := json.Marshal(n)
+	var targets []sub
 	for _, x := range subs {
 		u, err := url.Parse(x.endpoint)
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
@@ -198,32 +201,72 @@ func (s *Service) Notify(userID int64, n Notification) {
 			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
 			continue
 		}
-		if err := netguard.PublicAllowed(u.Hostname()); err != nil {
+		if err := endpointAllowed(u.Hostname()); err != nil {
 			slog.Warn("push endpoint blocked", "host", endpointHost(x.endpoint), "err", err)
 			continue
 		}
-		// netguard's client: a subscription host that DNS-rebinds or
-		// 30x-redirects to link-local/metadata is blocked at dial time
-		resp, err := send(netguard.PublicClient(15*time.Second), x.endpoint, x.p256dh, x.auth,
-			payload, s.subscriber(), s.public, s.private, 3600, n.Urgency)
-		if err != nil {
-			slog.Warn("push send", "err", err)
-			continue
-		}
-		// a rejected push is otherwise invisible: the browser simply stays
-		// quiet, and only the push service knows why (a bad VAPID subject and
-		// an oversized payload both answer 4xx, not an error)
-		if resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-			slog.Warn("push rejected", "status", resp.StatusCode,
-				"host", endpointHost(x.endpoint), "body", oneLine(string(body)))
-		} else {
-			slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(x.endpoint))
-		}
-		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		targets = append(targets, x)
+	}
+	if len(targets) == 0 {
+		return
+	}
+
+	// the devices are sent to side by side under one deadline: a push
+	// service that accepts the connection and never answers holds neither
+	// the other devices nor the caller (the test push, the sweep) for long
+	ctx, cancel := context.WithTimeout(context.Background(), notifyDeadline)
+	defer cancel()
+	client, subscriber := pushClient(), s.subscriber()
+	gone := make([]bool, len(targets))
+	sem := make(chan struct{}, notifyParallel)
+	var wg sync.WaitGroup
+	for i, x := range targets {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			gone[i] = s.deliver(ctx, client, x.endpoint, x.p256dh, x.auth, payload, subscriber, n.Urgency)
+		})
+	}
+	wg.Wait()
+	for i, x := range targets {
+		if gone[i] {
 			// a gone endpoint answers 404/410 again on the next notification
 			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?`, x.endpoint)
 		}
-		resp.Body.Close()
 	}
+}
+
+// notifyDeadline bounds one Notify across all of a user's subscriptions, and
+// notifyParallel how many of them are sent to at once. endpointAllowed and
+// pushClient are netguard's public-only guard and client: a subscription
+// host that DNS-rebinds or 30x-redirects to link-local/metadata is blocked
+// at dial time. Vars so tests can point Notify at local servers.
+var (
+	notifyDeadline  = 20 * time.Second
+	endpointAllowed = netguard.PublicAllowed
+	pushClient      = func() *http.Client { return netguard.PublicClient(15 * time.Second) }
+)
+
+const notifyParallel = 4
+
+// deliver sends one push and logs the outcome; it reports whether the push
+// service called the subscription gone (404/410).
+func (s *Service) deliver(ctx context.Context, client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, urgency string) bool {
+	resp, err := send(ctx, client, endpoint, p256dh, auth, payload, subscriber, s.public, s.private, 3600, urgency)
+	if err != nil {
+		slog.Warn("push send", "host", endpointHost(endpoint), "err", err)
+		return false
+	}
+	defer resp.Body.Close()
+	// a rejected push is otherwise invisible: the browser simply stays
+	// quiet, and only the push service knows why (a bad VAPID subject and
+	// an oversized payload both answer 4xx, not an error)
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		slog.Warn("push rejected", "status", resp.StatusCode,
+			"host", endpointHost(endpoint), "body", oneLine(string(body)))
+	} else {
+		slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(endpoint))
+	}
+	return resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone
 }
