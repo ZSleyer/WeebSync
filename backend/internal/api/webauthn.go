@@ -117,23 +117,48 @@ type waCeremony struct {
 	exp  time.Time
 }
 
+// The store is fed without a login (passkey login/begin), so it is bounded:
+// at most waMaxCeremonies live at once, the oldest giving way to a new one.
+// Every ceremony lives waTTL, so the order they came in is the order they
+// expire in: waOrder keeps that order, and expired (or full-store) entries
+// leave from its front - no walk over the whole store under the lock, which
+// every insert used to do.
+const waTTL = 5 * time.Minute
+
 var (
 	waMu       sync.Mutex
 	waSessions = map[string]waCeremony{}
+	// ids in the order they were put; ones already taken are skipped
+	waOrder         []string
+	waMaxCeremonies = 10000
 )
 
 func waPut(data *webauthn.SessionData) string {
 	id := randToken()
 	waMu.Lock()
 	defer waMu.Unlock()
-	// opportunistic sweep of expired entries
 	now := time.Now()
-	for k, v := range waSessions {
-		if now.After(v.exp) {
-			delete(waSessions, k)
+	for len(waOrder) > 0 {
+		c, live := waSessions[waOrder[0]]
+		if live && now.Before(c.exp) && len(waSessions) < waMaxCeremonies {
+			break
 		}
+		delete(waSessions, waOrder[0])
+		waOrder = waOrder[1:]
 	}
-	waSessions[id] = waCeremony{data: data, exp: now.Add(5 * time.Minute)}
+	// ids of taken ceremonies wait in the queue until they reach its front;
+	// should they pile up behind a live one, the queue is rebuilt (rarely)
+	if len(waOrder) > 2*waMaxCeremonies {
+		live := waOrder[:0:0]
+		for _, k := range waOrder {
+			if _, ok := waSessions[k]; ok {
+				live = append(live, k)
+			}
+		}
+		waOrder = live
+	}
+	waSessions[id] = waCeremony{data: data, exp: now.Add(waTTL)}
+	waOrder = append(waOrder, id)
 	return id
 }
 
