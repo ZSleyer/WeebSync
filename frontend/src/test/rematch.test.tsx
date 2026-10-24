@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { api, type CatalogItem } from '../api'
@@ -9,7 +10,13 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
   useTranslation: () => ({ t: (k: string) => k }) as never,
 }))
 
-afterEach(() => vi.restoreAllMocks())
+const confirmAnswer = vi.hoisted(() => ({ ok: true }))
+vi.mock('../components/confirm', () => ({ useConfirm: () => async () => confirmAnswer.ok }))
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  confirmAnswer.ok = true
+})
 
 const item = (extra: Partial<CatalogItem> = {}) =>
   ({
@@ -21,7 +28,11 @@ const item = (extra: Partial<CatalogItem> = {}) =>
 const media = (id: number, title: string) => ({ id, title: { romaji: title }, coverImage: {} })
 
 // every GET answers; the calls are what the test looks at
-function setup(it: CatalogItem, keys = { tvdbApiKeySet: true, tmdbApiKeySet: true }) {
+function setup(
+  it: CatalogItem,
+  keys = { tvdbApiKeySet: true, tmdbApiKeySet: true },
+  wrap: (children: ReactNode) => ReactNode = (c) => c,
+) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/auth/me') return { id: 1, email: 'u@example.test', ...keys }
     if (url.includes('/search')) return [media(42, 'Hit')]
@@ -31,7 +42,7 @@ function setup(it: CatalogItem, keys = { tvdbApiKeySet: true, tmdbApiKeySet: tru
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
-      <RematchForm serverId={3} item={it} onClose={vi.fn()} onPicked={vi.fn()} />
+      {wrap(<RematchForm serverId={3} item={it} onClose={vi.fn()} onPicked={vi.fn()} />)}
     </QueryClientProvider>,
   )
   const searched = () => get.mock.calls.map((c) => String(c[0])).filter((u) => u !== '/api/auth/me')
@@ -94,5 +105,63 @@ describe('Rematch provider picker', () => {
     fireEvent.click(await screen.findByText('Hit'))
     await waitFor(() => expect(put).toHaveBeenCalled())
     expect(put.mock.calls[0][1]).toMatchObject({ source: 'tmdb:movie' })
+  })
+})
+
+// the match dialog sits inside the watch form's <form> (no portal)
+describe('Rematch inside a surrounding form', () => {
+  const inForm = (onSubmit: () => void) => (c: ReactNode) => (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit()
+      }}
+    >
+      {c}
+    </form>
+  )
+
+  it('picking a hit does not submit the surrounding form', async () => {
+    const submit = vi.fn()
+    const { put } = setup(item(), undefined, inForm(submit))
+    fireEvent.click(await screen.findByText('Hit'))
+    await waitFor(() => expect(put).toHaveBeenCalled())
+    expect(submit).not.toHaveBeenCalled()
+  })
+
+  it('Enter in the search field searches without submitting the surrounding form', async () => {
+    const { searched } = setup(item(), undefined, inForm(vi.fn()))
+    await waitFor(() => expect(searched()).toHaveLength(1))
+    const field = await screen.findByRole('searchbox')
+    // fireEvent returns false when the default action (implicit submission) was prevented
+    expect(fireEvent.keyDown(field, { key: 'Enter' })).toBe(false)
+    await waitFor(() => expect(searched()).toHaveLength(2))
+  })
+})
+
+describe('Rematch destructive and double actions', () => {
+  it('removes the match only after the confirm', async () => {
+    const { put } = setup(item())
+    confirmAnswer.ok = false
+    fireEvent.click(await screen.findByRole('button', { name: /remote.removeMatch/ }))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(put).not.toHaveBeenCalled()
+    confirmAnswer.ok = true
+    fireEvent.click(screen.getByRole('button', { name: /remote.removeMatch/ }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/api/servers/3/catalog/match', { folder: '/Area/Example Show', mediaId: 0 }),
+    )
+  })
+
+  it('sends one PUT for a double click on a hit and locks the buttons meanwhile', async () => {
+    const { put } = setup(item())
+    let release: () => void = () => {}
+    put.mockImplementation(() => new Promise((r) => (release = () => r({}))))
+    const hit = await screen.findByText('Hit')
+    fireEvent.click(hit)
+    fireEvent.click(hit)
+    await waitFor(() => expect(screen.getByRole('button', { name: /remote.removeMatch/ })).toBeDisabled())
+    expect(put).toHaveBeenCalledTimes(1)
+    release()
   })
 })

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -175,7 +176,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	code := normalizeTotpCode(in.Code)
-	if !totp.Valid(code, sec, time.Now()) || !s.totpAccept(u.ID, code) {
+	if !s.totpValid(u.ID, code, sec) {
 		writeErr(w, http.StatusBadRequest, "invalid code")
 		return
 	}
@@ -261,22 +262,24 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// the code counts against the account like the password does: a fresh
-	// pending token per correct password must not reset the guessing
+	// pending token per correct password must not reset the guessing. Keyed
+	// by the lowercased address like the password sign-in, which lowercases
+	// what was typed: a stored address with capitals had two counters.
 	var email string
 	if err := s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
 		// an empty email would put the attempt on nobody's counter
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, email); wait > 0 {
+	if wait := s.accountWait(r, strings.ToLower(email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	sec, ok := s.totpSecret(userID)
 	code := normalizeTotpCode(in.Code)
-	if !ok || (!(totp.Valid(code, sec, time.Now()) && s.totpAccept(userID, code)) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
+	if !ok || (!s.totpValid(userID, code, sec) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
 		s.failLoginPending(in.Token)
-		s.accountFailed(r, email)
+		s.accountFailed(r, strings.ToLower(email))
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
@@ -297,7 +300,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "session error")
 		return
 	}
-	s.accountSignedIn(w, r, email)
+	s.accountSignedIn(w, r, strings.ToLower(email))
 	s.signInAlert(w, r, userID, signInPassword2FA)
 	writeJSON(w, http.StatusOK, LoginResponse{ID: userID, Email: email})
 }
@@ -324,11 +327,18 @@ func normalizeRecoveryCode(code string) string {
 	return c
 }
 
-// totpAccept records a valid code as used; false when it is the code the
-// user already got in with. A code lives 90 seconds and consecutive steps
-// never repeat, so remembering the last one is the whole replay check.
-func (s *Server) totpAccept(userID int64, code string) bool {
-	res, err := s.DB.Exec(`UPDATE user_totp SET last_code = ? WHERE user_id = ? AND last_code != ?`, code, userID, code)
+// totpValid checks code against the user's secret and records its time step
+// as used; false for a wrong code and for one whose step is not later than
+// the last accepted one. A code lives three steps, so remembering only the
+// last code let an older one of the window in once a newer one had been
+// used. The step check and the write are one statement: two requests with
+// the same code cannot both pass.
+func (s *Server) totpValid(userID int64, code, sec string) bool {
+	step, ok := totp.Match(code, sec, time.Now())
+	if !ok || step > math.MaxInt64 {
+		return false
+	}
+	res, err := s.DB.Exec(`UPDATE user_totp SET last_step = ? WHERE user_id = ? AND last_step < ?`, int64(step), userID, int64(step))
 	if err != nil {
 		return false
 	}

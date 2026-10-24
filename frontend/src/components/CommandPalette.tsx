@@ -158,7 +158,11 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
     const id = setTimeout(() => setAsked(q.trim()), 200)
     return () => clearTimeout(id)
   }, [q])
-  const { data: found, isFetching } = useQuery<{ results: SearchHit[] }>({
+  const {
+    data: found,
+    isFetching,
+    isError,
+  } = useQuery<{ results: SearchHit[] }>({
     queryKey: ['search', asked],
     queryFn: () => api.get(`/api/search?q=${encodeURIComponent(asked)}`),
     enabled: asked.length >= 2,
@@ -309,6 +313,9 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
   }
 
   const onKeyDown = (e: ReactKeyboardEvent) => {
+    // Enter or an arrow that works the IME candidate list is not ours (keyCode 229 covers the
+    // keydown that arrives after compositionend; MDN keydown event)
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       if (!shown.length) return
@@ -492,7 +499,12 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
             {t('palette.searching')}
           </p>
         )}
-        {needle && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
+        {needle.length >= 2 && isError && !isFetching && asked.toLocaleLowerCase() === needle && (
+          <p className="pal-none" role="status">
+            {t('palette.searchFailed')}
+          </p>
+        )}
+        {needle && !isError && shown.length === 0 && !isFetching && asked.toLocaleLowerCase() === needle && (
           <p className="pal-none" role="status">
             {t('palette.none', { q: q.trim() })}
           </p>

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -171,14 +172,22 @@ async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
 // a wait in words, with the seconds it has taken once they add up: a number
 // that keeps counting shows the player is still at it. The server's own
 // numbers (a share, bytes read) take the counter's place once there are any.
+// Inside a live region only the words are read out: the number changes every
+// second and would be announced every second, so it is hidden from the
+// announcement.
 function Waited({ text, detail }: { text: string; detail?: string }) {
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => setSecs((x) => x + 1), 1000)
     return () => clearInterval(id)
   }, [])
-  if (detail) return `${text} · ${detail}`
-  return secs < 3 ? text : `${text} · ${secs} s`
+  const count = detail || (secs < 3 ? '' : `${secs} s`)
+  return (
+    <>
+      {text}
+      {count && <span aria-hidden> · {count}</span>}
+    </>
+  )
 }
 
 // the route: every file gets a fresh player, so the tracks, the transcode
@@ -187,10 +196,42 @@ export default function Player() {
   const [params] = useSearchParams()
   const server = Number(params.get('server') || 0)
   const path = params.get('path') || ''
-  return <PlayerView key={`${server}:${path}`} server={server} path={path} />
+  // Whether the focus sat in the player when the last file's view went: the
+  // next one takes it back as soon as its picture is there.
+  const focusCarry = useRef(false)
+  const refocus = useMemo(
+    () => ({
+      keep: (v: boolean) => void (focusCarry.current = v),
+      take: () => {
+        const v = focusCarry.current
+        focusCarry.current = false
+        return v
+      },
+    }),
+    [],
+  )
+  // The page is the element that goes fullscreen (the controller takes it as
+  // its fullscreenElement), and it outlives the key below: the browser leaves
+  // fullscreen when its element is removed, which every episode switch used to do.
+  return (
+    <div className="t-player-page">
+      <PlayerView key={`${server}:${path}`} server={server} path={path} refocus={refocus} />
+    </div>
+  )
 }
 
-function PlayerView({ server, path }: { server: number; path: string }) {
+// seconds from the end of an episode to the start of the next
+const NEXT_COUNT = 8
+
+function PlayerView({
+  server,
+  path,
+  refocus,
+}: {
+  server: number
+  path: string
+  refocus: { keep: (v: boolean) => void; take: () => boolean }
+}) {
   const { t, i18n } = useTranslation()
   setLanguage(i18n.language)
   const navigate = useNavigate()
@@ -209,6 +250,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     queryFn: () => api.get<PlayInfo>(`/api/play/info?${src}`),
     enabled: !!path,
     retry: false,
+    // a refocus or reconnect must not refetch it while it plays (a failed or
+    // changed answer would tear the running video down); a mount still does,
+    // so a cached answer with an old AniList progress is not trusted
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const [audio, setAudio] = useState<number | null>(null)
@@ -292,12 +338,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     if (v && offer !== null) v.currentTime = offer
     setResumeOffer(null)
   }
-  // the offer steps aside after a while: no answer is "from the start"
+  // the offer steps aside after a while: no answer is "from the start". Not
+  // while the focus or the pointer is on the card (WCAG 2.2.1): the time starts
+  // again once they leave
+  const [offerHeld, setOfferHeld] = useState(false)
   useEffect(() => {
-    if (!offerOpen) return
+    if (!offerOpen || offerHeld) return
     const id = window.setTimeout(() => setResumeOffer(null), 15_000)
     return () => clearTimeout(id)
-  }, [offerOpen])
+  }, [offerOpen, offerHeld])
   // the position is kept once the offer is answered (or there was none): the
   // first seconds from the start would overwrite the place to go on from.
   // Declared before the source effect, so on leaving it reads the position
@@ -541,9 +590,17 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   useEffect(() => {
     const v = videoRef.current
     if (!v || !next) return
-    const ended = () => setNextIn(8)
+    const ended = () => setNextIn(NEXT_COUNT)
+    // watching on (play again, a seek back) calls the count off
+    const resumed = () => setNextIn(null)
     v.addEventListener('ended', ended)
-    return () => v.removeEventListener('ended', ended)
+    v.addEventListener('play', resumed)
+    v.addEventListener('seeking', resumed)
+    return () => {
+      v.removeEventListener('ended', ended)
+      v.removeEventListener('play', resumed)
+      v.removeEventListener('seeking', resumed)
+    }
   }, [next, data])
   // the file's chapters as a track media-chrome reads: the time bar splits
   // into segments, the preview over it names the one under the pointer
@@ -577,9 +634,24 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const chapterIdx = chapter ? chapters.indexOf(chapter) : -1
   const chapterName = chapterIdx < 0 ? undefined : chapter?.title || t('player.chapterN', { n: chapterIdx + 1 })
   const skipOffered = nextIn === null && offer === null ? skippable : undefined
-  // the skip card goes away under the focus (skipped, waved off, chapter
-  // over): focus stays in the player, where its keys work, not on the page
-  const keepFocusInPlayer = useCallback((el: HTMLDivElement | null) => {
+  // What the region announces. It stands empty from the first render and gets
+  // its text in an effect: a live region that appears with its text is often
+  // not read out.
+  const announce =
+    nextIn !== null && next
+      ? t('player.nextIn', { secs: NEXT_COUNT })
+      : offer !== null
+        ? t('player.resumeAt', { time: clock(offer) })
+        : skipOffered
+          ? t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')
+          : ''
+  const said = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (said.current) said.current.textContent = announce
+  }, [announce])
+  // a card or pill goes away under the focus (skipped, waved off, chapter
+  // over, resume answered, sound on): focus stays in the player, where its keys work, not on the page
+  const keepFocusInPlayer = useCallback((el: HTMLElement | null) => {
     if (!el) return
     const video = el.closest('media-controller')?.querySelector('video')
     return () => {
@@ -703,7 +775,31 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   }, [data])
 
   const playerRef = useRef<MediaControllerElement>(null)
-  // media-chrome's keys (space, k, f, m, arrows) plus the player's own: j and
+  // fullscreen goes to the page around this view (see Player), not to the
+  // controller that is replaced with every file. Set as a property: the
+  // attribute is looked up by id before the controller is in the document.
+  const ready = !!data
+  useEffect(() => {
+    const ctl = playerRef.current
+    const page = ctl?.closest<HTMLElement>('.t-player-page')
+    if (ctl && page) ctl.fullscreenElement = page
+  }, [ready])
+  // the focus the last file's player had comes back to this one's picture
+  // (media-chrome makes the media element focusable the same way)
+  useLayoutEffect(
+    () => () => {
+      refocus.keep(!!document.activeElement?.closest('media-controller'))
+    },
+    [refocus],
+  )
+  useEffect(() => {
+    const v = videoRef.current
+    if (!ready || !v || !refocus.take()) return
+    if (!v.hasAttribute('tabindex')) v.tabIndex = -1
+    v.focus({ preventScroll: true })
+  }, [ready, refocus])
+  // media-chrome's keys (space, k, f, m, arrows) plus the player's own (the
+  // controller's hotkeys attribute leaves them to us): j and
   // l skip 10 s, c turns the subtitles off and on, Shift+N and Shift+P change
   // the episode, Escape leaves. Only while focus is inside the player, never
   // page-wide (WCAG 2.1.4).
@@ -1015,7 +1111,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // before the file is read the page already stands: the black frame with
   // the way out, so a phone is never left in an empty overlay
   const frame = (body: ReactNode) => (
-    <div className="t-player-page">
+    <>
       <div className="t-player-wrap">
         <div className="t-player t-player--idle">
           <div className="t-player-top">
@@ -1029,7 +1125,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <div className="t-player-idle">{body}</div>
         </div>
       </div>
-    </div>
+    </>
   )
   if (!path) return frame(<p>{t('player.noFile')}</p>)
   if (info.isPending)
@@ -1043,7 +1139,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         </span>
       </>,
     )
-  const conflict = keyConflictOf(info.error)
+  const conflict = data ? undefined : keyConflictOf(info.error)
   if (conflict)
     return frame(
       <HostKeyPrompt
@@ -1054,7 +1150,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         onRejected={() => navigate(-1)}
       />,
     )
-  if (info.error || !data)
+  if (!data)
     return frame(
       <p className="t-player-step t-player-step--err" role="alert">
         {info.error?.message}
@@ -1084,7 +1180,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const textSubs = data.subs.some((s) => !s.image)
 
   return (
-    <div className="t-player-page">
+    <>
       <div className="t-player-wrap">
         <MediaController
           ref={playerRef}
@@ -1092,7 +1188,10 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           className="t-player"
           data-fs={ownFs || undefined}
           // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
-          // inside the player, never page-wide (WCAG 2.1.4)
+          // inside the player, never page-wide (WCAG 2.1.4). j, l and c it knows
+          // as well (seek 10 s, subtitles): they are handled in onKey, so they
+          // are switched off there or a press would count twice
+          hotkeys="noj nol noc"
           onPointerDown={noteHidden}
           onPointerUp={tapSeek}
         >
@@ -1142,6 +1241,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               <button
                 type="button"
                 className="t-player-pill t-player-pill--go"
+                ref={keepFocusInPlayer}
                 onClick={() => {
                   const v = videoRef.current
                   if (v) v.muted = false
@@ -1203,8 +1303,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           {/* the offer to go on, and the count to the next episode, as cards
               over the corner above the dock; they stay while the controls fade */}
           {nextIn !== null && next ? (
-            <div className="t-player-card" {...{ noautohide: '' }}>
-              <span role="status">{t('player.nextIn', { secs: nextIn })}</span>
+            <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
+              {/* spoken once by the region below; the count itself is only seen */}
+              <span aria-hidden>{t('player.nextIn', { secs: nextIn })}</span>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={() => goTo(next)}>
                 {t('player.nextNow')}
               </button>
@@ -1219,7 +1320,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             </div>
           ) : (
             offer !== null && (
-              <div className="t-player-card" {...{ noautohide: '' }}>
+              <div
+                className="t-player-card"
+                ref={keepFocusInPlayer}
+                onFocus={() => setOfferHeld(true)}
+                onBlur={() => setOfferHeld(false)}
+                onPointerEnter={() => setOfferHeld(true)}
+                onPointerLeave={() => setOfferHeld(false)}
+                {...{ noautohide: '' }}
+              >
                 <span>{t('player.resumeAt', { time: clock(offer) })}</span>
                 <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={resume}>
                   {t('player.resume')}
@@ -1232,9 +1341,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           )}
           {/* always there, only its words change: a live region added together
               with its text is often not read out */}
-          <span className="sr-only" role="status">
-            {skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
-          </span>
+          <span className="sr-only" role="status" ref={said} />
           {skipOffered && (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={skipChapter}>
@@ -1447,7 +1554,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         burned={burn >= 0}
         serverName={serverName}
       />
-    </div>
+    </>
   )
 }
 

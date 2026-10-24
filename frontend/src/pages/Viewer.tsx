@@ -591,12 +591,15 @@ export function Paged({
   }
 
   const onKey = (e: KeyboardEvent) => {
+    // Alt+arrow is the browser's back/forward, Ctrl/Cmd+key its own shortcuts
+    if (e.altKey || e.ctrlKey || e.metaKey) return
     const k = e.key
     // the strip scrolls by the keys the browser gives it
     if (scroll && k !== 'Home' && k !== 'End') return
     if (k === 'ArrowLeft') left()
     else if (k === 'ArrowRight') right()
-    else if (k === 'PageDown' || k === ' ') next()
+    else if (k === ' ') (e.shiftKey ? prev : next)()
+    else if (k === 'PageDown') next()
     else if (k === 'PageUp') prev()
     else if (k === 'Home') toPage(0)
     else if (k === 'End') toPage(count - 1)
@@ -902,11 +905,25 @@ function Overview({
 }
 
 /** A page picture, fitted to the height or the width of the reader. */
-export function PageImage({ src, fit, alt }: { src: string; fit: 'width' | 'height'; alt: string }) {
+export function PageImage({
+  src,
+  fit,
+  alt,
+  onLoad,
+  onError,
+}: {
+  src: string
+  fit: 'width' | 'height'
+  alt: string
+  onLoad?: () => void
+  onError?: () => void
+}) {
   return (
     <img
       src={src}
       alt={alt}
+      onLoad={onLoad}
+      onError={onError}
       decoding="async"
       draggable={false}
       className={fit === 'height' ? 'max-h-full max-w-full object-contain' : 'h-auto w-full'}
@@ -956,9 +973,32 @@ export function useBookEnd(server: number, path: string): PagedEnd {
   }
 }
 
+/**
+ * The read-open token lives as long as the server keeps the unpacked book
+ * (a handful of books, gone on restart), the cached answer for 30 minutes.
+ * A page or chapter that fails to load asks for the token again, once until
+ * something loads. The new answer carries the new base, so the reader goes on
+ * where it was.
+ */
+function useReviveBook(server: number, path: string) {
+  const qc = useQueryClient()
+  const asked = useRef(false)
+  return {
+    revive: () => {
+      if (asked.current) return
+      asked.current = true
+      void qc.invalidateQueries({ queryKey: ['read-open', server, path] })
+    },
+    alive: () => {
+      asked.current = false
+    },
+  }
+}
+
 function BookView({ server, path }: { server: number; path: string }) {
   const { t } = useTranslation()
   const end = useBookEnd(server, path)
+  const { revive, alive } = useReviveBook(server, path)
   const book = useQuery({
     queryKey: ['read-open', server, path],
     queryFn: () => api.get<ReaderBook>(`/api/read/open?server=${server}&path=${encodeURIComponent(path)}`),
@@ -968,7 +1008,7 @@ function BookView({ server, path }: { server: number; path: string }) {
   if (book.isPending) return <ReaderState loading label={t('viewer.unpacking')} />
   if (book.error) return <ReaderState error={book.error} />
   const b = book.data
-  if (b.kind === 'epub') return <EpubView base={b.base} server={server} path={path} />
+  if (b.kind === 'epub') return <EpubView base={b.base} server={server} path={path} onDead={revive} onAlive={alive} />
   if (b.kind === 'sheet') return <SheetView base={b.base} path={path} />
   const pages = b.pages ?? []
   return (
@@ -986,6 +1026,8 @@ function BookView({ server, path }: { server: number; path: string }) {
           src={bookUrl(b.base, pages[i])}
           fit={fit}
           alt={t('viewer.pageOf', { page: i + 1, count: pages.length })}
+          onLoad={alive}
+          onError={revive}
         />
       )}
     />
@@ -1026,7 +1068,19 @@ async function loadEpub(base: string): Promise<EpubData> {
  * itself, the bar turns chapters. A position inside a chapter cannot be read
  * from a frame without scripts, so progress counts in chapters.
  */
-function EpubView({ base, server, path }: { base: string; server: number; path: string }) {
+function EpubView({
+  base,
+  server,
+  path,
+  onDead,
+  onAlive,
+}: {
+  base: string
+  server: number
+  path: string
+  onDead: () => void
+  onAlive: () => void
+}) {
   const { t } = useTranslation()
   const frame = useFrame()
   const data = useQuery({ queryKey: ['epub', base], queryFn: () => loadEpub(base), staleTime: Infinity })
@@ -1049,6 +1103,26 @@ function EpubView({ base, server, path }: { base: string; server: number; path: 
       // not remembered
     }
   }, [chapters, at, server, path])
+  // a frame shows no status of its own: ask the server whether the chapter is
+  // still there, a 404/410 means the book was unpacked away
+  const dead = useEffectEvent(onDead)
+  const alive = useEffectEvent(onAlive)
+  const failed = !!data.error
+  useEffect(() => {
+    if (failed) dead()
+  }, [failed])
+  const href = data.data?.chapters[Math.min(Math.max(at, 0), Math.max(chapters - 1, 0))]?.href
+  useEffect(() => {
+    if (href === undefined) return
+    const ctl = new AbortController()
+    fetch(bookUrl(base, href), { method: 'HEAD', signal: ctl.signal })
+      .then((res) => {
+        if (res.ok) alive()
+        else if (res.status === 404 || res.status === 410) dead()
+      })
+      .catch(() => {})
+    return () => ctl.abort()
+  }, [base, href])
   if (data.isPending) return <ReaderState loading />
   if (data.error) return <ReaderState error={data.error} />
   const ch = data.data.chapters

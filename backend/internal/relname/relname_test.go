@@ -101,7 +101,7 @@ func TestRead(t *testing.T) {
 
 // Names come off remote servers; whatever they hold, Read must not panic.
 func FuzzRead(f *testing.F) {
-	for _, s := range []string{"[A] B - 01 [1080p].mkv", "A.S01E01-B.(x).-(C).mkv", "((([[[", "- - 1-2 S1 E", "A 2. Staffel E1,5.mp4"} {
+	for _, s := range []string{"[A] B - 01 [1080p].mkv", "A.S01E01-B.(x).-(C).mkv", "((([[[", "- - 1-2 S1 E", "A 2. Staffel E1,5.mp4", "A - 05.ger.forced.srt", ".en.srt", "a.ass"} {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, s string) { Read(s) })

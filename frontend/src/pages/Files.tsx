@@ -443,6 +443,8 @@ export default function Files() {
   if (checkedPlace !== `${source}:${path}`) {
     setCheckedPlace(`${source}:${path}`)
     setChecked(new Set())
+    // a failure message belongs to the folder it happened in
+    setError('')
   }
   const toggle = (e: Entry) =>
     setChecked((prev) => {
@@ -1795,13 +1797,12 @@ export function CatalogGrid({
                 {t('remote.scopeAs')}
               </h2>
             </header>
-            <div role="radiogroup" aria-labelledby="cat-scope-h" className="ws-scope-opts px-4">
+            <div role="group" aria-labelledby="cat-scope-h" className="ws-scope-opts px-4">
               {scopeOptions.map((o) => (
                 <button
                   key={o.value}
                   type="button"
-                  role="radio"
-                  aria-checked={data?.scope === o.value}
+                  aria-pressed={data?.scope === o.value}
                   className="ws-scope-opt"
                   onClick={() => {
                     setScopeSheet(false)

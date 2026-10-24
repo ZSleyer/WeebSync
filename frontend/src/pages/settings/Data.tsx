@@ -18,6 +18,7 @@ import {
   KIND_TONE,
   NUMEDIT_GRID,
   NumEdit,
+  type AdminJobs,
   PAGE,
   Pager,
   rebuildLabel,
@@ -47,6 +48,8 @@ export default function Data() {
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const [resetOpen, setResetOpen] = useState(false)
+  // bumped when a TTL is refused: remounts the editors, which drops the text typed
+  const [refused, setRefused] = useState(0)
   const { data } = useAdminJobs()
   const { data: inventory } = useAdminData()
 
@@ -62,9 +65,25 @@ export default function Data() {
     mutationFn: ({ name, body }: { name: string; body?: unknown }) => api.post(`/api/admin/jobs/${name}/run`, body),
     ...opts,
   })
+  // the sent hours show at once, so a second edit before the refetch builds on
+  // them; a refusal refetches and remounts the editors, which puts the typed
+  // text back to the stored value
   const setTtl = useMutation({
     mutationFn: (body: TtlConfig) => api.put('/api/admin/ttl', body),
+    onMutate: async (body) => {
+      // a poll in flight must not overwrite the shown hours
+      await qc.cancelQueries({ queryKey: ['adminJobs'] })
+      const prev = qc.getQueryData<AdminJobs>(['adminJobs'])
+      qc.setQueryData<AdminJobs>(['adminJobs'], (d) => d && { ...d, ttl: body })
+      return { prev }
+    },
     ...opts,
+    onError: (e: Error, _body, ctx) => {
+      setError(e.message)
+      if (ctx?.prev) qc.setQueryData(['adminJobs'], ctx.prev)
+      setRefused((n) => n + 1)
+      qc.invalidateQueries({ queryKey: ['adminJobs'] })
+    },
   })
 
   if (!data) return null
@@ -73,7 +92,13 @@ export default function Data() {
   const commitTtl = (patch: Partial<TtlConfig>) => setTtl.mutate({ ...ttl, ...patch })
   const ttlEdit = (key: keyof TtlConfig, id: string) => (
     <span className={NUMEDIT_GRID}>
-      <NumEdit id={id} label={t('settings.jobs.ttlH')} value={ttl[key]} onCommit={(n) => commitTtl({ [key]: n })} />
+      <NumEdit
+        key={refused}
+        id={id}
+        label={t('settings.jobs.ttlH')}
+        value={ttl[key]}
+        onCommit={(n) => commitTtl({ [key]: n })}
+      />
     </span>
   )
   // what a provider brings besides its stores: the retention of its cache,

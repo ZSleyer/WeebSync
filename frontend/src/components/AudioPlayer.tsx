@@ -15,6 +15,7 @@ import { Dialog, IconButton, Select } from 'fluid-lycoris'
 import type { Entry } from '../api'
 import { useStored } from '../hooks/useStored'
 import { streamUrl, viewHref } from './playLinks'
+import { useToast } from './toast'
 import './audio.css'
 
 /** What plays: a folder's tracks in order, one of them now. */
@@ -92,6 +93,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   const [panel, setPanel] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+  const toast = useToast()
+  const { t } = useTranslation()
   const track = queue ? queue.tracks[queue.at] : null
 
   const go = (at: number) => {
@@ -142,7 +145,8 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const a = el.current
     if (!a || !queue || !track) return
     setTime(a.currentTime)
-    if (a.duration < LONG || Date.now() - lastSave.current < 5000) return
+    // NaN (metadata not loaded yet) is not long: a track change resets currentTime to 0
+    if (!(a.duration >= LONG) || Date.now() - lastSave.current < 5000) return
     lastSave.current = Date.now()
     try {
       localStorage.setItem(posKey(queue.server, track.path), String(Math.floor(a.currentTime)))
@@ -155,7 +159,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     if (!a || !queue || !track) return
     setDuration(a.duration)
     a.playbackRate = rate
-    if (a.duration < LONG) return
+    if (!(a.duration >= LONG)) return
     try {
       const s = Number(localStorage.getItem(posKey(queue.server, track.path)))
       if (s > 0 && s < a.duration - 5) a.currentTime = s
@@ -170,11 +174,19 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       setSleep(null)
       return
     }
-    if (repeat === 'one') {
+    // a one-track queue has nowhere to go: start the same track again
+    if (repeat === 'one' || (repeat === 'all' && queue.tracks.length === 1)) {
       a.currentTime = 0
       a.play().catch(() => {})
     } else if (queue.at + 1 < queue.tracks.length) go(queue.at + 1)
     else if (repeat === 'all') go(0)
+  }
+
+  // a format the browser cannot play, a vanished file: say so, skip on
+  const onError = () => {
+    if (!queue || !track) return
+    toast({ message: t('audio.error'), error: true })
+    if (queue.at + 1 < queue.tracks.length) go(queue.at + 1)
   }
 
   // the lock screen and the headset buttons
@@ -251,6 +263,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         onPlay={() => setPaused(false)}
         onPause={() => setPaused(true)}
         onEnded={onEnded}
+        onError={onError}
       />
       {panel && queue && <AudioSheet onClose={() => setPanel(false)} />}
     </Ctx.Provider>

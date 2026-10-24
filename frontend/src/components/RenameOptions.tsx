@@ -148,15 +148,23 @@ export function SeriesPicker({
   const [q, setQ] = useState(initialQuery)
   const [results, setResults] = useState<Media[]>([])
   const path = provider === 'tmdb' ? `/api/tmdb/search?kind=tv&q=` : `/api/tvdb/search?q=`
+  const [err, setErr] = useState('')
+  // only the newest search may write: answers can arrive out of order
+  const seq = useRef(0)
   const search = async (term: string) => {
+    const mine = ++seq.current
+    setErr('')
     if (!term.trim()) {
       setResults([])
       return
     }
     try {
-      setResults(await api.get<Media[]>(`${path}${encodeURIComponent(term)}`))
-    } catch {
+      const found = await api.get<Media[]>(`${path}${encodeURIComponent(term)}`)
+      if (mine === seq.current) setResults(found)
+    } catch (e) {
+      if (mine !== seq.current) return
       setResults([])
+      setErr(e instanceof Error ? e.message : String(e))
     }
   }
   // live search: results update as you type (debounced)
@@ -183,6 +191,11 @@ export function SeriesPicker({
           <X aria-hidden size="1.2em" />
         </Button>
       </div>
+      {err && (
+        <p className="px-1 py-1 text-sm text-err" role="alert">
+          {err}
+        </p>
+      )}
       <div className="t-scroll max-h-64">
         {results.map((m) => (
           <div key={m.id} className="flex gap-2 border-b border-border-subtle/50 px-1 py-1.5">

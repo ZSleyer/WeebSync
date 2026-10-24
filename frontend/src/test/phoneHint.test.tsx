@@ -7,6 +7,8 @@ import { api } from '../api'
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (k: string) => k }),
 }))
+const toast = vi.fn()
+vi.mock('../components/toast', () => ({ useToast: () => toast }))
 
 describe('qrPath', () => {
   it('draws a version-sized code with its three finder squares', () => {
@@ -47,5 +49,29 @@ describe('PhoneHint', () => {
     fireEvent.click(screen.getByRole('button', { name: 'tips.phoneOff', hidden: true }))
     await waitFor(() => expect(screen.queryByText('tips.phone')).toBeNull())
     expect(post).toHaveBeenCalledWith('/api/auth/tips/dismiss', { key: 'mobile-ui' })
+  })
+
+  it('copies the address over plain http, where there is no Clipboard API', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ dismissed: [] })
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+    const exec = vi.fn(() => true)
+    Object.defineProperty(document, 'execCommand', { value: exec, configurable: true })
+    toast.mockClear()
+    mount()
+    await screen.findByText('tips.phone')
+    fireEvent.click(screen.getByRole('button', { name: /tips\.copy/, hidden: true }))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ message: 'files.pathCopied' }))
+    expect(exec).toHaveBeenCalledWith('copy')
+  })
+
+  it('says so when copying is impossible', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ dismissed: [] })
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true })
+    Object.defineProperty(document, 'execCommand', { value: () => false, configurable: true })
+    toast.mockClear()
+    mount()
+    await screen.findByText('tips.phone')
+    fireEvent.click(screen.getByRole('button', { name: /tips\.copy/, hidden: true }))
+    await waitFor(() => expect(toast).toHaveBeenCalledWith({ message: 'files.copyFailed', error: true }))
   })
 })

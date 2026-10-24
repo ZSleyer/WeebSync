@@ -9,14 +9,19 @@ import { ShellFooter } from '../components/PageActions'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
-  useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) => (o?.name ? `${k}:${o.name}` : k) }) as never,
+  useTranslation: () =>
+    ({
+      t: (k: string, o?: Record<string, unknown>) =>
+        k === 'trash.emptyConfirm' ? `${k}:${o?.count}` : o?.name ? `${k}:${o.name}` : k,
+    }) as never,
 }))
 let admin = true
 vi.mock(import('../hooks'), async (importOriginal) => ({
   ...(await importOriginal()),
   useAuth: () => ({ data: { isAdmin: admin } }) as never,
 }))
-vi.mock('../components/confirm', () => ({ useConfirm: () => async () => true }))
+const confirmFn = vi.hoisted(() => vi.fn(async (_o: { message?: string }) => true))
+vi.mock('../components/confirm', () => ({ useConfirm: () => confirmFn }))
 
 const entries: TrashEntry[] = [
   {
@@ -57,8 +62,9 @@ function Shell({ children }: { children: ReactNode }) {
   )
 }
 
+let qc: QueryClient
 function app() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -73,7 +79,10 @@ function app() {
   )
 }
 
-afterEach(() => vi.restoreAllMocks())
+afterEach(() => {
+  vi.restoreAllMocks()
+  confirmFn.mockClear()
+})
 
 describe('TrashButton', () => {
   it('counts what waits and opens its page', async () => {
@@ -111,5 +120,30 @@ describe('TrashButton', () => {
     expect(screen.queryByRole('button', { name: 'trash.restore' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'trash.empty' })).toBeNull()
     admin = true
+  })
+
+  it('confirms emptying with a fresh count, not the cached list', async () => {
+    const extra: TrashEntry = { ...entries[1], path: '/m/Show/.weebsync-trash/new', name: 'new' }
+    const get = vi.spyOn(api, 'get').mockResolvedValue(entries)
+    const del = vi.spyOn(api, 'del').mockResolvedValue({ status: 'ok' })
+    app()
+    fireEvent.click(await screen.findByRole('link', { name: 'trash.open' }))
+    await screen.findByText('ep1.mkv')
+    // something lands in the trash after the list was cached
+    get.mockResolvedValue([...entries, extra])
+    fireEvent.click(screen.getByRole('button', { name: 'trash.empty' }))
+    await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash'))
+    expect(confirmFn).toHaveBeenCalledTimes(1)
+    expect(confirmFn.mock.calls[0][0].message).toBe('trash.emptyConfirm:3')
+  })
+
+  it('marks the local catalog grid stale after a restore', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(entries)
+    vi.spyOn(api, 'post').mockResolvedValue({ status: 'ok' })
+    app()
+    qc.setQueryData(['catalog', 0, 'Show'], { items: [] })
+    fireEvent.click(await screen.findByRole('link', { name: 'trash.open' }))
+    fireEvent.click((await screen.findAllByRole('button', { name: 'trash.restore' }))[0])
+    await waitFor(() => expect(qc.getQueryState(['catalog', 0, 'Show'])?.isInvalidated).toBe(true))
   })
 })

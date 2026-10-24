@@ -8,6 +8,15 @@ import { applyScheme, SCHEME_KEY, SCHEMES, type Scheme } from '../../scheme'
 import { SettingsPanel, SwitchSetting } from './ui'
 import { useTodayJump } from '../today/shared'
 
+// a blocked storage (private window) keeps the choice for this visit only
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // applied already, just not remembered
+  }
+}
+
 const THEMES: ThemePref[] = ['system', 'dark', 'light']
 
 // Every choice here applies at once and is the preview of itself: the page
@@ -25,8 +34,8 @@ export default function Look() {
 
   const pickTheme = (th: ThemePref) => {
     setTheme(th)
-    localStorage.setItem(THEME_KEY, th)
     applyTheme(th)
+    store(THEME_KEY, th)
   }
   // the new scheme spreads from the card that was picked, over the whole
   // page - the page is the preview of the choice
@@ -36,7 +45,7 @@ export default function Look() {
       flushSync(() => setScheme(s))
       applyScheme(s)
     }
-    localStorage.setItem(SCHEME_KEY, s)
+    store(SCHEME_KEY, s)
     const r = from?.getBoundingClientRect()
     if (r && r.width) void revealTransition(r.left + r.width / 2, r.top + r.height / 2, apply)
     else apply()
@@ -55,7 +64,7 @@ export default function Look() {
     setMotion(m)
     if (m) delete root.dataset.motion
     else root.dataset.motion = 'off'
-    localStorage.setItem('weebsync.motion', m ? 'on' : 'off')
+    store('weebsync.motion', m ? 'on' : 'off')
   }
 
   return (

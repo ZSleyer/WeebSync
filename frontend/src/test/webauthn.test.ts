@@ -51,6 +51,22 @@ describe('webauthn on the native JSON API', () => {
     })
   })
 
+  it('sends a name outside Latin-1 as a header value fetch accepts', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      .mockImplementation(async (url: string) =>
+        url.endsWith('/begin') ? { sessionId: 's1', publicKey: { challenge: 'abc' } } : {},
+      )
+    const name = 'Chadis Handy – privat 日本 Büro'
+    await registerCredential('passkey', name, 'pw')
+    const headers = post.mock.lastCall?.[2] as Record<string, string>
+    // a raw value above U+00FF makes fetch throw after the device already
+    // created the passkey; Latin-1 would reach the server as invalid UTF-8
+    expect(() => new Headers(headers)).not.toThrow()
+    expect(headers['X-WA-Name']).toMatch(/^[\x20-\x7e]*$/)
+    expect(decodeURIComponent(headers['X-WA-Name'])).toBe(name)
+  })
+
   it('cancels the armed autofill when a button starts a login', async () => {
     vi.spyOn(api, 'post').mockImplementation(async (url: string) =>
       url.endsWith('/begin') ? { sessionId: 's', publicKey: {} } : {},

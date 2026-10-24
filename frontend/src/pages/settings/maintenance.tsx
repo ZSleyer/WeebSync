@@ -242,6 +242,19 @@ export function useDebounced(value: string, onSettle: () => void): string {
   return settled
 }
 
+// Blur of an uncontrolled number field: a whole number >= 0 that differs is
+// committed; anything else (cleared, "abc", "-3", "2,5") puts the stored value
+// back, so the field never shows a value that was not taken.
+function commitNum(input: HTMLInputElement, value: number, onCommit: (n: number) => void) {
+  const text = input.value.trim()
+  const n = Number(text)
+  if (text !== '' && Number.isInteger(n) && n >= 0) {
+    if (n !== value) onCommit(n)
+    return
+  }
+  input.value = String(value)
+}
+
 // Small inline number editor: uncontrolled (the 5s poll must not clobber
 // typing), remounts via key when the server value changes, commits on
 // blur/Enter. 0 resets to the server-side default.
@@ -280,11 +293,7 @@ export function NumEdit({
         title={title}
         defaultValue={value}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-        onBlur={(e) => {
-          if (e.target.value.trim() === '') return // cleared field ≠ explicit 0/reset
-          const n = Number(e.target.value)
-          if (Number.isInteger(n) && n >= 0 && n !== value) onCommit(n)
-        }}
+        onBlur={(e) => commitNum(e.target, value, onCommit)}
       />
     </>
   )
@@ -318,11 +327,7 @@ export function NumField({
         aria-describedby={id + '-h'}
         defaultValue={value}
         onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-        onBlur={(e) => {
-          if (e.target.value.trim() === '') return
-          const n = Number(e.target.value)
-          if (Number.isInteger(n) && n >= 0 && n !== value) onCommit(n)
-        }}
+        onBlur={(e) => commitNum(e.target, value, onCommit)}
       />
     </SettingsField>
   )

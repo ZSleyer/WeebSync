@@ -29,6 +29,13 @@ export function trimUtf8Tail(bytes: Uint8Array): Uint8Array {
  * bytes are the start of a longer file, which may end mid-character.
  */
 export function decodeText(bytes: Uint8Array, name: string, cut = false): string {
+  // a byte order mark names the encoding (https://encoding.spec.whatwg.org/#bom-sniff),
+  // and UTF-16 is not valid UTF-8; the labels are the spec's
+  // (https://encoding.spec.whatwg.org/#names-and-labels)
+  if (bytes.length >= 2 && ((bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff))) {
+    const even = cut && bytes.length % 2 ? bytes.subarray(0, bytes.length - 1) : bytes
+    return new TextDecoder(bytes[0] === 0xff ? 'utf-16le' : 'utf-16be').decode(even)
+  }
   try {
     return new TextDecoder('utf-8', { fatal: true }).decode(cut ? trimUtf8Tail(bytes) : bytes)
   } catch {
@@ -46,7 +53,14 @@ const parseXml = (text: string) => new DOMParser().parseFromString(text, 'applic
 /** Resolves an href inside a book against the file that names it. */
 export function resolveIn(from: string, href: string): string {
   const parts = from.split('/').slice(0, -1)
-  for (const seg of decodeURIComponent(href.split('#')[0]).split('/')) {
+  const path = href.split('#')[0]
+  let decoded = path
+  try {
+    decoded = decodeURIComponent(path)
+  } catch {
+    // a stray % in a sloppy manifest: take the path as written
+  }
+  for (const seg of decoded.split('/')) {
     if (seg === '..') parts.pop()
     else if (seg && seg !== '.') parts.push(seg)
   }
@@ -176,11 +190,20 @@ export function xlsxSheetParts(workbookXml: string, relsXml: string): { name: st
   }))
 }
 
+/** The text of a string item: its own runs, not the phonetic (furigana) ones in rPh. */
+const itemText = (item: Element) => {
+  let out = ''
+  for (const child of item.children) {
+    if (child.localName === 't') out += child.textContent ?? ''
+    else if (child.localName === 'r')
+      for (const t of child.children) if (t.localName === 't') out += t.textContent ?? ''
+  }
+  return out
+}
+
 /** The shared string table of an xlsx file. */
 export function xlsxStrings(sharedXml: string): string[] {
-  return [...parseXml(sharedXml).getElementsByTagName('si')].map((si) =>
-    [...si.getElementsByTagName('t')].map((t) => t.textContent ?? '').join(''),
-  )
+  return [...parseXml(sharedXml).getElementsByTagName('si')].map(itemText)
 }
 
 const colIndex = (ref: string) => {
@@ -205,7 +228,10 @@ export function xlsxRows(sheetXml: string, strings: string[]): string[][] {
         type === 's'
           ? (strings[Number(v)] ?? '')
           : type === 'inlineStr'
-            ? [...c.getElementsByTagName('t')].map((t) => t.textContent ?? '').join('')
+            ? [...c.children]
+                .filter((x) => x.localName === 'is')
+                .map(itemText)
+                .join('')
             : type === 'b'
               ? v === '1'
                 ? 'TRUE'

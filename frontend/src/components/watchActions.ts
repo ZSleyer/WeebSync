@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, mediaTitle, type Watch, type WatchCheck } from '../api'
-import { useUndoableRemove } from './toast'
+import { useToast, useUndoableRemove } from './toast'
 import type { WatchFields } from './WatchDialog'
 
 // the edit dialog's initial fields, from a watch as the list has it
@@ -34,14 +34,14 @@ export const watchFields = (w: Watch): WatchFields => ({
 /**
  * What can be done to a watch, shared by the list and the title card so both
  * run the same requests and refresh the same query. The hook keeps the last
- * error and notice for the caller to show where it likes.
+ * error for the caller to show where it likes.
  */
 export function useWatchActions() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const removeLater = useUndoableRemove()
+  const toast = useToast()
   const [error, setError] = useState('')
-  const [notice, setNotice] = useState('')
   const refresh = () => qc.invalidateQueries({ queryKey: ['watches'] })
   // the episode list of one watch is cached for minutes; a save or a check
   // changes what is on disk and how it is named, so it has to load again too
@@ -85,7 +85,8 @@ export function useWatchActions() {
     setError('')
     try {
       await api.post(`/api/watches/${id}/plex-streams`)
-      setNotice(t('watch.plexApplyQueued'))
+      // a toast per call: state-carried text would not change on the second one
+      toast({ message: t('watch.plexApplyQueued') })
     } catch (err) {
       fail(err)
     }
@@ -110,5 +111,5 @@ export function useWatchActions() {
     await api.put(`/api/watches/${id}`, f)
     refreshOne(id)
   }
-  return { check, checking, applyPlexStreams, del, save, refresh, error, notice }
+  return { check, checking, applyPlexStreams, del, save, refresh, error }
 }

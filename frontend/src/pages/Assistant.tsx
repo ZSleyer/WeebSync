@@ -537,6 +537,11 @@ export default function Assistant() {
   }, [streaming, queue.length])
 
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter that confirms an IME composition (kana, hanzi, hangul) is not a send.
+    // isComposing: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/isComposing
+    // (read 2026-10-24); Safari fires compositionend first, so that keydown
+    // only shows as the legacy keyCode 229
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       void send()

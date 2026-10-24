@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api, ApiError } from '../api'
@@ -64,6 +64,12 @@ export function withId(d: ThreadData, from: number, to: number): ThreadData {
   return { ...d, pages: d.pages.map((p) => ({ ...p, comments: p.comments.map(one) })) }
 }
 
+/** The thread data without the comment `id` (a pending reply that was refused). */
+export function withoutComment(d: ThreadData, id: number): ThreadData {
+  const one = (c: Comment): Comment => ({ ...c, replies: c.replies.filter((r) => r.id !== id).map(one) })
+  return { ...d, pages: d.pages.map((p) => ({ ...p, comments: p.comments.filter((c) => c.id !== id).map(one) })) }
+}
+
 export function useThreadWrites(threadId: number) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -73,6 +79,14 @@ export function useThreadWrites(threadId: number) {
   const key = ['anilist-thread', threadId]
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
   const [draft, setDraft] = useState('')
+  // the "Reply" link that opened the composer: the focus goes back to it
+  const opener = useRef<HTMLElement | null>(null)
+  const close = () => {
+    setReplyTo(null)
+    const el = opener.current
+    opener.current = null
+    if (el?.isConnected) el.focus()
+  }
 
   const fail = (e: unknown) => {
     if (e instanceof ApiError && e.status === 403) {
@@ -87,12 +101,19 @@ export function useThreadWrites(threadId: number) {
     mutationFn: (to: LikeTarget) => api.post<LikeState>('/api/anilist/likes', { ...to, threadId }),
     onMutate: async (to) => {
       await qc.cancelQueries({ queryKey: key })
-      const prev = qc.getQueryData<ThreadData>(key)
-      set((d) => withLike(d, to, (c) => ({ liked: !c.liked, likes: Math.max(0, c.likes + (c.liked ? -1 : 1)) })))
-      return prev
+      // only this like is taken back on failure: a whole-cache snapshot would
+      // also drop what was written while this request was out
+      let before: LikeState | undefined
+      set((d) =>
+        withLike(d, to, (c) => {
+          before = c
+          return { liked: !c.liked, likes: Math.max(0, c.likes + (c.liked ? -1 : 1)) }
+        }),
+      )
+      return before
     },
-    onError: (e, _to, prev) => {
-      if (prev) qc.setQueryData(key, prev)
+    onError: (e, to, before) => {
+      if (before) set((d) => withLike(d, to, () => before))
       fail(e)
     },
     onSuccess: (r, to) => set((d) => withLike(d, to, () => r)),
@@ -106,7 +127,6 @@ export function useThreadWrites(threadId: number) {
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: key })
-      const prev = qc.getQueryData<ThreadData>(key)
       const pending: Comment = {
         id: v.tmp,
         body: v.text,
@@ -118,18 +138,26 @@ export function useThreadWrites(threadId: number) {
         replies: [],
       }
       set((d) => withReply(d, v, pending))
-      setReplyTo(null)
+      // a send in flight may fail and reopen its composer: it carries its own
+      // opener, other composers opened meanwhile keep theirs
+      const from = opener.current
+      close()
       setDraft('')
-      return prev
+      return from
     },
-    onError: (e, v, prev) => {
-      if (prev) qc.setQueryData(key, prev)
+    onError: (e, v, from) => {
+      opener.current = from ?? null
+      // only the pending reply goes; a reply written meanwhile stays
+      set((d) => withoutComment(d, v.tmp))
       // the words come back into the open composer, nothing typed is lost
       setReplyTo({ parent: v.parent, top: v.top, name: v.name })
       setDraft(v.text)
       fail(e)
     },
-    onSuccess: (r, v) => set((d) => withId(d, v.tmp, r.id)),
+    onSuccess: (r, v) => {
+      set((d) => withId(d, v.tmp, r.id))
+      toast({ message: t('thread.posted') })
+    },
   })
 
   return {
@@ -139,10 +167,12 @@ export function useThreadWrites(threadId: number) {
     like: (to: LikeTarget) => like.mutate(to),
     replyTo,
     open: (to: ReplyTarget) => {
+      const from = document.activeElement
+      if (from instanceof HTMLElement && from !== document.body) opener.current = from
       setReplyTo(to)
       setDraft('')
     },
-    cancel: () => setReplyTo(null),
+    cancel: close,
     draft,
     setDraft,
     sending: send.isPending,
