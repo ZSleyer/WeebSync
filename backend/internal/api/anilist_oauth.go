@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -174,12 +176,42 @@ func (s *Server) handleAnilistCallback(w http.ResponseWriter, r *http.Request) {
 	if expiresIn > 0 {
 		expires = time.Now().UTC().Add(time.Duration(expiresIn) * time.Second).Format(sqliteTime)
 	}
-	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, alID, name, avatar, enc, expires); err != nil {
+	if err := s.linkAnilistAccount(u.ID, alID, name, avatar, enc, expires); err != nil {
 		http.Error(w, "failed to store linked account", http.StatusInternalServerError)
 		return
 	}
 	http.Redirect(w, r, "/settings", http.StatusFound)
+}
+
+// linkAnilistAccount stores the user's linked account. Linking a different
+// AniList account than the one already there (same user, new anilist_user_id)
+// takes the write switches back to off in the same transaction - Disconnect
+// does the same, and a replace without it would hand the permissions the user
+// gave for one account to another - and ages what was cached for the old one.
+func (s *Server) linkAnilistAccount(userID int64, alID int, name, avatar string, enc []byte, expires string) error {
+	oldID := 0
+	err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		switch err := tx.QueryRow(`SELECT anilist_user_id FROM anilist_accounts WHERE user_id = ?`, userID).Scan(&oldID); {
+		case errors.Is(err, sql.ErrNoRows):
+			oldID = 0
+		case err != nil:
+			return err
+		}
+		if _, err := tx.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
+			VALUES (?, ?, ?, ?, ?, ?)`, userID, alID, name, avatar, enc, expires); err != nil {
+			return err
+		}
+		if oldID != 0 && oldID != alID {
+			_, err := tx.Exec(`UPDATE users SET anilist_write_list = 0, anilist_write_social = 0 WHERE id = ?`, userID)
+			return err
+		}
+		return nil
+	})
+	if err == nil && oldID != 0 && oldID != alID {
+		s.Anilist.InvalidateUserList(oldID)
+		s.staleUserSuggestions(userID)
+	}
+	return err
 }
 
 // jwtExpiry extracts the exp claim of a JWT (unverified - display only).
@@ -251,8 +283,7 @@ func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "encrypt error")
 		return
 	}
-	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO anilist_accounts (user_id, anilist_user_id, anilist_name, avatar, token_enc, expires_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, u.ID, alID, name, avatar, enc, jwtExpiry(token)); err != nil {
+	if err := s.linkAnilistAccount(u.ID, alID, name, avatar, enc, jwtExpiry(token)); err != nil {
 		writeErr(w, http.StatusInternalServerError, "failed to store linked account")
 		return
 	}

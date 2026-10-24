@@ -105,3 +105,32 @@ func TestAnilistMediaUnknownIDs(t *testing.T) {
 		t.Fatalf("AniList was asked %d times for one unknown id, want 1", tr.n.Load())
 	}
 }
+
+// Pasting the token of another AniList account over a linked one must not carry
+// the write switches along: they were granted for the account that was there.
+func TestRelinkingAnotherAccountResetsWriteSwitches(t *testing.T) {
+	_, mux, c, fake, d := linkedServer(t)
+	fake.answer = func(string, map[string]any) string {
+		return `{"data":{"Viewer":{"id":88,"name":"other","avatar":{"medium":""}}}}`
+	}
+	d.Exec(`UPDATE users SET anilist_write_list = 1, anilist_write_social = 1 WHERE id = 1`)
+
+	if rec := doReq(mux, "POST", "/api/anilist/token", `{"token":"other-tok"}`, c); rec.Code != http.StatusOK {
+		t.Fatalf("relink: %d %s", rec.Code, rec.Body)
+	}
+	var list, social int
+	d.QueryRow(`SELECT anilist_write_list, anilist_write_social FROM users WHERE id = 1`).Scan(&list, &social)
+	if list != 0 || social != 0 {
+		t.Fatalf("switches after linking another account = %d/%d, want 0/0", list, social)
+	}
+
+	// the same account again (a renewed token) keeps what the user allowed
+	d.Exec(`UPDATE users SET anilist_write_list = 1 WHERE id = 1`)
+	if rec := doReq(mux, "POST", "/api/anilist/token", `{"token":"renewed"}`, c); rec.Code != http.StatusOK {
+		t.Fatalf("renew: %d %s", rec.Code, rec.Body)
+	}
+	d.QueryRow(`SELECT anilist_write_list FROM users WHERE id = 1`).Scan(&list)
+	if list != 1 {
+		t.Fatalf("a renewed token for the same account reset the switch")
+	}
+}
