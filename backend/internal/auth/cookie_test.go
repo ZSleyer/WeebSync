@@ -65,6 +65,11 @@ func TestLegacySessionCookieOnlyMigrates(t *testing.T) {
 	d := dbtest.Open(t)
 	victim, _ := findOrCreateOIDCUser(d, "victim@example.com", nil, true)
 	attacker, _ := findOrCreateOIDCUser(d, "attacker@example.com", nil, true)
+	// both are let in: a refusal below must come from the cookie, not from
+	// an account still waiting for approval
+	if _, err := d.Exec(`UPDATE users SET approved = 1`); err != nil {
+		t.Fatal(err)
+	}
 	// a session from before the prefix: made over plain HTTP (or by an
 	// older version), so under the legacy name
 	pw := httptest.NewRecorder()
@@ -99,6 +104,19 @@ func TestLegacySessionCookieOnlyMigrates(t *testing.T) {
 	// tossed under the legacy name onto a browser without a session
 	if who, w := me(&http.Cookie{Name: "weebsync_session", Value: attackerToken}); who != "" || w.Code != http.StatusUnauthorized {
 		t.Errorf("tossed legacy cookie signed in as %q (%d)", who, w.Code)
+	}
+	// a token made under the prefix counts under the legacy name on no
+	// scheme, plain HTTP included
+	pr := httptest.NewRequest("GET", "/api/auth/me", nil)
+	pr.AddCookie(&http.Cookie{Name: "weebsync_session", Value: attackerToken})
+	pwho := ""
+	Middleware(d, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if u := UserFrom(r.Context()); u != nil {
+			pwho = u.Email
+		}
+	})).ServeHTTP(httptest.NewRecorder(), pr)
+	if pwho != "" {
+		t.Errorf("prefixed token under the legacy name over plain HTTP signed in as %q", pwho)
 	}
 	// tossed next to the victim's own: the prefixed one wins
 	if who, _ := me(&http.Cookie{Name: "weebsync_session", Value: attackerToken}, &http.Cookie{Name: "__Host-weebsync_session", Value: victimToken}); who != "victim@example.com" {

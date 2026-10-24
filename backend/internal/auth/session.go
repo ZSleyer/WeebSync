@@ -263,22 +263,24 @@ func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, reme
 
 // sessionCookieFrom is the request's session cookie. Under HTTPS that is the
 // host-prefixed one. The legacy name is the migration path for sessions from
-// before the prefix (or from plain HTTP, before force-https): it only counts
-// when no host-prefixed cookie came at all, never for a token that was handed
-// out under the prefix - a sister subdomain can set the legacy name, but not
-// to a session made under the prefix, an attacker's own included. legacy
-// reports the fallback, so the caller moves the session over.
+// before the prefix (or from plain HTTP, before force-https): over HTTPS it
+// only counts when no host-prefixed cookie came at all, and legacy reports
+// that, so the caller moves the session over. A token handed out under the
+// prefix is never taken under the legacy name, on any scheme: a sister
+// subdomain can set that name, but not to a session made under the prefix,
+// an attacker's own included.
 func sessionCookieFrom(r *http.Request) (c *http.Cookie, legacy bool) {
 	name := cookieName(r, sessionCookie)
-	if c, err := r.Cookie(name); err == nil {
-		return c, false
-	}
 	if name != sessionCookie {
-		if c, err := r.Cookie(sessionCookie); err == nil && !strings.HasPrefix(c.Value, hostTokenMark) {
-			return c, true
+		if c, err := r.Cookie(name); err == nil {
+			return c, false
 		}
 	}
-	return nil, false
+	c, err := r.Cookie(sessionCookie)
+	if err != nil || strings.HasPrefix(c.Value, hostTokenMark) {
+		return nil, false
+	}
+	return c, name != sessionCookie
 }
 
 // SessionToken is the raw session token the request carries, "" without one.
