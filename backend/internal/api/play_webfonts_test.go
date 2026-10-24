@@ -1,13 +1,16 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestWebFonts(t *testing.T) {
@@ -71,5 +74,125 @@ func TestWebFonts(t *testing.T) {
 		if rec := get(u); rec.Code != code {
 			t.Errorf("%s: %d, want %d", u, rec.Code, code)
 		}
+	}
+}
+
+// The first caller going away does not leave everybody without the list for
+// ten minutes, and nobody waits on a lock behind its fetch.
+func TestWebFontListOutlivesCaller(t *testing.T) {
+	release := make(chan struct{})
+	var fetches atomic.Int32
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetches.Add(1)
+		<-release
+		fmt.Fprint(w, `{"familyMetadataList":[{"family":"Carlito","fonts":{"400":{}}}]}`)
+	}))
+	defer google.Close()
+	defer close(release)
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	var l webFontList
+	s := testServer(t, &Server{})
+	ctx, cancel := context.WithCancel(t.Context())
+	first := make(chan map[string]webFamily, 1)
+	go func() { first <- l.get(ctx, s) }()
+	for fetches.Load() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	// a second caller with little patience is not held behind the fetch
+	short, cancelShort := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancelShort()
+	began := time.Now()
+	l.get(short, s)
+	if d := time.Since(began); d > 2*time.Second {
+		t.Fatalf("the second caller waited %v", d)
+	}
+	cancel()
+	select {
+	case <-first:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the first caller was not let go")
+	}
+	release <- struct{}{} // the fetch finishes for whoever asks next
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := l.get(t.Context(), s)["carlito"]; ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the list stayed empty after the first caller left")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := fetches.Load(); n != 1 {
+		t.Fatalf("%d fetches, want 1", n)
+	}
+}
+
+// The fetch is the server's background work: Shutdown cancels it and waits
+// for it.
+func TestWebFontListFetchEndsWithServer(t *testing.T) {
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // never answers
+	}))
+	defer google.Close()
+	defer google.CloseClientConnections()
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	var l webFontList
+	s := &Server{}
+	short, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	l.get(short, s)
+	ctx, cancelShutdown := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelShutdown()
+	s.Shutdown(ctx)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.fetching != nil {
+		t.Fatal("the fetch outlived the server")
+	}
+}
+
+// A due refresh does not hold anybody up while the old list is there: it is
+// served as it is, and the new one arrives in the background.
+func TestWebFontListRefreshServesOldList(t *testing.T) {
+	release := make(chan struct{})
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		fmt.Fprint(w, `{"familyMetadataList":[{"family":"Carlito","fonts":{"400":{}}}]}`)
+	}))
+	defer google.Close()
+	defer google.CloseClientConnections()
+	var once sync.Once
+	answer := func() { once.Do(func() { close(release) }) }
+	defer answer()
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	s := testServer(t, &Server{})
+	l := webFontList{byName: map[string]webFamily{"old": {"Old", []int{400}}}} // next: due
+	patient, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	began := time.Now()
+	got := l.get(patient, s)
+	if d := time.Since(began); d > time.Second {
+		t.Fatalf("the caller waited %v for the refresh", d)
+	}
+	if _, ok := got["old"]; !ok {
+		t.Fatalf("got %v, want the old list", got)
+	}
+	answer()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := l.get(t.Context(), s)["carlito"]; ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the refresh never arrived")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

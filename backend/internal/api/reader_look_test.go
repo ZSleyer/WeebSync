@@ -50,6 +50,10 @@ func TestInjectLook(t *testing.T) {
 		`<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><body>x</body></html>`: `<html xmlns="http://www.w3.org/1999/xhtml"><head><style id="weebsync-reader">`,
 		// upper case tags too
 		`<HTML><HEAD></HEAD><BODY>x</BODY></HTML>`: `<HEAD><style id="weebsync-reader">`,
+		// characters whose lower case has another length (KELVIN SIGN, a
+		// Latin-1 byte) do not move the spot
+		"<html><head><title>3K \xe9t\xe9</title></head><body>x</body></html>": "\xe9t\xe9</title><style id=\"weebsync-reader\">",
+		"<html Ka=\"1\"><body>x</body></html>":                                "<html Ka=\"1\"><head><style id=\"weebsync-reader\">",
 	}
 	for in, want := range cases {
 		out := string(injectLook([]byte(in), l))

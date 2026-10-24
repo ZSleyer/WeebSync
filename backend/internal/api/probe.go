@@ -92,8 +92,18 @@ func langCode(tag string) string {
 	if c, ok := iso639[t]; ok {
 		return c
 	}
-	if len(t) >= 3 {
-		t = t[:3]
+	// a BCP-47 tag ("pt-BR", "en_US") names its language up front
+	if i := strings.IndexAny(t, "-_"); i > 0 {
+		t = t[:i]
+		if notALanguage[t] {
+			return ""
+		}
+		if c, ok := iso639[t]; ok {
+			return c
+		}
+	}
+	if r := []rune(t); len(r) > 3 {
+		t = string(r[:3])
 	}
 	return canonCode(t)
 }
