@@ -155,8 +155,9 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 	if _, err := local.Root.Stat(filepath.Join(td, ".plexignore")); err != nil {
 		local.Root.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
 	}
-	stem := strings.TrimSuffix(name, filepath.Ext(name)) + "."
-	now := time.Now().Unix()
+	bare := strings.TrimSuffix(name, filepath.Ext(name))
+	stem := bare + "."
+	var group []string
 	for _, e := range entries {
 		n := e.Name()
 		if !e.Type().IsRegular() {
@@ -165,7 +166,21 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 		if n != name && (!strings.HasPrefix(n, stem) || videoExt[strings.ToLower(filepath.Ext(n))]) {
 			continue
 		}
-		dst := filepath.Join(td, n)
+		group = append(group, n)
+	}
+	// a copy of the same name already waiting there keeps its place: this one
+	// takes a free " (2)" after the stem, its sidecars the same, so they still
+	// group with it
+	suffix := freeTrashSuffix(local, td, func(sfx string) []string {
+		out := make([]string, len(group))
+		for i, n := range group {
+			out[i] = bare + sfx + n[len(bare):]
+		}
+		return out
+	})
+	now := time.Now().Unix()
+	for _, n := range group {
+		dst := filepath.Join(td, bare+suffix+n[len(bare):])
 		if err := local.Root.Rename(filepath.Join(local.Name, n), dst); err != nil {
 			slog.Warn("old copy not moved", "file", logSafe(n), "err", err)
 			if n == name {
@@ -219,7 +234,9 @@ func (s *Server) trashPath(abs string, why trashWhy) error {
 	if _, err := local.Root.Stat(filepath.Join(td, ".plexignore")); err != nil {
 		local.Root.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
 	}
-	dst := filepath.Join(td, name)
+	// a folder of the same name already waiting there keeps its place
+	suffix := freeTrashSuffix(local, td, func(sfx string) []string { return []string{name + sfx} })
+	dst := filepath.Join(td, name+suffix)
 	if err := local.Root.Rename(local.Name, dst); err != nil {
 		return err
 	}
@@ -230,6 +247,34 @@ func (s *Server) trashPath(abs string, why trashWhy) error {
 	}
 	slog.Info("folder moved to trash", "dir", logSafe(abs))
 	return nil
+}
+
+// freeTrashSuffix picks the suffix that names a trashed copy without
+// touching one already in the trash folder td: "" when the plain names are
+// free, else " (2)", " (3)" and so on. names maps a suffix to every name the
+// copy will take there (a video and its sidecars move as one). A rename
+// replaces a file of the same name without a word, and the older copy, still
+// promised as restorable, would be gone.
+func freeTrashSuffix(local *transfer.LocalPath, td string, names func(suffix string) []string) string {
+	taken := func(sfx string) bool {
+		for _, n := range names(sfx) {
+			// anything but a clean "not there" counts as taken
+			if _, err := local.Root.Lstat(filepath.Join(td, n)); !errors.Is(err, fs.ErrNotExist) {
+				return true
+			}
+		}
+		return false
+	}
+	if !taken("") {
+		return ""
+	}
+	for i := 2; i < 1000; i++ {
+		if sfx := " (" + strconv.Itoa(i) + ")"; !taken(sfx) {
+			return sfx
+		}
+	}
+	// a thousand copies of one name: the time keeps this one apart
+	return " (" + strconv.FormatInt(time.Now().UnixNano(), 10) + ")"
 }
 
 // emptyTrash deletes the displaced copies whose grace period is over.
