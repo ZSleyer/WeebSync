@@ -16,8 +16,8 @@ import { matchPath, useLocation, useNavigate, type Location } from 'react-router
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Share2, Trash2 } from 'lucide-react'
-import { Button, IconButton, localTransition, markOverflow, useBackEntry, useMediaQuery } from 'fluid-lycoris'
-import { api, mediaTitle, type Media, type MediaExtras, type Watch } from '../api'
+import { Button, IconButton, TextLink, localTransition, markOverflow, useBackEntry, useMediaQuery } from 'fluid-lycoris'
+import { api, mediaTitle, providerName, type Media, type MediaExtras, type Watch } from '../api'
 import type { Schemas } from '../api.gen'
 import { focusPosition, useBannerFocus } from './bannerFocus'
 import { shareLink } from '../clipboard'
@@ -631,7 +631,11 @@ function SeriesCard({
 
   // a related title arrives as its trimmed node: fetch the record behind it
   const thin = !cur.media || cur.media.description === undefined
-  const { data: fetched } = useQuery<Media>({
+  const {
+    data: fetched,
+    isError: fetchFailed,
+    refetch: refetchMedia,
+  } = useQuery<Media>({
     queryKey: ['media', source, cur.id],
     queryFn: () =>
       source.startsWith('tmdb:')
@@ -1230,12 +1234,21 @@ function SeriesCard({
                               dubDates={!!lead?.dubProgress || !!lead?.airings?.some((x) => x.dub)}
                               mappedBy={lead?.airedMapping ? lead.renameProvider : undefined}
                               bannerFocus={art === media.bannerImage ? focus : undefined}
+                              failed={thin && fetchFailed}
                             >
                               {cur.extra}
                             </MediaDetail>
                           </div>
                         )}
                       </>
+                    )}
+                    {k === 'overview' && !media && fetchFailed && (
+                      <p className="ws-d-err" role="status">
+                        {t('series.unavailable', { source: providerName(source) })}{' '}
+                        <TextLink tone="accent-2" onClick={() => void refetchMedia()}>
+                          {t('thread.retry')}
+                        </TextLink>
+                      </p>
                     )}
                     {k === 'episodes' &&
                       (stage > 0 ? (

@@ -78,6 +78,7 @@ export default function MediaDetail({
   bannerFocus,
   dubDates,
   mappedBy,
+  failed,
   children,
 }: {
   media: Media
@@ -93,6 +94,8 @@ export default function MediaDetail({
   dubDates?: boolean
   /** tvdb or tmdb: what the watch numbers its episodes by */
   mappedBy?: string
+  /** the full record could not be fetched: no description is not the same as none known */
+  failed?: boolean
   children?: ReactNode
 }) {
   const { t, i18n } = useTranslation()
@@ -145,7 +148,7 @@ export default function MediaDetail({
   return (
     <>
       <p className="ws-d-desc" data-long={long} data-open={open || undefined} id={`ws-desc-${m.id}`}>
-        {desc || t('series.noDesc', { source: src })}
+        {desc || (failed ? t('series.unavailable', { source: src }) : t('series.noDesc', { source: src }))}
       </p>
       {long && (
         <button

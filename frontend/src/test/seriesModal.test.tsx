@@ -158,6 +158,47 @@ afterEach(() => {
   target = { id: 7, media }
 })
 
+describe('series page without a record', () => {
+  it('says so and offers a retry when the title cannot be fetched', async () => {
+    let fail = true
+    vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/watches') return []
+      if (url === '/api/anilist/media/9') {
+        if (fail) throw new Error('429')
+        return { ...media, id: 9, description: 'Geladen.' }
+      }
+      if (url.startsWith('/api/media/extras')) throw new Error('502 down')
+      if (url.startsWith('/api/media/reviews')) return { reviews: [] }
+      return []
+    })
+    target = { id: 9 }
+    app()
+    fireEvent.click(screen.getByRole('button', { name: 'öffnen' }))
+    const retry = await screen.findByRole('button', { name: 'thread.retry' })
+    expect(retry.closest('[role="status"]')).toHaveTextContent('series.unavailable')
+    fail = false
+    fireEvent.click(retry)
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Geladen.'))
+    expect(screen.queryByRole('button', { name: 'thread.retry' })).toBeNull()
+  })
+
+  it('does not claim a related title has no description when its fetch failed', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/watches') return []
+      if (url === '/api/anilist/media/8') throw new Error('429')
+      if (url.startsWith('/api/media/extras')) throw new Error('502 down')
+      if (url.startsWith('/api/media/reviews')) return { reviews: [] }
+      return []
+    })
+    target = { id: 8, media: sequel }
+    app()
+    fireEvent.click(screen.getByRole('button', { name: 'öffnen' }))
+    const page = await screen.findByRole('dialog')
+    await waitFor(() => expect(page).toHaveTextContent('series.unavailable'))
+    expect(page).not.toHaveTextContent('series.noDesc')
+  })
+})
+
 // An IntersectionObserver the test drives: jsdom has none, and the card then
 // loads everything at once - which is what the other tests rely on.
 class FakeIO {
