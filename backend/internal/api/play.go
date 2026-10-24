@@ -736,7 +736,8 @@ func (s *Server) sidecarTracks(src playSource) []PlayTrack {
 	}
 	var out []PlayTrack
 	for _, n := range names {
-		if !transfer.SubExt[strings.ToLower(filepath.Ext(n))] || !strings.HasPrefix(n, stem) {
+		// the whole stem, then a dot: "Show - 1" is not "Show - 10.ass"
+		if !transfer.SubExt[strings.ToLower(filepath.Ext(n))] || !strings.HasPrefix(n, stem+".") {
 			continue
 		}
 		code, forced := sidecarLang(n)
