@@ -416,31 +416,44 @@ func toShow(it item) plex.Show {
 // ids resolves a RatingKey to the Jellyfin ids it bundles, listing every
 // library once when this client has not seen the key yet.
 func (c *Client) ids(ratingKey string) []string {
+	ids, _ := c.lookupIDs(ratingKey)
+	return ids
+}
+
+// lookupIDs is ids with the reason for an empty answer: plex.ErrNotFound when
+// every library was read and none lists the key, the server's error when a
+// library could not be read (the key may well be in it).
+func (c *Client) lookupIDs(ratingKey string) ([]string, error) {
 	c.mu.Lock()
 	ids, ok := c.groups[ratingKey]
 	c.mu.Unlock()
 	if ok {
-		return ids
+		return ids, nil
 	}
 	secs, err := c.Sections()
 	if err != nil {
-		return nil
+		return nil, err
 	}
+	var listErr error
 	for _, s := range secs {
 		if s.Type != "show" && s.Type != "movie" {
 			continue
 		}
 		if _, err := c.Shows(s.Key); err != nil {
+			listErr = err
 			continue
 		}
 		c.mu.Lock()
 		ids, ok = c.groups[ratingKey]
 		c.mu.Unlock()
 		if ok {
-			return ids
+			return ids, nil
 		}
 	}
-	return nil
+	if listErr != nil {
+		return nil, listErr
+	}
+	return nil, fmt.Errorf("jellyfin: show %s: %w", ratingKey, plex.ErrNotFound)
 }
 
 func (c *Client) items(ids []string, fields string) ([]item, error) {
@@ -457,16 +470,16 @@ func (c *Client) items(ids []string, fields string) ([]item, error) {
 }
 
 func (c *Client) ShowDetail(ratingKey string) (*plex.Show, error) {
-	ids := c.ids(ratingKey)
-	if len(ids) == 0 {
-		return nil, fmt.Errorf("jellyfin: show %s not found", ratingKey)
+	ids, err := c.lookupIDs(ratingKey)
+	if err != nil {
+		return nil, err
 	}
 	its, err := c.items(ids, showFields)
 	if err != nil {
 		return nil, err
 	}
 	if len(its) == 0 {
-		return nil, fmt.Errorf("jellyfin: show %s not found", ratingKey)
+		return nil, fmt.Errorf("jellyfin: show %s: %w", ratingKey, plex.ErrNotFound)
 	}
 	sh := toShow(its[0])
 	sh.RatingKey = ratingKey

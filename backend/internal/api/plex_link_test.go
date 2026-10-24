@@ -150,6 +150,38 @@ func TestWatchPlexShowLinkTellsMissingShowFromOutage(t *testing.T) {
 	}
 }
 
+// The same distinction with Jellyfin as the media server: a key no library
+// lists is not found, a server that cannot list its libraries is an outage.
+func TestWatchPlexShowLinkTellsMissingShowFromOutageOnJellyfin(t *testing.T) {
+	down := false
+	jf := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case down:
+			http.Error(w, "busy", http.StatusInternalServerError)
+		case r.URL.Path == "/Users/Me":
+			io.WriteString(w, `{"Id":"u1","Name":"Chisato"}`)
+		case r.URL.Path == "/Library/VirtualFolders":
+			io.WriteString(w, `[{"Name":"Anime","ItemId":"lib1","CollectionType":"tvshows","Locations":["/media/anime"]}]`)
+		case r.URL.Path == "/Items":
+			io.WriteString(w, `{"Items":[],"TotalRecordCount":0}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer jf.Close()
+	d, mux, ck := linkFixture(t)
+	d.Exec(`DELETE FROM settings WHERE key IN ('plex_url', 'plex_token')`)
+	d.Exec(`INSERT INTO settings (key, value) VALUES ('jellyfin_url', ?), ('jellyfin_token', 'key')`, jf.URL)
+
+	if code := linkPUT(t, mux, ck, `{"ratingKey":"12345"}`); code != http.StatusNotFound {
+		t.Errorf("unknown show: %d, want 404", code)
+	}
+	down = true
+	if code := linkPUT(t, mux, ck, `{"ratingKey":"12346"}`); code != http.StatusBadGateway {
+		t.Errorf("server down: %d, want 502", code)
+	}
+}
+
 // an expired PIN (404), an outage or a garbled answer is an error, not "not claimed yet"
 func TestPlexPinTokenStatusAndDecode(t *testing.T) {
 	status, body := http.StatusOK, `{"authToken":"tok"}`
