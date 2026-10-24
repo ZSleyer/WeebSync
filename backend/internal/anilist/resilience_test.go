@@ -33,8 +33,8 @@ func TestRejectedTokenFallsBackToAnonymous(t *testing.T) {
 		n.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 		if r.Header.Get("Authorization") != "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"errors":[{"message":"Invalid token","status":401}],"data":null}`))
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"errors":[{"message":"Invalid token","status":400}],"data":null}`))
 			return
 		}
 		w.Write([]byte(`{"data":{"Media":{"id":5,"title":{"romaji":"Kino"}}}}`))
