@@ -71,6 +71,9 @@ func (s *Server) waCredentials(userID int64) []webauthn.Credential {
 		}
 		var c webauthn.Credential
 		if json.Unmarshal(raw, &c) == nil {
+			// the warning is about one ceremony: one stored by an older
+			// release must not refuse every later sign-in
+			c.Authenticator.CloneWarning = false
 			out = append(out, c)
 		}
 	}
@@ -227,10 +230,22 @@ func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, email, pa
 	return true
 }
 
+// cloned reports whether the library flagged the assertion's signature
+// counter as not advancing past the stored one: a second copy of the key may
+// be in use. The library leaves the decision to the relying party; the
+// sign-in is refused and the stored counter kept.
+func cloned(c *webauthn.Credential, userID int64) bool {
+	if !c.Authenticator.CloneWarning {
+		return false
+	}
+	slog.Warn("webauthn sign count did not advance, possibly a cloned authenticator", "user", userID, "count", c.Authenticator.SignCount)
+	return true
+}
+
 // updateCredential re-saves a credential after a login (sign-count bump).
 func (s *Server) updateCredential(c *webauthn.Credential) {
 	if raw, err := json.Marshal(c); err == nil {
-		// the sign count is what tells a cloned authenticator apart
+		// the sign count is what tells a cloned authenticator apart (see cloned)
 		if _, err := s.DB.Exec(`UPDATE webauthn_credentials SET cred_json = ?, last_used = datetime('now') WHERE credential_id = ?`, raw, c.ID); err != nil {
 			slog.Warn("webauthn sign count not stored", "err", err)
 		}
@@ -448,7 +463,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	_, cred, err := wa.ValidatePasskeyLogin(handler, *session, parsed)
-	if err != nil || matched == nil {
+	if err != nil || matched == nil || cloned(cred, matched.id) {
 		writeErr(w, http.StatusUnauthorized, "passkey login failed")
 		return
 	}
@@ -599,7 +614,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	cred, err := wa.FinishLogin(user, *session, r)
-	if err != nil {
+	if err != nil || cloned(cred, userID) {
 		s.failLoginPending(token)
 		s.accountFailed(r, user.email)
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
