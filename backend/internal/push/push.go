@@ -3,14 +3,17 @@
 package push
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -26,21 +29,49 @@ type Service struct {
 
 var ErrEndpointOwned = errors.New("push endpoint belongs to another user")
 
+// New loads the instance's VAPID key pair, generating one only when none is
+// stored. Every browser subscription is bound to the stored public key, so a
+// key that cannot be read or decrypted fails here instead of being replaced:
+// a new pair would silently orphan every existing subscription.
 func New(d *sql.DB) (*Service, error) {
-	pub := db.Setting(d, "vapid_public")
-	priv := secret.SettingOrEnv(d, "vapid_private", "")
-	if pub == "" || priv == "" {
-		var err error
-		priv, pub, err = generateKeys()
-		if err != nil {
-			return nil, err
+	pub, err := db.SettingErr(d, "vapid_public")
+	if err != nil {
+		return nil, fmt.Errorf("read vapid_public: %w", err)
+	}
+	rawPriv, err := db.SettingErr(d, "vapid_private")
+	if err != nil {
+		return nil, fmt.Errorf("read vapid_private: %w", err)
+	}
+	var priv string
+	if rawPriv != "" {
+		if priv = secret.SettingOrEnv(d, "vapid_private", ""); priv == "" {
+			return nil, errors.New("vapid_private is stored but cannot be decrypted (secret key changed?)")
 		}
-		if err := db.SetSetting(d, "vapid_public", pub); err != nil {
-			return nil, err
+	}
+	if pub != "" && priv != "" {
+		return &Service{DB: d, public: pub, private: priv}, nil
+	}
+	if pub != "" || priv != "" {
+		// half a pair signs for nobody: subscriptions made against it are
+		// already dead, a new pair is the only way back
+		slog.Warn("push: incomplete VAPID key pair stored, generating a new one")
+	}
+	priv, pub, err = generateKeys()
+	if err != nil {
+		return nil, err
+	}
+	enc, err := secret.EncodeSetting(priv)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Tx(d, func(tx *sql.Tx) error {
+		if err := db.SetSetting(tx, "vapid_public", pub); err != nil {
+			return err
 		}
-		if err := secret.SetSetting(d, "vapid_private", priv); err != nil {
-			return nil, err
-		}
+		return db.SetSetting(tx, "vapid_private", enc)
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &Service{DB: d, public: pub, private: priv}, nil
 }
@@ -156,6 +187,7 @@ func (s *Service) Notify(userID int64, n Notification) {
 	}
 
 	payload, _ := json.Marshal(n)
+	var targets []sub
 	for _, x := range subs {
 		u, err := url.Parse(x.endpoint)
 		if err != nil || u.Scheme != "https" || u.Hostname() == "" {
@@ -163,32 +195,78 @@ func (s *Service) Notify(userID int64, n Notification) {
 			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
 			continue
 		}
-		if err := netguard.PublicAllowed(u.Hostname()); err != nil {
+		if err := ValidKeys(x.p256dh, x.auth); err != nil {
+			// keys nothing can be encrypted for fail the same way every time
+			slog.Warn("push subscription dropped", "host", endpointHost(x.endpoint), "err", err)
+			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?`, x.endpoint, userID)
+			continue
+		}
+		if err := endpointAllowed(u.Hostname()); err != nil {
 			slog.Warn("push endpoint blocked", "host", endpointHost(x.endpoint), "err", err)
 			continue
 		}
-		// netguard's client: a subscription host that DNS-rebinds or
-		// 30x-redirects to link-local/metadata is blocked at dial time
-		resp, err := send(netguard.PublicClient(15*time.Second), x.endpoint, x.p256dh, x.auth,
-			payload, s.subscriber(), s.public, s.private, 3600, n.Urgency)
-		if err != nil {
-			slog.Warn("push send", "err", err)
-			continue
-		}
-		// a rejected push is otherwise invisible: the browser simply stays
-		// quiet, and only the push service knows why (a bad VAPID subject and
-		// an oversized payload both answer 4xx, not an error)
-		if resp.StatusCode >= 300 {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-			slog.Warn("push rejected", "status", resp.StatusCode,
-				"host", endpointHost(x.endpoint), "body", oneLine(string(body)))
-		} else {
-			slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(x.endpoint))
-		}
-		if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone {
+		targets = append(targets, x)
+	}
+	if len(targets) == 0 {
+		return
+	}
+
+	// the devices are sent to side by side under one deadline: a push
+	// service that accepts the connection and never answers holds neither
+	// the other devices nor the caller (the test push, the sweep) for long
+	ctx, cancel := context.WithTimeout(context.Background(), notifyDeadline)
+	defer cancel()
+	client, subscriber := pushClient(), s.subscriber()
+	gone := make([]bool, len(targets))
+	sem := make(chan struct{}, notifyParallel)
+	var wg sync.WaitGroup
+	for i, x := range targets {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			gone[i] = s.deliver(ctx, client, x.endpoint, x.p256dh, x.auth, payload, subscriber, n.Urgency)
+		})
+	}
+	wg.Wait()
+	for i, x := range targets {
+		if gone[i] {
 			// a gone endpoint answers 404/410 again on the next notification
 			_, _ = s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?`, x.endpoint)
 		}
-		resp.Body.Close()
 	}
+}
+
+// notifyDeadline bounds one Notify across all of a user's subscriptions, and
+// notifyParallel how many of them are sent to at once. endpointAllowed and
+// pushClient are netguard's public-only guard and client: a subscription
+// host that DNS-rebinds or 30x-redirects to link-local/metadata is blocked
+// at dial time. Vars so tests can point Notify at local servers.
+var (
+	notifyDeadline  = 20 * time.Second
+	endpointAllowed = netguard.PublicAllowed
+	pushClient      = func() *http.Client { return netguard.PublicClient(15 * time.Second) }
+)
+
+const notifyParallel = 4
+
+// deliver sends one push and logs the outcome; it reports whether the push
+// service called the subscription gone (404/410).
+func (s *Service) deliver(ctx context.Context, client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, urgency string) bool {
+	resp, err := send(ctx, client, endpoint, p256dh, auth, payload, subscriber, s.public, s.private, 3600, urgency)
+	if err != nil {
+		slog.Warn("push send", "host", endpointHost(endpoint), "err", err)
+		return false
+	}
+	defer resp.Body.Close()
+	// a rejected push is otherwise invisible: the browser simply stays
+	// quiet, and only the push service knows why (a bad VAPID subject and
+	// an oversized payload both answer 4xx, not an error)
+	if resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		slog.Warn("push rejected", "status", resp.StatusCode,
+			"host", endpointHost(endpoint), "body", oneLine(string(body)))
+	} else {
+		slog.Debug("push sent", "status", resp.StatusCode, "host", endpointHost(endpoint))
+	}
+	return resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone
 }

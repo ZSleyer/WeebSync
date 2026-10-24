@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/ai"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -280,9 +281,6 @@ func (s *Server) aiFetchPage(ctx context.Context, sc *aiWebScope, raw string) an
 		text = htmlText(text)
 	}
 	text = cleanWebText(text)
-	cut := false
-	if len(text) > aiPageChars {
-		text, cut = text[:aiPageChars], true
-	}
-	return map[string]any{"url": u.String(), "text": text, "truncated": cut, "chars": len(text), "note": aiWebNote}
+	text, cut := cutRunes(text, aiPageChars)
+	return map[string]any{"url": u.String(), "text": text, "truncated": cut, "chars": utf8.RuneCountInString(text), "note": aiWebNote}
 }

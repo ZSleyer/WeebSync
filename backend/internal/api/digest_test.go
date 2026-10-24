@@ -120,6 +120,56 @@ func TestNotifyDownloadDebounces(t *testing.T) {
 	}, "digest was never flushed once things went quiet")
 }
 
+// A steady trickle of downloads, each inside the quiet period, must not hold
+// the digest forever: once the cap since the first item is reached it goes
+// out. With a daily frequency a daily auto-sync otherwise never reported.
+func TestNotifyDownloadCapsTheWait(t *testing.T) {
+	s := digestTestServer(t)
+	defer swapQuiet(t, 100*time.Millisecond)()
+	oldMax := digestMaxWait
+	digestMaxWait = 150 * time.Millisecond
+	defer func() { digestMaxWait = oldMax }()
+
+	const key = "1|download_done"
+	flushed := false
+	for i := 0; i < 15 && !flushed; i++ {
+		s.NotifyDownload(1, "download_done", digestItem{serverID: 1, remotePath: "/ep.mkv"})
+		time.Sleep(40 * time.Millisecond) // shorter than the quiet period
+		s.digestMu.Lock()
+		// fewer items held than sent: the batch went out while they kept coming
+		flushed = len(s.digest[key]) < i+1
+		s.digestMu.Unlock()
+	}
+	if !flushed {
+		t.Fatal("a steady trickle of downloads held the digest past its cap")
+	}
+	// let the last timer run before the cap is restored
+	waitFor(t, 2*time.Second, func() bool {
+		s.digestMu.Lock()
+		defer s.digestMu.Unlock()
+		return len(s.digest[key]) == 0
+	}, "digest was never flushed once things went quiet")
+}
+
+// A busy queue holds the digest back, but not past the cap either: a sweep of
+// another user that keeps the queue running must not postpone it round after
+// round.
+func TestFlushDigestBusyQueueCapped(t *testing.T) {
+	s := digestTestServer(t)
+	defer swapQuiet(t, 20*time.Millisecond)()
+	oldMax := digestMaxWait
+	digestMaxWait = 100 * time.Millisecond
+	defer func() { digestMaxWait = oldMax }()
+
+	insertDownload(t, s, "running")
+	s.NotifyDownload(1, "download_done", digestItem{serverID: 1, remotePath: "/one.mkv"})
+	waitFor(t, 2*time.Second, func() bool {
+		s.digestMu.Lock()
+		defer s.digestMu.Unlock()
+		return len(s.digest["1|download_done"]) == 0
+	}, "a busy queue held the digest past its cap")
+}
+
 var quietMu sync.Mutex
 
 // swapQuiet shortens the quiet period for a test and returns the restore func.

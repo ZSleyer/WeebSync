@@ -292,7 +292,10 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 	if mediaID == 0 {
 		return map[string]any{"error": "id required"}
 	}
-	seriesID := s.seriesByProvider(source, mediaID)
+	seriesID, err := s.seriesByProviderErr(source, mediaID)
+	if err != nil {
+		return map[string]any{"error": "db error"}
+	}
 	if seriesID == 0 {
 		if source != "anilist" {
 			return map[string]any{"error": "that title is not bundled into a series yet"}
@@ -311,10 +314,11 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 	var order []int
 	for rows.Next() {
 		var se aiSeason
-		if rows.Scan(&se.Season, &se.Title, &se.Year) == nil {
-			seasons[se.Season] = &se
-			order = append(order, se.Season)
+		if err := rows.Scan(&se.Season, &se.Title, &se.Year); err != nil {
+			return map[string]any{"error": "db error"}
 		}
+		seasons[se.Season] = &se
+		order = append(order, se.Season)
 	}
 	if err := rows.Err(); err != nil {
 		return map[string]any{"error": "db error"}
@@ -332,69 +336,75 @@ func (s *Server) aiSeriesSeasons(ctx context.Context, userID int64, source strin
 	vrows, err := s.DB.Query(`SELECT v.server_id, COALESCE(s.name, ''), v.folder, v.season, v.res_rank, v.dub_codes, v.sub_codes, v.is_movie
 		FROM catalog_variants v LEFT JOIN servers s ON s.id = v.server_id
 		WHERE v.series_id = ? AND (v.server_id = 0 OR s.user_id = ?) ORDER BY v.server_id, v.folder`, seriesID, userID)
-	if err == nil {
-		defer vrows.Close()
-		for vrows.Next() {
-			var f aiFolder
-			var serverID int64
-			var folder string
-			var res, isMovie int
-			var dub, sub string
-			if vrows.Scan(&serverID, &f.ServerName, &folder, &f.Season, &res, &dub, &sub, &isMovie) != nil {
-				continue
-			}
-			f.Name = aiName(folder)
-			if res > 0 {
-				f.Resolution = fmtRes(res)
-			}
-			f.Dub, f.Sub, f.IsMovie = splitCSV(dub), splitCSV(sub), isMovie == 1
-			se := at(f.Season)
-			if serverID == 0 {
-				f.Name = aiLocalName(folder)
-				se.Local = append(se.Local, f)
-			} else {
-				f.Ref = s.aiRefFor(userID, serverID, folder)
-				se.Remote = append(se.Remote, f)
-			}
-		}
-		if err := vrows.Err(); err != nil {
+	// a failed read would pass for "no copy, no auto-sync" and the model
+	// would propose a duplicate: every read below fails the tool instead
+	if err != nil {
+		return map[string]any{"error": "db error"}
+	}
+	defer vrows.Close()
+	for vrows.Next() {
+		var f aiFolder
+		var serverID int64
+		var folder string
+		var res, isMovie int
+		var dub, sub string
+		if err := vrows.Scan(&serverID, &f.ServerName, &folder, &f.Season, &res, &dub, &sub, &isMovie); err != nil {
 			return map[string]any{"error": "db error"}
 		}
+		f.Name = aiName(folder)
+		if res > 0 {
+			f.Resolution = fmtRes(res)
+		}
+		f.Dub, f.Sub, f.IsMovie = splitCSV(dub), splitCSV(sub), isMovie == 1
+		se := at(f.Season)
+		if serverID == 0 {
+			f.Name = aiLocalName(folder)
+			se.Local = append(se.Local, f)
+		} else {
+			f.Ref = s.aiRefFor(userID, serverID, folder)
+			se.Remote = append(se.Remote, f)
+		}
+	}
+	if err := vrows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
 	}
 	// auto-syncs: a watch whose folder sits in one of the seasons' units
 	wrows, err := s.DB.Query(`SELECT COALESCE(v.season, 0) FROM watches w
 		JOIN catalog_variants v ON v.server_id = w.server_id AND v.folder = w.remote_path
 		WHERE w.user_id = ? AND v.series_id = ?`, userID, seriesID)
-	if err == nil {
-		defer wrows.Close()
-		for wrows.Next() {
-			var n int
-			if wrows.Scan(&n) == nil {
-				at(n).InAutoSync = true
-			}
-		}
-		if err := wrows.Err(); err != nil {
+	if err != nil {
+		return map[string]any{"error": "db error"}
+	}
+	defer wrows.Close()
+	for wrows.Next() {
+		var n int
+		if err := wrows.Scan(&n); err != nil {
 			return map[string]any{"error": "db error"}
 		}
+		at(n).InAutoSync = true
+	}
+	if err := wrows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
 	}
 	// the AniList work of each season, so the model can show its card
 	prows, err := s.DB.Query(`SELECT media_id FROM series_provider WHERE series_id = ? AND source = 'anilist'`, seriesID)
-	if err == nil {
-		defer prows.Close()
-		for prows.Next() {
-			var id int
-			if prows.Scan(&id) != nil {
-				continue
-			}
-			if a, ok := s.animeIDs(id); ok && a.tvdbSeason > 0 {
-				if se, ok := seasons[a.tvdbSeason]; ok && se.AnilistID == 0 {
-					se.AnilistID = id
-				}
-			}
-		}
-		if err := prows.Err(); err != nil {
+	if err != nil {
+		return map[string]any{"error": "db error"}
+	}
+	defer prows.Close()
+	for prows.Next() {
+		var id int
+		if err := prows.Scan(&id); err != nil {
 			return map[string]any{"error": "db error"}
 		}
+		if a, ok := s.animeIDs(id); ok && a.tvdbSeason > 0 {
+			if se, ok := seasons[a.tvdbSeason]; ok && se.AnilistID == 0 {
+				se.AnilistID = id
+			}
+		}
+	}
+	if err := prows.Err(); err != nil {
+		return map[string]any{"error": "db error"}
 	}
 	sort.Ints(order)
 	out := make([]aiSeason, 0, len(order))
