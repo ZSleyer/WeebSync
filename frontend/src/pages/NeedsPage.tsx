@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import { EmptyState, PageHeader, SectionHeading } from 'fluid-lycoris'
+import { LoadError } from './today/LoadError'
 import { useNeedList } from './today/NeedRows'
 import { groupNeeds } from './today/needs'
 import { useNeedsData } from './today/useNeedsData'
@@ -13,7 +14,8 @@ import './today/today.css'
  */
 export default function NeedsPage() {
   const { t } = useTranslation()
-  const { downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose } = useNeedsData()
+  const { downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose, failed, retry } =
+    useNeedsData()
   const loading = isLoading || watchesLoading
   const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
   const groups = groupNeeds(shown)
@@ -29,7 +31,11 @@ export default function NeedsPage() {
             ))}
           </ul>
         ) : groups.length === 0 ? (
-          <EmptyState label={t('needs.empty')}>{t('needs.emptyHint')}</EmptyState>
+          failed ? (
+            <LoadError onRetry={retry} />
+          ) : (
+            <EmptyState label={t('needs.empty')}>{t('needs.emptyHint')}</EmptyState>
+          )
         ) : (
           groups.map((g) => (
             <section key={g.group} aria-labelledby={`needs-${g.group}`}>

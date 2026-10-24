@@ -551,6 +551,8 @@
     "justNow": "just now",
     "needs": "Needs you",
     "nothingOpen": "Nothing open.",
+    "loadFailed": "Could not load this.",
+    "loadRetry": "Try again",
     "hide": "Hide",
     "hidden": "Hidden",
     "needFailed": "{{what}} failed",

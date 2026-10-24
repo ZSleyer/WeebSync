@@ -203,3 +203,23 @@ describe('the hidden set', () => {
     expect([...hiddenNeeds()]).toEqual(['b'])
   })
 })
+
+describe('a failed read', () => {
+  const retry = vi.fn()
+  const failed = { ...base, downloads: [], watches: [], detected: 0, failed: true, retry }
+
+  it('is an error with a retry on the needs page, not "all done"', async () => {
+    data = failed
+    view(<NeedsPage />)
+    expect(await screen.findByText('today.loadFailed')).toBeTruthy()
+    expect(screen.queryByText('needs.empty')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'today.loadRetry' }))
+    expect(retry).toHaveBeenCalled()
+  })
+
+  it('is an error with a retry on Today, not "nothing open"', async () => {
+    view(<Needs downloads={[]} watches={[]} detected={0} loading={false} failed onRetry={retry} />)
+    expect(await screen.findByText('today.loadFailed')).toBeTruthy()
+    expect(screen.queryByText('today.nothingOpen')).toBeNull()
+  })
+})

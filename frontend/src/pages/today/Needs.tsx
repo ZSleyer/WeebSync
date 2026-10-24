@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Link } from 'react-router'
 import { SectionHeading } from 'fluid-lycoris'
 import type { Download, DownloadMeta, Watch } from '../../api'
+import { LoadError } from './LoadError'
 import { useNeedList } from './NeedRows'
 import { moreLink } from './needs'
 import { useFold, useRiseOnData } from './shared'
@@ -26,6 +27,8 @@ export function Needs({
   plexToken,
   mediaChoose,
   loading,
+  failed,
+  onRetry,
 }: {
   downloads: Download[]
   meta?: DownloadMeta
@@ -37,6 +40,9 @@ export function Needs({
   /** Plex and Jellyfin both connected, neither chosen */
   mediaChoose?: boolean
   loading: boolean
+  /** the data could not be read: say so instead of "nothing open" */
+  failed?: boolean
+  onRetry?: () => void
 }) {
   const { t } = useTranslation()
   const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
@@ -63,7 +69,8 @@ export function Needs({
           {loading
             ? [0, 1].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
             : rows.map((n, i) => row(n, i))}
-          {!loading && rows.length === 0 && <li className="td-empty">{t('today.nothingOpen')}</li>}
+          {!loading && rows.length === 0 && failed && <LoadError inline onRetry={() => onRetry?.()} />}
+          {!loading && rows.length === 0 && !failed && <li className="td-empty">{t('today.nothingOpen')}</li>}
         </ul>
         {shown.length > rows.length && (
           <Link to={moreLink()} className="t-link td-more">

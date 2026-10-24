@@ -16,6 +16,7 @@ import { upcomingAirings } from '../airings'
 import { jobLabel } from '../jobs'
 import { useTransfers } from '../components/transfers'
 import { useAuth } from '../hooks'
+import { LoadError } from './today/LoadError'
 import { Agenda } from './today/Agenda'
 import { HeroBanner } from './today/HeroBanner'
 import { buildNeeds, hiddenNeeds } from './today/needs'
@@ -34,7 +35,8 @@ import './today/today.css'
  */
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
-  const { now, downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose } = useNeedsData()
+  const { now, downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose, failed, retry } =
+    useNeedsData()
 
   const work = useWorkNote()
   // the caption's line: what loads, what needs a hand, when the next one
@@ -53,7 +55,7 @@ export default function Dashboard() {
       })
     : ''
   const status = [
-    loadingCount > 0 ? t('today.loadingCount', { count: loadingCount }) : t('today.quiet'),
+    loadingCount > 0 ? t('today.loadingCount', { count: loadingCount }) : failed ? null : t('today.quiet'),
     needCount > 0 ? t('today.needCount', { count: needCount }) : null,
     nextAt ? t('today.nextAt', { time: nextAt }) : null,
     work,
@@ -78,9 +80,11 @@ export default function Dashboard() {
               plexToken={plexToken}
               mediaChoose={mediaChoose}
               loading={loading}
+              failed={failed}
+              onRetry={retry}
             />
           )}
-          {late && <Transfers downloads={downloads} meta={meta} loading={isLoading} />}
+          {late && <Transfers downloads={downloads} meta={meta} loading={isLoading} failed={failed} onRetry={retry} />}
         </div>
         <div className="td-aside">
           {late && (
@@ -99,7 +103,19 @@ export default function Dashboard() {
  * "Übertragung": what runs right now, a row each with the wave;
  * the rest of the queue is in the transfers panel behind "Details".
  */
-function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?: DownloadMeta; loading: boolean }) {
+function Transfers({
+  downloads,
+  meta,
+  loading,
+  failed,
+  onRetry,
+}: {
+  downloads: Download[]
+  meta?: DownloadMeta
+  loading: boolean
+  failed: boolean
+  onRetry: () => void
+}) {
   const { t, i18n } = useTranslation()
   const transfers = useTransfers()
   const body = useRef<HTMLDivElement>(null)
@@ -122,7 +138,8 @@ function Transfers({ downloads, meta, loading }: { downloads: Download[]; meta?:
       <div ref={body} id={fold.controls} hidden={!fold.open}>
         <ul className="t-rows td-dl">
           {loading && <li aria-hidden className="td-sk-row" />}
-          {!loading && running.length === 0 && (
+          {!loading && running.length === 0 && failed && <LoadError inline onRetry={onRetry} />}
+          {!loading && running.length === 0 && !failed && (
             <li className="td-empty">
               <Trans i18nKey="dash.idle" components={{ go: <Link to="/files" className="t-link" /> }} />
             </li>

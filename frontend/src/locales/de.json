@@ -551,6 +551,8 @@
     "justNow": "gerade eben",
     "needs": "Braucht dich",
     "nothingOpen": "Nichts offen.",
+    "loadFailed": "Das ließ sich nicht laden.",
+    "loadRetry": "Erneut versuchen",
     "hide": "Ausblenden",
     "hidden": "Ausgeblendet",
     "needFailed": "{{what}} fehlgeschlagen",

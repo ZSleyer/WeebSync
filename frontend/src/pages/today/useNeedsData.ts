@@ -19,22 +19,26 @@ import { buildNeeds, hiddenNeeds } from './needs'
  */
 export function useNeedsData() {
   const now = useNow()
-  const { data: downloads = [], isLoading } = useQuery<Download[]>({
+  const dl = useQuery<Download[]>({
     queryKey: ['downloads'],
     queryFn: () => api.get('/api/downloads'),
     refetchInterval: 5000,
   })
+  const { data: downloads = [], isLoading } = dl
   const { data: meta } = useQuery<DownloadMeta>({
     queryKey: ['downloads', 'meta'],
     queryFn: () => api.get('/api/downloads/meta'),
     staleTime: 60_000,
     refetchInterval: 60_000,
   })
-  const { data: watches = [], isLoading: watchesLoading } = usePersistedQuery<Watch[]>(
-    'watches',
-    () => api.get('/api/watches'),
-    { refetchInterval: () => 30_000 },
-  )
+  const wq = usePersistedQuery<Watch[]>('watches', () => api.get('/api/watches'), { refetchInterval: () => 30_000 })
+  const { data: watches = [], isLoading: watchesLoading } = wq
+  // no answer yet and the last try failed: an empty list here is not "nothing open"
+  const failed = (dl.isError && dl.data === undefined) || (wq.isError && wq.data === undefined)
+  const retry = () => {
+    if (dl.isError) void dl.refetch()
+    if (wq.isError) void wq.refetch()
+  }
   // folders WeebSync marked on its own since the user last looked at the list
   const { data: marks } = useQuery<DetectedMarks>({
     queryKey: ['detected-marks'],
@@ -59,7 +63,20 @@ export function useNeedsData() {
     staleTime: 60_000,
   })
   const ftpServers = servers.filter((x) => x.protocol === 'ftp')
-  return { now, downloads, isLoading, meta, watches, watchesLoading, detected, plexToken, mediaChoose, ftpServers }
+  return {
+    now,
+    downloads,
+    isLoading,
+    meta,
+    watches,
+    watchesLoading,
+    detected,
+    plexToken,
+    mediaChoose,
+    ftpServers,
+    failed,
+    retry,
+  }
 }
 
 /** How many rows the Today page's needs list shows, hidden ones left out. */
