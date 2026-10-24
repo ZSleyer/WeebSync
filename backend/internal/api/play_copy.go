@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/url"
@@ -27,31 +28,83 @@ import (
 // every segment's exact length before anything is cut, and a run started at
 // segment n with -ss lands on exactly that keyframe.
 
-// cutCache holds each file's segment starts; a file is immutable while watched.
-var cutCache sync.Map // playSource -> []float64 (nil: no index)
+// cutCache holds each file's segment starts.
+var cutCache cutIndex
+
+// cutCacheMax bounds cutCache; past it the cache starts over.
+const cutCacheMax = 256
+
+type cutIndex struct {
+	mu  sync.Mutex
+	all map[playSource]cutEntry
+}
+
+// cutEntry is what a file of size bytes is cut at; nil cuts: it has no
+// keyframe index.
+type cutEntry struct {
+	size int64
+	cuts []float64
+}
+
+func (c *cutIndex) get(src playSource) (cutEntry, bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	e, ok := c.all[src]
+	return e, ok
+}
+
+func (c *cutIndex) put(src playSource, e cutEntry) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.all == nil || len(c.all) >= cutCacheMax {
+		c.all = map[playSource]cutEntry{}
+	}
+	c.all[src] = e
+}
+
+func (c *cutIndex) forget(src playSource) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.all, src)
+}
 
 // copyCuts are the segment starts (seconds) for a copy of src, or nil when it
-// has no keyframe index to cut at.
-func (s *Server) copyCuts(ctx context.Context, src playSource) []float64 {
+// has no keyframe index to cut at. recheck (a playback starting) compares the
+// remembered answer with the file's size, so a file replaced at the same path
+// is read again; a segment request trusts it.
+func (s *Server) copyCuts(ctx context.Context, src playSource, recheck bool) []float64 {
+	if !strings.EqualFold(filepath.Ext(src.path), ".mkv") {
+		return nil
+	}
 	src.low = false
-	if v, ok := cutCache.Load(src); ok {
-		return v.([]float64)
+	e, ok := cutCache.get(src)
+	if ok && !recheck {
+		return e.cuts
+	}
+	began := time.Now()
+	ra, size, done, err := s.readerAt(ctx, src)
+	if err != nil {
+		// out of reach just now (or the request went away): that says
+		// nothing about the file's index
+		slog.Info("player copy index", "path", logSafe(src.path), "err", err)
+		return e.cuts
+	}
+	defer done()
+	if ok && e.size == size {
+		return e.cuts
 	}
 	var cuts []float64
-	if strings.EqualFold(filepath.Ext(src.path), ".mkv") {
-		began := time.Now()
-		ra, size, done, err := s.readerAt(ctx, src)
-		if err == nil {
-			kf, kerr := mkvsubs.Keyframes(ra, size)
-			done()
-			if kerr == nil {
-				cuts = cutsFrom(kf)
-			}
-			err = kerr
-		}
-		slog.Info("player copy index", "path", logSafe(src.path), "segments", len(cuts), "took", time.Since(began).Round(time.Millisecond), "err", err)
+	kf, err := mkvsubs.Keyframes(ra, size)
+	if err == nil {
+		cuts = cutsFrom(kf)
 	}
-	cutCache.Store(src, cuts)
+	slog.Info("player copy index", "path", logSafe(src.path), "segments", len(cuts), "took", time.Since(began).Round(time.Millisecond), "err", err)
+	// only the file's own answer is remembered, never a read that broke off
+	if err == nil || errors.Is(err, mkvsubs.ErrNoCues) {
+		cutCache.put(src, cutEntry{size: size, cuts: cuts})
+	} else {
+		cutCache.forget(src)
+	}
 	return cuts
 }
 

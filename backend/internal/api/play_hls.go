@@ -138,7 +138,7 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	q := r.URL.Query()
 	if key.copy {
-		if cuts := s.copyCuts(r.Context(), src); cuts != nil {
+		if cuts := s.copyCuts(r.Context(), src, true); cuts != nil {
 			w.Write([]byte(copyPlaylist(cuts, info.Duration, q)))
 			return
 		}
@@ -197,7 +197,7 @@ func (s *Server) handlePlayHLSSegment(w http.ResponseWriter, r *http.Request) {
 	}
 	var cuts []float64
 	if key.copy {
-		if cuts = s.copyCuts(r.Context(), key.src); cuts == nil || n >= len(cuts) {
+		if cuts = s.copyCuts(r.Context(), key.src, false); cuts == nil || n >= len(cuts) {
 			writeErr(w, http.StatusBadGateway, "the file has no keyframe index to cut at")
 			return
 		}
