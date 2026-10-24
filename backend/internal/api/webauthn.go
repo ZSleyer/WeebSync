@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"net/netip"
 	"net/http"
 	"net/url"
 	"strings"
@@ -113,14 +114,19 @@ func (s *Server) webauthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
 	if origin == "" {
 		origin = requestOrigin(r)
 	}
+	// an IP address is no valid relying party ID; the library refuses it too,
+	// but with an error that cannot be told from a real fault. Checked before
+	// url.Parse, which rejects a zoned IPv6 host ("fe80::1%eth0").
+	_, host, _ := strings.Cut(origin, "://")
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if _, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil {
+		return nil, errWebAuthnNeedsHost
+	}
 	u, err := url.Parse(origin)
 	if err != nil {
 		return nil, err
-	}
-	// an IP address is no valid relying party ID; the library refuses it too,
-	// but with an error that cannot be told from a real fault
-	if net.ParseIP(u.Hostname()) != nil {
-		return nil, errWebAuthnNeedsHost
 	}
 	return webauthn.New(&webauthn.Config{
 		RPID:          u.Hostname(),
@@ -441,7 +447,6 @@ func waName(r *http.Request) string {
 // @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
-// @Failure  409 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth

@@ -14143,14 +14143,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "oneOf": [
-                                        {
-                                            "$ref": "#/components/schemas/api.ErrorResponse"
-                                        },
-                                        {
-                                            "$ref": "#/components/schemas/api.ErrorResponse"
-                                        }
-                                    ]
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
                                 }
                             }
                         },
