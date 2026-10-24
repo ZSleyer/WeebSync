@@ -18,6 +18,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // The assistant is a chat over the user's own data: lists, suggestions,
@@ -999,7 +1000,10 @@ func (s *Server) aiMedia(ctx context.Context, source string, id int) *anilist.Me
 	switch {
 	case source == "anilist":
 		m, err = s.Anilist.Media(ctx, id)
-	case strings.HasPrefix(source, "tmdb:") && s.Tmdb != nil && s.Tmdb.Enabled():
+	// the model names the kind; it becomes TMDB's request path and the shared
+	// cache key, so only the two real kinds pass
+	case strings.HasPrefix(source, "tmdb:") && tmdb.ValidKind(strings.TrimPrefix(source, "tmdb:")) &&
+		s.Tmdb != nil && s.Tmdb.Enabled():
 		m, err = s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), id)
 	case source == "tvdb" && s.Tvdb != nil && s.Tvdb.Enabled():
 		m, err = s.Tvdb.Media(ctx, id)
