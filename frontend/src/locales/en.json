@@ -2423,6 +2423,7 @@
   },
   "audio": {
     "title": "Playback",
+    "error": "This track could not be played.",
     "open": "Open the audio player",
     "back15": "Back 15 seconds",
     "fwd30": "Forward 30 seconds",
@@ -3024,6 +3025,7 @@
     "comments": "Comments",
     "noComments": "No comments yet.",
     "like": "Like",
+    "posted": "Reply posted.",
     "reply": "Reply",
     "replyTo": "Reply to {{name}}",
     "replyThread": "Reply to the post",

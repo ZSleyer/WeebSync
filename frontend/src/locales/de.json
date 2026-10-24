@@ -2423,6 +2423,7 @@
   },
   "audio": {
     "title": "Wiedergabe",
+    "error": "Dieser Titel konnte nicht abgespielt werden.",
     "open": "Audio-Player öffnen",
     "back15": "15 Sekunden zurück",
     "fwd30": "30 Sekunden vor",
@@ -3024,6 +3025,7 @@
     "comments": "Kommentare",
     "noComments": "Noch keine Kommentare.",
     "like": "Gefällt mir",
+    "posted": "Antwort gesendet.",
     "reply": "Antworten",
     "replyTo": "Antwort an {{name}}",
     "replyThread": "Antwort auf den Beitrag",
