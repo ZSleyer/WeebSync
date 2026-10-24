@@ -2153,6 +2153,16 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	// the watch on the folder its files are still in
 	var moved *moveResult
 	if from, to := watchFolder(oldLocal, oldRemote, oldSubfolder), watchFolder(in.LocalPath, in.RemotePath, in.Subfolder); in.MoveFiles && from != to {
+		// another watch filling the same folder would lose its files to the move
+		other, err := s.sharedWatchFolder(id, from)
+		if err != nil {
+			dbErr(w, err)
+			return
+		}
+		if other != "" {
+			writeErr(w, http.StatusConflict, "files not moved: another watch ("+logSafe(other)+") uses the same folder")
+			return
+		}
 		res, err := s.moveFolderContents(from, to)
 		if err != nil {
 			writeErr(w, http.StatusConflict, "files not moved: "+err.Error())
