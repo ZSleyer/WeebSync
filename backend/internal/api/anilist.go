@@ -21,12 +21,17 @@ import (
 )
 
 // writeAnilistErr answers a failed AniList call: a rate limit is the caller's
-// to retry (503 with the wait), anything else a bad gateway.
+// to retry (503 with the wait), a record AniList lacks is a 404, anything else
+// a bad gateway.
 func writeAnilistErr(w http.ResponseWriter, err error) {
 	var rl *anilist.RateLimitError
 	if errors.As(err, &rl) {
 		w.Header().Set("Retry-After", strconv.Itoa(int(rl.RetryAfter.Seconds())+1))
 		writeErr(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	if errors.Is(err, anilist.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err.Error())
 		return
 	}
 	writeErr(w, http.StatusBadGateway, err.Error())
@@ -77,12 +82,18 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			id	path		int	true	"AniList media id"
 //	@Success		200	{object}	anilist.Media
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Failure		503	{object}	ErrorResponse
 //	@Router			/api/anilist/media/{id} [get]
 func (s *Server) handleAnilistMedia(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
+	if id <= 0 {
+		writeErr(w, http.StatusBadRequest, "id required")
+		return
+	}
 	m, err := s.Anilist.Media(r.Context(), id)
 	if err != nil {
 		writeAnilistErr(w, err)

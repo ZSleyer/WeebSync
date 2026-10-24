@@ -67,3 +67,28 @@ func TestAnilistRateLimitAnswersFast503(t *testing.T) {
 		t.Errorf("body: %s", rec.Body)
 	}
 }
+
+// An id that cannot exist never reaches AniList (400), and one AniList does
+// not know is a 404 that is remembered rather than a 502 asked again each time.
+func TestAnilistMediaUnknownIDs(t *testing.T) {
+	tr := &statusTripper{status: http.StatusNotFound,
+		body: `{"errors":[{"message":"Not Found.","status":404}],"data":{"Media":null}}`}
+	mux, c := anilistWith(t, tr)
+
+	for _, id := range []string{"0", "-4", "abc"} {
+		if rec := doReq(mux, "GET", "/api/anilist/media/"+id, "", c); rec.Code != http.StatusBadRequest {
+			t.Errorf("media/%s: %d, want 400", id, rec.Code)
+		}
+	}
+	if tr.n.Load() != 0 {
+		t.Fatalf("invalid ids reached AniList %d times", tr.n.Load())
+	}
+	for i := 0; i < 3; i++ {
+		if rec := doReq(mux, "GET", "/api/anilist/media/987654", "", c); rec.Code != http.StatusNotFound {
+			t.Fatalf("unknown id, call %d: %d %s, want 404", i, rec.Code, rec.Body)
+		}
+	}
+	if tr.n.Load() != 1 {
+		t.Fatalf("AniList was asked %d times for one unknown id, want 1", tr.n.Load())
+	}
+}

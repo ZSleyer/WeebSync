@@ -397,6 +397,40 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 	}
 }
 
+// ErrNotFound is a record AniList does not have (a deleted or never-issued id).
+var ErrNotFound = errors.New("anilist: not found")
+
+// missTTL is how long an id AniList reported as not found is not asked for
+// again: long enough that a page or job looping over a dead id costs one
+// limiter slot, short enough that a record created later turns up.
+const missTTL = 10 * time.Minute
+
+func isNotFound(err error) bool {
+	var ge *GraphQLError
+	return errors.As(err, &ge) && ge.Status == http.StatusNotFound
+}
+
+func (c *Client) knownMissing(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Now().Before(c.missing[key])
+}
+
+func (c *Client) remember404(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.missing == nil {
+		c.missing = map[string]time.Time{}
+	}
+	now := time.Now()
+	for k, until := range c.missing { // keep the map from growing with every dead id
+		if now.After(until) {
+			delete(c.missing, k)
+		}
+	}
+	c.missing[key] = now.Add(missTTL)
+}
+
 // RateLimitError is AniList's 429 (or the cooldown it started): nothing was
 // sent, and RetryAfter is how long until sending is worth trying again.
 type RateLimitError struct{ RetryAfter time.Duration }
@@ -941,14 +975,22 @@ func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 			Media *Media `json:"Media"`
 		} `json:"data"`
 	}
+	if c.knownMissing(key) {
+		return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
+	}
 	// no type filter: ids are unique across anime and manga, and a manga
 	// watch resolves its work through here as well
 	gql := fmt.Sprintf(`query ($id: Int) { Media(id: $id) { %s } }`, mediaFields)
 	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
+		if isNotFound(err) {
+			c.remember404(key)
+			return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
+		}
 		return nil, err
 	}
 	if resp.Data.Media == nil {
-		return nil, fmt.Errorf("anilist: media %d not found", id)
+		c.remember404(key)
+		return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
 	}
 	resp.Data.Media.Schema = MediaSchema
 	payload, _ := json.Marshal(resp.Data.Media)

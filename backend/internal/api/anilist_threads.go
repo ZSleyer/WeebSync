@@ -25,6 +25,7 @@ import (
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
+//	@Failure		404		{object}	ErrorResponse
 //	@Router			/api/anilist/threads/{id} [get]
 func (s *Server) handleAnilistThread(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
