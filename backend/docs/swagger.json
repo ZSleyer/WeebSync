@@ -1786,6 +1786,15 @@
                 },
                 "type": "object"
             },
+            "api.LogoutRequest": {
+                "properties": {
+                    "endpoint": {
+                        "description": "the browser's push subscription endpoint; that subscription of the\nsigned-in user is removed whatever session made it",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
             "api.MeResponse": {
                 "properties": {
                     "email": {
@@ -11916,7 +11925,26 @@
         },
         "/api/auth/logout": {
             "post": {
-                "description": "Destroys the current session, removes the push subscription made in it and clears the session cookie.",
+                "description": "Destroys the current session, removes the push subscription made in it and clears the session cookie. An optional body names the browser's push endpoint, whose subscription of this user is removed too (one from before subscriptions were tied to sessions is not removed with the session).",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.LogoutRequest",
+                                        "description": "push endpoint to drop",
+                                        "summary": "body"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "push endpoint to drop"
+                },
                 "responses": {
                     "200": {
                         "content": {

@@ -396,14 +396,37 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, LoginResponse{ID: id, Email: c.Email})
 }
 
+// LogoutRequest is the optional body of handleLogout.
+type LogoutRequest struct {
+	// the browser's push subscription endpoint; that subscription of the
+	// signed-in user is removed whatever session made it
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
 // handleLogout ends the current session.
 // @Summary  Log out
-// @Description Destroys the current session, removes the push subscription made in it and clears the session cookie.
+// @Description Destroys the current session, removes the push subscription made in it and clears the session cookie. An optional body names the browser's push endpoint, whose subscription of this user is removed too (one from before subscriptions were tied to sessions is not removed with the session).
 // @Tags     Auth
+// @Accept   json
 // @Produce  json
+// @Param    body body LogoutRequest false "push endpoint to drop"
 // @Success  200 {object} OkResponse
 // @Router   /api/auth/logout [post]
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// The body is optional and best effort: a missing or broken one only
+	// means no endpoint. The subscription is dropped by endpoint while the
+	// session still names the user; that also covers rows from before the
+	// session column, which the trigger below leaves.
+	var in LogoutRequest
+	_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<14)).Decode(&in)
+	if tok := auth.SessionToken(r); tok != "" && in.Endpoint != "" {
+		// the route sits outside the auth middleware (an account with a due
+		// upgrade must still be able to sign out), so the user comes from the session
+		if _, err := s.DB.Exec(`DELETE FROM push_subscriptions WHERE endpoint = ?
+			AND user_id = (SELECT user_id FROM sessions WHERE token_hash = ?)`, in.Endpoint, auth.TokenHash(tok)); err != nil {
+			slog.Warn("logout: push subscription not removed", "err", err)
+		}
+	}
 	// the push subscription made in this session goes with it (trigger
 	// sessions_drop_push)
 	if err := auth.DestroySession(s.DB, w, r); err != nil {

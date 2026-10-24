@@ -779,6 +779,13 @@ export interface Schemas {
     twoFactorRequired?: boolean
     webauthn?: boolean
   }
+  'api.LogoutRequest': {
+    /**
+     * the browser's push subscription endpoint; that subscription of the
+     * signed-in user is removed whatever session made it
+     */
+    endpoint?: string
+  }
   'api.MeResponse': {
     email: string
     /**
