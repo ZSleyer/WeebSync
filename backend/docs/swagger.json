@@ -15175,6 +15175,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -15307,6 +15317,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
                     },
                     "500": {
                         "content": {
@@ -15537,6 +15557,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
                     },
                     "500": {
                         "content": {

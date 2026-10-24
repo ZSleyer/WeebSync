@@ -68,11 +68,12 @@ type Download struct {
 }
 
 type running struct {
-	userID  int64 // owner, so the in-memory pause/cancel path stays user-scoped
-	cancel  context.CancelFunc
-	paused  bool // pause vs. hard cancel, checked when the ctx fires
-	limiter *rate.Limiter
-	bps     int64 // last measured rate, for the aggregate status endpoint
+	userID    int64  // owner, so the in-memory pause/cancel path stays user-scoped
+	localPath string // target, so no second row for it starts alongside
+	cancel    context.CancelFunc
+	paused    bool // pause vs. hard cancel, checked when the ctx fires
+	limiter   *rate.Limiter
+	bps       int64 // last measured rate, for the aggregate status endpoint
 }
 
 type Manager struct {
@@ -254,6 +255,17 @@ func (m *Manager) startPending() {
 	}
 }
 
+// targetActiveLocked reports whether a running download writes localPath.
+// Caller holds mu.
+func (m *Manager) targetActiveLocked(localPath string) bool {
+	for _, r := range m.active {
+		if r.localPath == localPath {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Manager) startDownload(id int64) {
 	d, err := m.get(id)
 	if err != nil {
@@ -268,12 +280,14 @@ func (m *Manager) startDownload(id int64) {
 		m.beforeStart(id)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &running{userID: d.UserID, cancel: cancel, limiter: newLimiter(d.RateLimit)}
+	r := &running{userID: d.UserID, localPath: d.LocalPath, cancel: cancel, limiter: newLimiter(d.RateLimit)}
 	// registered and counted under mu together with the stopping check:
 	// Shutdown either sees this worker in active (and cancels it) or this
-	// start sees stopping, and the Add happens before Shutdown's Wait
+	// start sees stopping, and the Add happens before Shutdown's Wait. A row
+	// whose target another running row writes stays queued for a later tick:
+	// both would append into the same .part.
 	m.mu.Lock()
-	if _, dup := m.active[id]; dup || m.stopping {
+	if _, dup := m.active[id]; dup || m.stopping || m.targetActiveLocked(d.LocalPath) {
 		m.mu.Unlock()
 		cancel()
 		return
@@ -477,6 +491,10 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 // ── public API used by handlers ─────────────────────────────
 
 var ErrNotFound = fmt.Errorf("download not found")
+
+// ErrTargetBusy: another download for the same local file is queued, running
+// or paused. Two of them would append into one .part file.
+var ErrTargetBusy = errors.New("another download for the same file is still in the queue")
 
 // ErrForeignTarget: the target already holds a file the download's owner may
 // not replace (see mayReplace).
@@ -1365,11 +1383,33 @@ func (m *Manager) setStatusOwned(userID, id int64, status string, from []string)
 		args = append(args, f)
 	}
 	q += ")"
+	if status == "queued" {
+		// back into the queue only while no other row for the same file is
+		// on its way: two of them would append into one .part. One statement,
+		// so a concurrent enqueue or retry cannot slip in between
+		q += ` AND NOT EXISTS (SELECT 1 FROM downloads o WHERE o.id <> ?
+			AND o.local_path = (SELECT local_path FROM downloads WHERE id = ?)
+			AND o.status IN ('queued','running','paused'))`
+		args = append(args, id, id)
+	}
 	res, err := m.DB.Exec(q, args...)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if status == "queued" {
+			// tell a busy target apart from a row that is not there (or not
+			// in a state this may leave)
+			var busy bool
+			if err := m.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM downloads d JOIN downloads o
+				ON o.local_path = d.local_path AND o.id <> d.id AND o.status IN ('queued','running','paused')
+				WHERE d.id = ? AND d.user_id = ? AND d.status IN ('paused','error','canceled'))`, id, userID).Scan(&busy); err != nil {
+				return err
+			}
+			if busy {
+				return ErrTargetBusy
+			}
+		}
 		return ErrNotFound
 	}
 	if d, err := m.get(id); err == nil {

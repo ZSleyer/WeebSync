@@ -23,9 +23,10 @@ func TestDownloadsBulk(t *testing.T) {
 		t.Fatal(err)
 	}
 	srvID, _ := res.LastInsertId()
+	// one target per row: rows sharing a target may not be queued together
 	ins := func(uid int64, path, status string) {
 		if _, err := s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status)
-			VALUES (?, ?, ?, '/dl', ?)`, uid, srvID, path, status); err != nil {
+			VALUES (?, ?, ?, '/dl' || ?, ?)`, uid, srvID, path, path, status); err != nil {
 			t.Fatal(err)
 		}
 	}

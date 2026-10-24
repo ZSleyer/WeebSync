@@ -483,6 +483,7 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {object} OkResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse "another download for the same file is still queued, running or paused"
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads/{id}/resume [post]
@@ -504,8 +505,11 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 		id := pathID(r)
 		if err := fn(u.ID, id); err != nil {
 			status := http.StatusInternalServerError
-			if errors.Is(err, transfer.ErrNotFound) {
+			switch {
+			case errors.Is(err, transfer.ErrNotFound):
 				status = http.StatusNotFound
+			case errors.Is(err, transfer.ErrTargetBusy):
+				status = http.StatusConflict
 			}
 			writeErr(w, status, err.Error())
 			return
