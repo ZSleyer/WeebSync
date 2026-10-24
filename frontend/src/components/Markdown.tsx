@@ -191,6 +191,8 @@ export default function Markdown({
             return (
               <pre
                 key={key}
+                // a scrollable region must be focusable for keyboard scrolling (WCAG 2.1.1)
+                // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                 tabIndex={0}
                 role="region"
                 aria-label={t('assistant.codeBlock')}
