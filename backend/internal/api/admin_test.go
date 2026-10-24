@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 )
@@ -381,5 +382,38 @@ func TestAdminRematchDeleteFailure(t *testing.T) {
 	rec = doReq(mux, "POST", "/api/admin/jobs/rematch/run", fmt.Sprintf(`{"serverId":%d}`, serverID), adminC)
 	if rec.Code != http.StatusInternalServerError {
 		t.Errorf("rematch with unreadable table: %d %s, want 500", rec.Code, rec.Body)
+	}
+}
+
+// The TTL update writes only the keys it names: a client changing one cache
+// must not pin the other two defaults as explicit overrides.
+func TestAdminTTLWritesOnlyPresentKeys(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"tmdbH":48}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("set one ttl: %d %s", rec.Code, rec.Body)
+	}
+	for k, want := range map[string]string{"ttl_tmdb_h": "48", "ttl_anilist_h": "", "ttl_plex_h": ""} {
+		if got := db.Setting(s.DB, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+	// an explicit 0 on one key still resets just that key
+	db.SetSetting(s.DB, "ttl_plex_h", "12")
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"tmdbH":0}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("reset one ttl: %d %s", rec.Code, rec.Body)
+	}
+	if got := db.Setting(s.DB, "ttl_tmdb_h"); got != "0" {
+		t.Errorf("ttl_tmdb_h = %q, want 0", got)
+	}
+	if got := db.Setting(s.DB, "ttl_plex_h"); got != "12" {
+		t.Errorf("ttl_plex_h = %q, an absent key changed", got)
+	}
+	// a refused value writes nothing, even beside a valid key
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"anilistH":5,"plexH":721}`, adminC); rec.Code != http.StatusBadRequest {
+		t.Errorf("ttl above bound: got %d, want 400", rec.Code)
+	}
+	if got := db.Setting(s.DB, "ttl_anilist_h"); got != "" {
+		t.Errorf("ttl_anilist_h = %q after a refused request", got)
 	}
 }

@@ -4194,6 +4194,20 @@
                 ],
                 "type": "object"
             },
+            "api.adminTTLRequest": {
+                "properties": {
+                    "anilistH": {
+                        "type": "integer"
+                    },
+                    "plexH": {
+                        "type": "integer"
+                    },
+                    "tmdbH": {
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
+            },
             "api.adminWatchInfo": {
                 "properties": {
                     "count": {
@@ -9728,7 +9742,7 @@
         },
         "/api/admin/ttl": {
             "put": {
-                "description": "Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only.",
+                "description": "Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only. Only the keys present in the body are written; absent keys keep their stored value.",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -9738,15 +9752,15 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.adminTTLInfo",
-                                        "description": "TTL overrides in hours",
+                                        "$ref": "#/components/schemas/api.adminTTLRequest",
+                                        "description": "TTL overrides in hours; keys left out keep their value",
                                         "summary": "request"
                                     }
                                 ]
                             }
                         }
                     },
-                    "description": "TTL overrides in hours",
+                    "description": "TTL overrides in hours; keys left out keep their value",
                     "required": true
                 },
                 "responses": {

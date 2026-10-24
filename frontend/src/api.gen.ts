@@ -1873,6 +1873,11 @@ export interface Schemas {
     plexH: number
     tmdbH: number
   }
+  'api.adminTTLRequest': {
+    anilistH?: number
+    plexH?: number
+    tmdbH?: number
+  }
   'api.adminWatchInfo': {
     count: number
     intervalMin: number

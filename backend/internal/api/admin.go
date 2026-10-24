@@ -124,6 +124,13 @@ type adminTTLInfo struct {
 	PlexH    int `json:"plexH"`
 }
 
+// adminTTLRequest is a partial TTL update: a key left out keeps its value.
+type adminTTLRequest struct {
+	AnilistH *int `json:"anilistH,omitempty"`
+	TmdbH    *int `json:"tmdbH,omitempty"`
+	PlexH    *int `json:"plexH,omitempty"`
+}
+
 type adminPlexInfo struct {
 	Configured    bool   `json:"configured"`
 	SuggestionsAt string `json:"suggestionsAt"`
@@ -715,14 +722,14 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminTTL sets the cache TTL overrides in hours (0 = default).
-// PUT /api/admin/ttl {"anilistH":24,"tmdbH":24,"plexH":6}
+// PUT /api/admin/ttl {"tmdbH":24} (only the keys present are written)
 //
 // @Summary      Set cache TTL overrides
-// @Description  Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only.
+// @Description  Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only. Only the keys present in the body are written; absent keys keep their stored value.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Param        request  body      adminTTLInfo  true  "TTL overrides in hours"
+// @Param        request  body      adminTTLRequest  true  "TTL overrides in hours; keys left out keep their value"
 // @Success      200  {object}  OkResponse
 // @Failure      400  {object}  ErrorResponse
 // @Failure      401  {object}  ErrorResponse
@@ -732,22 +739,24 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 // @Security     CookieAuth
 // @Router       /api/admin/ttl [put]
 func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		AnilistH int `json:"anilistH"`
-		TmdbH    int `json:"tmdbH"`
-		PlexH    int `json:"plexH"`
-	}
+	// only the keys the body names are written, so a client changing one
+	// cache does not pin the other defaults as explicit overrides
+	var in adminTTLRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
-	for _, v := range []int{in.AnilistH, in.TmdbH, in.PlexH} {
-		if v < 0 || v > 720 {
+	keys := map[string]*int{"ttl_anilist_h": in.AnilistH, "ttl_tmdb_h": in.TmdbH, "ttl_plex_h": in.PlexH}
+	for _, v := range keys {
+		if v != nil && (*v < 0 || *v > 720) {
 			writeErr(w, http.StatusBadRequest, "hours must be 0..720 (0 = default)")
 			return
 		}
 	}
-	for k, v := range map[string]int{"ttl_anilist_h": in.AnilistH, "ttl_tmdb_h": in.TmdbH, "ttl_plex_h": in.PlexH} {
-		if err := db.SetSetting(s.DB, k, strconv.Itoa(v)); err != nil {
+	for k, v := range keys {
+		if v == nil {
+			continue
+		}
+		if err := db.SetSetting(s.DB, k, strconv.Itoa(*v)); err != nil {
 			dbErrDetail(w, "save "+k, err)
 			return
 		}
