@@ -27,6 +27,10 @@ func (s *Server) lifetimeCtx() context.Context {
 	return s.life
 }
 
+// stopping reports whether Shutdown has begun: the one-off startup passes
+// check it per item and end early, leaving their stamp unset for next start.
+func (s *Server) stopping() bool { return s.lifetimeCtx().Err() != nil }
+
 // Shutdown cancels the running background jobs and waits until they and the
 // goroutines started with spawn have ended, or ctx is done. Work still writing
 // to the database when the process (or a test) lets go of it is the one thing

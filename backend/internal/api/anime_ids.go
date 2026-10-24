@@ -47,7 +47,7 @@ type animeID struct {
 // Gated to once a day by the caller (setting anime_ids_at). Best-effort: a fetch
 // or parse error just leaves the previous rows in place.
 func (s *Server) refreshAnimeIDs() {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(s.lifetimeCtx(), 60*time.Second) // a shutdown ends the download
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fribbURL, nil)
 	if err != nil {

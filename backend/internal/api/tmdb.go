@@ -354,6 +354,9 @@ func (s *Server) RepairCatalog() {
 	var cleared int64
 	rematched := 0
 	for _, m := range marks {
+		if s.stopping() {
+			return
+		}
 		c, r := s.clearStaleSubRows(m.server, m.path, m.kind)
 		cleared += c
 		rematched += r

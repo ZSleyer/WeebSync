@@ -384,6 +384,9 @@ func (s *Server) BackfillSeries() {
 		return // the flag below would leave the unread matches unlinked for good
 	}
 	for _, r := range all {
+		if s.stopping() {
+			return
+		}
 		s.linkSeries(r.source, r.mediaID)
 		s.refreshVariant(r.serverID, r.folder)
 	}
@@ -538,6 +541,9 @@ func (s *Server) BackfillUnits() {
 		return
 	}
 	for _, x := range todo {
+		if s.stopping() {
+			return
+		}
 		s.refreshVariant(x.sid, x.folder)
 	}
 	// stale server-0 rows are the OLD per-show Plex index (no show_key). Drop them
