@@ -51,6 +51,21 @@ describe('the compose fix copy button', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
   }, 10000)
 
+  it('announces a repeated failure again', async () => {
+    vi.mocked(copyText).mockResolvedValue(false)
+    setup()
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.hw.copy' }))
+    const first = await screen.findByRole('alert')
+    let release: (v: boolean) => void = () => {}
+    vi.mocked(copyText).mockReturnValue(new Promise<boolean>((r) => (release = r)))
+    fireEvent.click(screen.getByRole('button', { name: 'settings.hw.copy' }))
+    // while the second attempt runs the old alert is gone, so its replacement is a new one
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+    release(false)
+    const second = await screen.findByRole('alert')
+    expect(second).not.toBe(first)
+  })
+
   it('confirms a successful copy without an error', async () => {
     vi.mocked(copyText).mockResolvedValue(true)
     setup()

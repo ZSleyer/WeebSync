@@ -78,6 +78,8 @@ function Fix({ title, hint, code }: { title: string; hint?: string; code: string
       <Button
         size="sm"
         onClick={async () => {
+          // cleared first, so a repeated failure is announced again
+          setFailed(false)
           const ok = await copyText(code)
           setCopied(ok)
           setFailed(!ok)
