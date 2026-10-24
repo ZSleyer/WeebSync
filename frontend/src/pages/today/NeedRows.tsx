@@ -436,6 +436,9 @@ export function useNeedList({ downloads, meta, watches, detected, plexToken, med
             else saveHidden(next, all)
             return next
           })
+          // `hidden` holds the row from here on, by its reason; `gone` must let
+          // go of the key or the row stays away when the reason changes
+          unGone(n)
         })
 
   // a failed row's other actions, next to the primary one

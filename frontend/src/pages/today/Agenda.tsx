@@ -21,7 +21,7 @@ const HOURS_SPAN = 20 * 3_600_000
 export function airingState(t: T, at: number, have: boolean | undefined, now: number): { text: string; ok?: boolean } {
   const ms = at - now
   if (ms <= 0) return have ? { text: t('today.landed'), ok: true } : { text: t('today.aired') }
-  if (ms < HOURS_SPAN) {
+  if (ms < HOURS_SPAN || daysAgo(at, now) === 0) {
     const h = Math.floor(ms / 3_600_000)
     const m = Math.floor((ms % 3_600_000) / 60_000)
     return { text: t('today.inHours', { h, mm: String(m).padStart(2, '0') }) }

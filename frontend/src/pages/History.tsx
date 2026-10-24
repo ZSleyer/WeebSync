@@ -18,6 +18,7 @@ import {
   type HistFilter,
   type HistKind,
 } from './today/history'
+import { LoadError } from './today/LoadError'
 import { seriesTarget } from './today/shared'
 import './today/today.css'
 
@@ -37,11 +38,13 @@ const FILTERS: HistFilter[] = ['all', 'done', 'up', 'fail']
 export default function History() {
   const { t, i18n } = useTranslation()
   const now = useNow()
-  const { data: downloads = [], isLoading } = useQuery<Download[]>({
+  const dlq = useQuery<Download[]>({
     queryKey: ['downloads'],
     queryFn: () => api.get('/api/downloads'),
     refetchInterval: 15_000,
   })
+  const { data: downloads = [], isLoading } = dlq
+  const failed = dlq.isError && dlq.data === undefined
   // the facts (duration, rate) of a download that just landed are in a fresh read
   const { data: meta } = useQuery<DownloadMeta>({
     queryKey: ['downloads', 'meta'],
@@ -117,7 +120,8 @@ export default function History() {
       <div ref={list}>
         {isLoading &&
           [0, 1, 2, 3].map((i) => <div key={i} aria-hidden className="td-sk-row" style={{ height: '3.75rem' }} />)}
-        {!isLoading && days.length === 0 && <p className="td-empty">{t('history.none')}</p>}
+        <LoadError failed={!isLoading && failed} onRetry={async () => (await dlq.refetch()).isError} />
+        {!isLoading && !failed && days.length === 0 && <p className="td-empty">{t('history.none')}</p>}
         {days.map((day) => (
           <section key={day.day} aria-labelledby={`hs-${day.day}`}>
             <h2 id={`hs-${day.day}`} className="hs-day">
