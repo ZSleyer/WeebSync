@@ -42,6 +42,9 @@ describe('UpdateToast countdown by route', () => {
     await armed({ immersive: true })
     await act(() => vi.advanceTimersByTimeAsync(180_000))
     expect(reload).not.toHaveBeenCalled()
-    expect(screen.getByText('app.reloadIn:60')).toBeInTheDocument()
+    // no countdown that never runs out
+    expect(screen.queryByText(/app\.reloadIn/)).toBeNull()
+    expect(screen.getByText('app.reloadWhenReady')).toBeInTheDocument()
+    expect(screen.getByText('app.reloadNow')).toBeInTheDocument()
   })
 })

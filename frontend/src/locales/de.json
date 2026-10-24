@@ -84,6 +84,7 @@
     "updateAvailable": "WeebSync wurde aktualisiert. Neu laden, um die neue Version zu bekommen.",
     "reloadIn": "Neu laden in {{s}} s",
     "reloadNow": "Jetzt neu laden",
+    "reloadWhenReady": "Neu laden, wenn du bereit bist",
     "tryAgain": "Erneut versuchen",
     "screenFailed": "Diese Ansicht konnte nicht geladen werden",
     "screenFailedHint": "Oft nur ein kurzer Verbindungsaussetzer. Hilft erneutes Versuchen nicht, holt Neu laden die aktuelle Version.",

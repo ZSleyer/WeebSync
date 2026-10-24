@@ -118,7 +118,7 @@ export default function UpdateToast() {
       <p className="text-sm text-t-primary">{t('app.updateAvailable')}</p>
       <div className="flex items-center justify-between gap-3">
         <span className="font-mono text-xs text-t-muted" aria-live="off">
-          {t('app.reloadIn', { s: Math.max(left, 0) })}
+          {immersive ? t('app.reloadWhenReady') : t('app.reloadIn', { s: Math.max(left, 0) })}
         </span>
         <div className="flex gap-2">
           <Button

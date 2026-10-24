@@ -84,6 +84,7 @@
     "updateAvailable": "WeebSync was updated. Reload to get the new version.",
     "reloadIn": "Reloading in {{s}} s",
     "reloadNow": "Reload now",
+    "reloadWhenReady": "Reload when you are ready",
     "tryAgain": "Try again",
     "screenFailed": "This view could not be loaded",
     "screenFailedHint": "Often just a brief connection drop. If trying again does not help, reloading fetches the current version.",
