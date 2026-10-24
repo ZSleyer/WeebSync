@@ -3,11 +3,50 @@ package api
 import (
 	"context"
 	"errors"
+	"math"
+	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
+
+// A file can claim any length in its header (Matroska Duration is a float
+// the file's author writes), and ffprobe passes it on. The playlist is built
+// for that length, so 1e12 s meant ~1.7e11 lines and an OOM-killed process.
+// An implausible length is refused instead of written out.
+func TestHLSIndexRefusesImplausibleDuration(t *testing.T) {
+	mux, s, _, userC, _, userID := setupUsersTest(t)
+	media := func(path string, d float64) {
+		src := playSource{userID: userID, path: path}
+		s.media.mu.Lock()
+		defer s.media.mu.Unlock()
+		if s.media.all == nil {
+			s.media.all = map[playSource]*mediaJob{}
+		}
+		s.media.all[src] = &mediaJob{src: src, info: PlayInfo{Duration: d}}
+	}
+	for _, d := range []float64{49 * 3600, math.Inf(1), math.NaN()} {
+		media("/evil.mkv", d)
+		rec := doReq(mux, "GET", "/api/play/hls/index.m3u8?path=%2Fevil.mkv", "", userC)
+		if rec.Code != http.StatusBadGateway || strings.Contains(rec.Body.String(), "#EXTINF") {
+			t.Errorf("duration %v: %d, %d bytes of playlist", d, rec.Code, rec.Body.Len())
+		}
+	}
+	// a long but real file still gets its whole playlist
+	media("/long.mkv", 47*3600)
+	rec := doReq(mux, "GET", "/api/play/hls/index.m3u8?path=%2Flong.mkv", "", userC)
+	if n := strings.Count(rec.Body.String(), "#EXTINF"); rec.Code != http.StatusOK || n != 47*3600/hlsSegSec {
+		t.Errorf("47 h file: %d with %d segments", rec.Code, n)
+	}
+	// the playlist itself never writes more than the cap, whoever calls it
+	for _, d := range []float64{1e12, math.Inf(1), math.NaN()} {
+		if pl := hlsPlaylist(d, map[string][]string{"path": {"/evil.mkv"}}); strings.Contains(pl, "#EXTINF") {
+			t.Errorf("playlist for %v: %d bytes", d, len(pl))
+		}
+	}
+}
 
 // A copy file replaced at the same path (more keyframes now) while its
 // session lives: the request's cuts are not the session's. The old session

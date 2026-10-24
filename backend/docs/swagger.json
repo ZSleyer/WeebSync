@@ -11797,6 +11797,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "summary": "Log in with email and password",
@@ -12189,6 +12199,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -12417,6 +12437,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "summary": "Register a local account",
@@ -12498,6 +12528,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "summary": "Set a new password from a reset link",
@@ -12917,6 +12957,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -13120,6 +13170,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -13646,6 +13706,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -13850,6 +13920,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -18134,6 +18214,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -18143,6 +18233,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "507": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Insufficient Storage"
                     }
                 },
                 "security": [
@@ -21678,6 +21778,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -22061,6 +22171,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [

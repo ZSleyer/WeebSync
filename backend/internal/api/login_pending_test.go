@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,18 +42,104 @@ func TestLoginPendingDropsAfterMaxFailures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i := 1; i < loginPendingMaxAttempts; i++ {
-		s.failLoginPending(token)
+	for i := 1; i <= loginPendingMaxAttempts; i++ {
+		if _, ok := s.reserveLoginPending(token); !ok {
+			t.Fatalf("attempt %d refused within the budget", i)
+		}
 		if _, ok := s.peekLoginPending(token); !ok {
-			t.Fatalf("token dropped after %d failures", i)
+			t.Fatalf("token dropped after %d attempts", i)
 		}
 	}
-	s.failLoginPending(token)
+	if _, ok := s.reserveLoginPending(token); ok {
+		t.Fatal("an attempt past the budget was handed out")
+	}
 	if _, ok := s.peekLoginPending(token); ok {
 		t.Fatal("token survived the attempt budget")
 	}
 	if s.consumeLoginPending(token, 1) {
 		t.Fatal("dropped token was consumed")
+	}
+}
+
+// Attempts used to be counted after the check: every one of a burst of
+// parallel guesses passed the budget before the first was counted. Spent
+// first, the budget holds however many arrive at once - per pending token
+// and per account.
+func TestLoginPendingReservesAtomically(t *testing.T) {
+	d := dbtest.Open(t)
+	if _, err := d.Exec(`INSERT INTO users (id, email, password_hash) VALUES (1, 'a@example.com', '')`); err != nil {
+		t.Fatal(err)
+	}
+	s := testServer(t, &Server{DB: d})
+	token, err := s.newLoginPending(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	granted := 0
+	var wg sync.WaitGroup
+	for range 40 {
+		wg.Go(func() {
+			if _, ok := s.reserveLoginPending(token); ok {
+				mu.Lock()
+				granted++
+				mu.Unlock()
+			}
+		})
+	}
+	wg.Wait()
+	if granted != loginPendingMaxAttempts {
+		t.Fatalf("%d attempts handed out in parallel, want %d", granted, loginPendingMaxAttempts)
+	}
+}
+
+func TestLoginTotpParallelGuessesStayWithinTheBudget(t *testing.T) {
+	mux, s, token, _ := totpFixture(t)
+	// the per-address limit apart: the guesses come from many addresses
+	s.authLimiter.trusted = func(string) bool { return true }
+	const guesses = 40
+	var wg sync.WaitGroup
+	bodies := make([]string, guesses)
+	for i := range guesses {
+		wg.Go(func() { bodies[i] = postTotp(mux, token, "000000").Body.String() })
+	}
+	wg.Wait()
+	// "invalid code" is a guess that got checked
+	checked := 0
+	for _, b := range bodies {
+		if strings.Contains(b, "invalid code") {
+			checked++
+		}
+	}
+	if checked != loginPendingMaxAttempts {
+		t.Fatalf("%d of %d parallel codes were checked, want %d", checked, guesses, loginPendingMaxAttempts)
+	}
+}
+
+// The same for the account's bucket: parallel wrong passwords against one
+// account from many addresses get no more checks than the bucket holds.
+func TestLoginParallelGuessesStayWithinTheAccountBudget(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	setPassword(t, s, userID, "longenough123")
+	s.authLimiter.trusted = func(string) bool { return true }
+	const guesses = 30
+	var wg sync.WaitGroup
+	codes := make([]int, guesses)
+	for i := range guesses {
+		wg.Go(func() {
+			codes[i] = doReq(mux, "POST", "/api/auth/login", fmt.Sprintf(`{"email":"user@example.com","password":"guess-%d-guess"}`, i), nil).Code
+		})
+	}
+	wg.Wait()
+	checked := 0
+	for _, c := range codes {
+		if c == http.StatusUnauthorized {
+			checked++
+		}
+	}
+	// the bucket holds 10 (api.go); it refills at 0.2/min
+	if checked == 0 || checked > 10 {
+		t.Fatalf("%d of %d parallel passwords were checked, want at most 10: %v", checked, guesses, codes)
 	}
 }
 

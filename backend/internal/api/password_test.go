@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -25,6 +26,49 @@ func sessionsOf(t *testing.T, s *Server, id int64) int {
 	var n int
 	s.DB.QueryRow(`SELECT COUNT(*) FROM sessions WHERE user_id = ?`, id).Scan(&n)
 	return n
+}
+
+// Every route that runs argon2id answers 503 when it cannot get a hashing
+// slot, instead of running unbounded (64 MiB each) or queueing past the
+// request. A request that has already ended stands in for a full gate: the
+// gate refuses it before taking a slot. Known and unknown addresses answer
+// alike, so the busy answer is no account oracle.
+func TestPasswordRoutesAnswerBusy(t *testing.T) {
+	mux, s, adminC, userC, _, userID := setupUsersTest(t)
+	setPassword(t, s, userID, "oldpassword1")
+	s.DB.Exec(`UPDATE users SET reset_token_hash = ?, reset_sent_at = datetime('now') WHERE id = ?`, resetHash("tok"), userID)
+	db.SetSetting(s.DB, "registration_disabled", "false")
+	gone, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, tc := range []struct {
+		method, path, body string
+		c                  *http.Cookie
+	}{
+		{"POST", "/api/auth/login", `{"email":"user@example.com","password":"guess-guess"}`, nil},
+		{"POST", "/api/auth/login", `{"email":"nobody@example.com","password":"guess-guess"}`, nil},
+		{"POST", "/api/auth/reset", `{"token":"tok","password":"newpassword1"}`, nil},
+		{"PUT", "/api/auth/password", `{"current":"oldpassword1","new":"newpassword1"}`, userC},
+		{"PUT", "/api/users/" + strconv.FormatInt(userID, 10) + "/password", `{"password":"newpassword1"}`, adminC},
+		{"POST", "/api/users", `{"email":"new@example.com","password":"newpassword1"}`, adminC},
+		{"POST", "/api/auth/register", `{"email":"other@example.com","password":"newpassword1"}`, nil},
+	} {
+		s.authLimiter.resetAll()
+		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body)).WithContext(gone)
+		req.Header.Set("Content-Type", "application/json")
+		if tc.c != nil {
+			req.AddCookie(tc.c)
+		}
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusServiceUnavailable || rec.Header().Get("Retry-After") == "" {
+			t.Errorf("%s %s with no hashing slot: %d %s", tc.method, tc.path, rec.Code, rec.Body)
+		}
+	}
+	// nothing was changed by the refused requests
+	s.authLimiter.resetAll()
+	if rec := doReq(mux, "POST", "/api/auth/login", `{"email":"user@example.com","password":"oldpassword1"}`, nil); rec.Code != http.StatusOK {
+		t.Errorf("login with the unchanged password: %d %s", rec.Code, rec.Body)
+	}
 }
 
 func TestPasswordChange(t *testing.T) {

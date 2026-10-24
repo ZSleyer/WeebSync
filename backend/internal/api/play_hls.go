@@ -34,6 +34,10 @@ const (
 	hlsIdle = 2 * time.Minute
 	// each session is an ffmpeg encoding at full speed; the oldest makes room
 	hlsMaxSessions = 3
+	// the longest file a playlist is written for: no episode or film comes
+	// near it, and it bounds the playlist (one line per segment) whatever
+	// length a file claims
+	hlsMaxDuration = 48 * 3600
 )
 
 type hlsKey struct {
@@ -138,6 +142,12 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadGateway, "the duration could not be read")
 		return
 	}
+	// the length is whatever the file's header claims; the playlist has a
+	// line per segment of it, so a forged one must not size the answer
+	if math.IsNaN(info.Duration) || info.Duration > hlsMaxDuration {
+		writeErr(w, http.StatusBadGateway, "the duration is implausible")
+		return
+	}
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	q := r.URL.Query()
 	if key.copy {
@@ -159,7 +169,10 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 func hlsPlaylist(duration float64, q url.Values) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:%d\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n", hlsSegSec+1)
-	n := int(math.Ceil(duration / hlsSegSec))
+	n := 0
+	if duration > 0 && duration <= hlsMaxDuration {
+		n = int(math.Ceil(duration / hlsSegSec))
+	}
 	for i := range n {
 		d := math.Min(hlsSegSec, duration-float64(i*hlsSegSec))
 		q.Set("n", strconv.Itoa(i))

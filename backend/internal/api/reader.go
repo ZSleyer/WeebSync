@@ -24,6 +24,7 @@ import (
 
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/nwaples/rardecode/v2"
+	"golang.org/x/sys/unix"
 )
 
 // The reader opens a book - a comic archive (cbz/cbr), an EPUB, a spreadsheet
@@ -49,7 +50,44 @@ const (
 	bookMaxDownload = 2 << 30
 	// unpacked books kept around; the oldest is deleted when one more opens
 	bookShelfSize = 6
+	// unpacks running at once for one user; one more is refused, not queued
+	bookUnpackPerUser = 1
+	// free space an unpack leaves on the cache's file system, so a book
+	// never fills the disk the database and downloads share
+	bookMinFree = 1 << 30
 )
+
+// The shelf only bounds finished books: each unpack in progress writes up to
+// bookMaxDownload + bookMaxBytes, so they are bounded too - globally by the
+// slots, per user by bookUnpackPerUser, and on disk by bookRoom.
+var (
+	bookUnpackSlots = make(chan struct{}, 2)
+	// bookUnpack is unpackBook; tests swap it to hold unpacks open
+	bookUnpack = (*Server).unpackBook
+	// bookDiskFree is the space left to an unprivileged writer below dir
+	bookDiskFree = func(dir string) (uint64, error) {
+		var st unix.Statfs_t
+		if err := unix.Statfs(dir, &st); err != nil {
+			return 0, err
+		}
+		return st.Bavail * uint64(st.Bsize), nil
+	}
+	errBookBusy = errors.New("another book is still being opened, try again shortly")
+	errBookDisk = errors.New("not enough disk space to open the book")
+)
+
+// bookRoom is how much one unpack may still write below dir: the free space
+// above bookMinFree, shared by every unpack that may run at once.
+func bookRoom(dir string) (int64, error) {
+	free, err := bookDiskFree(dir)
+	if err != nil {
+		return 0, err
+	}
+	if free <= bookMinFree {
+		return 0, nil
+	}
+	return int64(min((free-bookMinFree)/uint64(cap(bookUnpackSlots)), 1<<62)), nil
+}
 
 // readerExt maps what the reader can open to how it shows it.
 var readerExt = map[string]string{
@@ -78,6 +116,8 @@ type bookShelf struct {
 	byToken map[string]*book
 	// one unpack per source at a time; a second request waits for it
 	opening map[string]chan struct{}
+	// unpacks in progress per user
+	unpacking map[int64]int
 }
 
 // ReaderBook describes an opened book to the reader.
@@ -98,7 +138,9 @@ type ReaderBook struct {
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  429 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
+// @Failure  507 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/read/open [get]
 func (s *Server) handleReadOpen(w http.ResponseWriter, r *http.Request) {
@@ -109,11 +151,17 @@ func (s *Server) handleReadOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	b, err := s.openBook(r.Context(), src)
 	if err != nil {
-		if errors.Is(err, errNotBook) {
+		switch {
+		case errors.Is(err, errNotBook):
 			writeErr(w, http.StatusBadRequest, err.Error())
-			return
+		case errors.Is(err, errBookBusy):
+			w.Header().Set("Retry-After", "5")
+			writeErr(w, http.StatusTooManyRequests, err.Error())
+		case errors.Is(err, errBookDisk):
+			writeErr(w, http.StatusInsufficientStorage, err.Error())
+		default:
+			writePlayErr(w, src, err)
 		}
-		writePlayErr(w, src, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, ReaderBook{Base: "/api/read/b/" + b.token + "/", Kind: b.kind, Pages: b.pages})
@@ -138,6 +186,7 @@ func (s *Server) openBook(ctx context.Context, src playSource) (*book, error) {
 		sh.mu.Lock()
 		if sh.byKey == nil {
 			sh.byKey, sh.byToken, sh.opening = map[string]*book{}, map[string]*book{}, map[string]chan struct{}{}
+			sh.unpacking = map[int64]int{}
 		}
 		if b := sh.byKey[key]; b != nil {
 			b.used = time.Now()
@@ -146,6 +195,13 @@ func (s *Server) openBook(ctx context.Context, src playSource) (*book, error) {
 		}
 		wait, busy := sh.opening[key]
 		if !busy {
+			// a user's next book waits for nothing: it is refused while
+			// their last one still unpacks
+			if sh.unpacking[src.userID] >= bookUnpackPerUser {
+				sh.mu.Unlock()
+				return nil, errBookBusy
+			}
+			sh.unpacking[src.userID]++
 			sh.opening[key] = make(chan struct{})
 			sh.mu.Unlock()
 			break
@@ -157,17 +213,38 @@ func (s *Server) openBook(ctx context.Context, src playSource) (*book, error) {
 			return nil, ctx.Err()
 		}
 	}
-	b, err := s.unpackBook(ctx, src)
-	sh.mu.Lock()
-	close(sh.opening[key])
-	delete(sh.opening, key)
-	if err == nil {
-		b.key = key
-		sh.byKey[key], sh.byToken[b.token] = b, b
-		s.evictBooksLocked()
-	}
-	sh.mu.Unlock()
+	var b *book
+	var err error
+	// deferred, so a panicking unpack (net/http recovers it) still gives
+	// back the user's turn and wakes whoever waits for this book
+	defer func() {
+		sh.mu.Lock()
+		defer sh.mu.Unlock()
+		if sh.unpacking[src.userID]--; sh.unpacking[src.userID] <= 0 {
+			delete(sh.unpacking, src.userID)
+		}
+		close(sh.opening[key])
+		delete(sh.opening, key)
+		if err == nil && b != nil {
+			b.key = key
+			sh.byKey[key], sh.byToken[b.token] = b, b
+			s.evictBooksLocked()
+		}
+	}()
+	b, err = s.unpackInSlot(ctx, src)
 	return b, err
+}
+
+// unpackInSlot unpacks src once one of the global slots is free, and gives
+// the slot back however the unpack ends.
+func (s *Server) unpackInSlot(ctx context.Context, src playSource) (*book, error) {
+	select {
+	case bookUnpackSlots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-bookUnpackSlots }()
+	return bookUnpack(s, ctx, src)
 }
 
 // evictBooksLocked drops the least recently opened books beyond the shelf
@@ -311,6 +388,13 @@ func (s *Server) openBookFile(ctx context.Context, src playSource) (*playFile, e
 	if size > bookMaxDownload {
 		return nil, errors.New("archive too large")
 	}
+	room, err := bookRoom(bookCacheDir())
+	if err != nil {
+		return nil, err
+	}
+	if size > room {
+		return nil, errBookDisk
+	}
 	rc, err := client.Open(src.path, 0)
 	if err != nil {
 		return nil, err
@@ -358,15 +442,22 @@ func (w *entryWriter) write(name string, r io.Reader) error {
 			return err
 		}
 	}
+	room, err := bookRoom(w.root.Name())
+	if err != nil {
+		return err
+	}
 	out, err := w.root.OpenFile(rel, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return err
 	}
-	n, err := io.Copy(out, io.LimitReader(r, bookMaxBytes-w.written+1))
+	n, err := io.Copy(out, io.LimitReader(r, min(bookMaxBytes-w.written, room)+1))
 	out.Close()
 	w.written += n
 	if err != nil {
 		return err
+	}
+	if n > room {
+		return errBookDisk
 	}
 	if w.written > bookMaxBytes {
 		return errors.New("archive unpacks too large")
