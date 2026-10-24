@@ -64,3 +64,29 @@ func TestHoleReader(t *testing.T) {
 		t.Fatalf("from 15: %v %v", got, err)
 	}
 }
+
+// A file whose header could not be read is not remembered as fontless: the
+// next call with a known size (the remote ffmpeg input) must neither
+// dereference the failed entry nor keep the failure.
+func TestMKVFontsForFailedRead(t *testing.T) {
+	root := t.TempDir()
+	s := &Server{LocalRoots: []string{root}}
+	src := playSource{path: "a.mkv"}
+	if mf := s.mkvFontsFor(t.Context(), src, -1); mf != nil {
+		t.Fatalf("missing file: %+v", mf)
+	}
+	if mf := s.mkvFontsFor(t.Context(), src, 100); mf != nil {
+		t.Fatalf("missing file, sized: %+v", mf)
+	}
+	// the file appears (or the connection is back): it is read now
+	seed, err := os.ReadFile("../mkvsubs/testdata/seed.mkv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "a.mkv"), seed, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if mf := s.mkvFontsFor(t.Context(), src, int64(len(seed))); mf == nil || mf.size != int64(len(seed)) {
+		t.Fatalf("readable file: %+v", mf)
+	}
+}
