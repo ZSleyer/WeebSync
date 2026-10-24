@@ -246,8 +246,12 @@ func (s *Server) hintFolder(ctx context.Context, serverID int64, folder, name st
 	if h.MediaID != 0 {
 		st = "hint"
 	}
-	_, err = s.DB.Exec(`INSERT OR REPLACE INTO match_hints (server_id, folder, state, source, media_id, title, year, checked_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, serverID, folder, st, h.Source, h.MediaID, h.Title, h.Year, time.Now().Unix())
+	// a dismissal made while the lookups above ran must survive
+	_, err = s.DB.Exec(`INSERT INTO match_hints (server_id, folder, state, source, media_id, title, year, checked_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(server_id, folder) DO UPDATE SET state = excluded.state, source = excluded.source,
+			media_id = excluded.media_id, title = excluded.title, year = excluded.year, checked_at = excluded.checked_at
+		WHERE match_hints.state != 'dismissed'`, serverID, folder, st, h.Source, h.MediaID, h.Title, h.Year, time.Now().Unix())
 	if err == nil && h.MediaID != 0 {
 		slog.Debug("match hint", "folder", logSafe(folder), "source", h.Source, "media", h.MediaID, "title", h.Title)
 	}
