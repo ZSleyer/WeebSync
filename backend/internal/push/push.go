@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -26,21 +27,49 @@ type Service struct {
 
 var ErrEndpointOwned = errors.New("push endpoint belongs to another user")
 
+// New loads the instance's VAPID key pair, generating one only when none is
+// stored. Every browser subscription is bound to the stored public key, so a
+// key that cannot be read or decrypted fails here instead of being replaced:
+// a new pair would silently orphan every existing subscription.
 func New(d *sql.DB) (*Service, error) {
-	pub := db.Setting(d, "vapid_public")
-	priv := secret.SettingOrEnv(d, "vapid_private", "")
-	if pub == "" || priv == "" {
-		var err error
-		priv, pub, err = generateKeys()
-		if err != nil {
-			return nil, err
+	pub, err := db.SettingErr(d, "vapid_public")
+	if err != nil {
+		return nil, fmt.Errorf("read vapid_public: %w", err)
+	}
+	rawPriv, err := db.SettingErr(d, "vapid_private")
+	if err != nil {
+		return nil, fmt.Errorf("read vapid_private: %w", err)
+	}
+	var priv string
+	if rawPriv != "" {
+		if priv = secret.SettingOrEnv(d, "vapid_private", ""); priv == "" {
+			return nil, errors.New("vapid_private is stored but cannot be decrypted (secret key changed?)")
 		}
-		if err := db.SetSetting(d, "vapid_public", pub); err != nil {
-			return nil, err
+	}
+	if pub != "" && priv != "" {
+		return &Service{DB: d, public: pub, private: priv}, nil
+	}
+	if pub != "" || priv != "" {
+		// half a pair signs for nobody: subscriptions made against it are
+		// already dead, a new pair is the only way back
+		slog.Warn("push: incomplete VAPID key pair stored, generating a new one")
+	}
+	priv, pub, err = generateKeys()
+	if err != nil {
+		return nil, err
+	}
+	enc, err := secret.EncodeSetting(priv)
+	if err != nil {
+		return nil, err
+	}
+	err = db.Tx(d, func(tx *sql.Tx) error {
+		if err := db.SetSetting(tx, "vapid_public", pub); err != nil {
+			return err
 		}
-		if err := secret.SetSetting(d, "vapid_private", priv); err != nil {
-			return nil, err
-		}
+		return db.SetSetting(tx, "vapid_private", enc)
+	})
+	if err != nil {
+		return nil, err
 	}
 	return &Service{DB: d, public: pub, private: priv}, nil
 }
