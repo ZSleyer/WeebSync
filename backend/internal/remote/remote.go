@@ -77,8 +77,32 @@ type Config struct {
 // instead of a connection: USER and PASS would cross the network in clear text.
 var ErrPlainFTP = errors.New("plain FTP is not supported (credentials would be sent unencrypted), use protocol ftps")
 
+// ErrBlockedHost marks a host netguard refuses to connect to (cloud metadata,
+// link-local and the like). Retrying cannot help; the server's host has to
+// change.
+var ErrBlockedHost = errors.New("host is a blocked address")
+
+// blockedError keeps netguard's text while matching ErrBlockedHost.
+type blockedError struct{ err error }
+
+func (e *blockedError) Error() string        { return e.err.Error() }
+func (e *blockedError) Unwrap() error        { return e.err }
+func (e *blockedError) Is(target error) bool { return target == ErrBlockedHost }
+
+// checkHost runs netguard.Allowed and marks its refusals ErrBlockedHost.
+// netguard wraps a failed lookup (%w, transient: retrying may succeed) and
+// returns its refusals unwrapped, which is what tells the two apart.
+// TODO(orchestrator): a sentinel exported by netguard would make this explicit.
+func checkHost(host string) error {
+	err := netguard.Allowed(host)
+	if err == nil || errors.Unwrap(err) != nil {
+		return err
+	}
+	return &blockedError{err}
+}
+
 func Dial(cfg Config) (Client, error) {
-	if err := netguard.Allowed(cfg.Host); err != nil {
+	if err := checkHost(cfg.Host); err != nil {
 		return nil, err
 	}
 	switch cfg.Protocol {

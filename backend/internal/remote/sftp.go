@@ -28,6 +28,11 @@ type sftpClient struct {
 // without an SFTP subsystem, so the connection pool can multiplex several
 // SFTP channels over one connection.
 func DialSSH(cfg Config) (*ssh.Client, error) {
+	// the same up-front check Dial makes, so a refused host is marked
+	// ErrBlockedHost here too (SafeDial below guards the actual connect)
+	if err := checkHost(cfg.Host); err != nil {
+		return nil, err
+	}
 	return dialSSH(cfg)
 }
 

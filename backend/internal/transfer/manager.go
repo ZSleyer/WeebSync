@@ -44,7 +44,8 @@ type Download struct {
 	Error       string `json:"error,omitempty"`
 	// ErrorCode classifies Error into a stable machine-readable reason
 	// (see classifyError): permission_denied, disk_full, read_only, rename_failed,
-	// auth_failed; empty when the failure is not one we recognize.
+	// auth_failed, foreign_target, host_key, plain_ftp, blocked_host; empty when
+	// the failure is not one we recognize.
 	ErrorCode   string `json:"errorCode,omitempty"`
 	RateLimit   int64  `json:"rateLimit"`
 	BytesPerSec int64  `json:"bytesPerSec,omitempty"`
@@ -1114,6 +1115,9 @@ const (
 	ErrCodeRenameFailed     = "rename_failed"     // the finished file cannot take its final name
 	ErrCodeAuthFailed       = "auth_failed"       // the remote server rejected the login
 	ErrCodeForeignTarget    = "foreign_target"    // the target holds a file the user may not replace
+	ErrCodeHostKey          = "host_key"          // the SSH host key is not trusted (yet) or changed
+	ErrCodePlainFTP         = "plain_ftp"         // the server is stored with unencrypted FTP
+	ErrCodeBlockedHost      = "blocked_host"      // the server's address is one netguard refuses
 )
 
 // classifyError maps a transfer failure onto one of the error codes above.
@@ -1138,6 +1142,14 @@ func classifyError(err error) string {
 		return ErrCodeAuthFailed
 	case errors.Is(err, ErrForeignTarget):
 		return ErrCodeForeignTarget
+	case errors.Is(err, remote.ErrPlainFTP):
+		return ErrCodePlainFTP
+	case errors.Is(err, remote.ErrBlockedHost):
+		return ErrCodeBlockedHost
+	}
+	var hk *remote.HostKeyError
+	if errors.As(err, &hk) {
+		return ErrCodeHostKey
 	}
 	// A refused rename is its own cause and needs its own answer: the directory
 	// took every byte of the download, only the final swap was denied. Calling
@@ -1164,11 +1176,14 @@ func classifyError(err error) string {
 // again on its own. Permission, space, read-only, a refused rename and a
 // rejected login are not: they last until a human changes something, and
 // repeating them only buries the real problem under identical entries (a
-// rejected login also counts against the server's intrusion protection). An unclassified failure
+// rejected login also counts against the server's intrusion protection). Nor
+// is a connection the server's settings rule out: a host key awaiting review,
+// plain FTP, a blocked address. An unclassified failure
 // (a dropped connection, a short read, a target another process holds open) is
 // retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed, ErrCodeForeignTarget}, code)
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed, ErrCodeForeignTarget,
+		ErrCodeHostKey, ErrCodePlainFTP, ErrCodeBlockedHost}, code)
 }
 
 // CheckWritableAt reports whether a download can finish in local.Name, as the
