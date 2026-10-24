@@ -97,4 +97,12 @@ func TestNaturalCompare(t *testing.T) {
 	if !slices.Equal(l, want) {
 		t.Errorf("got %v, want %v", l, want)
 	}
+	// letters, not bytes: two accented ones are not alike for sharing a
+	// lead byte, and the case of one does not count
+	l = []string{"Öa.png", "Äb.png", "éd.png", "Éc.png"}
+	slices.SortFunc(l, naturalCompare)
+	want = []string{"Äb.png", "Éc.png", "éd.png", "Öa.png"}
+	if !slices.Equal(l, want) {
+		t.Errorf("got %v, want %v", l, want)
+	}
 }
