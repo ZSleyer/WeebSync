@@ -32,6 +32,10 @@ func (s *Server) plexSuggestTTL() time.Duration {
 	return s.ttlSetting("ttl_plex_h", 6*time.Hour)
 }
 
+// plexSuggestPartialTTL is how long a suggestion list built from a partial
+// read (a library or the relation chains cut off) counts as fresh.
+const plexSuggestPartialTTL = 30 * time.Minute
+
 // plexClient is the media server in use, nil when none is set up. Every
 // "plex" feature runs against whichever it is. With both connected the
 // media_server setting picks ("plex" | "jellyfin"), which syncMediaServer
@@ -547,6 +551,9 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	// ratingKey → the library wants TVDB aired mapping alongside AniList
 	airedLib := map[string]bool{}
 	var liveTV, liveMovies, tvdbShows []plex.Show
+	// partial: a library or the relation chains could only be read in part,
+	// so the list is cached for a short while instead of the whole TTL
+	partial := false
 	for _, sec := range sections {
 		if (sec.Type != "show" && sec.Type != "movie") || (len(wanted) > 0 && !wanted[sec.Key]) {
 			continue
@@ -554,6 +561,7 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		list, err := c.Shows(sec.Key)
 		if err != nil {
 			slog.Warn("plex shows", "section", sec.Key, "err", err)
+			partial = true
 			continue
 		}
 		for _, sh := range list {
@@ -654,8 +662,10 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 		}
 		if err != nil {
 			// deadline/rate hit mid-resolution: keep the sequels found so far
-			// and build suggestions with them; the next poll fills the rest
+			// and build suggestions with them; the short cache lifetime below
+			// lets a poll soon fill the rest
 			slog.Warn("plex relations", "err", err)
+			partial = true
 			break
 		}
 	}
@@ -714,8 +724,15 @@ func (s *Server) buildPlexSuggestions(ctx context.Context) {
 	}
 
 	payload, _ := json.Marshal(suggestions)
-	if _, err := s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v3', ?, datetime('now'))
-		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`, string(payload)); err != nil {
+	stamp := time.Now().UTC()
+	if ttl := s.plexSuggestTTL(); partial && ttl > plexSuggestPartialTTL {
+		// dated back so it turns stale after plexSuggestPartialTTL: served
+		// until then, rebuilt by the first poll after
+		stamp = stamp.Add(-(ttl - plexSuggestPartialTTL))
+	}
+	if _, err := s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES ('plex:suggestions:v3', ?, ?)
+		ON CONFLICT(key) DO UPDATE SET payload = excluded.payload, fetched_at = excluded.fetched_at`,
+		string(payload), stamp.Format(sqliteTime)); err != nil {
 		// not cached: the next request walks the library again
 		slog.Warn("plex suggestions not cached", "err", err)
 	}
