@@ -28,7 +28,7 @@ func TestAddMissingEpisodesFindsGapsAndTail(t *testing.T) {
 	addRemoteFiles(t, s, 1, "/seed/Show S2", map[string]int64{"Show - 01.mkv": 10})
 
 	acc := newAcc()
-	s.addMissingEpisodes(acc)
+	s.addMissingEpisodes(acc, 1)
 	got := acc.list(nil)
 	if len(got) != 1 {
 		t.Fatalf("want one episodes item, got %d: %+v", len(got), got)

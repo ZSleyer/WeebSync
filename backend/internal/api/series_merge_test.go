@@ -153,6 +153,10 @@ func TestSharedTitlePrefix(t *testing.T) {
 // mapping files the 1993 OVA as tvdb:83950 - and copies under either must meet.
 func TestShowKeyCanonFoldsSpellingsOfOneSeries(t *testing.T) {
 	s := mergeTestServer(t)
+	// the remote copies sit on user 1's server: units only carry the caller's own
+	s.DB.Exec(`INSERT INTO users (id, email) VALUES (1,'u@e.test')`)
+	s.DB.Exec(`INSERT INTO servers (id, user_id, name, protocol, host, port, username, secret_enc)
+		VALUES (1,1,'seedbox','sftp','h',22,'u',x'00')`)
 	s.DB.Exec(`INSERT INTO series (id, key, title, year) VALUES (1,'jojo','JoJo',2014), (2,'other','Other',2020)`)
 	s.DB.Exec(`INSERT INTO catalog_variants (server_id, folder, show_key, season, series_id, res_rank) VALUES
 		(0,'/media/anime/JoJo/Season_03','tvdb:262954',3,1,1080),
@@ -169,7 +173,7 @@ func TestShowKeyCanonFoldsSpellingsOfOneSeries(t *testing.T) {
 
 	// and the two copies now land in one unit, which is what makes the remote
 	// one an upgrade for the local one at all
-	u := s.loadUnits()
+	u := s.loadUnits(1)
 	cu := u.byKey[unitKey("tvdb:262954", 3, false)]
 	if cu == nil || len(cu.locals) != 1 || len(cu.remotes) != 1 {
 		t.Fatalf("unit = %+v, want one local and one remote copy", cu)

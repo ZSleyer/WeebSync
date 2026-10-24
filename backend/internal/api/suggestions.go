@@ -578,8 +578,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	inc.locale = locale
 	inc.defaults = s.watchDefaultsFor(userID)
 	inc.notes = s.planNotesFor(userID)
-	s.addMissingUnits(inc)
-	s.addMissingEpisodes(inc)
+	s.addMissingUnits(inc, userID)
+	s.addMissingEpisodes(inc, userID)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
 
 	// ── Recommended: what AniList's community suggests next to the titles

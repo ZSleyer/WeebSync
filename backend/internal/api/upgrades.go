@@ -696,7 +696,7 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 	defaults := s.watchDefaultsFor(userID)
 	notes := s.planNotesFor(userID)
 	want := wantedFrom(defaults.Common)
-	units := s.loadUnits()
+	units := s.loadUnits(userID)
 	enrich := s.unitEnrichIndex()
 	localsByShow := localSeasonsByShow(units)
 	sizes := s.newSizeIndex()
@@ -818,8 +818,8 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 // season or movie. Each carries all remote copies as candidates so the UI shows
 // where to get it and in what quality. Season-precise: a show whose S1-S2 are
 // local but S3 is only remote surfaces S3 alone.
-func (s *Server) addMissingUnits(acc *sugAcc) {
-	units := s.loadUnits()
+func (s *Server) addMissingUnits(acc *sugAcc, userID int64) {
+	units := s.loadUnits(userID)
 	enrich := s.unitEnrichIndex()
 	// "unvollständig" means a gap in a show you OWN: only surface a missing
 	// season/movie when at least one OTHER season of the same show_key is in the
@@ -920,8 +920,8 @@ func (s *Server) addMissingUnits(acc *sugAcc) {
 // remote copy whose numbers do not fit the local ones (absolute numbering
 // against season numbering) is left out rather than reported as a hundred
 // missing episodes.
-func (s *Server) addMissingEpisodes(acc *sugAcc) {
-	units := s.loadUnits()
+func (s *Server) addMissingEpisodes(acc *sugAcc, userID int64) {
+	units := s.loadUnits(userID)
 	enrich := s.unitEnrichIndex()
 	n := 0
 	for _, key := range units.order {
@@ -1087,7 +1087,7 @@ type DuplicateCopy struct {
 // addDuplicates lists the units the library holds twice and the folders that
 // hold an episode twice.
 func (s *Server) addDuplicates(locale string) []DuplicateItem {
-	units := s.loadUnits()
+	units := s.loadRawUnits() // only the locals are read
 	enrich := s.unitEnrichIndex()
 	out := []DuplicateItem{}
 	for _, key := range units.order {
@@ -1277,21 +1277,34 @@ func localSeasonsByShow(units catUnits) map[string][]LocalSeason {
 // series ids are separate spaces that the show_key spells the same way. Whoever
 // created the bucket decided its form and every other row's is_movie was
 // dropped, so a series could be offered a film as "the better copy" of itself.
-func (s *Server) loadUnits() catUnits {
-	u := s.loadRawUnits()
+//
+// The remote copies are the given user's own: catalog_variants holds the
+// copies of every user's servers, and only the local library (server 0) is
+// shared. A copy on someone else's server is neither theirs to see - its
+// server name and folder would ride along in the card - nor one they could
+// fetch.
+func (s *Server) loadUnits(userID int64) catUnits {
+	u := s.loadRawUnitsFor(userID)
 	s.pruneImplausibleRemotes(u)
 	return u
 }
 
-// loadRawUnits is loadUnits without the plausibility check on the remotes,
-// for callers that only read the local copies: the check walks the whole
-// catalog and costs seconds.
+// loadRawUnits reads the local library alone, for callers that never look at
+// a remote copy: no user's servers, and no plausibility check on them (it
+// walks the whole catalog and costs seconds).
 func (s *Server) loadRawUnits() catUnits {
-	names := s.serverNames()
+	return s.loadRawUnitsFor(0) // no user owns a server under id 0
+}
+
+// loadRawUnitsFor is loadUnits without the plausibility check on the remotes.
+func (s *Server) loadRawUnitsFor(userID int64) catUnits {
+	names := s.serverNames(userID)
 	canon := s.showKeyCanon()
 	u := catUnits{byKey: map[string]*catUnit{}}
 	rows, err := s.DB.Query(`SELECT server_id, folder, res_rank, dub_codes, sub_codes, soft_codes, show_key, season, is_movie, probed, lib_kind, series_id
-		FROM catalog_variants WHERE show_key != '' ORDER BY show_key, season`)
+		FROM catalog_variants WHERE show_key != ''
+		  AND (server_id = 0 OR server_id IN (SELECT id FROM servers WHERE user_id = ?))
+		ORDER BY show_key, season`, userID)
 	if err != nil {
 		return u
 	}
@@ -1781,10 +1794,10 @@ func keyProvider(showKey string, isMovie bool) (string, int) {
 	return "", 0
 }
 
-// serverNames maps server id → display name (id 0 / local has none).
-func (s *Server) serverNames() map[int64]string {
+// serverNames maps the user's server ids → display name (id 0 / local has none).
+func (s *Server) serverNames(userID int64) map[int64]string {
 	m := map[int64]string{}
-	rows, err := s.DB.Query(`SELECT id, name FROM servers`)
+	rows, err := s.DB.Query(`SELECT id, name FROM servers WHERE user_id = ?`, userID)
 	if err != nil {
 		return m
 	}

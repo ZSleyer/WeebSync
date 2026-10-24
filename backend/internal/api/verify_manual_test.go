@@ -102,7 +102,7 @@ func TestVerifyUnits(t *testing.T) {
 			up.To.ServerName, up.To.ResRank, up.ImprovesRes, up.ImprovesSub, up.ImprovesDub)
 	}
 	inc := newAcc()
-	s.addMissingUnits(inc)
+	s.addMissingUnits(inc, 1)
 	miss := inc.list(nil)
 	fmt.Printf("missing units (incomplete): %d\n", len(miss))
 	for i, m := range miss {
