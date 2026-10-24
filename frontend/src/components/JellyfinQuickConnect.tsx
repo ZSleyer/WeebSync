@@ -34,15 +34,16 @@ export default function JellyfinQuickConnect({
   const [done, setDone] = useState('')
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
 
-  // false once unmounted: a request still in flight must not start polling
-  const alive = useRef(true)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
+  // Which run is current: the unmount or a newer start moves it on, and what a
+  // run's requests answer after that is dropped (no onDone from a gone component).
+  const run = useRef(0)
+  useEffect(
+    () => () => {
+      run.current++
       clearInterval(timer.current)
-    }
-  }, [])
+    },
+    [],
+  )
 
   const stop = () => {
     clearInterval(timer.current)
@@ -50,13 +51,14 @@ export default function JellyfinQuickConnect({
   }
 
   const start = async () => {
+    const mine = ++run.current
     let s: JellyfinLinkStart
     try {
       s = await api.post<JellyfinLinkStart>(`${base}/start`, server === undefined ? undefined : { url: server })
     } catch (e) {
       return fail(e)
     }
-    if (!alive.current) return
+    if (run.current !== mine) return
     setCode(s.code)
     setDone('')
     setExpired(false)
@@ -70,13 +72,14 @@ export default function JellyfinQuickConnect({
       }
       try {
         const res = await api.get<JellyfinPoll>(`${base}/poll?id=${encodeURIComponent(s.id)}`)
-        if (!res.linked) return
+        if (run.current !== mine || !res.linked) return
         stop()
         setDone(res.user ?? '')
         onDone?.(res.user ?? '')
         for (const key of ['settings', 'plex-me', 'plex-sections', 'plex-account'])
           qc.invalidateQueries({ queryKey: [key] })
       } catch (e) {
+        if (run.current !== mine) return
         if (e instanceof ApiError && e.status === 404) {
           stop()
           setExpired(true)

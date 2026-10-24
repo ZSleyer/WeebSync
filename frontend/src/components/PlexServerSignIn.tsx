@@ -30,31 +30,35 @@ export default function PlexServerSignIn({
   const [done, setDone] = useState<PlexServerConnect | null>(null)
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
 
-  // false once unmounted: a request still in flight must not start polling
-  const alive = useRef(true)
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
+  // Which sign-in run is current. start() takes a number; a reset, a newer
+  // start or the unmount moves it on, and whatever a run's requests answer
+  // after that is dropped (an in-flight poll must not bring the list back).
+  const run = useRef(0)
+  useEffect(
+    () => () => {
+      run.current++
       clearInterval(timer.current)
-    }
-  }, [])
+    },
+    [],
+  )
 
   // back to the start buttons: the sign-in under way or the account's list is dropped
   const reset = () => {
+    run.current++
     clearInterval(timer.current)
     setPin(null)
     setServers(null)
   }
 
   const start = async () => {
+    const mine = ++run.current
     let p: PlexLinkStart
     try {
       p = await api.post<PlexLinkStart>('/api/plex/server/link/start')
     } catch (e) {
       return fail(e)
     }
-    if (!alive.current) return
+    if (run.current !== mine) return
     setPin(p)
     setServers(null)
     setDone(null)
@@ -72,13 +76,14 @@ export default function PlexServerSignIn({
       if (Date.now() > until) return giveUp()
       try {
         const res = await api.get<PlexServerPoll>(`/api/plex/server/link/poll?id=${p.id}`)
+        if (run.current !== mine) return
         if (res.linked) {
           clearInterval(timer.current)
           setServers(res.servers)
         }
       } catch (e) {
         // plex.tv unreachable for a moment: the next round asks again
-        if (e instanceof ApiError && e.status === 404) giveUp()
+        if (run.current === mine && e instanceof ApiError && e.status === 404) giveUp()
       }
     }, 2000)
   }

@@ -82,3 +82,32 @@ describe('JellyfinQuickConnect', () => {
     expect(onDone).not.toHaveBeenCalled()
   })
 })
+
+describe('a poll still in flight', () => {
+  it('Plex: cancelling while a poll is answered does not bring the server list back', async () => {
+    const pin = { id: 7, code: 'ABCD', url: 'https://plex.tv/link' }
+    vi.spyOn(api, 'post').mockResolvedValue(pin)
+    let answer!: (v: unknown) => void
+    vi.spyOn(api, 'get').mockReturnValue(new Promise((r) => (answer = r)))
+    wrap(<PlexServerSignIn connected={false} />)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'settings.plexSignIn' })))
+    await act(async () => vi.advanceTimersByTimeAsync(2100))
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    await act(async () => answer({ linked: true, servers: [{ id: 's', name: 'Home', owned: true }] }))
+    expect(screen.queryByText('Home')).toBeNull()
+    expect(screen.getByRole('button', { name: 'settings.plexSignIn' })).toBeTruthy()
+  })
+
+  it('Jellyfin: unmounting while a poll is answered does not report done', async () => {
+    vi.spyOn(api, 'post').mockResolvedValue({ id: 'x', code: '123456' })
+    let answer!: (v: unknown) => void
+    vi.spyOn(api, 'get').mockReturnValue(new Promise((r) => (answer = r)))
+    const onDone = vi.fn()
+    const { unmount } = wrap(<JellyfinQuickConnect server="http://jf" label="go" onDone={onDone} />)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'go' })))
+    await act(async () => vi.advanceTimersByTimeAsync(2100))
+    unmount()
+    await act(async () => answer({ linked: true, user: 'me' }))
+    expect(onDone).not.toHaveBeenCalled()
+  })
+})
