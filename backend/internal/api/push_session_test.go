@@ -164,18 +164,22 @@ func TestPushSubscriptionEndsWithPasswordChangeAndSweep(t *testing.T) {
 
 	keep := login("keep")
 	login("other")
+	// from before the column: no session to follow, so no session ends it
+	if _, err := d.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth) VALUES ('https://8.8.8.8/push/legacy', 1, 'k', 'a')`); err != nil {
+		t.Fatal(err)
+	}
 	if err := auth.SetPassword(d, 1, "a-long-unique-passphrase-9371", keep); err != nil {
 		t.Fatal(err)
 	}
-	if count() != 1 {
-		t.Fatalf("after a password change %d subscriptions, want only the kept session's", count())
+	if count() != 2 {
+		t.Fatalf("after a password change %d subscriptions, want the kept session's and the legacy one", count())
 	}
 
 	if _, err := d.Exec(`UPDATE sessions SET expires_at = '2000-01-01T00:00:00Z'`); err != nil {
 		t.Fatal(err)
 	}
 	s.expireAuthRows()
-	if count() != 0 {
-		t.Fatalf("after the sweep %d subscriptions, want none", count())
+	if count() != 1 {
+		t.Fatalf("after the sweep %d subscriptions, want only the legacy one", count())
 	}
 }
