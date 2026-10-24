@@ -47,3 +47,6 @@ e2e-shots/
 # the audit borrows playwright from wherever it is installed
 tools/ui-audit/node_modules
 tools/lockfile-lint/node_modules
+# yarn's install state and cache; the release it runs is the frontend's
+tools/lockfile-lint/.yarn/*
+!tools/lockfile-lint/.yarn/releases
