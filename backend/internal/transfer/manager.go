@@ -341,6 +341,14 @@ func (m *Manager) startDownload(id int64) {
 			// graceful shutdown: back to the queue, resumes from .part on restart
 			m.setStatus(id, "queued", "", "")
 		case ctx.Err() != nil:
+			// a canceled run is not resumed: its partial file is only clutter,
+			// and the next row for this target would find it
+			if local, lerr := OpenLocal(m.roots(), d.LocalPath); lerr == nil {
+				if rerr := local.Root.Remove(local.Name + ".part"); rerr != nil && !errors.Is(rerr, fs.ErrNotExist) {
+					slog.Warn("partial file of a canceled download not removed", "id", id, "err", rerr)
+				}
+				local.Close()
+			}
 			m.setStatus(id, "canceled", "", "")
 		default:
 			code := classifyError(err)
@@ -397,19 +405,35 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if err := local.Root.MkdirAll(filepath.Dir(part), 0o755); err != nil {
 		return err
 	}
+	// Resume only what this row wrote itself. A .part says nothing about
+	// where its bytes came from: one left by another row (a worse variant
+	// that gave up, a remote file since replaced) would get this file's rest
+	// appended - right size, mixed content. d.Transferred is this row's own
+	// progress as last recorded (every second); the file may be ahead of it
+	// by up to a second's worth, or behind it after a crash before a sync.
 	var offset int64
 	if fi, err := local.Root.Stat(part); err == nil {
-		offset = fi.Size()
+		offset = min(fi.Size(), d.Transferred)
+		if offset > size {
+			offset = 0 // remote file changed, start over
+		}
+		if offset != fi.Size() {
+			f, err := local.Root.OpenFile(part, os.O_WRONLY, 0)
+			if err != nil {
+				return err
+			}
+			terr := f.Truncate(offset)
+			if err := f.Close(); terr == nil {
+				terr = err
+			}
+			if terr != nil {
+				return terr
+			}
+		}
 	}
-	if offset > size {
-		offset = 0 // remote file changed, start over
-		f, err := local.Root.OpenFile(part, os.O_WRONLY|os.O_TRUNC, 0)
-		if err != nil {
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
+	if offset != d.Transferred {
+		// progress and the history's start follow what is really resumed
+		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ?, start_bytes = ? WHERE id = ?`, offset, offset, d.ID)
 	}
 
 	src, err := client.Open(d.RemotePath, offset)
