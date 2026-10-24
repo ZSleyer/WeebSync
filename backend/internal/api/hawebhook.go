@@ -93,7 +93,12 @@ func (s *Server) HaAttentionLoop(ctx context.Context) {
 // haAttentionPost posts the attention aggregate when its fingerprint
 // differs from last, and returns the current fingerprint.
 func (s *Server) haAttentionPost(last string) string {
-	reasons, needy, _ := s.statusAttention()
+	reasons, needy, _, err := s.statusAttention()
+	if err != nil {
+		// an unreadable state must not post "nothing needs attention"
+		slog.Warn("ha webhook: reading attention failed", "err", err)
+		return last
+	}
 	parts := make([]string, 0, len(needy))
 	for _, n := range needy {
 		parts = append(parts, fmt.Sprintf("%d:%s", n.ID, strings.Join(n.Reasons, "+")))
