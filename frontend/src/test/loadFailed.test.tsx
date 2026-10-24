@@ -10,7 +10,7 @@ import { api } from '../api'
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
   useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'de' } }) as never,
-  Trans: ({ i18nKey }: { i18nKey: string }) => i18nKey,
+  Trans: (({ i18nKey }: { i18nKey: string }) => i18nKey) as never,
 }))
 
 afterEach(() => {
