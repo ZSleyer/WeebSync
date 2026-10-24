@@ -1,5 +1,5 @@
 import { ChevronDown } from 'lucide-react'
-import { useEffect, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 
 export interface PillOption<T extends string> {
@@ -36,31 +36,58 @@ export default function PillSelect<T extends string>({
   const current = options.find((o) => o.value === value)
   const trigger = () => ref.current?.querySelector<HTMLElement>('[aria-expanded]')?.focus()
 
-  // APG listbox popup: the list takes the focus on the chosen option (else the
-  // first), so the arrow keys work at once
+  // where the list puts the focus when it opens: the chosen option for a click
+  // and ArrowDown, else the first or last (APG select-only combobox)
+  const from = useRef<'selected' | 'first' | 'last'>('selected')
   useEffect(() => {
     if (!open) return
     const list = ref.current?.querySelector<HTMLElement>('[role="listbox"]')
-    const at = list?.querySelector<HTMLElement>('[aria-selected="true"]') ?? list?.querySelector<HTMLElement>('button')
+    const all = [...(list?.querySelectorAll<HTMLElement>('button') ?? [])]
+    const at =
+      from.current === 'first'
+        ? all[0]
+        : from.current === 'last'
+          ? all[all.length - 1]
+          : (list?.querySelector<HTMLElement>('[aria-selected="true"]') ?? all[0])
+    from.current = 'selected'
     at?.focus({ preventScroll: true })
   }, [open, ref])
 
   const onTriggerKey = (e: KeyboardEvent) => {
-    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    const to = { ArrowDown: 'selected', ArrowUp: 'first', Home: 'first', End: 'last' } as const
+    if (e.key in to && !open) {
       e.preventDefault()
+      from.current = to[e.key as keyof typeof to]
       setOpen(true)
     }
   }
-  // Tab leaves the list: close it with the focus on the trigger, where Tab
-  // carries on from
+  // inside the open list the arrows stop at the ends (the list itself wraps)
+  const onListKeyCapture = (e: KeyboardEvent) => {
+    if (!open || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="listbox"] button') ?? [])]
+    const at = all.indexOf(document.activeElement as HTMLElement)
+    if (at < 0 || (e.key === 'ArrowDown' ? at !== all.length - 1 : at !== 0)) return
+    e.preventDefault()
+    e.stopPropagation()
+  }
+  // Tab chooses the focused option, closes the list and moves on from the
+  // trigger (APG select-only combobox)
   const onListKey = (e: KeyboardEvent) => {
-    if (e.key === 'Tab' && open) {
-      trigger()
-      setOpen(false)
-    }
+    if (e.key !== 'Tab' || !open) return
+    const all = [...(ref.current?.querySelectorAll<HTMLElement>('[role="listbox"] button') ?? [])]
+    const o = options[all.indexOf(document.activeElement as HTMLElement)]
+    if (o && o.value !== value) onChange(o.value)
+    trigger()
+    setOpen(false)
   }
   return (
-    <div className={`relative min-w-0 ${className ?? ''}`} ref={ref} style={anchorStyle} onKeyDown={onListKey}>
+    <div
+      className={`relative min-w-0 ${className ?? ''}`}
+      ref={ref}
+      style={anchorStyle}
+      onKeyDown={onListKey}
+      onKeyDownCapture={onListKeyCapture}
+    >
       <button
         type="button"
         className="t-pill"

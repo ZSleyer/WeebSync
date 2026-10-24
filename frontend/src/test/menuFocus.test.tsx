@@ -41,12 +41,34 @@ describe('PillSelect keyboard (APG listbox popup)', () => {
     expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Beta' }))
   })
 
-  it('opens on ArrowUp too, and on click, with focus inside the list', () => {
+  it('opens on click on the chosen option', () => {
     const { trigger } = mount()
-    fireEvent.keyDown(trigger, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Beta' }))
-    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     fireEvent.click(trigger)
+    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Beta' }))
+  })
+
+  it('opens on ArrowUp and Home at the first option, on End at the last', () => {
+    for (const [key, name] of [
+      ['ArrowUp', 'Alpha'],
+      ['Home', 'Alpha'],
+      ['End', 'Gamma'],
+    ]) {
+      const { unmount } = render(<PillSelect value="b" options={options} onChange={vi.fn()} label="Sort" />)
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Sort' }), { key })
+      expect(document.activeElement).toBe(screen.getByRole('option', { name }))
+      unmount()
+    }
+  })
+
+  it('stops at the ends of the list instead of wrapping', () => {
+    const { trigger } = mount()
+    fireEvent.keyDown(trigger, { key: 'Home' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Alpha' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'End' })
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Gamma' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('option', { name: 'Beta' }))
   })
 
@@ -59,10 +81,12 @@ describe('PillSelect keyboard (APG listbox popup)', () => {
     expect(document.activeElement).toBe(trigger)
   })
 
-  it('closes on Tab, leaving the focus on the trigger so Tab moves on from there', () => {
-    const { trigger } = mount()
+  it('selects the focused option on Tab, closes and leaves the focus on the trigger', () => {
+    const { trigger, onChange } = mount()
     fireEvent.click(trigger)
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowDown' })
     fireEvent.keyDown(document.activeElement!, { key: 'Tab' })
+    expect(onChange).toHaveBeenCalledWith('c')
     expect(screen.queryByRole('listbox')).toBeNull()
     expect(document.activeElement).toBe(trigger)
   })
