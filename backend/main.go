@@ -151,7 +151,7 @@ func main() {
 		DataDir:       dataDir,
 	}
 	srv.Transfers = transfer.NewManager(database, srv.DialServer, downloadRoot)
-	srv.Transfers.Roots = srv.LocalRootsWithPlex() // env mounts + configured Plex roots
+	srv.Transfers.SetRoots(srv.LocalRootsWithPlex()) // env mounts + configured Plex roots; the queue loop already runs
 	srv.Transfers.OnFinished = srv.DownloadFinished
 	srv.Anilist.TokenSource = srv.AnilistToken // linked-account bearer for API calls
 
