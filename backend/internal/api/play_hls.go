@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -44,10 +45,12 @@ type hlsKey struct {
 }
 
 type hlsSession struct {
-	key  hlsKey
-	dir  string
-	mu   sync.Mutex
-	last time.Time
+	key hlsKey
+	dir string
+	mu  sync.Mutex
+	// last is when a request used it, in Unix nanoseconds: read under the
+	// sessions' lock, so it never waits on the session's own
+	last atomic.Int64
 	run  *hlsRun // the current ffmpeg run, nil before the first
 	// the copy mode's segment starts, in seconds
 	cuts []float64
@@ -238,7 +241,8 @@ func (s *Server) hlsSession(key hlsKey, cuts []float64) (*hlsSession, error) {
 	if err != nil {
 		return nil, errors.New("no temp space")
 	}
-	sess := &hlsSession{key: key, dir: dir, last: time.Now(), cuts: cuts}
+	sess := &hlsSession{key: key, dir: dir, cuts: cuts}
+	sess.last.Store(time.Now().UnixNano())
 	h.all[key] = sess
 	return sess, nil
 }
@@ -257,9 +261,7 @@ func (h *hlsSessions) reaper() {
 }
 
 func (sess *hlsSession) lastUsed() time.Time {
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	return sess.last
+	return time.Unix(0, sess.last.Load())
 }
 
 // stop ends the run and drops the segments.
@@ -299,15 +301,26 @@ func (sess *hlsSession) ready(n int) bool {
 // moving the ffmpeg run when n is not on its way.
 func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, error) {
 	p := sess.segPath(n)
+	sess.last.Store(time.Now().UnixNano())
 	sess.mu.Lock()
-	sess.last = time.Now()
-	if !sess.ready(n) {
-		run := sess.run
-		if run == nil || !run.running() || n < run.start || n > sess.written(run.start)+hlsAheadSegs {
-			if err := sess.runLocked(s, n); err != nil {
-				sess.mu.Unlock()
-				return "", err
-			}
+	if sess.needsRunLocked(n) {
+		// the dial (a remote may have no connection free) and the first
+		// hardware probe happen outside the lock: the status poll and the
+		// session scans read this session meanwhile
+		sess.mu.Unlock()
+		in, enc, err := sess.prepare(ctx, s)
+		if err != nil {
+			return "", err
+		}
+		sess.mu.Lock()
+		if sess.needsRunLocked(n) {
+			err = sess.runLocked(n, in, enc)
+		} else { // another request started one meanwhile
+			in.done()
+		}
+		if err != nil {
+			sess.mu.Unlock()
+			return "", err
 		}
 	}
 	if sess.waiting == nil {
@@ -358,21 +371,50 @@ func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, 
 	}
 }
 
-// runLocked (re)starts ffmpeg at segment n.
-func (sess *hlsSession) runLocked(s *Server, n int) error {
+// needsRunLocked reports whether segment n needs a run started (or moved)
+// for it: it is not written, and the current run will not write it soon.
+func (sess *hlsSession) needsRunLocked(n int) bool {
+	if sess.ready(n) {
+		return false
+	}
+	run := sess.run
+	return run == nil || !run.running() || n < run.start || n > sess.written(run.start)+hlsAheadSegs
+}
+
+// hlsInput opens the source for a run; a test stands in for the network here.
+var hlsInput = (*Server).ffInputFor
+
+// hlsDialTimeout bounds opening the source for a run, waiting for a free
+// connection to the server included.
+const hlsDialTimeout = 60 * time.Second
+
+// prepare opens the source for a run and picks its encoder. The dial lasts
+// as long as the request asking for it, at most hlsDialTimeout; the run
+// itself outlives the request.
+func (sess *hlsSession) prepare(ctx context.Context, s *Server) (*ffInput, videoEncoder, error) {
+	dctx, cancel := context.WithTimeout(ctx, hlsDialTimeout)
+	defer cancel()
+	in, err := hlsInput(s, dctx, sess.key.src)
+	if err != nil {
+		return nil, videoEncoder{}, err
+	}
+	var enc videoEncoder
+	if !sess.key.copy {
+		enc = playEncoder()
+	}
+	return in, enc, nil
+}
+
+// runLocked (re)starts ffmpeg at segment n, reading in through enc. It owns
+// in from here on.
+func (sess *hlsSession) runLocked(n int, in *ffInput, enc videoEncoder) error {
 	sess.killLocked()
 	ctx, cancel := context.WithCancel(context.Background())
-	in, err := s.ffInputFor(ctx, sess.key.src)
-	if err != nil {
-		cancel()
-		return err
-	}
 	before := []string{"-nostdin", "-progress", "pipe:1"}
 	start, out := strconv.Itoa(n*hlsSegSec), []string(nil)
 	if sess.key.copy {
 		start, out = strconv.FormatFloat(sess.cuts[n], 'f', 3, 64), copyArgs(sess.key, sess.cuts, n, sess.dir)
 	} else {
-		enc := playEncoder()
 		before = append(before, enc.pre...)
 		out = hlsArgs(sess.key, enc, n, sess.dir)
 	}
