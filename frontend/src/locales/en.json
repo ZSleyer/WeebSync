@@ -3025,6 +3025,7 @@
     "comments": "Comments",
     "noComments": "No comments yet.",
     "like": "Like",
+    "posted": "Reply posted.",
     "reply": "Reply",
     "replyTo": "Reply to {{name}}",
     "replyThread": "Reply to the post",

@@ -81,10 +81,12 @@ export function useThreadWrites(threadId: number) {
   const [draft, setDraft] = useState('')
   // the "Reply" link that opened the composer: the focus goes back to it
   const opener = useRef<HTMLElement | null>(null)
-  const close = () => {
+  // `keep`: a send in flight may fail and reopen the composer, which then
+  // needs its opener again
+  const close = (keep = false) => {
     setReplyTo(null)
     const el = opener.current
-    opener.current = null
+    if (!keep) opener.current = null
     if (el?.isConnected) el.focus()
   }
 
@@ -138,7 +140,7 @@ export function useThreadWrites(threadId: number) {
         replies: [],
       }
       set((d) => withReply(d, v, pending))
-      close()
+      close(true)
       setDraft('')
     },
     onError: (e, v) => {
@@ -149,7 +151,11 @@ export function useThreadWrites(threadId: number) {
       setDraft(v.text)
       fail(e)
     },
-    onSuccess: (r, v) => set((d) => withId(d, v.tmp, r.id)),
+    onSuccess: (r, v) => {
+      opener.current = null
+      set((d) => withId(d, v.tmp, r.id))
+      toast({ message: t('thread.posted') })
+    },
   })
 
   return {
@@ -164,7 +170,7 @@ export function useThreadWrites(threadId: number) {
       setReplyTo(to)
       setDraft('')
     },
-    cancel: close,
+    cancel: () => close(),
     draft,
     setDraft,
     sending: send.isPending,
