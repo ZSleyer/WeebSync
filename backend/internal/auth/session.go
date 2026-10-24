@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -230,6 +231,10 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 	if isHTTPS(r) {
 		token = hostTokenMark + token
 	}
+	// every session from here on is past the cutoff, plain HTTP ones too
+	if _, err := hostCookieCutoff(d); err != nil {
+		return err
+	}
 	stamp := now.UTC().Format(time.RFC3339)
 	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember, ClientIP(r)); err != nil {
@@ -263,10 +268,10 @@ func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, reme
 
 // sessionCookieFrom is the request's session cookie. Under HTTPS that is the
 // host-prefixed one. The legacy name is the migration path for sessions from
-// before the prefix (or from plain HTTP, before force-https): over HTTPS it
-// only counts when no host-prefixed cookie came at all, and legacy reports
-// that, so the caller moves the session over. A token handed out under the
-// prefix is never taken under the legacy name, on any scheme: a sister
+// before the prefix: over HTTPS it only counts when no host-prefixed cookie
+// came at all, and legacy reports that, so the caller checks the session is
+// from before hostCookieCutoff and moves it over. A token handed out under
+// the prefix is never taken under the legacy name, on any scheme: a sister
 // subdomain can set that name, but not to a session made under the prefix,
 // an attacker's own included.
 func sessionCookieFrom(r *http.Request) (c *http.Cookie, legacy bool) {
@@ -281,6 +286,54 @@ func sessionCookieFrom(r *http.Request) (c *http.Cookie, legacy bool) {
 		return nil, false
 	}
 	return c, name != sessionCookie
+}
+
+// hostCookieSince is the settings key holding when this instance first made
+// a session with the host-prefixed cookie in place.
+const hostCookieSince = "session_host_cookie_since"
+
+// hostCookieCuts remembers each database's cutoff once read.
+var hostCookieCuts sync.Map // *sql.DB -> time.Time
+
+// hostCookieCutoff is when this instance first made a session with the
+// host-prefixed cookie in place, stamped on first use (the first session
+// made, or the first legacy cookie seen, after the upgrade). Over HTTPS the
+// legacy name is believed only for sessions from before: a session made
+// since - over plain HTTP too, where it carries no mark - is never taken
+// under a name a sister subdomain can set.
+func hostCookieCutoff(d *sql.DB) (time.Time, error) {
+	if t, ok := hostCookieCuts.Load(d); ok {
+		return t.(time.Time), nil
+	}
+	if _, err := d.Exec(`INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING`,
+		hostCookieSince, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return time.Time{}, err
+	}
+	v, err := db.SettingErr(d, hostCookieSince)
+	if err != nil {
+		return time.Time{}, err
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return time.Time{}, err
+	}
+	hostCookieCuts.Store(d, t)
+	return t, nil
+}
+
+// legacySessionOK reports whether a session reached under the legacy name
+// over HTTPS is one from before the cutoff. A session from before the
+// created_at column has no stamp and is old. Fails closed.
+func legacySessionOK(d *sql.DB, created string) bool {
+	cut, err := hostCookieCutoff(d)
+	if err != nil {
+		return false
+	}
+	if created == "" {
+		return true
+	}
+	at, err := time.Parse(time.RFC3339, created)
+	return err == nil && at.Before(cut)
 }
 
 // SessionToken is the raw session token the request carries, "" without one.
@@ -396,14 +449,17 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 			c, legacy := sessionCookieFrom(r)
 			if c != nil {
 				var u User
-				var expires, lastSeen string
+				var expires, lastSeen, created string
 				var isAdmin int
 				var remember bool
-				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
+				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember, s.created_at
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ? AND u.approved = 1`, hashToken(c.Value)).
-					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
-				if err == nil {
+					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember, &created)
+				// over HTTPS the legacy name only brings over a session from
+				// before the cutoff; anything newer is refused (and kept: it
+				// may be someone else's session tossed in by a subdomain)
+				if err == nil && (!legacy || legacySessionOK(d, created)) {
 					now := time.Now()
 					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, ClientIP(r), remember, now) {
 						if legacy {
