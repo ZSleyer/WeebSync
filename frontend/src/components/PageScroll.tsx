@@ -145,13 +145,17 @@ export default function PageScroll({ stacked }: { stacked: boolean }) {
       say('app.refreshing')
       const t0 = performance.now()
       // the spinner's minimum, then the done mark, then the new answers
-      await smoothRefresh(qc, async () => {
+      const fail = () => {
+        mark.dataset.state = 'error'
+        say('app.refreshFailed')
+      }
+      await smoothRefresh(qc, async ({ total, failed }) => {
         await new Promise((r) => setTimeout(r, Math.max(0, PULL_MIN_MS - (performance.now() - t0))))
+        // every answer failed (offline, session gone): not a fresh page
+        if (total > 0 && failed === total) return fail()
         mark.dataset.state = 'done'
         say('app.refreshed')
-      }).catch(() => {
-        mark.dataset.state = 'done'
-      })
+      }).catch(fail)
       await new Promise((r) => setTimeout(r, DONE_MS))
       busy = false
       settle()

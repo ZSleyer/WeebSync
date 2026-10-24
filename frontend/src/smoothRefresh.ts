@@ -28,6 +28,12 @@ const decodeAll = (urls: string[]) =>
     new Promise((r) => setTimeout(r, DECODE_CAP_MS)),
   ])
 
+/** How many queries the refresh asked and how many of them failed. */
+export interface RefreshResult {
+  total: number
+  failed: number
+}
+
 /**
  * Reloads what the page shows and lands it in one go: every active query is
  * fetched first, out of sight, the pictures new in the answers are decoded
@@ -40,7 +46,11 @@ const decodeAll = (urls: string[]) =>
  * appeared. A query it cannot fetch on its own (an infinite list) refetches
  * the plain way.
  */
-export async function smoothRefresh(qc: QueryClient, beforeSwap?: () => void | Promise<void>): Promise<void> {
+export async function smoothRefresh(
+  qc: QueryClient,
+  beforeSwap?: (result: RefreshResult) => void | Promise<void>,
+): Promise<RefreshResult> {
+  const started = Date.now()
   const queries = qc.getQueryCache().findAll({ type: 'active' })
   const plain = queries.filter((q) => typeof q.options.queryFn !== 'function' || 'pages' in Object(q.state.data))
   const quiet = queries.filter((q) => !plain.includes(q))
@@ -52,13 +62,25 @@ export async function smoothRefresh(qc: QueryClient, beforeSwap?: () => void | P
   // one slow answer must not hold the whole page: what is in by the
   // deadline lands together, a straggler lands on its own later
   const deadline = new Promise<'late'>((r) => setTimeout(() => r('late'), REFRESH_CAP_MS))
+  // a failure is shown to the caller, and an expired session (401) reaches the
+  // cache's own error handler, as it would from a normal fetch
+  let failed = 0
+  const onError = qc.getQueryCache().config.onError
+  const fail = (i: number) => (e: unknown) => {
+    failed++
+    onError?.(e as never, quiet[i] as never)
+    return undefined
+  }
+  // newer data (the event stream, a poll) that landed while this one was on
+  // its way is not overwritten with the older answer
+  const write = (i: number, value: unknown) => {
+    if (quiet[i].state.dataUpdatedAt > started) return
+    qc.setQueryData(quiet[i].queryKey, value)
+  }
   const got = await Promise.all(
-    fetches.map((p) =>
+    fetches.map((p, i) =>
       Promise.race([
-        p.then(
-          (value) => ({ value }),
-          () => undefined,
-        ),
+        p.then((value) => ({ value }), fail(i)),
         deadline,
       ]),
     ),
@@ -66,7 +88,7 @@ export async function smoothRefresh(qc: QueryClient, beforeSwap?: () => void | P
   got.forEach((r, i) => {
     if (r === 'late')
       fetches[i].then(
-        (v) => qc.setQueryData(quiet[i].queryKey, v),
+        (v) => write(i, v),
         () => {},
       )
   })
@@ -74,8 +96,11 @@ export async function smoothRefresh(qc: QueryClient, beforeSwap?: () => void | P
     Promise.allSettled(plain.map((q) => qc.refetchQueries({ queryKey: q.queryKey, exact: true }))),
     deadline,
   ])
-  const arrived = got.flatMap((r, i) => (r && r !== 'late' ? [{ q: quiet[i], value: r.value }] : []))
+  failed += plain.filter((q) => q.state.status === 'error').length
+  const result = { total: queries.length, failed }
+  const arrived = got.flatMap((r, i) => (r && r !== 'late' ? [{ q: quiet[i], i, value: r.value }] : []))
   await decodeAll(arrived.flatMap(({ q, value }) => newImageUrls(q.state.data, value)))
-  await beforeSwap?.()
-  arrived.forEach(({ q, value }) => qc.setQueryData(q.queryKey, value))
+  await beforeSwap?.(result)
+  arrived.forEach(({ i, value }) => write(i, value))
+  return result
 }

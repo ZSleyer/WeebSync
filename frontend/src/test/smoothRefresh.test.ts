@@ -1,4 +1,4 @@
-import { QueryClient, QueryObserver } from '@tanstack/react-query'
+import { QueryCache, QueryClient, QueryObserver } from '@tanstack/react-query'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { newImageUrls, REFRESH_CAP_MS, smoothRefresh } from '../smoothRefresh'
 
@@ -61,5 +61,39 @@ describe('smoothRefresh', () => {
       name: 'c.jpg',
     }
     expect(newImageUrls(prev, next)).toEqual(['https://img.example.com/b.webp?x=1'])
+  })
+
+  it('does not overwrite data that a newer write (the event stream) put in meanwhile', async () => {
+    const qc = new QueryClient()
+    let release: (v: string) => void = () => {}
+    let n = 0
+    const off = watched(qc, () => (++n === 1 ? Promise.resolve('v1') : new Promise<string>((r) => (release = r))))
+    await vi.waitFor(() => expect(qc.getQueryData(['k'])).toBe('v1'))
+    const run = smoothRefresh(qc)
+    await vi.waitFor(() => expect(n).toBe(2))
+    await new Promise((r) => setTimeout(r, 5))
+    qc.setQueryData(['k'], 'pushed')
+    release('stale')
+    await run
+    expect(qc.getQueryData(['k'])).toBe('pushed')
+    off()
+  })
+
+  it('reports a total failure and hands a 401 to the cache error handler', async () => {
+    const onError = vi.fn()
+    const qc = new QueryClient({ queryCache: new QueryCache({ onError }) })
+    const obs = new QueryObserver(qc, { queryKey: ['k'], queryFn: async () => 'v1', staleTime: Infinity })
+    const off = obs.subscribe(() => {})
+    await vi.waitFor(() => expect(qc.getQueryData(['k'])).toBe('v1'))
+    obs.setOptions({
+      queryKey: ['k'],
+      queryFn: () => Promise.reject(new Error('offline')),
+      staleTime: Infinity,
+    })
+    const r = await smoothRefresh(qc)
+    expect(r).toEqual({ total: 1, failed: 1 })
+    expect(onError).toHaveBeenCalledOnce()
+    expect(qc.getQueryData(['k'])).toBe('v1')
+    off()
   })
 })

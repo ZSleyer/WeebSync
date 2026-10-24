@@ -318,6 +318,8 @@ main:has(.page-fill) {
   .t-pull[data-state="armed"] { color: var(--text-primary); border-color: color-mix(in srgb, var(--accent-blue) 55%, transparent); }
   .t-pull[data-state="busy"] .t-pull-spin { animation: t-spin 800ms linear infinite; }
   .t-pull[data-state="done"] .t-pull-spin { display: none; }
+  .t-pull[data-state="error"] { color: var(--accent-red); }
+  .t-pull[data-state="error"] .t-pull-spin { display: none; }
   .t-pull[data-state="done"] .t-pull-done { display: block; color: var(--accent-green); animation: t-tick var(--dur-1) var(--ease-out); }
   .t-totop svg.t-totop-ring { position: absolute; inset: -1px; width: calc(100% + 2px); height: calc(100% + 2px); rotate: -90deg; }
   .t-totop-ring circle { fill: none; stroke: var(--accent-blue); stroke-width: 2.5; }

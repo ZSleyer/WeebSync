@@ -73,6 +73,7 @@
     "pullRelease": "Release to refresh",
     "refreshed": "Up to date",
     "refreshing": "Refreshing",
+    "refreshFailed": "Could not refresh",
     "toTop": "Back to top",
     "tagline": "かしら",
     "updateHint": "Update available",
