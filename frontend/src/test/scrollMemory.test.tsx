@@ -49,3 +49,12 @@ describe('ScrollMemory on a phone', () => {
     expect(scrollTo).not.toHaveBeenCalled()
   })
 })
+
+describe('ScrollMemory with blocked storage', () => {
+  it('survives a sessionStorage that throws on read', () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect(() => shell('/')).not.toThrow()
+  })
+})

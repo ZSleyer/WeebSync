@@ -1,5 +1,14 @@
 import { useState } from 'react'
 
+/** Reads a storage key; null when it is unset or the storage is blocked (SecurityError). */
+export function safeGet(store: 'local' | 'session', key: string): string | null {
+  try {
+    return (store === 'local' ? localStorage : sessionStorage).getItem(key)
+  } catch {
+    return null
+  }
+}
+
 // a remembered setting; storage can be off (private windows), so every read
 // and write may fail and the default stands
 export function useStored<T extends string | number>(key: string, init: T) {

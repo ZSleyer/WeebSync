@@ -12,6 +12,7 @@ import { ToastProvider } from './components/toast'
 import { ConfirmProvider } from './components/confirm'
 import { registerServiceWorker } from './push'
 import { applyTheme, readThemePref } from './theme'
+import { safeGet } from './hooks/useStored'
 import { applyScheme, readScheme } from './scheme'
 
 registerServiceWorker()
@@ -21,7 +22,7 @@ const root = document.documentElement
 // the colour scheme (an old free accent choice moves over to its scheme once)
 applyScheme(readScheme())
 applyTheme(readThemePref())
-if (localStorage.getItem('weebsync.motion') === 'off') root.dataset.motion = 'off'
+if (safeGet('local', 'weebsync.motion') === 'off') root.dataset.motion = 'off'
 
 // focus rings only for keyboard / assistive input (see fluid-lycoris.css):
 // navigation keys set the flag - not printable ones, so typing into a field

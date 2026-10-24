@@ -56,6 +56,7 @@ import { BackLink } from './components/BackLink'
 import { SeriesModalProvider, TITLE_PATH, useSeriesModal } from './components/SeriesModal'
 import { useRestoreReturn } from './returnTo'
 import { FINISHING_KEY } from './pages/setupState'
+import { safeGet } from './hooks/useStored'
 import Dashboard from './pages/Dashboard'
 import { LegacySuggestions } from './components/DiscoverRedirect'
 import { DISCOVER_BASE, discoverPath, slugOf } from './discoverRoutes'
@@ -227,7 +228,7 @@ function AdminGate({ email }: { email: string }) {
   // changes nothing and would not render this again; the click does
   const [, rerender] = useReducer((n: number) => n + 1, 0)
   // the wizard's closing step outlives the save that marks onboarding done
-  if (data?.onboardingDone === false || sessionStorage.getItem(FINISHING_KEY))
+  if (data?.onboardingDone === false || safeGet('session', FINISHING_KEY))
     return (
       <Suspense fallback={loadingScreen}>
         <Setup

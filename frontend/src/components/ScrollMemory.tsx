@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigationType } from 'react-router'
+import { safeGet } from '../hooks/useStored'
 import { WIDE_MQ } from './PageActions'
 import { topPage } from './RouteTransition'
 
@@ -63,7 +64,7 @@ export default function ScrollMemory() {
     const onScroll = () => (last = read())
     main?.addEventListener('scroll', onScroll, { passive: true })
     window.addEventListener('scroll', onScroll, { passive: true })
-    const saved = navType === 'POP' ? Number(sessionStorage.getItem(KEY + key) ?? 0) : 0
+    const saved = navType === 'POP' ? Number(safeGet('session', KEY + key) ?? 0) : 0
     let pending: ReturnType<typeof setTimeout> | undefined
     if (saved > 0) {
       requestAnimationFrame(() => {
