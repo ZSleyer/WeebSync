@@ -708,7 +708,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   }, [data])
 
   const playerRef = useRef<MediaControllerElement>(null)
-  // media-chrome's keys (space, k, f, m, arrows) plus the player's own: j and
+  // media-chrome's keys (space, k, f, m, arrows) plus the player's own (the
+  // controller's hotkeys attribute leaves them to us): j and
   // l skip 10 s, c turns the subtitles off and on, Shift+N and Shift+P change
   // the episode, Escape leaves. Only while focus is inside the player, never
   // page-wide (WCAG 2.1.4).
@@ -1097,7 +1098,10 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           className="t-player"
           data-fs={ownFs || undefined}
           // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
-          // inside the player, never page-wide (WCAG 2.1.4)
+          // inside the player, never page-wide (WCAG 2.1.4). j, l and c it knows
+          // as well (seek 10 s, subtitles): they are handled in onKey, so they
+          // are switched off there or a press would count twice
+          hotkeys="noj nol noc"
           onPointerDown={noteHidden}
           onPointerUp={tapSeek}
         >

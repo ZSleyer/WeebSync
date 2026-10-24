@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -86,5 +86,28 @@ describe('Player page', () => {
     expect(infoCalls()).toBe(1)
     expect(container.querySelector('video')).toBeTruthy()
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  // media-chrome 4.19.3 acts on j, l and c itself at keyup (media-controller.js,
+  // ButtonPressedKeys + keyboardShortcutHandler) unless the controller's
+  // `hotkeys` attribute holds `no<key>` for it (same file, keyboardShortcutHandler).
+  // Its elements do not upgrade under jsdom (server-safe-globals.js treats the
+  // node-like env as a server), so the contract is checked on the attribute
+  // while the player's own handler is exercised for real.
+  it('F01a-2: j, l and c are the player\'s alone: media-chrome is told to stay out, the player seeks once', async () => {
+    const { container } = mount()
+    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+    const ctl = container.querySelector('media-controller')!
+    const video = container.querySelector('video')!
+    Object.defineProperty(video, 'duration', { value: 1400, configurable: true })
+    const tokens = (ctl.getAttribute('hotkeys') ?? '').split(/\s+/)
+    for (const key of ['j', 'l', 'c']) expect(tokens).toContain(`no${key}`)
+    // the keys media-chrome keeps are not switched off
+    for (const key of ['f', 'm', 'k', 'space', 'arrowleft', 'arrowright']) expect(tokens).not.toContain(`no${key}`)
+    video.currentTime = 100
+    fireEvent.keyDown(video, { key: 'j' })
+    expect(video.currentTime).toBe(90)
+    fireEvent.keyDown(video, { key: 'l' })
+    expect(video.currentTime).toBe(100)
   })
 })
