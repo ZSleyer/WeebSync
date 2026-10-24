@@ -49,6 +49,7 @@ const app = (remove: (id: number) => Promise<unknown>) => {
       </ToastProvider>
     </QueryClientProvider>,
   )
+  return qc
 }
 
 describe('undoable removal', () => {
@@ -98,6 +99,20 @@ describe('undoable removal', () => {
     fireEvent.click(screen.getByText('common.undo'))
     await act(() => vi.advanceTimersByTimeAsync(6000))
     expect(remove).not.toHaveBeenCalled()
+    expect(screen.getByText(/item 2/)).toBeInTheDocument()
+  })
+
+  it('keeps a pending row hidden when a manual cache write (pull to refresh) brings it back', async () => {
+    const remove = vi.fn(async () => {})
+    const qc = app(remove)
+    await act(() => vi.runOnlyPendingTimersAsync())
+    fireEvent.click(screen.getByText('del 1'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    await act(async () => {
+      qc.setQueryData(['things'], [{ id: 1 }, { id: 2 }])
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(screen.queryByText(/item 1/)).toBeNull()
     expect(screen.getByText(/item 2/)).toBeInTheDocument()
   })
 

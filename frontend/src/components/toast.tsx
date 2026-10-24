@@ -204,9 +204,11 @@ export function useUndoableRemove() {
           )
       })
     hide()
-    // a refetch lands as a non-manual success; our own writes are manual
+    // every success brings the row back, a refetch as well as a manual write
+    // (pull to refresh); hide() only writes where the row is, so its own
+    // write does not come back here
     const unsub = qc.getQueryCache().subscribe((e) => {
-      if (e.type === 'updated' && e.action.type === 'success' && !e.action.manual) hide()
+      if (e.type === 'updated' && e.action.type === 'success') hide()
     })
     const settle = () => {
       unsub()
