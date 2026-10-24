@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -1118,7 +1120,11 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		var rootPath string
 		if err := s.DB.QueryRow(`SELECT root_path FROM servers WHERE id = ? AND user_id = ?`,
 			serverID, u.ID).Scan(&rootPath); err != nil {
-			writeErr(w, http.StatusNotFound, "server not found")
+			if errors.Is(err, sql.ErrNoRows) {
+				writeErr(w, http.StatusNotFound, "server not found")
+				return
+			}
+			dbErr(w, err)
 			return
 		}
 		if in.Path == "" {

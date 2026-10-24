@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -328,7 +330,11 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		var root string
 		if err := s.DB.QueryRow(`SELECT user_id, root_path FROM servers WHERE id = ?`, in.ServerID).
 			Scan(&userID, &root); err != nil {
-			writeErr(w, http.StatusNotFound, "server not found")
+			if errors.Is(err, sql.ErrNoRows) {
+				writeErr(w, http.StatusNotFound, "server not found")
+				return
+			}
+			dbErr(w, err)
 			return
 		}
 		// one batch with the server's configured budget; the manual trigger

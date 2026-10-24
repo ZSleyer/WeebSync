@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -1917,6 +1919,7 @@ func (s *Server) rejectUnwritable(w http.ResponseWriter, localPath string) bool 
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/watches [post]
 func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
@@ -1962,7 +1965,11 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang)
 	if err != nil {
-		writeErr(w, http.StatusConflict, "watch already exists")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "watch already exists")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -1988,6 +1995,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse  "a duplicate watch, or the files could not be moved (moveFiles)"
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/watches/{id} [put]
 func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
@@ -2045,7 +2053,11 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	var oldSubfolder bool
 	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path, plex_audio_lang, plex_sub_lang, subfolder FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
 		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub, &oldSubfolder); err != nil {
-		writeErr(w, http.StatusNotFound, "watch not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			writeErr(w, http.StatusNotFound, "watch not found")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	// moving a folder's contents reaches into the shared library, whatever
@@ -2075,7 +2087,11 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
 		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusConflict, "watch already exists")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "watch already exists")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)

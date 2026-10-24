@@ -361,7 +361,11 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	// could turn a security key (no user verification) into a passkey
 	passwordless := session.UserVerification == protocol.VerificationRequired
 	if err := s.storeCredential(u.ID, cred, name, passwordless); err != nil {
-		writeErr(w, http.StatusConflict, "credential already registered")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "credential already registered")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	if passwordless {
