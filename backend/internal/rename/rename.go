@@ -286,8 +286,9 @@ func templateName(name string, o Options) (string, error) {
 		}
 		// offset and zero-pad apply to integer values only; a fractional
 		// episode (e.g. a "1163.5" special) passes through untouched.
+		// Only the numeric placeholders: {title}/{group} like "007" stay as is.
 		n, err := strconv.Atoi(val)
-		if err != nil {
+		if err != nil || !numericVars[g[1]] || !allDigits(val) {
 			return val
 		}
 		if g[2] != "" { // signed offset, e.g. -1155
@@ -327,6 +328,18 @@ func templateName(name string, o Options) (string, error) {
 		}
 	}
 	return sanitize(out), nil
+}
+
+// numericVars are the placeholders that take an offset and zero padding.
+var numericVars = map[string]bool{"season": true, "episode": true, "year": true}
+
+func allDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return s != ""
 }
 
 // num renders a parsed number, "" for the zero that means "not in the name".
