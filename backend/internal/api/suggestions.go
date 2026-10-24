@@ -612,7 +612,7 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Duplicates:  s.addDuplicates(locale),
 		BuiltAt:     time.Now().Unix(),
 	}
-	s.storeSuggestions(userID, start, resp)
+	s.storeSuggestions(ctx, userID, start, resp)
 	// the duration is what tells whether the budget above still fits
 	slog.Info("suggestions built", "user", userID, "took", time.Since(start).Round(time.Second),
 		"watchlist", len(resp.Watchlist), "recommended", len(resp.Recommended), "trending", len(resp.Trending),
@@ -627,12 +627,15 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 // rebuild asked for at the aging was dropped while this one ran. Checked after
 // the write, so an aging landing between the check and the write cannot slip
 // through; a start in the same second as the aging counts as after it.
-func (s *Server) storeSuggestions(userID int64, start time.Time, resp SuggestionsResponse) {
+func (s *Server) storeSuggestions(ctx context.Context, userID int64, start time.Time, resp SuggestionsResponse) {
+	key := fmt.Sprintf("suggestions:%d", userID)
+	if ctx.Err() != nil {
+		resp = s.keepProviderBuckets(key, resp)
+	}
 	b, err := json.Marshal(resp)
 	if err != nil {
 		return
 	}
-	key := fmt.Sprintf("suggestions:%d", userID)
 	s.cacheSet(key, string(b))
 	var aged int
 	err = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ? AND fetched_at >= ?`,
@@ -641,6 +644,32 @@ func (s *Server) storeSuggestions(userID int64, start time.Time, resp Suggestion
 		// unreadable counts as aged: a rebuild too many beats a stale page
 		_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, suggestStaleAt, key)
 	}
+}
+
+// keepProviderBuckets is for a build cut short - its time budget ran out, or
+// the job was stopped. The buckets that ask a provider (trending, watchlist,
+// recommended) are then empty because the calls failed, not because there is
+// nothing to show, and the previous blob's lists stand in for them. The
+// library buckets are computed without the context and are current.
+func (s *Server) keepProviderBuckets(key string, resp SuggestionsResponse) SuggestionsResponse {
+	var payload string
+	// no previous blob (or an unreadable one): the partial build is all there is
+	_ = s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload)
+	var old SuggestionsResponse
+	if payload == "" || json.Unmarshal([]byte(payload), &old) != nil {
+		return resp
+	}
+	keep := func(cur, prev []SugItem) []SugItem {
+		if len(cur) == 0 {
+			return prev
+		}
+		return cur
+	}
+	resp.Trending = keep(resp.Trending, old.Trending)
+	resp.Watchlist = keep(resp.Watchlist, old.Watchlist)
+	resp.Recommended = keep(resp.Recommended, old.Recommended)
+	slog.Warn("suggestions build cut short, provider lists kept from the last build", "key", key)
+	return resp
 }
 
 // ownedFilter drops trending items the user already has (present on a server or
