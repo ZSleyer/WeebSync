@@ -114,7 +114,7 @@ function Transfers({
   meta?: DownloadMeta
   loading: boolean
   failed: boolean
-  onRetry: () => void
+  onRetry: () => unknown
 }) {
   const { t, i18n } = useTranslation()
   const transfers = useTransfers()
@@ -136,9 +136,9 @@ function Transfers({
         fold={fold}
       />
       <div ref={body} id={fold.controls} hidden={!fold.open}>
+        <LoadError failed={!loading && running.length === 0 && failed} onRetry={onRetry} />
         <ul className="t-rows td-dl">
           {loading && <li aria-hidden className="td-sk-row" />}
-          {!loading && running.length === 0 && failed && <LoadError inline onRetry={onRetry} />}
           {!loading && running.length === 0 && !failed && (
             <li className="td-empty">
               <Trans i18nKey="dash.idle" components={{ go: <Link to="/files" className="t-link" /> }} />

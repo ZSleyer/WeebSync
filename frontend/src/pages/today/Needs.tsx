@@ -42,7 +42,7 @@ export function Needs({
   loading: boolean
   /** the data could not be read: say so instead of "nothing open" */
   failed?: boolean
-  onRetry?: () => void
+  onRetry?: () => unknown
 }) {
   const { t } = useTranslation()
   const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
@@ -65,11 +65,11 @@ export function Needs({
         fold={fold}
       />
       <div ref={body} id={fold.controls} hidden={!fold.open}>
+        <LoadError failed={!!failed && !loading && rows.length === 0} onRetry={() => onRetry?.()} />
         <ul className="t-rows td-needs">
           {loading
             ? [0, 1].map((i) => <li key={i} aria-hidden className="td-sk-row" />)
             : rows.map((n, i) => row(n, i))}
-          {!loading && rows.length === 0 && failed && <LoadError inline onRetry={() => onRetry?.()} />}
           {!loading && rows.length === 0 && !failed && <li className="td-empty">{t('today.nothingOpen')}</li>}
         </ul>
         {shown.length > rows.length && (

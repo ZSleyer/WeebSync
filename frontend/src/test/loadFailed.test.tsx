@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router'
@@ -54,6 +54,38 @@ describe('when /api/downloads fails', () => {
     const calls = vi.mocked(api.get).mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'today.loadRetry' }))
     await waitFor(() => expect(vi.mocked(api.get).mock.calls.length).toBeGreaterThan(calls))
+  })
+
+  it('announces the failure, a failing retry and the recovery, and keeps focus off the body', async () => {
+    let up = false
+    let fails = 0
+    const flaky = (url: string) => {
+      if (url !== '/api/downloads') return down(url)
+      if (up) return Promise.resolve([])
+      fails++
+      return Promise.reject(new Error('503'))
+    }
+    view(<History />, flaky)
+    // the live region exists, and the failure lands in it
+    const region = screen.getByRole('status')
+    expect(region.getAttribute('aria-live')).toBe('polite')
+    expect(await within(region).findByText('today.loadFailed')).toBeTruthy()
+    // a second failure is announced anew: the region changes while it runs
+    const seen: string[] = []
+    new MutationObserver(() => seen.push(region.textContent ?? '')).observe(region, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+    fireEvent.click(within(region).getByRole('button', { name: 'today.loadRetry' }))
+    await waitFor(() => expect(fails).toBe(2))
+    await waitFor(() => expect(region.textContent).toContain('today.loadFailed'))
+    expect(seen.some((s) => s.includes('today.loadRetrying'))).toBe(true)
+    // a retry that works: announced, and focus is not dropped to the body
+    up = true
+    fireEvent.click(within(region).getByRole('button', { name: 'today.loadRetry' }))
+    await waitFor(() => expect(region.textContent).toContain('today.loadRecovered'))
+    expect(document.activeElement).toBe(region)
   })
 
   it('Today does not call the failure quiet or nothing open', async () => {

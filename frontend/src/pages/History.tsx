@@ -120,7 +120,7 @@ export default function History() {
       <div ref={list}>
         {isLoading &&
           [0, 1, 2, 3].map((i) => <div key={i} aria-hidden className="td-sk-row" style={{ height: '3.75rem' }} />)}
-        {!isLoading && failed && <LoadError onRetry={() => void dlq.refetch()} />}
+        <LoadError failed={!isLoading && failed} onRetry={() => dlq.refetch()} />
         {!isLoading && !failed && days.length === 0 && <p className="td-empty">{t('history.none')}</p>}
         {days.map((day) => (
           <section key={day.day} aria-labelledby={`hs-${day.day}`}>

@@ -23,6 +23,7 @@ export default function NeedsPage() {
   return (
     <div className="flex flex-col">
       <PageHeader className="mb-4" title={t('needs.title')} />
+      <LoadError failed={failed && !loading && groups.length === 0} onRetry={retry} />
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6">
         {loading ? (
           <ul className="t-rows td-needs">
@@ -31,11 +32,7 @@ export default function NeedsPage() {
             ))}
           </ul>
         ) : groups.length === 0 ? (
-          failed ? (
-            <LoadError onRetry={retry} />
-          ) : (
-            <EmptyState label={t('needs.empty')}>{t('needs.emptyHint')}</EmptyState>
-          )
+          !failed && <EmptyState label={t('needs.empty')}>{t('needs.emptyHint')}</EmptyState>
         ) : (
           groups.map((g) => (
             <section key={g.group} aria-labelledby={`needs-${g.group}`}>
