@@ -41,4 +41,15 @@ func TestSearchScopeIsCaseSensitive(t *testing.T) {
 	if len(out.Results) != 1 || out.Results[0].Path != "/x/Show/Episode 01.mkv" {
 		t.Fatalf("scoped search: %s", rec.Body)
 	}
+
+	// the folder the user stands in is not a result of searching inside it
+	s.indexDir(1, "/x", []remote.Entry{entry("/x/Show", true, 0, mod)})
+	rec = doReq(mux, "GET", "/api/servers/1/search?q=show&path=/x/Show", "", cookie)
+	out.Results = nil
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if len(out.Results) != 0 {
+		t.Errorf("searching inside /x/Show returned %s", rec.Body)
+	}
 }
