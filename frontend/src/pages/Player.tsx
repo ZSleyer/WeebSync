@@ -571,24 +571,30 @@ function PlayerView({
     await askPip(v)
   }
   // the same switch in the settings menu, which a phone always shows (the
-  // bar's button steps out first as the player narrows). media-chrome fires
-  // the menu's change on a click as on Enter or Space, after it flipped the
-  // item itself: the item goes back to the window's real state at once and
-  // the enter and leave events below set it.
+  // bar's button steps out first as the player narrows). The pick is taken
+  // from the item itself, on a click and on Enter or Space as media-chrome's
+  // menu reads them: the menu's change fires only when the set of checked
+  // items changes (media-chrome-menu.js 4.19.3, selectItem), so unchecking
+  // the only checkable item fired nothing. This runs before the menu flips
+  // the item, inside the user's gesture for the request; once the menu is
+  // done the item goes back to the window's real state and the enter and
+  // leave events below set it.
   const settingsRef = useRef<ChromeMenuElement>(null)
   const pickPip = useEffectEvent((e: Event) => {
-    const menu = settingsRef.current
-    // a pick in a submenu (episodes, speed, size) bubbles up here as well
-    if (!menu || e.target !== menu) return
-    menu
-      .querySelector('.t-player-pipitem')
-      ?.setAttribute('aria-checked', document.pictureInPictureElement ? 'true' : 'false')
+    if (e instanceof KeyboardEvent && (!['Enter', ' '].includes(e.key) || e.ctrlKey || e.altKey || e.metaKey)) return
+    const item = e.currentTarget as Element
     void togglePip()
+    queueMicrotask(() => item.setAttribute('aria-checked', document.pictureInPictureElement ? 'true' : 'false'))
   })
   useEffect(() => {
-    const menu = settingsRef.current
-    menu?.addEventListener('change', pickPip)
-    return () => menu?.removeEventListener('change', pickPip)
+    const item = settingsRef.current?.querySelector('.t-player-pipitem')
+    if (!item) return
+    item.addEventListener('click', pickPip)
+    item.addEventListener('keydown', pickPip)
+    return () => {
+      item.removeEventListener('click', pickPip)
+      item.removeEventListener('keydown', pickPip)
+    }
   }, [data])
   useEffect(() => {
     const v = videoRef.current

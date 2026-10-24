@@ -96,6 +96,17 @@ beforeEach(() => {
       configurable: true,
     })
   }
+  // nor has jsdom Element.part, which a media-chrome item marks as checked
+  if (!('part' in HTMLElement.prototype)) {
+    const parts = new WeakMap<object, DOMTokenList>()
+    Object.defineProperty(HTMLElement.prototype, 'part', {
+      get() {
+        if (!parts.has(this)) parts.set(this, document.createElement('i').classList)
+        return parts.get(this)
+      },
+      configurable: true,
+    })
+  }
   // jsdom knows no picture in picture: the API as Chrome has it
   Object.defineProperty(HTMLVideoElement.prototype, 'disablePictureInPicture', {
     get() {
@@ -158,12 +169,20 @@ describe('the native picture in picture of the browser', () => {
   })
 })
 
-// media-chrome's settings menu: a checkable item toggles itself and the menu
-// fires change, on a click as on Enter or Space (media-chrome-menu.js 4.19.3,
-// handleSelect and selectItem). The test plays that part.
-function choose(menu: Element, item: Element) {
-  item.setAttribute('aria-checked', item.getAttribute('aria-checked') === 'true' ? 'false' : 'true')
-  menu.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+// The real media-chrome menu does the picking: on a click, or on Enter and
+// Space while the item has the focus, it flips the item and fires change
+// only when the set of checked items changed (media-chrome-menu.js 4.19.3,
+// handleSelect and selectItem).
+async function choose(menu: Element, item: Element, how: 'click' | 'Enter' | ' ' = 'click') {
+  expect(customElements.get('media-settings-menu')).toBeTruthy()
+  menu.removeAttribute('hidden')
+  await act(async () => {
+    if (how === 'click') (item as HTMLElement).click()
+    else {
+      ;(item as HTMLElement).focus()
+      item.dispatchEvent(new KeyboardEvent('keydown', { key: how, bubbles: true, composed: true }))
+    }
+  })
 }
 
 describe('picture in picture in the settings menu', () => {
@@ -186,20 +205,32 @@ describe('picture in picture in the settings menu', () => {
   it('opens the window, shows it as checked, and closes it again', async () => {
     const { container, video } = await mount(CHROME_ANDROID)
     const { menu, item } = find(container)
-    await act(async () => choose(menu, item!))
+    await choose(menu, item!)
     expect(request).toHaveBeenCalledTimes(1)
     expect(document.pictureInPictureElement).toBe(video)
     expect(item!.getAttribute('aria-checked')).toBe('true')
-    await act(async () => choose(menu, item!))
+    await choose(menu, item!)
     expect(document.pictureInPictureElement).toBeNull()
     expect(item!.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it.each([['Enter'], [' ']] as const)('answers %j on the focused item, both ways', async (key) => {
+    const { container, video } = await mount(CHROME_ANDROID)
+    const { menu, item } = find(container)
+    await choose(menu, item!, key)
+    expect(document.pictureInPictureElement).toBe(video)
+    expect(item!.getAttribute('aria-checked')).toBe('true')
+    await choose(menu, item!, key)
+    expect(document.pictureInPictureElement).toBeNull()
+    expect(item!.getAttribute('aria-checked')).toBe('false')
+    expect(request).toHaveBeenCalledTimes(1)
   })
 
   it('stays unchecked when the browser refuses the window', async () => {
     const { container } = await mount(CHROME_ANDROID)
     const { menu, item } = find(container)
     request.mockRejectedValueOnce(new DOMException('no', 'NotAllowedError'))
-    await act(async () => choose(menu, item!))
+    await choose(menu, item!)
     expect(request).toHaveBeenCalledTimes(1)
     expect(item!.getAttribute('aria-checked')).toBe('false')
   })
