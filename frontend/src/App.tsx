@@ -218,7 +218,7 @@ function RootLayout() {
 // wizard cannot run its later steps inline - it navigates away and picks up
 // here on the way back, at the same step list it left off at. Instances that
 // already have a server report onboardingDone, so upgrades never see this.
-function AdminGate({ email }: { email: string }) {
+export function AdminGate({ email }: { email: string }) {
   const qc = useQueryClient()
   const { data } = useQuery<{ onboardingDone?: boolean }>({
     queryKey: ['settings'],
