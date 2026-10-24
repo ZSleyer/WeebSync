@@ -1432,6 +1432,8 @@
     "checkLoading": "Downloading {{k}} of {{n}}",
     "checkDone_one": "Episode downloaded",
     "checkDone_other": "{{count}} episodes downloaded",
+    "checkFailedDl_one": "Download failed",
+    "checkFailedDl_other": "{{count}} downloads failed",
     "search": "Search auto-sync",
     "searchHint": "Title or folder",
     "searchNone": "Nothing found for “{{query}}”.",
