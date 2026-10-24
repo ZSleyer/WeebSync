@@ -936,8 +936,8 @@ function WatchTile({
           or the editor on click */}
       <IconButton
         className="w-more"
-        aria-label={t('watch.moreFor', { name })}
-        title={t('watch.moreFor', { name })}
+        aria-label={t('watch.moreActions', { title: name })}
+        title={t('watch.moreActions', { title: name })}
         aria-haspopup="dialog"
         onClick={onMore}
       >

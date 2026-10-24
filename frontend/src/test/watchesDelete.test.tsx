@@ -60,7 +60,7 @@ describe('deleting a watch without a series record', () => {
   it("is reachable for a manga watch without a record, from the tile's actions button", async () => {
     renderWatches([watch(8, { category: 'manga' })])
     // a click on the tile itself opens the reader, so the delete has its own way in
-    const more = await screen.findByRole('button', { name: 'watch.moreFor' })
+    const more = await screen.findByRole('button', { name: 'watch.moreActions' })
     more.focus()
     expect(more).toHaveFocus()
     fireEvent.click(more)

@@ -1224,7 +1224,6 @@
     "sumToday_one": "{{count}} Folge heute",
     "sumToday_other": "{{count}} Folgen heute",
     "moreActions": "Mehr Aktionen für {{title}}",
-    "moreFor": "Weitere Aktionen für {{name}}",
     "gapsAction": "Fehlende Episoden",
     "title": "Auto-Sync",
     "sub": "ordner automatisch aktuell halten",
