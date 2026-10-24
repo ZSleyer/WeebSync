@@ -11,7 +11,7 @@ export interface Renaming {
 /**
  * A name turned into its own input where it stands, instead of a dialog with
  * one field. The part before the extension is selected, so typing replaces
- * the name and keeps the type. Enter or leaving the field saves, Escape
+ * the name and keeps the type. Enter or moving focus elsewhere in the page saves, Escape
  * abandons - without closing a dialog the row may sit in.
  */
 export function InlineRename({
@@ -59,7 +59,10 @@ export function InlineRename({
           done(null)
         }
       }}
-      onBlur={(e) => done(e.currentTarget.value)}
+      onBlur={(e) => {
+        // switching windows blurs the field too: keep the half-typed name
+        if (document.hasFocus()) done(e.currentTarget.value)
+      }}
     />
   )
 }

@@ -22,4 +22,18 @@ describe('InlineRename', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
     expect(abandon).toHaveBeenLastCalledWith(null)
   })
+
+  it('keeps a half-typed name when the window loses focus, but saves when focus moves within the page', () => {
+    const done = vi.fn()
+    render(<InlineRename name="a.mkv" onDone={done} />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Show S01E0' } })
+    const has = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
+    fireEvent.blur(input) // alt-tab: the document is no longer focused
+    expect(done).not.toHaveBeenCalled()
+    has.mockReturnValue(true)
+    fireEvent.blur(input)
+    expect(done).toHaveBeenCalledWith('Show S01E0')
+    has.mockRestore()
+  })
 })
