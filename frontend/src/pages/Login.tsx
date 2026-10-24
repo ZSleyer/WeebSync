@@ -256,15 +256,23 @@ export default function Login() {
     let active = true
     supportsPasskeyAutofill().then((ok) => {
       if (!active) return
-      if (ok)
-        conditionalPasskeyLogin(() => rememberRef.current)
+      if (ok) {
+        // the remember flag is read once a passkey has been picked, right before
+        // the server is asked to finish: from then on a refusal is about the user's action
+        let picked = false
+        conditionalPasskeyLogin(() => {
+          picked = true
+          return rememberRef.current
+        })
           .then(() => {
             if (active) afterAuth()
           })
           .catch((err) => {
-            // an aborted or ignored ceremony stays quiet; the server refusing a picked passkey does not
-            if (active && err instanceof ApiError) fail(err.message)
+            // an aborted or ignored ceremony stays quiet, and so does the page-load
+            // start failing (e.g. rate limited); the server refusing a picked passkey does not
+            if (active && picked && err instanceof ApiError) fail(err.message)
           })
+      }
     })
     return () => {
       active = false

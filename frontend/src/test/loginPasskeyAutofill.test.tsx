@@ -36,9 +36,22 @@ function mount() {
 
 describe('Login passkey autofill', () => {
   it('shows the server refusal of a picked passkey', async () => {
-    vi.mocked(webauthn.conditionalPasskeyLogin).mockRejectedValue(new ApiError(403, 'awaiting approval'))
+    // the remember flag is read only after the user picked a passkey
+    vi.mocked(webauthn.conditionalPasskeyLogin).mockImplementation((remember) => {
+      remember()
+      return Promise.reject(new ApiError(403, 'awaiting approval'))
+    })
     mount()
     expect((await screen.findByRole('alert')).textContent).toBe('awaiting approval')
+  })
+
+  it('stays silent when starting the autofill ceremony fails on page load', async () => {
+    vi.mocked(webauthn.conditionalPasskeyLogin).mockRejectedValue(new ApiError(429, 'too many'))
+    mount()
+    await screen.findByLabelText('login.email')
+    await waitFor(() => expect(webauthn.conditionalPasskeyLogin).toHaveBeenCalled())
+    await act(async () => {})
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('stays silent when the ceremony is aborted', async () => {
