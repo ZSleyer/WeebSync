@@ -58,6 +58,20 @@ export function resTier(h: number): number {
   return 4320
 }
 
+// loses mirrors the backend's loses (upgrades.go): does top fall below cur on
+// the resolution rung or drop a dub or subtitle language cur holds? Replacing
+// the local copy is only right when it does not. Keep the two in step.
+export function loses(cur: UpgradeVariant, top: UpgradeVariant): boolean {
+  if (resTier(top.resRank) < resTier(cur.resRank)) return true
+  for (const [a, b] of [
+    [cur.dub, top.dub],
+    [cur.sub, top.sub],
+  ]) {
+    if ((a ?? []).some((l) => l !== UNREADABLE && !(b ?? []).includes(l))) return true
+  }
+  return false
+}
+
 // "Und" is the backend's marker for a track whose language could not be read.
 // It is a recorded hole, not a language, so it is never shown as one.
 export const UNREADABLE = 'Und'
