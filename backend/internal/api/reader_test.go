@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -147,6 +148,45 @@ func TestReadOpenBoundsUnpacks(t *testing.T) {
 	// the user's slot is free again once the unpack is done
 	if rec := open("/b.cbz", userC, context.Background()); rec.Code != http.StatusOK {
 		t.Fatalf("next book after the first finished: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// net/http recovers a panicking handler and serves on. A panic in the unpack
+// must not keep the global slot, the user's turn or the book's opening entry,
+// or a few of them would refuse every later book.
+func TestReadOpenSurvivesAPanickingUnpack(t *testing.T) {
+	s := testServer(t, &Server{})
+	defer func(f func(*Server, context.Context, playSource) (*book, error)) { bookUnpack = f }(bookUnpack)
+	bookUnpack = func(*Server, context.Context, playSource) (*book, error) { panic("broken archive") }
+	open := func(path string) (b *book, err error, panicked bool) {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		b, err = s.openBook(context.Background(), playSource{userID: 1, path: path})
+		return b, err, false
+	}
+	// as many panics as there are slots: leaked, they would block every book
+	for i := range cap(bookUnpackSlots) {
+		if _, err, panicked := open("/" + strconv.Itoa(i) + ".cbz"); !panicked {
+			t.Fatalf("unpack %d did not run: %v", i, err)
+		}
+	}
+	if n := len(bookUnpackSlots); n != 0 {
+		t.Fatalf("%d slots still held after the panics", n)
+	}
+	s.books.mu.Lock()
+	turns, opening := s.books.unpacking[1], len(s.books.opening)
+	s.books.mu.Unlock()
+	if turns != 0 || opening != 0 {
+		t.Fatalf("after the panics: user turns %d, opening entries %d", turns, opening)
+	}
+	bookUnpack = func(_ *Server, _ context.Context, src playSource) (*book, error) {
+		return &book{dir: t.TempDir(), kind: "comic", token: "tok", pages: []string{"1.jpg"}, used: time.Now()}, nil
+	}
+	if b, err, _ := open("/a.cbz"); err != nil || b == nil {
+		t.Fatalf("book after the panics: %v", err)
 	}
 }
 

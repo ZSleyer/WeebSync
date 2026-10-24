@@ -215,26 +215,36 @@ func (s *Server) openBook(ctx context.Context, src playSource) (*book, error) {
 	}
 	var b *book
 	var err error
+	// deferred, so a panicking unpack (net/http recovers it) still gives
+	// back the user's turn and wakes whoever waits for this book
+	defer func() {
+		sh.mu.Lock()
+		defer sh.mu.Unlock()
+		if sh.unpacking[src.userID]--; sh.unpacking[src.userID] <= 0 {
+			delete(sh.unpacking, src.userID)
+		}
+		close(sh.opening[key])
+		delete(sh.opening, key)
+		if err == nil && b != nil {
+			b.key = key
+			sh.byKey[key], sh.byToken[b.token] = b, b
+			s.evictBooksLocked()
+		}
+	}()
+	b, err = s.unpackInSlot(ctx, src)
+	return b, err
+}
+
+// unpackInSlot unpacks src once one of the global slots is free, and gives
+// the slot back however the unpack ends.
+func (s *Server) unpackInSlot(ctx context.Context, src playSource) (*book, error) {
 	select {
 	case bookUnpackSlots <- struct{}{}:
-		b, err = bookUnpack(s, ctx, src)
-		<-bookUnpackSlots
 	case <-ctx.Done():
-		err = ctx.Err()
+		return nil, ctx.Err()
 	}
-	sh.mu.Lock()
-	if sh.unpacking[src.userID]--; sh.unpacking[src.userID] <= 0 {
-		delete(sh.unpacking, src.userID)
-	}
-	close(sh.opening[key])
-	delete(sh.opening, key)
-	if err == nil {
-		b.key = key
-		sh.byKey[key], sh.byToken[b.token] = b, b
-		s.evictBooksLocked()
-	}
-	sh.mu.Unlock()
-	return b, err
+	defer func() { <-bookUnpackSlots }()
+	return bookUnpack(s, ctx, src)
 }
 
 // evictBooksLocked drops the least recently opened books beyond the shelf
