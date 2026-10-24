@@ -42,6 +42,22 @@ const cases: [string, number, string, string, string][] = [
     'errors.jellyfinEnvSet',
     'JELLYFIN_URL',
   ],
+  [
+    '/api/jellyfin/server/quickconnect',
+    409,
+    'Quick Connect is disabled on this Jellyfin server',
+    'errors.jellyfinQcOff',
+    'Quick Connect',
+  ],
+  [
+    '/api/jellyfin/server/token',
+    403,
+    'that Jellyfin account is no administrator',
+    'errors.jellyfinNotAdmin',
+    'Jellyfin',
+  ],
+  ['/api/jellyfin/server/poll', 409, 'no Jellyfin server connected', 'errors.jellyfinNone', 'Jellyfin'],
+  ['/api/plex/link', 409, 'that Plex show is already bound to another series', 'errors.plexShowBound', 'Plex'],
 ]
 
 describe('media server errors in words', () => {

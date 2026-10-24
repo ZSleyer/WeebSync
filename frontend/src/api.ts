@@ -315,6 +315,10 @@ const ERROR_KEYS: Record<string, string> = {
   // signing in to a media server whose connection the environment fixes (409)
   'the Plex connection is set by PLEX_URL/PLEX_TOKEN in the environment': 'errors.plexEnvSet',
   'the Jellyfin connection is set by JELLYFIN_URL/JELLYFIN_TOKEN in the environment': 'errors.jellyfinEnvSet',
+  'Quick Connect is disabled on this Jellyfin server': 'errors.jellyfinQcOff',
+  'that Jellyfin account is no administrator': 'errors.jellyfinNotAdmin',
+  'no Jellyfin server connected': 'errors.jellyfinNone',
+  'that Plex show is already bound to another series': 'errors.plexShowBound',
 }
 
 // transport failures from the backend arrive as Go's raw error strings
