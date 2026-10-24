@@ -326,13 +326,15 @@ func (s *Server) refreshPlexRoots() {
 // records the new one. media_server_id is written last, so any failure leaves
 // the switch to be done again from the start.
 func (s *Server) forgetMediaServer(c plex.Server, mid, prev string) error {
+	// detach a running build first: one ending after the rows are gone would
+	// otherwise write the old server's index back under the same key
+	s.plexGuids.reset()
+	s.plexTitles.reset()
 	if _, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
 		OR key IN ('plex:guididx:v5', 'plex:titleidx:v2', 'plex:showlist:v1', 'plex:suggestions:v3')
 		OR key LIKE 'plex:loc:%'`); err != nil {
 		return err
 	}
-	s.plexGuids.reset()
-	s.plexTitles.reset()
 	if prev != "" {
 		// the local quality index and the folder bridge describe the
 		// old library: rebuild both against this one on the next sweep

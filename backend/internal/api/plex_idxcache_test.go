@@ -186,6 +186,35 @@ func TestPlexIndexCacheResetOutrunsARunningBuild(t *testing.T) {
 	}
 }
 
+// The server switch must detach a running build before it drops the cached
+// rows: dropped first, an old build ending in between wrote the old server's
+// index back under the same key, and the reset after it only cleared memory.
+// Holding the cache lock stalls reset; the rows must still be there then.
+func TestForgetMediaServerResetsBeforeItDrops(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	db.SetSetting(d, "plex_url", "http://plex.example.com:32400")
+	db.SetSetting(d, "plex_token", "tok")
+	s.cacheSet(plexGuidKey, `{"old":{"ratingKey":"1"}}`)
+	c := s.plexClient()
+
+	s.plexGuids.mu.Lock()
+	done := make(chan error, 1)
+	go func() { done <- s.forgetMediaServer(c, "new", "old") }()
+	time.Sleep(100 * time.Millisecond)
+	_, still := s.cacheGet(plexGuidKey, time.Hour)
+	s.plexGuids.mu.Unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if !still {
+		t.Error("the cached index was dropped before the running build was detached")
+	}
+	if _, ok := s.cacheGet(plexGuidKey, time.Hour); ok {
+		t.Error("the old index survived the switch")
+	}
+}
+
 // A caller after the switch must not join the old server's build that is
 // still running: it starts its own against the new server.
 func TestPlexIndexCacheResetDoesNotJoinTheOldBuild(t *testing.T) {
