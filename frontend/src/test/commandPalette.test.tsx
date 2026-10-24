@@ -228,6 +228,6 @@ describe('groupHits', () => {
     expect(screen.queryByText(/^files /)).toBeNull()
     history.replaceState(null, '')
     window.dispatchEvent(new PopStateEvent('popstate'))
-    expect(await screen.findByText('files ?server=3&path=anime%2FFrieren')).toBeInTheDocument()
+    expect(await screen.findByText('files ?server=3&path=anime%2FFrieren', {}, { timeout: 300 })).toBeInTheDocument()
   })
 })
