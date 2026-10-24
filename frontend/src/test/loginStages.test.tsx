@@ -91,4 +91,3 @@ describe('Login address parameters', () => {
     expect(await screen.findByLabelText('login.email')).toBeTruthy()
   })
 })
-
