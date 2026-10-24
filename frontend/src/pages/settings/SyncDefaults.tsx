@@ -41,6 +41,12 @@ const EMPTY: WatchDefaults = {
   },
 }
 
+// chosen says whether anything was set for a kind: a folder, a template, a
+// separator or a subfolder choice. The server keeps exactly these kinds.
+const chosen = (k: KindDefaults) =>
+  !!(k.localPath || k.template || k.separator || k.subfolderSeparator) ||
+  (k.subfolderSource ?? (k.subfolder ? 'remote' : 'none')) !== 'none'
+
 // What a new auto-sync or one-off sync starts from: a target folder and
 // naming per media kind, and the rename and language choices shared by all
 // of them. Applied wherever a watch dialog opens without a plan of its own,
@@ -71,11 +77,17 @@ export default function SyncDefaults() {
   const defaultsDirty = !!stored && !!edited && JSON.stringify(edited) !== JSON.stringify(stored)
   const instForm = isAdmin ? inst.form : null
   const dirty = defaultsDirty || (!!instForm && inst.dirty)
-  // a path still carrying the slash the picker appends is stored clean
+  // a path still carrying the slash the picker appends is stored clean, and a
+  // kind with nothing chosen is left out the way the server leaves it out, so
+  // the saved state shown before the refetch is the one the refetch brings
   const tidy = (d: WatchDefaults): WatchDefaults => ({
     ...d,
     kinds: Object.fromEntries(
-      Object.entries(d.kinds).flatMap(([c, k]) => (k ? [[c, { ...k, localPath: trimSlashes(k.localPath) }]] : [])),
+      Object.entries(d.kinds).flatMap(([c, k]) => {
+        if (!k) return []
+        const clean = { ...k, localPath: trimSlashes(k.localPath) }
+        return chosen(clean) ? [[c, clean]] : []
+      }),
     ),
   })
   const save = useMutation({
