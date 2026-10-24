@@ -11,7 +11,7 @@ import { File, Folder, Search, Sparkles, Settings, Tv, X, type LucideProps } fro
 import { useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
-import { Dialog, Kbd } from 'fluid-lycoris'
+import { afterBackEntry, Dialog, Kbd } from 'fluid-lycoris'
 import { api, mediaTitle, type ServerInfo, type Watch } from '../api'
 import { localColor, serverColor, tint, type SourceColorName } from './sourceColor'
 import { useSeriesModal } from './SeriesModal'
@@ -170,8 +170,10 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
   })
 
   const go = (to: string) => () => {
-    navigate(to)
     onClose()
+    // closing takes the palette's history entry; a navigation pushed before
+    // that back() lands would be popped with it
+    afterBackEntry(() => navigate(to))
   }
   // an entry's `to` is relative to its page, unless it leads elsewhere
   const under = (base: string, to: string) => (to.startsWith('/') ? to : `${base}/${to}`)
@@ -287,8 +289,8 @@ function Palette({ pages, initial, onClose }: { pages: PalettePage[]; initial: s
             icon: h.isDir ? Folder : File,
             tint: h.serverId ? serverColor(h.serverId, colors.get(h.serverId)) : localColor(),
             run: () => {
-              navigate(filesLink(h.serverId, dir), { state: { jump: Date.now() } })
               onClose()
+              afterBackEntry(() => navigate(filesLink(h.serverId, dir), { state: { jump: Date.now() } }))
             },
           }
         })

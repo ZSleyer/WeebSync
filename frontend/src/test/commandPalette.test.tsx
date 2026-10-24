@@ -203,4 +203,31 @@ describe('groupHits', () => {
     const many = Array.from({ length: 9 }, (_, i) => e('series', `Show ${i}`))
     expect(groupHits(many, 'show')).toHaveLength(6)
   })
+
+  it('navigates only after the palette\'s own history step has landed', async () => {
+    app()
+    // a back() that never lands on its own, so the order is ours to drive
+    vi.spyOn(history, 'back').mockImplementation(() => {})
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    const field = await screen.findByRole('combobox')
+    expect(history.state?.wsDialog).toBeTruthy()
+    fireEvent.change(field, { target: { value: 'calendar' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(screen.queryByText('calendar page')).toBeNull()
+    history.replaceState(null, '')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    expect(await screen.findByText('calendar page')).toBeInTheDocument()
+  })
+
+  it('opens a file hit\'s folder only after the palette\'s history step has landed', async () => {
+    app()
+    vi.spyOn(history, 'back').mockImplementation(() => {})
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'frieren' } })
+    fireEvent.click(await screen.findByRole('option', { name: /ep1\.mkv.*seedbox/ }))
+    expect(screen.queryByText(/^files /)).toBeNull()
+    history.replaceState(null, '')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+    expect(await screen.findByText('files ?server=3&path=anime%2FFrieren')).toBeInTheDocument()
+  })
 })
