@@ -243,4 +243,33 @@ describe('Player page', () => {
       vi.useRealTimers()
     }
   })
+
+  it.each(['play', 'seeking'])('F01a-7: %s during the next-episode countdown calls it off', async (event) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { container } = mount()
+      const video = await waitFor(() => {
+        const v = container.querySelector('video')
+        expect(v).toBeTruthy()
+        return v!
+      })
+      await waitFor(async () => {
+        await act(async () => {
+          video.dispatchEvent(new Event('ended'))
+        })
+        expect(screen.getByRole('button', { name: 'Now' })).toBeTruthy()
+      })
+      await act(async () => {
+        video.dispatchEvent(new Event(event))
+      })
+      expect(screen.queryByRole('button', { name: 'Now' })).toBeNull()
+      for (let i = 0; i < 12; i++)
+        await act(async () => {
+          vi.advanceTimersByTime(1000)
+        })
+      expect(screen.getByTestId('where').textContent).toContain('ep1.mp4')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

@@ -561,8 +561,16 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     const v = videoRef.current
     if (!v || !next) return
     const ended = () => setNextIn(NEXT_COUNT)
+    // watching on (play again, a seek back) calls the count off
+    const resumed = () => setNextIn(null)
     v.addEventListener('ended', ended)
-    return () => v.removeEventListener('ended', ended)
+    v.addEventListener('play', resumed)
+    v.addEventListener('seeking', resumed)
+    return () => {
+      v.removeEventListener('ended', ended)
+      v.removeEventListener('play', resumed)
+      v.removeEventListener('seeking', resumed)
+    }
   }, [next, data])
   // the file's chapters as a track media-chrome reads: the time bar splits
   // into segments, the preview over it names the one under the pointer
