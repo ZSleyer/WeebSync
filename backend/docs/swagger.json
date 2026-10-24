@@ -7739,12 +7739,20 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "trendingError": {
+                        "description": "TrendingError: \"unavailable\" when the trending list could not be read",
+                        "type": "string"
+                    },
                     "watchlist": {
                         "items": {
                             "$ref": "#/components/schemas/api.tmdbSuggestion"
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "watchlistError": {
+                        "description": "WatchlistError: \"unauthorized\" when TMDB no longer accepts the linked\nsession (link again), \"unavailable\" when the list could not be read",
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -16057,6 +16065,16 @@
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
                     }
                 },
                 "security": [
