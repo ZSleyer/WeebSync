@@ -171,14 +171,22 @@ async function canDecodeVideo(v: PlayInfo['video']): Promise<boolean> {
 // a wait in words, with the seconds it has taken once they add up: a number
 // that keeps counting shows the player is still at it. The server's own
 // numbers (a share, bytes read) take the counter's place once there are any.
+// Inside a live region only the words are read out: the number changes every
+// second and would be announced every second, so it is hidden from the
+// announcement.
 function Waited({ text, detail }: { text: string; detail?: string }) {
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     const id = window.setInterval(() => setSecs((x) => x + 1), 1000)
     return () => clearInterval(id)
   }, [])
-  if (detail) return `${text} · ${detail}`
-  return secs < 3 ? text : `${text} · ${secs} s`
+  const count = detail || (secs < 3 ? '' : `${secs} s`)
+  return (
+    <>
+      {text}
+      {count && <span aria-hidden> · {count}</span>}
+    </>
+  )
 }
 
 // the route: every file gets a fresh player, so the tracks, the transcode
@@ -189,6 +197,9 @@ export default function Player() {
   const path = params.get('path') || ''
   return <PlayerView key={`${server}:${path}`} server={server} path={path} />
 }
+
+// seconds from the end of an episode to the start of the next
+const NEXT_COUNT = 8
 
 function PlayerView({ server, path }: { server: number; path: string }) {
   const { t, i18n } = useTranslation()
@@ -549,7 +560,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   useEffect(() => {
     const v = videoRef.current
     if (!v || !next) return
-    const ended = () => setNextIn(8)
+    const ended = () => setNextIn(NEXT_COUNT)
     v.addEventListener('ended', ended)
     return () => v.removeEventListener('ended', ended)
   }, [next, data])
@@ -1217,7 +1228,8 @@ function PlayerView({ server, path }: { server: number; path: string }) {
               over the corner above the dock; they stay while the controls fade */}
           {nextIn !== null && next ? (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
-              <span role="status">{t('player.nextIn', { secs: nextIn })}</span>
+              {/* spoken once by the region below; the count itself is only seen */}
+              <span aria-hidden>{t('player.nextIn', { secs: nextIn })}</span>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={() => goTo(next)}>
                 {t('player.nextNow')}
               </button>
@@ -1254,9 +1266,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           {/* always there, only its words change: a live region added together
               with its text is often not read out */}
           <span className="sr-only" role="status">
-            {offer !== null && nextIn === null
-              ? t('player.resumeAt', { time: clock(offer) })
-              : skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
+            {nextIn !== null && next
+              ? t('player.nextIn', { secs: NEXT_COUNT })
+              : offer !== null
+                ? t('player.resumeAt', { time: clock(offer) })
+                : skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
           </span>
           {skipOffered && (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>

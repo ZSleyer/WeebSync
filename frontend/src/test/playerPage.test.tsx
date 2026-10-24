@@ -6,7 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const calls: string[] = []
 const infoFor = vi.hoisted(() => ({ fail: false }))
 
-vi.mock('hls.js', () => ({ default: class { static isSupported = () => false } }))
+vi.mock('hls.js', () => ({
+  default: class {
+    static isSupported = () => false
+  },
+}))
 vi.mock('jassub', () => ({ default: class {} }))
 vi.mock('../pages/jassubWorker?worker&url', () => ({ default: 'worker.js' }))
 vi.mock('../components/useImmersive', () => ({ useImmersive: () => {} }))
@@ -29,6 +33,9 @@ vi.mock('../api', async (orig) => {
             subs: [],
             chapters: [],
           }
+        }
+        if (url.startsWith('/api/browse/local')) {
+          return ['ep1.mp4', 'ep2.mp4'].map((name) => ({ name, path: `/a/${name}`, isDir: false }))
         }
         return []
       }),
@@ -94,7 +101,7 @@ describe('Player page', () => {
   // Its elements do not upgrade under jsdom (server-safe-globals.js treats the
   // node-like env as a server), so the contract is checked on the attribute
   // while the player's own handler is exercised for real.
-  it('F01a-2: j, l and c are the player\'s alone: media-chrome is told to stay out, the player seeks once', async () => {
+  it("F01a-2: j, l and c are the player's alone: media-chrome is told to stay out, the player seeks once", async () => {
     const { container } = mount()
     await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
     const ctl = container.querySelector('media-controller')!
@@ -160,7 +167,9 @@ describe('Player page', () => {
       mount()
       const go = await screen.findByRole('button', { name: 'Resume' })
       // a live region that was there before its text: the one the skip card uses
-      expect(screen.getAllByRole('status').some((r) => r.classList.contains('sr-only') && /5:00/.test(r.textContent ?? ''))).toBe(true)
+      expect(
+        screen.getAllByRole('status').some((r) => r.classList.contains('sr-only') && /5:00/.test(r.textContent ?? '')),
+      ).toBe(true)
       act(() => go.focus())
       await act(async () => {
         vi.advanceTimersByTime(40_000)
@@ -171,6 +180,65 @@ describe('Player page', () => {
         vi.advanceTimersByTime(16_000)
       })
       expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  const spoken = (container: HTMLElement) =>
+    [...container.querySelectorAll('[role="status"],[role="alert"]')].map((el) => {
+      const copy = el.cloneNode(true) as HTMLElement
+      copy.querySelectorAll('[aria-hidden="true"]').forEach((h) => h.remove())
+      return copy.textContent
+    })
+
+  it('F01a-6: a wait that counts up is not read out again every second', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { container } = mount()
+      await waitFor(() => expect(container.querySelector('.t-player-step')).toBeTruthy())
+      const before = spoken(container)
+      expect(before.join('')).not.toBe('')
+      for (let i = 0; i < 12; i++)
+        await act(async () => {
+          vi.advanceTimersByTime(1000)
+        })
+      // the count is on screen, but outside what a screen reader announces
+      expect(container.querySelector('.t-player-step')?.textContent).toMatch(/\d+ s/)
+      expect(spoken(container)).toEqual(before)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('F01a-6: the next-episode countdown is announced once, not per second', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const { container } = mount()
+      const video = await waitFor(() => {
+        const v = container.querySelector('video')
+        expect(v).toBeTruthy()
+        return v!
+      })
+      // the folder listing decides whether there is a next episode
+      await waitFor(() => expect(calls.some((c) => c.startsWith('/api/browse/local'))).toBe(true))
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await waitFor(async () => {
+        await act(async () => {
+          video.dispatchEvent(new Event('ended'))
+        })
+        expect(screen.getByRole('button', { name: 'Now' })).toBeTruthy()
+      })
+      const first = spoken(container)
+      expect(first.some((x) => /8 s/.test(x ?? ''))).toBe(true)
+      for (let i = 0; i < 3; i++)
+        await act(async () => {
+          vi.advanceTimersByTime(1000)
+        })
+      expect(screen.getByText(/Next episode in [4-7] s/)).toBeTruthy()
+      expect(spoken(container)).toEqual(first)
     } finally {
       vi.useRealTimers()
     }
