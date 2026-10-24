@@ -5,6 +5,7 @@ import { Menu, MenuItem, useMenu } from 'fluid-lycoris'
 // The wrapper ref decides what counts as "inside", so the hook is exercised
 // through the markup it is documented with: one element holding both the
 // trigger and the list, and an unrelated control next to it.
+let seenFocus: Element | null = null
 function MenuHarness() {
   const { open, setOpen, ref, anchor, anchorStyle } = useMenu()
   return (
@@ -15,7 +16,14 @@ function MenuHarness() {
         </button>
         {open && (
           <Menu aria-label="Sortieren nach">
-            <MenuItem selected>Name</MenuItem>
+            <MenuItem
+              selected
+              onClick={() => {
+                seenFocus = document.activeElement
+              }}
+            >
+              Name
+            </MenuItem>
           </Menu>
         )}
       </div>
@@ -119,5 +127,103 @@ describe('useMenu', () => {
     fireEvent.mouseDown(document.body)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('hands the focus to the trigger before the chosen item acts, so a dialog gets it as opener', () => {
+    render(<MenuHarness />)
+    openMenu()
+    const item = screen.getByRole('option', { name: 'Name' })
+    item.focus()
+    seenFocus = null
+    fireEvent.click(item)
+    const trigger = screen.getByRole('button', { name: 'Sortieren' })
+    expect(seenFocus).toBe(trigger)
+  })
+})
+
+const focusLog: string[] = []
+function PickHarness() {
+  const { open, setOpen, ref } = useMenu()
+  return (
+    <div ref={ref}>
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        onFocus={() => focusLog.push('trigger')}
+      >
+        Mehr
+      </button>
+      {open && (
+        <Menu kind="menu" aria-label="Mehr">
+          <MenuItem data-keep-open onClick={() => {}}>
+            Umschalten
+          </MenuItem>
+          <MenuItem aria-disabled="true" onClick={() => {}}>
+            Gesperrt
+          </MenuItem>
+          <MenuItem
+            role="menuitemcheckbox"
+            aria-checked={false}
+            onClick={() => {
+              seenFocus = document.activeElement
+              setOpen(false)
+            }}
+          >
+            Anpinnen
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              seenFocus = document.activeElement
+              setOpen(false)
+            }}
+          >
+            Schließen
+          </MenuItem>
+        </Menu>
+      )}
+    </div>
+  )
+}
+
+describe('useMenu focus after a pick', () => {
+  const start = () => {
+    focusLog.length = 0
+    render(<PickHarness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }))
+  }
+
+  it('leaves the focus alone on an item that keeps the menu open or is aria-disabled', () => {
+    start()
+    for (const name of ['Umschalten', 'Gesperrt']) {
+      const item = screen.getByRole('menuitem', { name })
+      item.focus()
+      fireEvent.click(item)
+      expect(item).toHaveFocus()
+    }
+    expect(focusLog).toEqual([])
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
+
+  it('hands the focus to the trigger before a closing item acts, also for the Enter key', () => {
+    start()
+    const item = screen.getByRole('menuitem', { name: 'Schließen' })
+    item.focus()
+    seenFocus = null
+    // Enter on a button is a click
+    fireEvent.keyDown(item, { key: 'Enter' })
+    fireEvent.click(item)
+    expect(seenFocus).toBe(screen.getByRole('button', { name: 'Mehr' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Mehr' })).toHaveFocus()
+  })
+
+  it('treats menuitemcheckbox as an item too', () => {
+    start()
+    const item = screen.getByRole('menuitemcheckbox', { name: 'Anpinnen' })
+    item.focus()
+    seenFocus = null
+    fireEvent.click(item)
+    expect(seenFocus).toBe(screen.getByRole('button', { name: 'Mehr' }))
   })
 })

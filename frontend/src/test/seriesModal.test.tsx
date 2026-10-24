@@ -202,6 +202,52 @@ describe('series page without a record', () => {
   })
 })
 
+describe('series page banner', () => {
+  const banner = () => document.querySelector<HTMLImageElement>('.ws-d-banner img')
+  const open = () => fireEvent.click(screen.getByRole('button', { name: 'öffnen' }))
+
+  it('keeps the AniList banner and never asks for a backdrop', async () => {
+    const get = serve()
+    target = { id: 7, media: { ...media, bannerImage: '/anilist-banner.jpg' } as Media }
+    app()
+    open()
+    await waitFor(() => expect(banner()?.getAttribute('src')).toBe('/anilist-banner.jpg'))
+    expect(get.mock.calls.some(([u]) => String(u).startsWith('/api/media/backdrop'))).toBe(false)
+  })
+
+  it('does without art when the backdrop answers 502, and asks again on the next visit', async () => {
+    const base = serve()
+    let status = 502
+    base.mockImplementation(async (url: string) => {
+      if (url.startsWith('/api/media/backdrop')) {
+        if (status === 502) throw new Error('502 bad gateway')
+        return { url: '/tmdb-backdrop.jpg', large: '' }
+      }
+      if (url === '/api/watches') return []
+      if (url === '/api/anilist/media/7') return media
+      if (url.startsWith('/api/media/reviews')) return { reviews: [] }
+      if (url.startsWith('/api/media/extras')) throw new Error('502 down')
+      return []
+    })
+    app()
+    open()
+    const page = await screen.findByRole('dialog')
+    await waitFor(() => expect(base.mock.calls.some(([u]) => String(u).startsWith('/api/media/backdrop'))).toBe(true))
+    expect(page).toHaveTextContent('Frieren')
+    expect(banner()).toBeNull()
+    fireEvent.keyDown(page, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    // an error is no data: the 24 h staleTime must not hold the failure
+    status = 200
+    // the page leaves through the history: let that settle before the next visit
+    await act(async () => new Promise((r) => setTimeout(r, 300)))
+    open()
+    await screen.findByRole('dialog')
+    await waitFor(() => expect(banner()?.getAttribute('src')).toBe('/tmdb-backdrop.jpg'))
+    expect(base.mock.calls.filter(([u]) => String(u).startsWith('/api/media/backdrop'))).toHaveLength(2)
+  })
+})
+
 // An IntersectionObserver the test drives: jsdom has none, and the card then
 // loads everything at once - which is what the other tests rely on.
 class FakeIO {

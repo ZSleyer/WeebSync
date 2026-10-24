@@ -30,7 +30,14 @@
     "tooManyWait_other": "Zu viele Versuche. Versuch es in {{count}} Sekunden wieder.",
     "targetBusy": "Für dieselbe Datei steht schon ein anderer Download in der Warteschlange. Lass ihn fertig laufen oder brich ihn zuerst ab.",
     "hostKeyUnknown": "Der SSH-Host-Key des Servers ist noch nicht bestätigt. Prüfe und bestätige ihn mit dem Verbindungstest in den Servereinstellungen und versuche es dann erneut.",
-    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Prüfe ihn mit dem Verbindungstest in den Servereinstellungen, bevor du es erneut versuchst."
+    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Prüfe ihn mit dem Verbindungstest in den Servereinstellungen, bevor du es erneut versuchst.",
+    "plexLinkExpired": "Plex akzeptiert das verknüpfte Konto nicht mehr. Verknüpfe Plex in den Einstellungen erneut.",
+    "plexEnvSet": "Die Plex-Verbindung ist über die Umgebungsvariablen PLEX_URL und PLEX_TOKEN festgelegt. Ändere sie dort.",
+    "jellyfinEnvSet": "Die Jellyfin-Verbindung ist über die Umgebungsvariablen JELLYFIN_URL und JELLYFIN_TOKEN festgelegt. Ändere sie dort.",
+    "jellyfinQcOff": "Quick Connect ist auf diesem Jellyfin-Server deaktiviert. Aktiviere es im Jellyfin-Dashboard.",
+    "jellyfinNotAdmin": "Dieses Jellyfin-Konto ist kein Administrator. Melde dich mit einem Administratorkonto an.",
+    "jellyfinNone": "Es ist noch kein Jellyfin-Server verbunden. Verbinde zuerst einen.",
+    "plexShowBound": "Diese Plex-Serie ist bereits an eine andere Serie gebunden."
   },
   "common": {
     "undo": "Rückgängig",
@@ -1627,6 +1634,7 @@
       "fixNvencHint": "Braucht das NVIDIA Container Toolkit auf dem Host. In deiner Compose-Datei:",
       "copy": "Kopieren",
       "copied": "Kopiert",
+      "copyFailed": "Kopieren nicht möglich, bitte den Code von Hand markieren und kopieren.",
       "retest": "Erneut testen",
       "testing": "Teste, das dauert ein paar Sekunden",
       "testedAt": "Getestet {{when}}",

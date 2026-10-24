@@ -88,6 +88,7 @@ export default function FolderBookmarks({
                 <button
                   type="button"
                   role="menuitem"
+                  data-keep-open
                   aria-label={t('files.bookmarkDelete', { path: `${name} /${b.path}` })}
                   title={t('files.bookmarkRemove')}
                   className="grid min-h-(--ctl-h) min-w-(--ctl-h) shrink-0 place-items-center rounded-[7px] text-t-muted hover:bg-bg-hover hover:text-t-primary focus-visible:bg-bg-hover"
