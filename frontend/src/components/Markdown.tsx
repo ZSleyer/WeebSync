@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 
 // The markdown an answer may carry: headings, bullet and numbered lists,
 // fenced code, paragraphs; bold, italics, code spans and links inside. No
@@ -103,13 +104,30 @@ function inline(text: string, titles: TitleLink[], key: string): ReactNode[] {
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+// A title matches as a whole word, so "Air" is not found inside "fair". Scripts
+// written without spaces (Han, kana, Thai) have no word edges to respect, and a
+// title that starts or ends in punctuation needs no boundary on that side.
+// (Hangul takes particles right on the word). A CJK neighbour also counts as a
+// boundary for a Latin title: "Frierenの旅".
+const UNSPACED_CLASS = '\\p{Script=Han}\\p{Script=Hiragana}\\p{Script=Katakana}\\p{Script=Hangul}\\p{Script=Thai}'
+const UNSPACED = new RegExp(`[${UNSPACED_CLASS}]`, 'u')
+function wholeWord(title: string): string {
+  const body = escapeRe(title)
+  if (UNSPACED.test(title)) return body
+  const edge = /^[\p{L}\p{N}]$/u
+  const chars = [...title]
+  const before = edge.test(chars[0]) ? `(?:(?<![\\p{L}\\p{N}])|(?<=[${UNSPACED_CLASS}]))` : ''
+  const after = edge.test(chars[chars.length - 1]) ? `(?:(?![\\p{L}\\p{N}])|(?=[${UNSPACED_CLASS}]))` : ''
+  return `${before}${body}${after}`
+}
+
 // linkTitles turns every occurrence of a known title into a button, the
 // longest titles first so a season name wins over the show's bare name.
 export function linkTitles(text: string, titles: TitleLink[], key: string): ReactNode[] {
   if (titles.length === 0 || !text) return [text]
   const sorted = [...titles].filter((t) => t.title.length >= 3).sort((a, b) => b.title.length - a.title.length)
   if (sorted.length === 0) return [text]
-  const re = new RegExp(sorted.map((t) => escapeRe(t.title)).join('|'), 'gi')
+  const re = new RegExp(sorted.map((t) => wholeWord(t.title)).join('|'), 'giu')
   const nodes: ReactNode[] = []
   let last = 0
   let n = 0
@@ -145,6 +163,7 @@ export default function Markdown({
   titles?: TitleLink[]
   children?: ReactNode
 }) {
+  const { t } = useTranslation()
   const blocks = parseMarkdown(text)
   return (
     <div className="space-y-2 wrap-break-word">
@@ -175,6 +194,11 @@ export default function Markdown({
             return (
               <pre
                 key={key}
+                // a scrollable region must be focusable for keyboard scrolling (WCAG 2.1.1)
+                // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                tabIndex={0}
+                role="region"
+                aria-label={t('assistant.codeBlock')}
                 className="overflow-x-auto rounded-md border border-border-subtle bg-bg-card p-2 font-mono text-sm"
               >
                 {b.text}

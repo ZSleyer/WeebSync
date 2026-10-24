@@ -38,11 +38,12 @@ function Harness() {
   return <CommandPalette pages={PAGES} open={open} onOpenChange={setOpen} />
 }
 
-const app = (isAdmin = false) => {
+const app = (isAdmin = false, searchFails = false) => {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/auth/me') return { email: 'a@b.c', isAdmin }
     if (url === '/api/watches') return []
     if (url === '/api/servers') return [{ id: 3, name: 'seedbox', color: 'violet' }]
+    if (searchFails && url.startsWith('/api/search')) throw new Error('offline')
     if (url.startsWith('/api/search?q=frieren'))
       return {
         results: [
@@ -86,6 +87,28 @@ describe('CommandPalette', () => {
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
     await screen.findByRole('combobox')
     expect(screen.getByRole('option', { name: /nav\.calendar/ })).toBeInTheDocument()
+  })
+
+  it('does not take Enter that confirms an IME candidate for a command', async () => {
+    app()
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    const field = await screen.findByRole('combobox')
+    fireEvent.change(field, { target: { value: 'calendar' } })
+    // composing (isComposing) and the keyCode 229 variant where isComposing is already false
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(field, { key: 'Enter', keyCode: 229 })
+    expect(screen.queryByText('calendar page')).toBeNull()
+    expect(screen.getByRole('combobox')).toBeInTheDocument()
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(await screen.findByText('calendar page')).toBeInTheDocument()
+  })
+
+  it('says when the file search failed instead of "nothing found"', async () => {
+    app(false, true)
+    fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
+    fireEvent.change(await screen.findByRole('combobox'), { target: { value: 'zzzzqq' } })
+    expect(await screen.findByText('palette.searchFailed')).toBeInTheDocument()
+    expect(screen.queryByText('palette.none')).toBeNull()
   })
 
   it('lists a settings panel only for whoever may open its section', async () => {

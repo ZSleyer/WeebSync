@@ -137,7 +137,8 @@
       "delete": "Entf",
       "forget": "aus „Zuletzt geöffnet“ entfernen"
     },
-    "searching": "Durchsucht die Server-Indexe …"
+    "searching": "Durchsucht die Server-Indexe …",
+    "searchFailed": "Die Dateisuche ist fehlgeschlagen. Versuch es noch einmal."
   },
   "nav": {
     "dashboard": "Heute",
@@ -156,6 +157,7 @@
     "files": "Dateien"
   },
   "assistant": {
+    "codeBlock": "Codeblock",
     "allUpgrades": "Alle Upgrades stehen unter Entdecken",
     "stepsDone_other": "{{count}} Schritte",
     "stepsDone_one": "{{count}} Schritt",
@@ -1432,6 +1434,8 @@
     "checkLoading": "Lädt Folge {{k}} von {{n}}",
     "checkDone_one": "Folge geladen",
     "checkDone_other": "{{count}} Folgen geladen",
+    "checkFailedDl_one": "Download fehlgeschlagen",
+    "checkFailedDl_other": "{{count}} Downloads fehlgeschlagen",
     "search": "Auto-Sync durchsuchen",
     "searchHint": "Titel oder Ordner",
     "searchNone": "Nichts gefunden für „{{query}}“.",
