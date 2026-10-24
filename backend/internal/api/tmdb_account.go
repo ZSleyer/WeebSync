@@ -40,6 +40,10 @@ func (s *Server) tmdbAccount(userID int64) (accountID int, session string, err e
 	return accountID, session, nil
 }
 
+// tmdbTokenCookie binds the TMDB callback to the browser that started the
+// flow; host-prefixed under HTTPS (auth.FlowCookie).
+const tmdbTokenCookie = "weebsync_tmdb_rt"
+
 // handleTmdbConnect starts the linking flow: request token → TMDB approval
 // page → callback below.
 //
@@ -65,10 +69,7 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 	rememberLinkFlow("tmdb", token, u.ID)
 	// the approval page redirects back with the token in the query; the
 	// cookie binds the callback to this browser (CSRF)
-	auth.SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_tmdb_rt", Value: token, Path: "/api/tmdb",
-		MaxAge: 600,
-	})
+	auth.SetCookie(w, r, auth.FlowCookie(r, tmdbTokenCookie, "/api/tmdb", token, 600))
 	redirect := requestOrigin(r) + "/api/tmdb/callback"
 	http.Redirect(w, r, "https://www.themoviedb.org/authenticate/"+token+"?redirect_to="+url.QueryEscape(redirect), http.StatusFound)
 }
@@ -90,21 +91,18 @@ func (s *Server) handleTmdbConnect(w http.ResponseWriter, r *http.Request) {
 //	@Router			/api/tmdb/callback [get]
 func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
-	rtCookie, err := r.Cookie("weebsync_tmdb_rt")
-	if err != nil || r.URL.Query().Get("request_token") != rtCookie.Value || !ownsLinkFlow("tmdb", rtCookie.Value, u.ID) {
+	requestToken := auth.FlowCookieValue(r, tmdbTokenCookie)
+	if requestToken == "" || r.URL.Query().Get("request_token") != requestToken || !ownsLinkFlow("tmdb", requestToken, u.ID) {
 		http.Error(w, "invalid request token", http.StatusBadRequest)
 		return
 	}
-	auth.SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_tmdb_rt", Value: "", Path: "/api/tmdb",
-		MaxAge: -1,
-	})
-	forgetLinkFlow("tmdb", rtCookie.Value)
+	auth.SetCookie(w, r, auth.FlowCookie(r, tmdbTokenCookie, "/api/tmdb", "", -1))
+	forgetLinkFlow("tmdb", requestToken)
 	if r.URL.Query().Get("denied") == "true" || r.URL.Query().Get("approved") == "false" {
 		http.Redirect(w, r, "/settings", http.StatusFound)
 		return
 	}
-	session, err := s.Tmdb.CreateSession(r.Context(), rtCookie.Value)
+	session, err := s.Tmdb.CreateSession(r.Context(), requestToken)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
