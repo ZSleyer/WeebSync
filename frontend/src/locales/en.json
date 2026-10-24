@@ -2270,6 +2270,7 @@
     "plexWatchlistLink": "Link Plex watchlist",
     "plexWatchlistUnlink": "Unlink",
     "plexWatchlistLinked": "Watchlist linked as {{user}}",
+    "plexWatchlistOpen": "Open plex.tv",
     "plexWatchlistPending": "Confirm in the plex.tv tab (code {{code}})…",
     "plexWatchlistExpired": "The plex.tv code has expired. Link again for a new one.",
     "emailCat_suggestion": "Suggestions",
