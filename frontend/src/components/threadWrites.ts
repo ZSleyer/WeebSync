@@ -64,6 +64,12 @@ export function withId(d: ThreadData, from: number, to: number): ThreadData {
   return { ...d, pages: d.pages.map((p) => ({ ...p, comments: p.comments.map(one) })) }
 }
 
+/** The thread data without the comment `id` (a pending reply that was refused). */
+export function withoutComment(d: ThreadData, id: number): ThreadData {
+  const one = (c: Comment): Comment => ({ ...c, replies: c.replies.filter((r) => r.id !== id).map(one) })
+  return { ...d, pages: d.pages.map((p) => ({ ...p, comments: p.comments.filter((c) => c.id !== id).map(one) })) }
+}
+
 export function useThreadWrites(threadId: number) {
   const { t } = useTranslation()
   const qc = useQueryClient()
@@ -87,12 +93,19 @@ export function useThreadWrites(threadId: number) {
     mutationFn: (to: LikeTarget) => api.post<LikeState>('/api/anilist/likes', { ...to, threadId }),
     onMutate: async (to) => {
       await qc.cancelQueries({ queryKey: key })
-      const prev = qc.getQueryData<ThreadData>(key)
-      set((d) => withLike(d, to, (c) => ({ liked: !c.liked, likes: Math.max(0, c.likes + (c.liked ? -1 : 1)) })))
-      return prev
+      // only this like is taken back on failure: a whole-cache snapshot would
+      // also drop what was written while this request was out
+      let before: LikeState | undefined
+      set((d) =>
+        withLike(d, to, (c) => {
+          before = c
+          return { liked: !c.liked, likes: Math.max(0, c.likes + (c.liked ? -1 : 1)) }
+        }),
+      )
+      return before
     },
-    onError: (e, _to, prev) => {
-      if (prev) qc.setQueryData(key, prev)
+    onError: (e, to, before) => {
+      if (before) set((d) => withLike(d, to, () => before))
       fail(e)
     },
     onSuccess: (r, to) => set((d) => withLike(d, to, () => r)),
@@ -106,7 +119,6 @@ export function useThreadWrites(threadId: number) {
       }),
     onMutate: async (v) => {
       await qc.cancelQueries({ queryKey: key })
-      const prev = qc.getQueryData<ThreadData>(key)
       const pending: Comment = {
         id: v.tmp,
         body: v.text,
@@ -120,10 +132,10 @@ export function useThreadWrites(threadId: number) {
       set((d) => withReply(d, v, pending))
       setReplyTo(null)
       setDraft('')
-      return prev
     },
-    onError: (e, v, prev) => {
-      if (prev) qc.setQueryData(key, prev)
+    onError: (e, v) => {
+      // only the pending reply goes; a reply written meanwhile stays
+      set((d) => withoutComment(d, v.tmp))
       // the words come back into the open composer, nothing typed is lost
       setReplyTo({ parent: v.parent, top: v.top, name: v.name })
       setDraft(v.text)
