@@ -225,22 +225,65 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 		// a cut through a multi-byte character would leave invalid UTF-8
 		ua = strings.ToValidUTF8(ua[:300], "")
 	}
+	// a token handed out under the host-prefixed cookie says so, and is
+	// never taken back under the legacy name (see sessionCookieFrom)
+	if isHTTPS(r) {
+		token = hostTokenMark + token
+	}
 	stamp := now.UTC().Format(time.RFC3339)
 	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		hashToken(token), userID, expires.UTC().Format(time.RFC3339), sid, sub, stamp, ua, stamp, remember, ClientIP(r)); err != nil {
 		return err
 	}
-	c := &http.Cookie{Name: "weebsync_session", Value: token, Path: "/"}
+	setSessionCookie(w, r, token, remember, expires)
+	return nil
+}
+
+const (
+	sessionCookie = "weebsync_session"
+	// hostTokenMark starts every token handed out under the host-prefixed
+	// cookie; a plain token is hex, so the two never mix up
+	hostTokenMark = "h"
+)
+
+// setSessionCookie hands the browser its session, host-prefixed under HTTPS,
+// and drops a legacy-named one it may still carry.
+func setSessionCookie(w http.ResponseWriter, r *http.Request, token string, remember bool, expires time.Time) {
+	c := &http.Cookie{Name: cookieName(r, sessionCookie), Value: token, Path: "/"}
 	if remember {
 		c.Expires = expires
 	}
 	SetCookie(w, r, c)
-	return nil
+	if c.Name != sessionCookie {
+		if _, err := r.Cookie(sessionCookie); err == nil {
+			SetCookie(w, r, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
+		}
+	}
+}
+
+// sessionCookieFrom is the request's session cookie. Under HTTPS that is the
+// host-prefixed one. The legacy name is the migration path for sessions from
+// before the prefix (or from plain HTTP, before force-https): it only counts
+// when no host-prefixed cookie came at all, never for a token that was handed
+// out under the prefix - a sister subdomain can set the legacy name, but not
+// to a session made under the prefix, an attacker's own included. legacy
+// reports the fallback, so the caller moves the session over.
+func sessionCookieFrom(r *http.Request) (c *http.Cookie, legacy bool) {
+	name := cookieName(r, sessionCookie)
+	if c, err := r.Cookie(name); err == nil {
+		return c, false
+	}
+	if name != sessionCookie {
+		if c, err := r.Cookie(sessionCookie); err == nil && !strings.HasPrefix(c.Value, hostTokenMark) {
+			return c, true
+		}
+	}
+	return nil, false
 }
 
 // SessionToken is the raw session token the request carries, "" without one.
 func SessionToken(r *http.Request) string {
-	if c, err := r.Cookie("weebsync_session"); err == nil {
+	if c, _ := sessionCookieFrom(r); c != nil {
 		return c.Value
 	}
 	return ""
@@ -291,12 +334,15 @@ func SetPasswordContext(ctx context.Context, d *sql.DB, userID int64, password, 
 // cookie goes either way; the error says the session row is still there.
 func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) error {
 	var delErr error
-	if c, err := r.Cookie("weebsync_session"); err == nil {
+	if c, _ := sessionCookieFrom(r); c != nil {
 		_, delErr = d.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(c.Value))
 	}
 	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_session", Value: "", Path: "/", MaxAge: -1,
+		Name: cookieName(r, sessionCookie), Value: "", Path: "/", MaxAge: -1,
 	})
+	if isHTTPS(r) {
+		SetCookie(w, r, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", MaxAge: -1})
+	}
 	return delErr
 }
 
@@ -345,19 +391,24 @@ func IsHTTPS(r *http.Request) bool { return isHTTPS(r) }
 func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			c, err := r.Cookie("weebsync_session")
-			if err == nil {
+			c, legacy := sessionCookieFrom(r)
+			if c != nil {
 				var u User
 				var expires, lastSeen string
 				var isAdmin int
 				var remember bool
-				err = d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
+				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ? AND u.approved = 1`, hashToken(c.Value)).
 					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
 				if err == nil {
 					now := time.Now()
 					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, ClientIP(r), remember, now) {
+						if legacy {
+							// moved over once; from now on it comes back
+							// under the host-prefixed name
+							setSessionCookie(w, r, c.Value, remember, exp)
+						}
 						if u.Upgrade != "" && !upgradeAllows(u.Upgrade, r) {
 							w.Header().Set("Content-Type", "application/json")
 							w.WriteHeader(http.StatusForbidden)
