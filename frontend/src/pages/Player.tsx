@@ -1252,6 +1252,11 @@ function PlayerView({
             // and desktop Firefox one for picture in picture; ours is in the dock
             // (it lifts this for the moment it asks, see togglePip)
             {...{ disableRemotePlayback: true, disablePictureInPicture: NO_NATIVE_PIP }}
+            // WebKit's request to float the video by itself as the page is left
+            // (reflected as autoPictureInPicture, WebKit's
+            // HTMLVideoElement+PictureInPicture.idl); other browsers ignore it.
+            // A string: React drops `true` on an attribute it does not know.
+            {...{ autopictureinpicture: '' }}
           >
             {chaptersText && <track key={chaptersText} kind="chapters" default ref={chaptersTrack} />}
           </video>

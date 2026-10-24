@@ -133,6 +133,11 @@ describe('the native picture in picture of the browser', () => {
     expect(video.hasAttribute('disablepictureinpicture')).toBe(false)
   })
 
+  it('asks WebKit to float the video by itself (autopictureinpicture)', async () => {
+    const { video } = await mount(SAFARI_IOS)
+    expect(video.getAttribute('autopictureinpicture')).toBe('')
+  })
+
   it('stays allowed after the own window closed again', async () => {
     const { video, getByRole } = await mount(CHROME_ANDROID)
     const button = getByRole('button', { name: 'Picture in picture' })
