@@ -2862,7 +2862,7 @@
                         "type": "string"
                     },
                     "replace": {
-                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
+                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace). Sent\nwhen false too: the upgrade card reads a missing value as true.",
                         "type": "boolean"
                     },
                     "separator": {
@@ -2884,7 +2884,8 @@
                 },
                 "required": [
                     "localPath",
-                    "subfolder"
+                    "subfolder",
+                    "replace"
                 ],
                 "type": "object"
             },

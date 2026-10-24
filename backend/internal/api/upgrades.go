@@ -323,6 +323,24 @@ func improvements(dims UpgradeDims, want wantedLangs, cur, top UpgradeVariant, s
 	return res, sub, dub, soft, unverified, held
 }
 
+// loses reports whether top is worse than cur on resolution or drops a dub or
+// subtitle language cur holds - what improvements never asks, since it only
+// looks for gains. A language top does not name counts as dropped: replacing
+// is the step that cannot be taken back, so doubt keeps the local copy.
+func loses(cur, top UpgradeVariant) bool {
+	if resTier(top.ResRank) < resTier(cur.ResRank) {
+		return true
+	}
+	for _, pair := range [][2][]string{{cur.Dub, top.Dub}, {cur.Sub, top.Sub}} {
+		for _, c := range pair[0] {
+			if c != undLang && !slices.Contains(pair[1], c) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // alreadyHave reports whether the library already holds, byte for byte, every
 // video file a remote copy offers - the same files under another name.
 //
@@ -574,8 +592,9 @@ type SyncPlan struct {
 	Separator string `json:"separator,omitempty"`
 	Subfolder bool   `json:"subfolder"` // false: the template controls the folder structure
 	// Replace: the copy this sync improves on is trashed once the new file is
-	// in place (upgrades only; a missing episode has nothing to replace).
-	Replace bool `json:"replace,omitempty"`
+	// in place (upgrades only; a missing episode has nothing to replace). Sent
+	// when false too: the upgrade card reads a missing value as true.
+	Replace bool `json:"replace"`
 	// Missing is why LocalPath is empty (one of the planMissing* codes), "" when
 	// the plan is usable.
 	Missing string `json:"missing,omitempty" enums:"unmapped,not_found,no_folder,no_sibling"`
@@ -776,7 +795,10 @@ func (s *Server) buildUpgrades(userID int64) []UpgradeSuggestion {
 
 			LocalSeasons: localsByShow[showScope(u.showKey, u.isMovie)],
 		}
-		up.Sync.Replace = true
+		// Replacing trashes the local copy, which is only right when the new one
+		// is at least as good everywhere: a card won on one axis can still
+		// lose another (720p for German subtitles, a dub dropped for them).
+		up.Sync.Replace = !loses(cur, top)
 		up.Why = whyUpgrade(locale, cur, top)
 		if e.media.ID != 0 {
 			m := e.media

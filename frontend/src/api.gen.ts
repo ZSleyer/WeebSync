@@ -1194,9 +1194,10 @@ export interface Schemas {
     missing?: "unmapped" | "not_found" | "no_folder" | "no_sibling"
     /**
      * Replace: the copy this sync improves on is trashed once the new file is
-     * in place (upgrades only; a missing episode has nothing to replace).
+     * in place (upgrades only; a missing episode has nothing to replace). Sent
+     * when false too: the upgrade card reads a missing value as true.
      */
-    replace?: boolean
+    replace: boolean
     /**
      * Separator replaces spaces in the rendered name; "" keeps them. Part of
      * the plan because it belongs to the template it was configured with.
