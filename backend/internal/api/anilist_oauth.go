@@ -31,15 +31,28 @@ func (s *Server) AnilistToken() string {
 	if t := os.Getenv("ANILIST_TOKEN"); t != "" {
 		return t
 	}
-	var enc []byte
-	if err := s.DB.QueryRow(`SELECT token_enc FROM anilist_accounts LIMIT 1`).Scan(&enc); err != nil {
-		return ""
-	}
-	t, err := secret.Decrypt(enc)
+	// AniList no longer honours an expired token, so those accounts are
+	// skipped; with none left the client goes anonymous. Ordered, so the shared
+	// bearer (and what lands in the shared cache) does not hop between accounts.
+	rows, err := s.DB.Query(`SELECT token_enc, expires_at FROM anilist_accounts ORDER BY user_id`)
 	if err != nil {
 		return ""
 	}
-	return t
+	defer rows.Close()
+	for rows.Next() {
+		var enc []byte
+		var expires string
+		if rows.Scan(&enc, &expires) != nil {
+			continue
+		}
+		if exp, err := time.Parse(sqliteTime, expires); err == nil && !exp.After(time.Now()) {
+			continue
+		}
+		if t, err := secret.Decrypt(enc); err == nil {
+			return t
+		}
+	}
+	return ""
 }
 
 func (s *Server) anilistClientConfig() (id, sec, redirect string) {

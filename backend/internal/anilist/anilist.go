@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -298,7 +299,25 @@ func (c *Client) store(key, payload string) {
 }
 
 func (c *Client) query(ctx context.Context, query string, variables map[string]any, out any) error {
-	return c.queryAs(ctx, c.token(), query, variables, out)
+	token := c.token()
+	err := c.queryAs(ctx, token, query, variables, out)
+	// The shared bearer only improves these lookups (rate budget, adult
+	// content); an expired or revoked one must not take them down, so repeat
+	// once without it. How AniList words the rejection is not documented where
+	// we could read it (docs.anilist.co answered 403 on 2026-10-24): a 401 or
+	// an "invalid token" message, either status.
+	if token != "" && tokenRejected(err) {
+		return c.queryAs(ctx, "", query, variables, out)
+	}
+	return err
+}
+
+func tokenRejected(err error) bool {
+	var ge *GraphQLError
+	if !errors.As(err, &ge) {
+		return false
+	}
+	return ge.Status == http.StatusUnauthorized || strings.Contains(strings.ToLower(ge.Message), "invalid token")
 }
 
 // queryAs runs a GraphQL request with an explicit bearer token (linked
