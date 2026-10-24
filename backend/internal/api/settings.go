@@ -389,17 +389,6 @@ func smtpSecurity(d *sql.DB) string {
 	return "starttls"
 }
 
-// handleSettingsGet returns the current instance settings.
-//
-// @Summary      Get settings
-// @Description  Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
-// @Tags         Settings
-// @Produce      json
-// @Success      200  {object}  settingsPayload
-// @Failure      401  {object}  ErrorResponse
-// @Failure      403  {object}  ErrorResponse
-// @Security     CookieAuth
-// @Router       /api/settings [get]
 // LibraryRoots is a Plex library and the local mounts detected for it.
 type LibraryRoots struct {
 	Title string   `json:"title"`
@@ -441,6 +430,17 @@ func plexLibraries(mapSetting string) []LibraryRoots {
 	return out
 }
 
+// handleSettingsGet returns the current instance settings.
+//
+// @Summary      Get settings
+// @Description  Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
+// @Tags         Settings
+// @Produce      json
+// @Success      200  {object}  settingsPayload
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings [get]
 func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.settingsState())
 }

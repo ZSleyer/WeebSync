@@ -1666,7 +1666,6 @@
                 "type": "object"
             },
             "api.LibraryRoots": {
-                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
                 "properties": {
                     "roots": {
                         "items": {
@@ -19675,6 +19674,50 @@
             }
         },
         "/api/settings": {
+            "get": {
+                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.settingsPayload"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Get settings",
+                "tags": [
+                    "Settings"
+                ]
+            },
             "put": {
                 "description": "Updates the instance settings (admin only). Fields left out keep their value, and only values that differ from the stored ones are checked; a refused save writes nothing. Write-only secrets: an empty string keeps the stored value, \"-\" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.",
                 "requestBody": {
