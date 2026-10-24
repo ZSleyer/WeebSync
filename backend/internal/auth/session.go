@@ -127,13 +127,18 @@ func remoteIP(r *http.Request) string {
 // single forged header was enough to pick an arbitrary rate-limit bucket or
 // to land inside a trusted network. With trustAll there is no list to skip,
 // so the rightmost entry wins - the one address our own peer recorded.
+//
+// Every X-Forwarded-For line counts, joined in order (RFC 9110 section 5.3
+// treats repeated lines as one comma-separated list): HAProxy's
+// "option forwardfor" appends its own line after the client's rather than
+// extending it, so reading only the first line would return the forged one.
 func ClientIP(r *http.Request) string {
 	remote := remoteIP(r)
 	cfg := proxyCfg.Load()
 	if cfg == nil || !cfg.trustsPeer(remote) {
 		return remote
 	}
-	parts := strings.Split(r.Header.Get("X-Forwarded-For"), ",")
+	parts := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
 	for i := len(parts) - 1; i >= 0; i-- {
 		p := strings.TrimSpace(parts[i])
 		if p == "" || cfg.proxies.Contains(p) {
