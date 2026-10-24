@@ -234,11 +234,10 @@ type LoginRefusedResponse struct {
 	PauseSeconds int    `json:"pauseSeconds,omitempty"`
 }
 
-// loginRefused answers a wrong email or password, counting the failure
-// against the account and saying what is left: the tighter of the address's
-// and the account's budget.
+// loginRefused answers a wrong email or password, saying what is left: the
+// tighter of the address's and the account's budget. The attempt was
+// counted against the account before the password was checked.
 func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request, email string) {
-	s.accountFailed(r, email)
 	out := LoginRefusedResponse{Error: "invalid credentials"}
 	if s.authLimiter != nil {
 		if n, pause, ok := s.authLimiter.left(auth.ClientIP(r)); ok {
@@ -278,7 +277,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
-	if wait := s.accountWait(r, c.Email); wait > 0 {
+	// spent before the check, so parallel guesses cannot all pass it; a
+	// successful sign-in gives the bucket back (accountSignedIn)
+	if wait := s.accountTake(r, c.Email); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
@@ -305,13 +306,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// password: otherwise the different answer to the right one would
 	// confirm a guess before an admin ever let the account in
 	if !approved {
-		ok, err := auth.VerifyPasswordContext(r.Context(), c.Password, hash)
-		if err != nil {
+		// the hash still runs, so the answer takes as long as any other
+		if _, err := auth.VerifyPasswordContext(r.Context(), c.Password, hash); err != nil {
 			hashBusy(w)
 			return
-		}
-		if !ok {
-			s.accountFailed(r, c.Email)
 		}
 		writeErr(w, http.StatusForbidden, "account awaits approval")
 		return
@@ -330,8 +328,6 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 		if ok {
 			s.reissueVerify(id, c.Email)
-		} else {
-			s.accountFailed(r, c.Email)
 		}
 		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
 		return

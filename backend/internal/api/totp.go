@@ -258,7 +258,9 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	userID, ok := s.peekLoginPending(in.Token)
+	// the attempt is spent before the code is checked, so parallel guesses
+	// cannot all pass a budget that only counted them afterwards
+	userID, ok := s.reserveLoginPending(in.Token)
 	if !ok {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
@@ -273,15 +275,13 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, strings.ToLower(email)); wait > 0 {
+	if wait := s.accountTake(r, strings.ToLower(email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	sec, ok := s.totpSecret(userID)
 	code := normalizeTotpCode(in.Code)
 	if !ok || (!s.totpValid(userID, code, sec) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
-		s.failLoginPending(in.Token)
-		s.accountFailed(r, strings.ToLower(email))
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}
