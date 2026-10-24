@@ -228,6 +228,11 @@ func New(name string, o Options) (string, error) {
 func templateName(name string, o Options) (string, error) {
 	parsed := relname.Read(name)
 	dub, sub := LangTags(name)
+	// a subtitle sidecar keeps its language/flag tags: "ger.forced.srt"
+	ext := parsed.Ext
+	if parsed.Sidecar != "" {
+		ext = parsed.Sidecar
+	}
 	vars := map[string]string{
 		"title":      parsed.Title,
 		"season":     "1", // no season marker in the name → season 1
@@ -237,7 +242,7 @@ func templateName(name string, o Options) (string, error) {
 		"resolution": parsed.Resolution,
 		"dub":        dub,
 		"sub":        sub,
-		"ext":        parsed.Ext,
+		"ext":        ext,
 	}
 	if parsed.HasSeason { // "S00E04" keeps its specials season
 		vars["season"] = strconv.Itoa(parsed.Season)
@@ -313,8 +318,12 @@ func templateName(name string, o Options) (string, error) {
 		out = strings.ReplaceAll(out, " ", o.Separator)
 	}
 	// keep the original extension unless the template already set one
-	if ext := filepath.Ext(name); ext != "" && !strings.Contains(o.Template, "{ext}") {
-		out += ext
+	if !strings.Contains(o.Template, "{ext}") {
+		if parsed.Sidecar != "" {
+			out += "." + parsed.Sidecar
+		} else if e := filepath.Ext(name); e != "" {
+			out += e
+		}
 	}
 	return sanitize(out), nil
 }
