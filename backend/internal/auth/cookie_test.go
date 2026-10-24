@@ -71,20 +71,32 @@ func TestLegacySessionCookieOnlyMigrates(t *testing.T) {
 	if _, err := d.Exec(`UPDATE users SET approved = 1`); err != nil {
 		t.Fatal(err)
 	}
-	// a session from before the prefix, made by an older version
+	// a session from before the prefix, made by an older version (a bare
+	// hex token) - stamped in the future, as a Pi without RTC may have done:
+	// the clock plays no part in what is carried over
 	oldToken := "0123456789abcdef"
-	old := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
-	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, created_at, last_seen, remember) VALUES (?, ?, '2999-01-01T00:00:00Z', ?, ?, 1)`,
-		hashToken(oldToken), victim, old, old); err != nil {
+	future := time.Now().Add(24 * time.Hour).UTC().Format(time.RFC3339)
+	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, created_at, last_seen, remember) VALUES (?, ?, '2999-01-01T00:00:00Z', ?, '', 1)`,
+		hashToken(oldToken), victim, future); err != nil {
 		t.Fatal(err)
 	}
-	// after the upgrade the attacker mints a session over plain HTTP (no
-	// mark, legacy name) to toss it into an HTTPS browser
+	// after the upgrade the attacker mints a session over plain HTTP (legacy
+	// name) to toss it into an HTTPS browser, and backdates it, as a wrong
+	// clock would: it still is no migration
 	pw := httptest.NewRecorder()
 	if err := CreateSession(d, pw, httptest.NewRequest("POST", "/api/auth/login", nil), attacker, true); err != nil {
 		t.Fatal(err)
 	}
 	plainToken := cookieNamed(pw, "weebsync_session").Value
+	if _, err := d.Exec(`UPDATE sessions SET created_at = '2000-01-01T00:00:00Z' WHERE token_hash = ?`, hashToken(plainToken)); err != nil {
+		t.Fatal(err)
+	}
+	// over plain HTTP it is an ordinary session
+	pr0 := httptest.NewRequest("GET", "/api/auth/me", nil)
+	pr0.AddCookie(&http.Cookie{Name: "weebsync_session", Value: plainToken})
+	if c, legacy := sessionCookieFrom(pr0); c == nil || legacy {
+		t.Fatalf("plain-HTTP session over plain HTTP: %v legacy=%v", c, legacy)
+	}
 	// and signs in over HTTPS too
 	aw := httptest.NewRecorder()
 	if err := CreateSession(d, aw, overTLS("POST", "/api/auth/login"), attacker, true); err != nil {
@@ -113,9 +125,9 @@ func TestLegacySessionCookieOnlyMigrates(t *testing.T) {
 	if who, w := me(&http.Cookie{Name: "weebsync_session", Value: attackerToken}); who != "" || w.Code != http.StatusUnauthorized {
 		t.Errorf("tossed legacy cookie signed in as %q (%d)", who, w.Code)
 	}
-	// a plain-HTTP session made since the cutoff is no migration either
+	// a plain-HTTP session made since the upgrade is no migration either
 	if who, w := me(&http.Cookie{Name: "weebsync_session", Value: plainToken}); who != "" || w.Code != http.StatusUnauthorized {
-		t.Errorf("post-cutoff plain-HTTP session under the legacy name signed in as %q (%d)", who, w.Code)
+		t.Errorf("post-upgrade plain-HTTP session under the legacy name signed in as %q (%d)", who, w.Code)
 	}
 	// and a token made under the prefix counts under the legacy name on no
 	// scheme, plain HTTP included
