@@ -405,7 +405,9 @@ func (s *Server) staleSuggestions() {
 	// duplicate of it. The time of the aging lets that build see it came too
 	// early (storeSuggestions). Kept outside the suggestions: prefix so the
 	// aging above never ages it.
-	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, '', datetime('now'))
+	// Millisecond precision: the callers start the answering rebuild right
+	// after this, and within the same second it must still count as after.
+	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, '', strftime('%Y-%m-%d %H:%M:%f', 'now'))
 		ON CONFLICT(key) DO UPDATE SET fetched_at = excluded.fetched_at`, suggestAgedKey)
 }
 
@@ -626,7 +628,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 // still beats the older blob, but the next read has to rebuild it, since the
 // rebuild asked for at the aging was dropped while this one ran. Checked after
 // the write, so an aging landing between the check and the write cannot slip
-// through; a start in the same second as the aging counts as after it.
+// through. A build started after the aging (the rebuild it asked for) is its
+// answer and stays fresh.
 func (s *Server) storeSuggestions(ctx context.Context, userID int64, start time.Time, resp SuggestionsResponse) {
 	key := fmt.Sprintf("suggestions:%d", userID)
 	if ctx.Err() != nil {
@@ -638,8 +641,8 @@ func (s *Server) storeSuggestions(ctx context.Context, userID int64, start time.
 	}
 	s.cacheSet(key, string(b))
 	var aged int
-	err = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ? AND fetched_at >= ?`,
-		suggestAgedKey, start.UTC().Format(sqliteTime)).Scan(&aged)
+	err = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ? AND fetched_at > ?`,
+		suggestAgedKey, start.UTC().Format("2006-01-02 15:04:05.000")).Scan(&aged)
 	if err != nil || aged > 0 {
 		// unreadable counts as aged: a rebuild too many beats a stale page
 		_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, suggestStaleAt, key)

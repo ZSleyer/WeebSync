@@ -37,6 +37,15 @@ func TestSuggestionsInvalidatedDuringABuildStayStale(t *testing.T) {
 	if at := fetchedAt(); at == suggestStaleAt {
 		t.Error("a build that started after the invalidation was stored stale")
 	}
+
+	// what the callers do: age, then start the rebuild right away - usually
+	// within the same second. That build is the answer to the aging, and
+	// storing it stale would make the next read pay a second full build.
+	s.staleSuggestions()
+	s.storeSuggestions(context.Background(), 1, time.Now(), SuggestionsResponse{BuiltAt: 3})
+	if at := fetchedAt(); at == suggestStaleAt {
+		t.Error("the rebuild started by the aging was stored stale")
+	}
 }
 
 // A build cut short - the time budget ran out, or the job was stopped - has
