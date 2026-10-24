@@ -1,8 +1,9 @@
-import { act, renderHook, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { useSettingsForm } from '../pages/settings/useSettingsForm'
+import Downloads from '../pages/settings/Downloads'
 import { api } from '../api'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
@@ -60,5 +61,34 @@ describe('useSettingsForm edits', () => {
     await waitFor(() => expect(hook.result.current.save.isSuccess).toBe(true))
     expect(hook.result.current.form?.baseUrl).toBe('typed')
     expect(hook.result.current.dirty).toBe(true)
+  })
+
+  it('drops a field error once that field is edited', async () => {
+    const { hook } = setup()
+    vi.spyOn(api, 'put').mockRejectedValue(new Error('maxConcurrent: must be 1-20'))
+    await waitFor(() => expect(hook.result.current.form).toBeTruthy())
+    act(() => hook.result.current.set('maxConcurrent', 0))
+    act(() => hook.result.current.save.mutate(hook.result.current.form!))
+    await waitFor(() => expect(hook.result.current.issue('maxConcurrent')).toBe('must be 1-20'))
+    act(() => hook.result.current.set('maxConcurrent', 5))
+    expect(hook.result.current.issue('maxConcurrent')).toBeUndefined()
+    expect(hook.result.current.save.error).toBeNull()
+  })
+})
+
+describe('Downloads field error', () => {
+  it('marks the field invalid when the save is refused', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...base })
+    vi.spyOn(api, 'put').mockRejectedValue(new Error('maxConcurrent: must be 1-20'))
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={qc}>
+        <Downloads />
+      </QueryClientProvider>,
+    )
+    const input = (await screen.findAllByRole('spinbutton'))[0]
+    fireEvent.change(input, { target: { value: '0' } })
+    fireEvent.click(screen.getByText('settings.save'))
+    await waitFor(() => expect(input.getAttribute('aria-invalid')).toBe('true'))
   })
 })

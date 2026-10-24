@@ -176,6 +176,8 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
   const clearSecret = (k: keyof SettingsState) => clear.mutate(k)
 
   const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => {
+    // a refusal of this field is stale once it is edited
+    if (save.error?.message.startsWith(`${k}:`)) save.reset()
     setEdits((e) => ({ ...e, [k]: v }))
   }
 
