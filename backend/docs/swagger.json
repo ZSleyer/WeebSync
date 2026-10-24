@@ -2816,6 +2816,13 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "trendingError": {
+                        "description": "TrendingError: \"unavailable\" when the TMDB trending list could not be\nread at the build",
+                        "enum": [
+                            "unavailable"
+                        ],
+                        "type": "string"
+                    },
                     "upgrades": {
                         "items": {
                             "$ref": "#/components/schemas/api.UpgradeSuggestion"
@@ -2829,6 +2836,14 @@
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "watchlistError": {
+                        "description": "WatchlistError: the TMDB watchlist at the build, \"unauthorized\" when\nTMDB no longer accepts the linked session (link again), \"unavailable\"\nwhen it could not be read",
+                        "enum": [
+                            "unauthorized",
+                            "unavailable"
+                        ],
+                        "type": "string"
                     }
                 },
                 "required": [

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // ProviderLinks are the per-integration title pages for a suggestion.
@@ -73,6 +75,13 @@ type SuggestionsResponse struct {
 	// BuiltAt is when the lists were assembled (unix seconds), so the page
 	// can say how current they are; 0 when not known (no blob yet).
 	BuiltAt int64 `json:"builtAt"`
+	// WatchlistError: the TMDB watchlist at the build, "unauthorized" when
+	// TMDB no longer accepts the linked session (link again), "unavailable"
+	// when it could not be read
+	WatchlistError string `json:"watchlistError,omitempty" enums:"unauthorized,unavailable"`
+	// TrendingError: "unavailable" when the TMDB trending list could not be
+	// read at the build
+	TrendingError string `json:"trendingError,omitempty" enums:"unavailable"`
 }
 
 type providerRef struct {
@@ -582,15 +591,21 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		}
 		tr.add(s.buildItem(a.Media, "anilist", a.Candidates, a.PlexFolder, bySrc, bySeries, ""))
 	}
+	// the TMDB failures go into the blob, so the page can say why a list
+	// is empty (the same codes /api/tmdb/suggestions reports)
+	var tmdbWatchlistErr, tmdbTrendingErr string
 	if s.Tmdb.Enabled() {
 		for _, kind := range []string{"tv", "movie"} {
-			if list, err := s.Tmdb.Trending(ctx, kind); err == nil {
-				for _, t := range s.tmdbSuggestList(userID, kind, list, true) {
-					if owned(t.Media, t.Source) {
-						continue
-					}
-					tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
+			list, err := s.Tmdb.Trending(ctx, kind)
+			if err != nil {
+				tmdbTrendingErr = "unavailable"
+				continue
+			}
+			for _, t := range s.tmdbSuggestList(userID, kind, list, true) {
+				if owned(t.Media, t.Source) {
+					continue
 				}
+				tr.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
 			}
 		}
 	}
@@ -601,7 +616,11 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	wl.locale = locale
 	s.addAnilistWatchlist(userID, wl, bySrc, bySeries)
 	if s.Tmdb.Enabled() {
-		if accountID, session, err := s.tmdbAccount(userID); err == nil {
+		accountID, session, err := s.tmdbAccount(userID)
+		if err != nil && !errors.Is(err, errNoTmdbAccount) {
+			tmdbWatchlistErr = "unavailable"
+		}
+		if err == nil {
 			for _, kind := range []string{"tv", "movie"} {
 				ck := fmt.Sprintf("tmdb:watchlist:%d:%s", accountID, kind)
 				var medias []anilist.Media
@@ -610,6 +629,10 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 				} else if medias, err = s.Tmdb.Watchlist(ctx, session, accountID, kind); err == nil {
 					payload, _ := json.Marshal(medias)
 					s.cacheSet(ck, string(payload))
+				} else if se := (*tmdb.StatusError)(nil); errors.As(err, &se) && se.Code == http.StatusUnauthorized {
+					tmdbWatchlistErr = "unauthorized" // the app authorisation was revoked
+				} else if tmdbWatchlistErr == "" {
+					tmdbWatchlistErr = "unavailable"
 				}
 				for _, t := range s.tmdbSuggestList(userID, kind, medias, false) {
 					wl.add(s.buildItem(t.Media, t.Source, t.Candidates, t.PlexFolder, bySrc, bySeries, ""))
@@ -647,6 +670,9 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Upgrades:    s.buildUpgrades(userID),
 		Duplicates:  s.addDuplicates(locale),
 		BuiltAt:     time.Now().Unix(),
+
+		WatchlistError: tmdbWatchlistErr,
+		TrendingError:  tmdbTrendingErr,
 	}
 	s.storeSuggestions(ctx, userID, start, resp)
 	// the duration is what tells whether the budget above still fits

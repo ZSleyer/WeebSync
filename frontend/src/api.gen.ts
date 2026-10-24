@@ -1173,8 +1173,19 @@ export interface Schemas {
     incomplete: Schemas['api.SugItem'][]
     recommended: Schemas['api.SugItem'][]
     trending: Schemas['api.SugItem'][]
+    /**
+     * TrendingError: "unavailable" when the TMDB trending list could not be
+     * read at the build
+     */
+    trendingError?: "unavailable"
     upgrades: Schemas['api.UpgradeSuggestion'][]
     watchlist: Schemas['api.SugItem'][]
+    /**
+     * WatchlistError: the TMDB watchlist at the build, "unauthorized" when
+     * TMDB no longer accepts the linked session (link again), "unavailable"
+     * when it could not be read
+     */
+    watchlistError?: "unauthorized" | "unavailable"
   }
   /**
    * incomplete (missing unit): where a one-off sync creates the season/movie folder
