@@ -2264,6 +2264,7 @@
     "plexWatchlistLink": "Plex-Merkliste verknüpfen",
     "plexWatchlistUnlink": "Trennen",
     "plexWatchlistLinked": "Merkliste verknüpft als {{user}}",
+    "plexWatchlistOpen": "plex.tv öffnen",
     "plexWatchlistPending": "Im plex.tv-Tab bestätigen (Code {{code}})…",
     "plexWatchlistExpired": "Der plex.tv-Code ist abgelaufen. Verknüpfe erneut für einen neuen.",
     "emailCat_suggestion": "Vorschläge",

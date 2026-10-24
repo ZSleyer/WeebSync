@@ -72,3 +72,51 @@ describe('unlinking the watchlist account', () => {
     })
   }
 })
+
+describe('plex.tv watchlist link', () => {
+  const start = (url = 'https://plex.tv/link#123') => {
+    let release!: () => void
+    vi.spyOn(api, 'post').mockImplementation(
+      () => new Promise((res) => (release = () => res({ id: 7, code: 'ABCD', url }) as never)),
+    )
+    return () => release()
+  }
+  const fakeTab = () => ({ location: { href: '' }, close: vi.fn(), opener: {} as unknown })
+
+  it('opens the tab inside the click and points it at plex.tv afterwards', async () => {
+    setup()
+    const release = start()
+    const tab = fakeTab()
+    const open = vi.spyOn(window, 'open').mockReturnValue(tab as never)
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.plexWatchlistLink' }))
+    // before the server answered: the popup is already allowed
+    expect(open).toHaveBeenCalledTimes(1)
+    release()
+    await screen.findByText(/settings.plexWatchlistPending/)
+    expect(tab.location.href).toBe('https://plex.tv/link#123')
+    expect(tab.opener).toBeNull()
+  })
+
+  it('closes the blank tab when starting fails', async () => {
+    setup()
+    const tab = fakeTab()
+    vi.spyOn(window, 'open').mockReturnValue(tab as never)
+    vi.spyOn(api, 'post').mockRejectedValue(new Error('down'))
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.plexWatchlistLink' }))
+    await waitFor(() => expect(fail).toHaveBeenCalled())
+    expect(tab.close).toHaveBeenCalled()
+  })
+
+  it('offers the link and a cancel while waiting, e.g. after a blocked popup', async () => {
+    setup()
+    const release = start()
+    vi.spyOn(window, 'open').mockReturnValue(null)
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.plexWatchlistLink' }))
+    release()
+    const link = await screen.findByRole('link', { name: 'settings.plexWatchlistOpen' })
+    expect(link).toHaveAttribute('href', 'https://plex.tv/link#123')
+    expect(link).toHaveAttribute('target', '_blank')
+    fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
+    expect(await screen.findByRole('button', { name: 'settings.plexWatchlistLink' })).toBeInTheDocument()
+  })
+})

@@ -714,15 +714,22 @@ function PlexWatchlistAccount() {
   useEffect(() => () => clearInterval(timer.current), [])
 
   const start = async () => {
+    // the tab opens inside the click, while the browser still counts it as
+    // the user's own; it gets its address once the server has answered
+    const tab = window.open('', '_blank')
     let p: PlexLinkStart
     try {
       p = await api.post<PlexLinkStart>('/api/plex/link/start')
     } catch (e) {
+      tab?.close()
       return fail(e)
     }
     setPin(p)
     setExpired(false)
-    window.open(p.url, '_blank', 'noopener')
+    if (tab) {
+      tab.opener = null
+      tab.location.href = p.url
+    }
     clearInterval(timer.current)
     // the server forgets a link request after ten minutes and answers 404
     // from then on; polling stops there instead of asking every 2 s forever
@@ -756,6 +763,10 @@ function PlexWatchlistAccount() {
     }
     qc.invalidateQueries({ queryKey: ['plex-account'] })
   }
+  const cancel = () => {
+    clearInterval(timer.current)
+    setPin(null)
+  }
 
   return (
     <div className="sf-acts">
@@ -769,7 +780,16 @@ function PlexWatchlistAccount() {
           </Button>
         </>
       ) : pin ? (
-        <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+        <>
+          <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+          {/* the way on when the browser held the tab back */}
+          <a className="t-link" href={pin.url} target="_blank" rel="noreferrer">
+            {t('settings.plexWatchlistOpen')}
+          </a>
+          <Button size="sm" onClick={cancel}>
+            {t('common.cancel')}
+          </Button>
+        </>
       ) : (
         <>
           <Button size="sm" onClick={start}>
