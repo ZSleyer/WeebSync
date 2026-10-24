@@ -134,3 +134,20 @@ func TestRelinkingAnotherAccountResetsWriteSwitches(t *testing.T) {
 		t.Fatalf("a renewed token for the same account reset the switch")
 	}
 }
+
+// SeriesModal also opens anilist:manga sources through /api/anilist/media/{id}:
+// the lookup must not filter on the anime type, or a manga id would 404.
+func TestAnilistMediaResolvesMangaIDs(t *testing.T) {
+	_, mux, c, fake, _ := linkedServer(t)
+	fake.answer = func(string, map[string]any) string {
+		return `{"data":{"Media":{"id":30013,"type":"MANGA","chapters":1000,"volumes":100,"title":{"romaji":"One Piece"}}}}`
+	}
+	rec := doReq(mux, "GET", "/api/anilist/media/30013", "", c)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"MANGA"`) {
+		t.Fatalf("manga id: %d %s", rec.Code, rec.Body)
+	}
+	q := fake.last().Query
+	if strings.Contains(q, "type: ANIME") || strings.Contains(q, "type:ANIME") {
+		t.Fatalf("the media lookup filters on anime: %s", q)
+	}
+}
