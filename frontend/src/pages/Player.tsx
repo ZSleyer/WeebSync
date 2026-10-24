@@ -209,6 +209,11 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     queryFn: () => api.get<PlayInfo>(`/api/play/info?${src}`),
     enabled: !!path,
     retry: false,
+    // the answer for a file does not age while it plays: a refocus must not
+    // refetch it (a failed or changed answer would tear the running video down)
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   })
 
   const [audio, setAudio] = useState<number | null>(null)
@@ -1043,7 +1048,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         </span>
       </>,
     )
-  const conflict = keyConflictOf(info.error)
+  const conflict = data ? undefined : keyConflictOf(info.error)
   if (conflict)
     return frame(
       <HostKeyPrompt
@@ -1054,7 +1059,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         onRejected={() => navigate(-1)}
       />,
     )
-  if (info.error || !data)
+  if (!data)
     return frame(
       <p className="t-player-step t-player-step--err" role="alert">
         {info.error?.message}
