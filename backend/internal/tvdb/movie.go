@@ -149,6 +149,12 @@ var remoteLinks = map[int]func(id string) (site, url string){
 	24: func(id string) (string, string) { return "Wikipedia", id },
 }
 
+// webURL reports whether s is an absolute http(s) URL with a host.
+func webURL(s string) bool {
+	u, err := url.Parse(s)
+	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Hostname() != ""
+}
+
 // Extras reads the cast, links and aliases of a series (movie false) or a
 // film from the full extended record, cached like the record itself.
 func (c *Client) Extras(ctx context.Context, id int, movie bool) (Extras, error) {
@@ -197,6 +203,9 @@ func (c *Client) Extras(ctx context.Context, id int, movie bool) (Extras, error)
 	for _, r := range resp.Data.RemoteIDs {
 		if f, ok := remoteLinks[r.Type]; ok && r.ID != "" {
 			site, u := f(r.ID)
+			if !webURL(u) {
+				continue // editor free text: not a link the page may open
+			}
 			x.Links = append(x.Links, anilist.ExternalLink{Site: site, URL: u, Type: "INFO"})
 		}
 	}
