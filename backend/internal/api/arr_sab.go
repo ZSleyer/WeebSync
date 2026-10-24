@@ -309,14 +309,28 @@ func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	case "pause", "resume":
 		want := sabValues(r)
+		busy := false
 		for _, j := range jobs {
 			if want[j.nzo] && j.downloadID > 0 {
 				if r.FormValue("name") == "pause" {
 					s.Transfers.Pause(j.userID, j.downloadID)
-				} else {
-					s.Transfers.Resume(j.userID, j.downloadID)
+					continue
+				}
+				// not paused (ErrNotFound) is a no-op, as before; a refused
+				// resume must not pass for one that happened
+				switch err := s.Transfers.Resume(j.userID, j.downloadID); {
+				case errors.Is(err, transfer.ErrTargetBusy):
+					busy = true
+				case err != nil && !errors.Is(err, transfer.ErrNotFound):
+					slog.Warn("sab resume failed", "nzo", logSafe(j.nzo), "err", err)
+					writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "resume failed"})
+					return
 				}
 			}
+		}
+		if busy {
+			writeJSON(w, http.StatusConflict, map[string]any{"status": false, "error": transfer.ErrTargetBusy.Error()})
+			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": true})
 		return
