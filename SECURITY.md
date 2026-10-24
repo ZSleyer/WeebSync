@@ -117,6 +117,25 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
 - OIDC uses PKCE (S256) whenever the provider announces it. After an upgrade,
   sign in once through the provider to confirm it accepts the challenge.
 
+## Supply chain
+
+Frontend dependencies are pinned through `yarn.lock`, installed with
+`--immutable`, a 7-day age gate (`npmMinimalAgeGate`) and install scripts off
+(`enableScripts: false`); CI checks that every lockfile entry resolves through
+the registry (`lockfile-lint`, a pinned devDependency).
+
+Accepted risk: Yarn Berry stores no checksum in `yarn.lock` for platform
+dependent packages (entries with `conditions:`, such as the native bindings of
+rolldown, lightningcss, Tailwind oxide and the TypeScript compiler). A swapped
+tarball for one of them is not detected; their integrity rests on TLS and on
+the immutability of published npm versions. Yarn calls this a known limitation
+(https://github.com/yarnpkg/berry/issues/6759, closed as not planned) and has
+no setting that closes it: `checksumBehavior` only compares cache entries that
+have an expected checksum, `enableHardenedMode` checks the lockfile against
+registry metadata, and `supportedArchitectures` only chooses which platforms
+get installed (https://yarnpkg.com/configuration/yarnrc, read 2026-10-24).
+Revisit when Yarn stores checksums for these entries.
+
 ## Hardening the deployment
 
 - Put it behind a reverse proxy with TLS and set `force_https`, so session
