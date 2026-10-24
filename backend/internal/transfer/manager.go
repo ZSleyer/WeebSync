@@ -350,6 +350,14 @@ func (m *Manager) startDownload(id int64) {
 				local.Close()
 			}
 			m.setStatus(id, "canceled", "", "")
+		case errors.Is(err, remote.ErrServerBusy):
+			// waited for a free connection under the server's limit and did
+			// not get one: nothing failed, so no attempt is spent. Back into
+			// the queue as it was, for the next free slot
+			m.execRetry("serverBusy", `UPDATE downloads SET status = 'queued', updated_at = datetime('now') WHERE id = ?`, id)
+			if cur, gerr := m.get(id); gerr == nil {
+				m.publish(cur)
+			}
 		default:
 			code := classifyError(err)
 			// a failure that clears up by itself (dropped connection, short

@@ -287,7 +287,7 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 		select {
 		case <-ctx.Done():
 			sp.undoWait(prio)
-			return nil, ctx.Err()
+			return nil, waitErr(ctx)
 		case <-ready:
 			sp.undoWait(prio)
 		}
@@ -385,7 +385,7 @@ func (sp *serverPool) leaseFTP(ctx context.Context, cfg remote.Config, prio Prio
 		select {
 		case <-ctx.Done():
 			sp.undoWait(prio)
-			return nil, ctx.Err()
+			return nil, waitErr(ctx)
 		case <-ready:
 			sp.undoWait(prio)
 		}
@@ -393,6 +393,16 @@ func (sp *serverPool) leaseFTP(ctx context.Context, cfg remote.Config, prio Prio
 }
 
 // ── shared helpers ──────────────────────────────────────────────────────────
+
+// waitErr is what a lease that stopped waiting for a slot returns: a wait
+// that ran out is remote.ErrServerBusy (the server was in use, nothing
+// failed), a caller that gave up gets its own ctx error.
+func waitErr(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %w", remote.ErrServerBusy, ctx.Err())
+	}
+	return ctx.Err()
+}
 
 func (sp *serverPool) undoWait(prio Prio) {
 	if prio != PriHigh {

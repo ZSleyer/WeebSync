@@ -82,6 +82,11 @@ var ErrPlainFTP = errors.New("plain FTP is not supported (credentials would be s
 // change.
 var ErrBlockedHost = errors.New("host is a blocked address")
 
+// ErrServerBusy marks a connection request that ran out of time waiting for a
+// free slot under the server's connection limit: nothing failed, the server
+// was in use.
+var ErrServerBusy = errors.New("all connections to the server are in use")
+
 // blockedError keeps netguard's text while matching ErrBlockedHost.
 type blockedError struct{ err error }
 
