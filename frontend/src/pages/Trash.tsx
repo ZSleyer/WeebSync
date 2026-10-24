@@ -44,7 +44,8 @@ export default function TrashPage() {
   const confirm = useConfirm()
   const { data: user } = useAuth()
   const admin = !!user?.isAdmin
-  const { data: entries, isPending, error } = useQuery(trashQuery)
+  // refetch on opening: the button on Files keeps the cache fresh for a minute
+  const { data: entries, isPending, error } = useQuery({ ...trashQuery, refetchOnMount: 'always' })
   const [actionError, setActionError] = useState('')
   const done = () => {
     setActionError('')
@@ -84,9 +85,17 @@ export default function TrashPage() {
       remove.mutate(e.path)
   }
   const emptyAll = async () => {
+    // the server empties everything, so the question must name what is there now
+    let fresh = entries ?? []
+    try {
+      fresh = await qc.fetchQuery({ ...trashQuery, staleTime: 0 })
+    } catch (e) {
+      return fail(e)
+    }
+    if (fresh.length === 0) return
     if (
       await confirm({
-        message: t('trash.emptyConfirm', { count: entries?.length ?? 0, size: fmtBytes(total) }),
+        message: t('trash.emptyConfirm', { count: fresh.length, size: fmtBytes(fresh.reduce((n, e) => n + e.size, 0)) }),
         confirmLabel: t('trash.empty'),
         destructive: true,
       })
