@@ -115,6 +115,8 @@ func (s *Server) webauthnFor(r *http.Request) (*webauthn.WebAuthn, error) {
 type waCeremony struct {
 	data *webauthn.SessionData
 	exp  time.Time
+	// client is the rate-limit key (limitKey) of the address it was made for
+	client string
 }
 
 // The store is fed without a login (passkey login/begin), so it is bounded:
@@ -131,9 +133,28 @@ var (
 	// ids in the order they were put; ones already taken are skipped
 	waOrder         []string
 	waMaxCeremonies = 10000
+	// live ceremonies per client: a client at its cap is refused instead of
+	// pushing everyone else's ceremonies out of a full store
+	waClients      = map[string]int{}
+	waMaxPerClient = 32
 )
 
-func waPut(data *webauthn.SessionData) string {
+// waDrop removes a stored ceremony and gives its client the turn back.
+// Caller holds waMu.
+func waDrop(id string) {
+	c, ok := waSessions[id]
+	if !ok {
+		return
+	}
+	delete(waSessions, id)
+	if waClients[c.client]--; waClients[c.client] <= 0 {
+		delete(waClients, c.client)
+	}
+}
+
+// waPut stores a ceremony for client (the limitKey of its address); false
+// when that client already holds waMaxPerClient live ones.
+func waPut(data *webauthn.SessionData, client string) (string, bool) {
 	id := randToken()
 	waMu.Lock()
 	defer waMu.Unlock()
@@ -143,8 +164,11 @@ func waPut(data *webauthn.SessionData) string {
 		if live && now.Before(c.exp) && len(waSessions) < waMaxCeremonies {
 			break
 		}
-		delete(waSessions, waOrder[0])
+		waDrop(waOrder[0])
 		waOrder = waOrder[1:]
+	}
+	if waClients[client] >= waMaxPerClient {
+		return "", false
 	}
 	// ids of taken ceremonies wait in the queue until they reach its front;
 	// should they pile up behind a live one, the queue is rebuilt (rarely)
@@ -157,16 +181,28 @@ func waPut(data *webauthn.SessionData) string {
 		}
 		waOrder = live
 	}
-	waSessions[id] = waCeremony{data: data, exp: now.Add(waTTL)}
+	waSessions[id] = waCeremony{data: data, exp: now.Add(waTTL), client: client}
+	waClients[client]++
 	waOrder = append(waOrder, id)
-	return id
+	return id, true
+}
+
+// waStartCeremony stores the ceremony for the request's client and answers with its
+// id, or 429 when that client holds too many already.
+func waStartCeremony(w http.ResponseWriter, r *http.Request, session *webauthn.SessionData, options any) {
+	id, ok := waPut(session, limitKey(auth.ClientIP(r)))
+	if !ok {
+		tooMany(w, waTTL)
+		return
+	}
+	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: id, PublicKey: options})
 }
 
 func waTake(id string) *webauthn.SessionData {
 	waMu.Lock()
 	defer waMu.Unlock()
 	c, ok := waSessions[id]
-	delete(waSessions, id)
+	waDrop(id)
 	if !ok || time.Now().After(c.exp) {
 		return nil
 	}
@@ -313,6 +349,7 @@ type WebAuthnBeginResponse struct {
 // @Failure  500 {object} ErrorResponse
 // @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
+// @Failure  429 {object} ErrorResponse
 // @Router   /api/auth/webauthn/register/begin [post]
 func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
@@ -353,7 +390,7 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: creation.Response})
+	waStartCeremony(w, r, session, creation.Response)
 }
 
 // waName is the credential's display name from the X-WA-Name header. A header
@@ -449,6 +486,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 // @Success  200 {object} WebAuthnBeginResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  429 {object} ErrorResponse
 // @Router   /api/auth/webauthn/login/begin [post]
 func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
@@ -465,7 +503,7 @@ func (s *Server) handleWebAuthnLoginBegin(w http.ResponseWriter, r *http.Request
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: assertion.Response})
+	waStartCeremony(w, r, session, assertion.Response)
 }
 
 // handleWebAuthnLoginFinish completes a passwordless passkey login.
@@ -591,6 +629,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  429 {object} ErrorResponse
 // @Router   /api/auth/webauthn/2fa/begin [post]
 func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) {
 	var in struct {
@@ -619,7 +658,7 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: assertion.Response})
+	waStartCeremony(w, r, session, assertion.Response)
 }
 
 // handleWebAuthn2FAFinish completes the security-key second factor.
