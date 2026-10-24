@@ -30,7 +30,22 @@ export default function PlexServerSignIn({
   const [done, setDone] = useState<PlexServerConnect | null>(null)
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
 
-  useEffect(() => () => clearInterval(timer.current), [])
+  // false once unmounted: a request still in flight must not start polling
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearInterval(timer.current)
+    }
+  }, [])
+
+  // back to the start buttons: the sign-in under way or the account's list is dropped
+  const reset = () => {
+    clearInterval(timer.current)
+    setPin(null)
+    setServers(null)
+  }
 
   const start = async () => {
     let p: PlexLinkStart
@@ -39,6 +54,7 @@ export default function PlexServerSignIn({
     } catch (e) {
       return fail(e)
     }
+    if (!alive.current) return
     setPin(p)
     setServers(null)
     setDone(null)
@@ -89,6 +105,9 @@ export default function PlexServerSignIn({
       <div className="space-y-2">
         <p className="text-ctl-sm">{servers.length ? t('settings.plexPickServer') : t('settings.plexNoServers')}</p>
         <div className="sf-acts">
+          <Button size="sm" disabled={!!busy} onClick={reset}>
+            {t('settings.plexOtherAccount')}
+          </Button>
           {servers.map((sv) => (
             <Button key={sv.id} size="sm" disabled={!!busy} onClick={() => connect(sv.id)}>
               {busy === sv.id ? t('settings.plexConnecting') : sv.name}
@@ -102,7 +121,16 @@ export default function PlexServerSignIn({
   return (
     <div className="sf-acts">
       {pin ? (
-        <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+        <>
+          <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+          {/* a browser that blocked the popup (it opens after the request) leaves this */}
+          <a href={pin.url} target="_blank" rel="noopener noreferrer" className="underline">
+            {t('settings.plexOpenTab')}
+          </a>
+          <Button size="sm" onClick={reset}>
+            {t('common.cancel')}
+          </Button>
+        </>
       ) : (
         <>
           <Button size="sm" onClick={start}>

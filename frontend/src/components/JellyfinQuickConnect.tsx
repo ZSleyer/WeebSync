@@ -34,7 +34,15 @@ export default function JellyfinQuickConnect({
   const [done, setDone] = useState('')
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
 
-  useEffect(() => () => clearInterval(timer.current), [])
+  // false once unmounted: a request still in flight must not start polling
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearInterval(timer.current)
+    }
+  }, [])
 
   const stop = () => {
     clearInterval(timer.current)
@@ -48,6 +56,7 @@ export default function JellyfinQuickConnect({
     } catch (e) {
       return fail(e)
     }
+    if (!alive.current) return
     setCode(s.code)
     setDone('')
     setExpired(false)
