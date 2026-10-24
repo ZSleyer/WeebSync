@@ -150,7 +150,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if needVerify {
-		go s.sendVerifyEmail(c.Email, token, s.userLocale(id))
+		s.spawn(func() { s.sendVerifyEmail(c.Email, token, s.userLocale(id)) })
 	}
 	if needVerify || !approved {
 		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: needVerify, NeedsApproval: !approved, Email: c.Email})
