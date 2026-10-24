@@ -24,7 +24,7 @@ let snoozedUntil = 0
 // value attribute in step with the typed text (React writes it), so
 // value !== defaultValue finds nothing here. Two signals do: the focus is in
 // a field that takes text, and a dirty form has armed a beforeunload guard
-// (UnsavedGuard, WatchDialog), which a probe event asks without leaving.
+// (UnsavedGuard, WatchDialog), which a probe event asks without leaving. Playing media counts too.
 export function editing(): boolean {
   const el = document.activeElement
   if (el instanceof HTMLElement) {
@@ -35,6 +35,9 @@ export function editing(): boolean {
     )
       return true
   }
+  // a reload ends playback: the player page and the mini player
+  const playing = (m: Element) => m instanceof HTMLMediaElement && !m.paused && !m.ended
+  if (Array.from(document.querySelectorAll('video, audio')).some(playing)) return true
   const probe = new Event('beforeunload', { cancelable: true })
   window.dispatchEvent(probe)
   return probe.defaultPrevented

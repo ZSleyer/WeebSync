@@ -36,4 +36,17 @@ describe('editing', () => {
     }
     expect(editing()).toBe(false)
   })
+
+  it('is true while a video or audio element is playing', () => {
+    document.body.innerHTML = '<video></video><audio></audio>'
+    expect(editing()).toBe(false)
+    for (const tag of ['video', 'audio']) {
+      const el = document.querySelector(tag)!
+      Object.defineProperty(el, 'paused', { value: false, configurable: true })
+      expect(editing()).toBe(true)
+      Object.defineProperty(el, 'ended', { value: true, configurable: true })
+      expect(editing()).toBe(false)
+      Object.defineProperty(el, 'paused', { value: true, configurable: true })
+    }
+  })
 })
