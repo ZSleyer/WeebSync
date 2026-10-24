@@ -892,11 +892,12 @@ option { background-color: var(--bg-2); color: var(--fg); }
 .bg-accent { color: var(--on-accent) !important; }
 
 /* Focus rings follow the browser's :focus-visible (WCAG 2.4.7), so keyboard,
-   voice and switch input all get one. main.tsx sets html[data-input='pointer']
-   on a pointer press, which keeps a click from leaving a ring (a clicked text
-   field matches :focus-visible), and html[data-input='keys'] on navigation
-   keys (and under forced-colors / prefers-contrast), which the box-shadow
-   rings below carry in their own selector. */
+   voice and switch input all get one. The only thing that switches them off
+   is html[data-input='pointer'], which main.tsx sets on a pointer press so a
+   click does not leave a ring (a clicked text field matches :focus-visible).
+   Custom rings (box-shadow, ::after) therefore gate on
+   :root:not([data-input='pointer']), never on a key having been pressed;
+   test/focusRing.test.ts scans every stylesheet for a rule that breaks this. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -1040,7 +1041,7 @@ input[type='checkbox']:indeterminate::after {
   background: var(--on-accent);
   transform: translate(-50%, -50%);
 }
-:root[data-input='keys'] input[type='checkbox']:focus-visible {
+:root:not([data-input='pointer']) input[type='checkbox']:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--bg),
@@ -1086,7 +1087,7 @@ input[type='radio']:checked::after {
   transform: translate(-50%, -50%);
   animation: t-tick var(--dur-1) var(--ease-out);
 }
-:root[data-input='keys'] input[type='radio']:focus-visible {
+:root:not([data-input='pointer']) input[type='radio']:focus-visible {
   outline: none;
   box-shadow:
     0 0 0 2px var(--bg),
@@ -2460,7 +2461,7 @@ button.t-select { display: flex; align-items: center; text-align: start; cursor:
    1.2:1 on the list: the same accent ring as every other focus (WCAG 1.4.11) */
 /* focus stays on the trigger and hover sets data-active too: the list
    marks data-keys once the keys moved it */
-:root[data-input='keys'] .t-listbox[data-keys] .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
+:root:not([data-input='pointer']) .t-listbox[data-keys] .t-option[data-active] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .t-option[aria-selected="true"] { color: var(--accent); }
 .t-option[aria-selected="true"] > svg { flex: none; font-size: 1.125rem; }
 .t-option[aria-disabled="true"] { opacity: 0.45; cursor: not-allowed; }
@@ -2488,9 +2489,9 @@ input[type='range']::-webkit-slider-thumb {
 }
 input[type='range']::-moz-range-thumb { width: 1.125rem; height: 1.125rem; border: 0; border-radius: 50%; background: var(--accent); }
 input[type='range']:disabled { opacity: 0.45; cursor: not-allowed; }
-input[type='range']:focus-visible { outline: none; }
-:root[data-input='keys'] input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
-:root[data-input='keys'] input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+:root:not([data-input='pointer']) input[type='range']:focus-visible { outline: none; }
+:root:not([data-input='pointer']) input[type='range']:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+:root:not([data-input='pointer']) input[type='range']:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 
 /* ── Search fields: no UA clear button or decoration; a page that wants a
    clear button draws its own ── */

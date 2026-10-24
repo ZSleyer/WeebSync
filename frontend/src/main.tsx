@@ -29,8 +29,8 @@ if (safeGet('local', 'weebsync.motion') === 'off') root.dataset.motion = 'off'
 // its ring too. Only a pointer press switches rings off (data-input=pointer),
 // so a click on a field or button stays ring-free; navigation keys - not
 // printable ones, so typing into a clicked field stays ring-free - switch
-// them back on (data-input=keys, which also carries the custom box-shadow
-// rings). Users who asked for forced colours or more contrast always get them.
+// them back on (data-input=keys). The custom rings gate on "not pointer", not
+// on keys. Users who asked for forced colours or more contrast always get them.
 const NAV_KEYS = new Set([
   'Tab',
   'ArrowUp',

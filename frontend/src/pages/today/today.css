@@ -66,8 +66,8 @@ span.td-pn { cursor: default; }
 .td-pn[data-tone="teal"] .t-art > img { filter: grayscale(1) contrast(1.1) brightness(0.55); }
 .td-pn[data-phone] { border-radius: var(--r-sheet); }
 .td-pn[data-phone] .t-art > img { object-position: var(--fx, 50%) var(--fy, 30%); }
-.td-pn:focus-visible { outline: none; }
-:root[data-input='keys'] .td-pn:focus-visible::after {
+:root:not([data-input='pointer']) .td-pn:focus-visible { outline: none; }
+:root:not([data-input='pointer']) .td-pn:focus-visible::after {
   content: "";
   position: absolute;
   inset: 0;
