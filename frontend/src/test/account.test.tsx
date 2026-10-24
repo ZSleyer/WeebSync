@@ -37,7 +37,8 @@ function setup() {
     return {} as never
   })
   vi.spyOn(api, 'post').mockImplementation(async (url: string) => {
-    if (url === '/api/auth/totp/setup') return { secret: 'SECRET', otpauthUrl: 'otpauth://totp/x?secret=SECRET' } as never
+    if (url === '/api/auth/totp/setup')
+      return { secret: 'SECRET', otpauthUrl: 'otpauth://totp/x?secret=SECRET' } as never
     totpOn = true
     return { recoveryCodes: ['aaaa-1111', 'bbbb-2222'] } as never
   })

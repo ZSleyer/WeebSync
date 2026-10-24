@@ -113,7 +113,9 @@ describe('Sonarr / Radarr copy buttons', () => {
   it('name the value they copy', async () => {
     setup()
     await screen.findByDisplayValue('k-123')
-    const names = screen.getAllByRole('button', { name: /settings.apiTokenCopy/ }).map((b) => b.getAttribute('aria-label'))
+    const names = screen
+      .getAllByRole('button', { name: /settings.apiTokenCopy/ })
+      .map((b) => b.getAttribute('aria-label'))
     expect(names).toHaveLength(5)
     expect(new Set(names).size).toBe(5)
     expect(names).toContain('settings.apiTokenCopy: settings.arrIndexerUrl')

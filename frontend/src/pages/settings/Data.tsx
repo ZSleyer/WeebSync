@@ -87,7 +87,13 @@ export default function Data() {
   const commitTtl = (patch: Partial<TtlConfig>) => setTtl.mutate({ ...ttl, ...patch })
   const ttlEdit = (key: keyof TtlConfig, id: string) => (
     <span className={NUMEDIT_GRID}>
-      <NumEdit key={refused} id={id} label={t('settings.jobs.ttlH')} value={ttl[key]} onCommit={(n) => commitTtl({ [key]: n })} />
+      <NumEdit
+        key={refused}
+        id={id}
+        label={t('settings.jobs.ttlH')}
+        value={ttl[key]}
+        onCommit={(n) => commitTtl({ [key]: n })}
+      />
     </span>
   )
   // what a provider brings besides its stores: the retention of its cache,
