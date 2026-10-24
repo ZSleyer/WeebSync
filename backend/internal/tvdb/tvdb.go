@@ -8,6 +8,7 @@ package tvdb
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -31,7 +32,15 @@ type Client struct {
 	mu      sync.Mutex
 	token   string
 	tokenAt time.Time
+
+	// a login TVDB rejected (401/403), remembered per key so a wrong key is
+	// not retried by every request
+	badKey   [sha256.Size]byte
+	badUntil time.Time
 }
+
+// loginBackoff is how long a rejected key is not tried again.
+const loginBackoff = 60 * time.Second
 
 func New(d *sql.DB) *Client {
 	base := "https://api4.thetvdb.com/v4"
@@ -68,6 +77,10 @@ func (c *Client) authToken(ctx context.Context, force bool) (string, error) {
 	if key == "" {
 		return "", fmt.Errorf("tvdb: no API key configured")
 	}
+	sum := sha256.Sum256([]byte(key))
+	if !force && sum == c.badKey && time.Now().Before(c.badUntil) {
+		return "", fmt.Errorf("tvdb: login rejected, not retrying yet")
+	}
 	body, _ := json.Marshal(map[string]string{"apikey": key})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/login", bytes.NewReader(body))
 	if err != nil {
@@ -81,6 +94,9 @@ func (c *Client) authToken(ctx context.Context, force bool) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+			c.badKey, c.badUntil = sum, time.Now().Add(loginBackoff)
+		}
 		return "", fmt.Errorf("tvdb: login HTTP %d", resp.StatusCode)
 	}
 	var out struct {
