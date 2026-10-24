@@ -177,3 +177,29 @@ describe('Today', () => {
     expect(await screen.findByText('today.needDetected:25')).toBeTruthy()
   })
 })
+
+describe('the hidden set', () => {
+  it('reads both stores', () => {
+    localStorage.setItem('weebsync.today.hidden', '["a"]')
+    sessionStorage.setItem('weebsync.today.hidden', '["b"]')
+    expect([...hiddenNeeds()].sort()).toEqual(['a', 'b'])
+  })
+
+  it('stands empty when the storage property itself throws (blocked site data)', () => {
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect(hiddenNeeds().size).toBe(0)
+  })
+
+  it('keeps one store when the other is unreadable', () => {
+    sessionStorage.setItem('weebsync.today.hidden', '["b"]')
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect([...hiddenNeeds()]).toEqual(['b'])
+  })
+})
