@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/remote/pool"
 	"github.com/nwaples/rardecode/v2"
@@ -411,11 +413,17 @@ func naturalCompare(a, b string) int {
 			a, b = a[da:], b[db:]
 			continue
 		}
-		ca, cb := strings.ToLower(a[:1]), strings.ToLower(b[:1])
-		if ca != cb {
-			return strings.Compare(ca, cb)
+		// a letter at a time, not a byte: a byte of a multi-byte letter
+		// lower-cases to U+FFFD, and all of those would be alike
+		ra, na := utf8.DecodeRuneInString(a)
+		rb, nb := utf8.DecodeRuneInString(b)
+		if ca, cb := unicode.ToLower(ra), unicode.ToLower(rb); ca != cb {
+			if ca < cb {
+				return -1
+			}
+			return 1
 		}
-		a, b = a[1:], b[1:]
+		a, b = a[na:], b[nb:]
 	}
 	return len(a) - len(b)
 }

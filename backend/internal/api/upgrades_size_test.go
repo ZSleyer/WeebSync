@@ -166,7 +166,7 @@ func TestAddMissingUnitsSkipsFilesAlreadyOnDisk(t *testing.T) {
 		VALUES (1, ?, 55, 1, 'tvdb')`, remote)
 
 	acc := newAcc()
-	s.addMissingUnits(acc)
+	s.addMissingUnits(acc, 1)
 	if got := acc.list(map[string]bool{}); len(got) != 0 {
 		t.Fatalf("season already on disk reported as incomplete: %+v", got[0])
 	}
@@ -179,7 +179,7 @@ func TestAddMissingUnitsSkipsFilesAlreadyOnDisk(t *testing.T) {
 	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source)
 		VALUES (1, ?, 55, 1, 'tvdb')`, other)
 	acc = newAcc()
-	s.addMissingUnits(acc)
+	s.addMissingUnits(acc, 1)
 	got := acc.list(map[string]bool{})
 	if len(got) != 1 || got[0].Season != 3 {
 		t.Fatalf("want the genuinely missing season 3, got %+v", got)

@@ -59,7 +59,7 @@ func TestAddMissingUnitsNeedsALocalCopyOfTheSameForm(t *testing.T) {
 		VALUES (1, '/seed/Some Film (1999)', 1080, 'tvdb:550', 0, 1)`)
 
 	acc := newAcc()
-	s.addMissingUnits(acc)
+	s.addMissingUnits(acc, 1)
 	if got := acc.list(map[string]bool{}); len(got) != 0 {
 		t.Fatalf("a film reported as a missing part of a series: %+v", got[0])
 	}
@@ -70,7 +70,7 @@ func TestAddMissingUnitsNeedsALocalCopyOfTheSameForm(t *testing.T) {
 		VALUES (1, '/seed/Some Show S02', 1080, 'tvdb:550', 2, 0)`)
 
 	acc = newAcc()
-	s.addMissingUnits(acc)
+	s.addMissingUnits(acc, 1)
 	got := acc.list(map[string]bool{})
 	if len(got) != 1 {
 		t.Fatalf("want the missing season, got %d items", len(got))

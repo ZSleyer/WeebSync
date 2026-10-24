@@ -84,14 +84,28 @@ func (s *Server) claimShow(seriesID int64, ref showRef, title string, year int) 
 
 // mergeSeries moves everything hanging on one series onto another and drops the
 // empty shell. OR IGNORE on the moves: what the target already carries stays,
-// the losing row is deleted with the series.
-func (s *Server) mergeSeries(from, into int64) {
+// the losing row is deleted with the series. A failed merge is rolled back and
+// reported, so the caller does not carry on as if from were part of into.
+// Under seriesMu like every other series mutation: linkSeries must not find
+// from in between and link a match to a series about to be dropped.
+func (s *Server) mergeSeries(from, into int64) error {
 	if from == 0 || into == 0 || from == into {
-		return
+		return nil
 	}
+	s.seriesMu.Lock()
+	defer s.seriesMu.Unlock()
+	if err := s.mergeSeriesTx(from, into); err != nil {
+		slog.Warn("series merge failed", "from", from, "into", into, "err", err)
+		return err
+	}
+	slog.Info("series merged into show", "from", from, "into", into)
+	return nil
+}
+
+func (s *Server) mergeSeriesTx(from, into int64) error {
 	tx, err := s.DB.Begin()
 	if err != nil {
-		return
+		return err
 	}
 	defer tx.Rollback()
 	for _, q := range []string{
@@ -104,7 +118,7 @@ func (s *Server) mergeSeries(from, into int64) {
 		`UPDATE OR IGNORE suggestion_dismissals SET ref_key = 'series:' || ? WHERE ref_key = 'series:' || ?`,
 	} {
 		if _, err := tx.Exec(q, into, from); err != nil {
-			return
+			return err
 		}
 	}
 	// what OR IGNORE left behind, plus the series itself. Explicit rather than
@@ -116,12 +130,10 @@ func (s *Server) mergeSeries(from, into int64) {
 		`DELETE FROM series WHERE id = ?`,
 	} {
 		if _, err := tx.Exec(q, from); err != nil {
-			return
+			return err
 		}
 	}
-	if tx.Commit() == nil {
-		slog.Info("series merged into show", "from", from, "into", into)
-	}
+	return tx.Commit()
 }
 
 // mergeShowSeries folds AniList works that are seasons of one show into a
@@ -179,7 +191,9 @@ func (s *Server) mergeShowSeries(budget int) {
 			continue // retried on the next sweep
 		}
 		if owner != 0 && owner != seriesID {
-			s.mergeSeries(seriesID, owner)
+			if s.mergeSeries(seriesID, owner) != nil {
+				continue // still its own series; the next sweep tries again
+			}
 			seriesID = owner
 			merged++
 		}

@@ -57,10 +57,15 @@ func (s *Server) mkvFontsFor(ctx context.Context, src playSource, size int64) *m
 	h.mu.Lock()
 	mf, ok := h.all[src]
 	h.mu.Unlock()
-	if ok && (size < 0 || mf.size == size) {
+	if ok && mf != nil && (size < 0 || mf.size == size) {
 		return mf
 	}
 	mf = s.readMKVFonts(ctx, src)
+	if mf == nil {
+		// a failed read (a dropped connection, a cancelled request) is not
+		// the file's answer: the next call tries again
+		return nil
+	}
 	h.mu.Lock()
 	if h.all == nil || len(h.all) >= 256 {
 		h.all = map[playSource]*mkvFonts{}

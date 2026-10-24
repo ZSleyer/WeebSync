@@ -6,6 +6,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -133,10 +134,28 @@ func (s *Server) handleArrKeyDelete(w http.ResponseWriter, r *http.Request) {
 
 // isArrJob reports whether a download carries a grab from Sonarr/Radarr.
 func (s *Server) isArrJob(downloadID int64) bool {
-	var n int
-	// a failed count reads as "not an arr job": the download is left alone
-	_ = s.DB.QueryRow(`SELECT COUNT(*) FROM arr_jobs WHERE download_id = ?`, downloadID).Scan(&n)
-	return n > 0
+	// a failed read counts as "not an arr job": the download is left alone
+	rows, err := s.DB.Query(`SELECT j.job_dir, d.local_path FROM arr_jobs j JOIN downloads d ON d.id = j.download_id
+		WHERE j.download_id = ?`, downloadID)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var dir, lp string
+		if rows.Scan(&dir, &lp) == nil && arrJobOwns(dir, lp) {
+			return true
+		}
+	}
+	_ = rows.Err() // a cut-off read counts as "not an arr job" too
+	return false
+}
+
+// arrJobOwns reports whether a download row is the one a job started: its
+// file sits in the job's folder. SQLite reuses the id of a deleted download
+// (https://www.sqlite.org/autoinc.html), so the number alone does not say so.
+func arrJobOwns(jobDir, localPath string) bool {
+	return localPath != "" && filepath.Dir(localPath) == filepath.Clean(jobDir)
 }
 
 // arrRootConfig parses arr_roots like plex_roots: "appPath => localPath" lines

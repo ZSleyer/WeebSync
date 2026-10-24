@@ -244,7 +244,7 @@ func (s *Server) reissueVerify(userID int64, email string) {
 	if n, _ := res.RowsAffected(); n == 1 {
 		var locale string
 		_ = s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale) // empty = default language
-		go s.sendVerifyEmail(email, token, locale)
+		s.spawn(func() { s.sendVerifyEmail(email, token, locale) })
 	}
 }
 
@@ -376,11 +376,11 @@ func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody str
 	if err != nil || verified == 0 || email == "" || !slices.Contains(splitPrefs(prefs), category) {
 		return
 	}
-	go func() {
+	s.spawn(func() {
 		if err := s.Mail.Send(email, "WeebSync – "+subject, body, htmlBody); err != nil {
 			slog.Warn("notify email", "to", email, "err", err)
 		}
-	}()
+	})
 }
 
 // digestQuiet: how long nothing new may arrive before the collected downloads
@@ -600,8 +600,8 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 		slog.Warn("admin notify email: read recipients", "err", err)
 		return // a partial list would silently skip admins
 	}
-	for _, to := range recipients {
-		go func(rc recipient) {
+	for _, rc := range recipients {
+		s.spawn(func() {
 			if rc.locale != "de" {
 				rc.locale = "en"
 			}
@@ -611,7 +611,7 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 			if err := s.Mail.Send(rc.email, "WeebSync – "+subject, body, htmlBody); err != nil {
 				slog.Warn("admin notify email", "to", rc.email, "err", err)
 			}
-		}(to)
+		})
 	}
 }
 
@@ -761,7 +761,7 @@ func (s *Server) mailApproved(userID int64) {
 	if s.DB.QueryRow(`SELECT email, locale FROM users WHERE id = ?`, userID).Scan(&to, &locale) != nil {
 		return
 	}
-	go func() {
+	s.spawn(func() {
 		subject := tr(locale, "email.approvedSubject")
 		body := tr(locale, "email.approvedBody")
 		if base := s.baseURL(); base != "" {
@@ -770,5 +770,5 @@ func (s *Server) mailApproved(userID int64) {
 		if err := s.Mail.Send(to, "WeebSync – "+subject, body, emailHTML(locale, body, subject, emailLines([]string{body}), "", "")); err != nil {
 			slog.Warn("approval mail", "err", err)
 		}
-	}()
+	})
 }

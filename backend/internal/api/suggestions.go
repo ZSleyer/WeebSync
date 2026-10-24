@@ -398,9 +398,37 @@ func categorize(providers []string, m anilist.Media, source, kind string) string
 // page empty for as long as the rebuild took - minutes, when the remote copies
 // are probed - which read as "all suggestions gone".
 func (s *Server) staleSuggestions() {
-	// a failed aging only means the blobs keep their TTL
-	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'suggestions:%'`)
+	s.markSuggestionsAged()
+	s.ageSuggestionBlobs()
 }
+
+// markSuggestionsAged records when the blobs were aged. A build already
+// running read its inputs before this and would store its result as fresh,
+// while the rebuild asked for now is dropped as a duplicate of it; the mark
+// lets that build see it came too early (storeSuggestions). Written BEFORE the
+// blobs are aged: a build storing in between then already sees the mark, and
+// one that stored before it is aged by the update that follows. Millisecond
+// precision, because the callers start the answering rebuild right after and
+// within the same second it must still count as after. Kept outside the
+// suggestions: prefix so the aging never ages it.
+func (s *Server) markSuggestionsAged() {
+	// a mark that did not land only lets a running build pass as fresh
+	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, '', strftime('%Y-%m-%d %H:%M:%f', 'now'))
+		ON CONFLICT(key) DO UPDATE SET fetched_at = excluded.fetched_at`, suggestAgedKey)
+}
+
+// ageSuggestionBlobs sets every blob past its lifetime.
+func (s *Server) ageSuggestionBlobs() {
+	// a failed aging only means the blobs keep their TTL
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key LIKE 'suggestions:%'`, suggestStaleAt)
+}
+
+// suggestStaleAt is the fetched_at an aged blob carries: served, rebuilt
+// behind the read. suggestAgedKey holds when the blobs were last aged.
+const (
+	suggestStaleAt = "2000-01-01 00:00:00"
+	suggestAgedKey = "suggestions-aged"
+)
 
 func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
@@ -578,8 +606,8 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 	inc.locale = locale
 	inc.defaults = s.watchDefaultsFor(userID)
 	inc.notes = s.planNotesFor(userID)
-	s.addMissingUnits(inc)
-	s.addMissingEpisodes(inc)
+	s.addMissingUnits(inc, userID)
+	s.addMissingEpisodes(inc, userID)
 	s.addIncomplete(userID, inc, bySrc, bySeries)
 
 	// ── Recommended: what AniList's community suggests next to the titles
@@ -598,14 +626,65 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Duplicates:  s.addDuplicates(locale),
 		BuiltAt:     time.Now().Unix(),
 	}
-	if b, err := json.Marshal(resp); err == nil {
-		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
-	}
+	s.storeSuggestions(ctx, userID, start, resp)
 	// the duration is what tells whether the budget above still fits
 	slog.Info("suggestions built", "user", userID, "took", time.Since(start).Round(time.Second),
 		"watchlist", len(resp.Watchlist), "recommended", len(resp.Recommended), "trending", len(resp.Trending),
 		"incomplete", len(resp.Incomplete), "upgrades", len(resp.Upgrades), "duplicates", len(resp.Duplicates),
 		"timedOut", ctx.Err() != nil)
+	return resp
+}
+
+// storeSuggestions writes a finished build as the user's blob. A build the
+// suggestions were aged during (staleSuggestions) is stored aged as well: it
+// still beats the older blob, but the next read has to rebuild it, since the
+// rebuild asked for at the aging was dropped while this one ran. Checked after
+// the write, and staleSuggestions marks before it ages: whichever way a store
+// and an aging interleave, either this check sees the mark or the aging's
+// update reaches the stored blob. A build started after the mark (the rebuild
+// the aging asked for) is its answer and stays fresh.
+func (s *Server) storeSuggestions(ctx context.Context, userID int64, start time.Time, resp SuggestionsResponse) {
+	key := fmt.Sprintf("suggestions:%d", userID)
+	if ctx.Err() != nil {
+		resp = s.keepProviderBuckets(key, resp)
+	}
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return
+	}
+	s.cacheSet(key, string(b))
+	var aged int
+	err = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ? AND fetched_at > ?`,
+		suggestAgedKey, start.UTC().Format("2006-01-02 15:04:05.000")).Scan(&aged)
+	if err != nil || aged > 0 {
+		// unreadable counts as aged: a rebuild too many beats a stale page
+		_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, suggestStaleAt, key)
+	}
+}
+
+// keepProviderBuckets is for a build cut short - its time budget ran out, or
+// the job was stopped. The buckets that ask a provider (trending, watchlist,
+// recommended) are then empty because the calls failed, not because there is
+// nothing to show, and the previous blob's lists stand in for them. The
+// library buckets are computed without the context and are current.
+func (s *Server) keepProviderBuckets(key string, resp SuggestionsResponse) SuggestionsResponse {
+	var payload string
+	// no previous blob (or an unreadable one): the partial build is all there is
+	_ = s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload)
+	var old SuggestionsResponse
+	if payload == "" || json.Unmarshal([]byte(payload), &old) != nil {
+		return resp
+	}
+	keep := func(cur, prev []SugItem) []SugItem {
+		if len(cur) == 0 {
+			return prev
+		}
+		return cur
+	}
+	resp.Trending = keep(resp.Trending, old.Trending)
+	resp.Watchlist = keep(resp.Watchlist, old.Watchlist)
+	resp.Recommended = keep(resp.Recommended, old.Recommended)
+	slog.Warn("suggestions build cut short, provider lists kept from the last build", "key", key)
 	return resp
 }
 

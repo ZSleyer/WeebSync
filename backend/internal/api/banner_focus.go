@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/jpeg" // AniList banners are JPEGs
@@ -36,9 +37,12 @@ const (
 	focusSkinGate = 0.3
 	focusMaxBytes = 8 << 20
 	focusMaxSide  = 8000
-	// a picture behind a URL never changes; a failed read is retried after
-	// this long
+	// a picture behind a URL never changes: one we cannot use (gone, too big,
+	// not a picture) is not read again for this long
 	focusFailAge = 24 * time.Hour
+	// a read that failed for a passing reason (network, shutdown, 5xx, rate
+	// limit) is retried soon
+	focusRetryAge = time.Minute
 )
 
 // bannerFocus is where a banner's detail lies, per column and per row,
@@ -167,17 +171,34 @@ func (s *Server) cachedFocus(u string) *bannerFocus {
 	if raw, ok := s.cacheGet(focusKey(u)+":fail", focusFailAge); ok && raw != "" {
 		return nil
 	}
+	if raw, ok := s.cacheGet(focusKey(u)+":retry", focusRetryAge); ok && raw != "" {
+		return nil
+	}
 	s.runJobFor("focus:"+u, time.Minute, func(ctx context.Context) {
 		f, err := fetchFocus(ctx, u)
-		if err != nil {
-			slog.Debug("banner focus", "url", u, "err", err)
-			s.cacheSet(focusKey(u)+":fail", "1")
-			return
-		}
-		raw, _ := json.Marshal(f)
-		s.cacheSet(focusKey(u), string(raw))
+		s.recordFocus(u, f, err)
 	})
 	return nil
+}
+
+// errFocusUnusable marks a banner that will never yield a map, as opposed to a
+// read that failed for a passing reason.
+var errFocusUnusable = errors.New("banner unusable")
+
+// recordFocus stores the outcome of one read: the map, a day-long failure for
+// an unusable picture, a short pause for anything transient.
+func (s *Server) recordFocus(u string, f bannerFocus, err error) {
+	switch {
+	case err == nil:
+		raw, _ := json.Marshal(f)
+		s.cacheSet(focusKey(u), string(raw))
+	case errors.Is(err, errFocusUnusable):
+		slog.Debug("banner focus", "url", u, "err", err)
+		s.cacheSet(focusKey(u)+":fail", "1")
+	default:
+		slog.Debug("banner focus", "url", u, "err", err)
+		s.cacheSet(focusKey(u)+":retry", "1")
+	}
 }
 
 func anilistImage(u string) bool {
@@ -191,7 +212,7 @@ func anilistImage(u string) bool {
 func fetchFocus(ctx context.Context, u string) (bannerFocus, error) {
 	target, ok := imageOrigin(u, true)
 	if !ok {
-		return bannerFocus{}, fmt.Errorf("not an AniList image")
+		return bannerFocus{}, fmt.Errorf("not an AniList image: %w", errFocusUnusable)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
@@ -203,22 +224,26 @@ func fetchFocus(ctx context.Context, u string) (bannerFocus, error) {
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return bannerFocus{}, fmt.Errorf("status %d", res.StatusCode)
+		err := fmt.Errorf("status %d", res.StatusCode)
+		if res.StatusCode == http.StatusNotFound || res.StatusCode == http.StatusGone {
+			err = fmt.Errorf("%w: %w", err, errFocusUnusable)
+		}
+		return bannerFocus{}, err
 	}
 	raw, err := io.ReadAll(io.LimitReader(res.Body, focusMaxBytes+1))
 	if err != nil {
 		return bannerFocus{}, err
 	}
 	if len(raw) > focusMaxBytes {
-		return bannerFocus{}, fmt.Errorf("too large")
+		return bannerFocus{}, fmt.Errorf("too large: %w", errFocusUnusable)
 	}
 	cfg, _, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil || cfg.Width > focusMaxSide || cfg.Height > focusMaxSide || cfg.Width == 0 || cfg.Height == 0 {
-		return bannerFocus{}, fmt.Errorf("not a picture we read")
+		return bannerFocus{}, fmt.Errorf("not a picture we read: %w", errFocusUnusable)
 	}
 	img, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
-		return bannerFocus{}, err
+		return bannerFocus{}, fmt.Errorf("%w: %w", err, errFocusUnusable)
 	}
 	return focusProfile(img), nil
 }

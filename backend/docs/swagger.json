@@ -2862,7 +2862,7 @@
                         "type": "string"
                     },
                     "replace": {
-                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
+                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace). Sent\nwhen false too: the upgrade card reads a missing value as true.",
                         "type": "boolean"
                     },
                     "separator": {
@@ -2884,7 +2884,8 @@
                 },
                 "required": [
                     "localPath",
-                    "subfolder"
+                    "subfolder",
+                    "replace"
                 ],
                 "type": "object"
             },
@@ -7739,12 +7740,20 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "trendingError": {
+                        "description": "TrendingError: \"unavailable\" when the trending list could not be read",
+                        "type": "string"
+                    },
                     "watchlist": {
                         "items": {
                             "$ref": "#/components/schemas/api.tmdbSuggestion"
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "watchlistError": {
+                        "description": "WatchlistError: \"unauthorized\" when TMDB no longer accepts the linked\nsession (link again), \"unavailable\" when the list could not be read",
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -9696,6 +9705,16 @@
                             }
                         },
                         "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
                     }
                 },
                 "security": [
@@ -13844,7 +13863,7 @@
                         }
                     },
                     {
-                        "description": "display name for the credential",
+                        "description": "display name for the credential, percent-encoded (UTF-8)",
                         "in": "header",
                         "name": "X-WA-Name",
                         "schema": {
@@ -16107,6 +16126,16 @@
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
                     }
                 },
                 "security": [
@@ -21254,7 +21283,7 @@
         },
         "/api/upgrades": {
             "get": {
-                "description": "Better-quality copies (resolution / more sub or dub) of series already present.",
+                "description": "Better-quality copies (resolution / more sub or dub) of series already present, from the cached suggestions; empty until the first build has finished.",
                 "responses": {
                     "200": {
                         "content": {

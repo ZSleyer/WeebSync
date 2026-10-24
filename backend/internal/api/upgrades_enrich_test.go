@@ -28,7 +28,7 @@ func TestShowKeyCanonPrefersProviderKeys(t *testing.T) {
 	if canon["fold:show"] != "tvdb:99" || canon["tmdb:5"] != "tvdb:99" || canon["tvdb:99"] != "" {
 		t.Fatalf("canon: %v", canon)
 	}
-	units := s.loadUnits()
+	units := s.loadUnits(1)
 	if len(units.order) != 1 || units.order[0] != "unit:tvdb:99:1" {
 		t.Fatalf("units: %v", units.order)
 	}

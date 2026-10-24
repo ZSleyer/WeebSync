@@ -217,7 +217,8 @@ func CreateSessionOIDC(d *sql.DB, w http.ResponseWriter, r *http.Request, userID
 	// capped, it is shown and nothing else
 	ua := r.UserAgent()
 	if len(ua) > 300 {
-		ua = ua[:300]
+		// a cut through a multi-byte character would leave invalid UTF-8
+		ua = strings.ToValidUTF8(ua[:300], "")
 	}
 	stamp := now.UTC().Format(time.RFC3339)
 	if _, err := d.Exec(`INSERT INTO sessions (token_hash, user_id, expires_at, oidc_sid, oidc_sub, created_at, user_agent, last_seen, remember, ip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

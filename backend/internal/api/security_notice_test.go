@@ -2,9 +2,11 @@ package api
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/mailer"
@@ -56,5 +58,33 @@ func TestSecurityNotices(t *testing.T) {
 	case m := <-got:
 		t.Errorf("notice for a refused change: %+v", m)
 	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+// The user agent in the notice is capped at 200 bytes without cutting a
+// character in half.
+func TestSecurityNoticeCapsUserAgentOnRuneBoundary(t *testing.T) {
+	_, s, _, _, _, userID := setupUsersTest(t)
+	s.Mail = mailer.New(s.DB)
+	db.SetSetting(s.DB, "smtp_host", "127.0.0.1")
+	got := make(chan string, 1)
+	s.securityMail = func(_, _, text, _ string) error {
+		got <- text
+		return nil
+	}
+	r := httptest.NewRequest("PUT", "/api/auth/password", nil)
+	// "é" is two bytes; byte 200 falls in the middle of one
+	r.Header.Set("User-Agent", strings.Repeat("a", 199)+strings.Repeat("é", 10))
+	s.securityNotice(r, userID, noticePasswordChanged)
+	select {
+	case text := <-got:
+		if !utf8.ValidString(text) {
+			t.Errorf("notice text is not valid UTF-8: %q", text)
+		}
+		if !strings.Contains(text, strings.Repeat("a", 199)) {
+			t.Errorf("notice lost the user agent: %q", text)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no security notice sent")
 	}
 }
