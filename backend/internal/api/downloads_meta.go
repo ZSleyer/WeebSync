@@ -94,7 +94,7 @@ type dlMetaRow struct {
 func (s *Server) handleDownloadsMeta(w http.ResponseWriter, r *http.Request) {
 	resp, err := s.downloadsMeta(auth.UserFrom(r.Context()).ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)

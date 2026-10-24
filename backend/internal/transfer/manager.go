@@ -1218,7 +1218,15 @@ func (m *Manager) setStatus(id int64, status, errMsg, errCode string) {
 	if d, err := m.get(id); err == nil {
 		m.publish(d)
 		if m.OnFinished != nil && (status == "done" || status == "error") {
-			go m.OnFinished(d)
+			// counted in wg so Shutdown waits for it (it moves files and
+			// writes the database). Only the worker goroutine sets these
+			// statuses, and it holds a count, so this Add never races a Wait
+			// at zero
+			m.wg.Add(1)
+			go func() {
+				defer m.wg.Done()
+				m.OnFinished(d)
+			}()
 		}
 	}
 }

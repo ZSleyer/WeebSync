@@ -98,7 +98,7 @@ func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO suggestion_dismissals (user_id, kind, ref_key, label, dismissed_at, cover, section)
 		VALUES (?, ?, ?, ?, ?, ?, ?)`, u.ID, in.Kind, in.RefKey, in.Label, time.Now().UTC().Format(time.RFC3339),
 		dismissCover(in.Cover), dismissSection(in.Section)); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -123,7 +123,7 @@ func (s *Server) handleDismissRestore(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := s.DB.Exec(`DELETE FROM suggestion_dismissals WHERE user_id = ? AND kind = ? AND ref_key = ?`,
 		u.ID, in.Kind, in.RefKey); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -143,7 +143,7 @@ func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT kind, ref_key, label, dismissed_at, cover, section FROM suggestion_dismissals
 		WHERE user_id = ? ORDER BY dismissed_at DESC`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -155,7 +155,7 @@ func (s *Server) handleDismissedList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

@@ -219,6 +219,9 @@ func client(timeout time.Duration, deny func(net.IP) bool, httpsOnly bool) *http
 		// A proxy would make DialContext validate the proxy rather than the
 		// requested destination and bypass this guard.
 		Proxy: nil,
+		// callers build a client per push or login; without a limit (zero
+		// means none) idle keep-alive connections stay until the peer closes
+		IdleConnTimeout: 30 * time.Second,
 		// system roots (plus SSL_CERT_FILE / SSL_CERT_DIR for a private CA),
 		// hostname checked, nothing older than TLS 1.2
 		TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12},

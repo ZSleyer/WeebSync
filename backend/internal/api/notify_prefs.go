@@ -33,7 +33,7 @@ func (s *Server) handleNotifyPrefsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var push, freq string
 	if err := s.DB.QueryRow(`SELECT push_prefs, notify_freq FROM users WHERE id = ?`, u.ID).Scan(&push, &freq); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	available := slices.Clone(userCategories)
@@ -91,7 +91,7 @@ func (s *Server) handleNotifyPrefsPut(w http.ResponseWriter, r *http.Request) {
 		freq = "instant"
 	}
 	if _, err := s.DB.Exec(`UPDATE users SET push_prefs = ?, notify_freq = ? WHERE id = ?`, strings.Join(clean, ","), freq, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

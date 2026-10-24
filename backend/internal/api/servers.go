@@ -114,7 +114,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, name, protocol, host, port, username, root_path, max_connections, icon, color, host_key
 		FROM servers WHERE user_id = ? ORDER BY name`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -123,7 +123,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 		var si serverInfo
 		var key string
 		if err := rows.Scan(&si.ID, &si.Name, &si.Protocol, &si.Host, &si.Port, &si.Username, &si.RootPath, &si.MaxConnections, &si.Icon, &si.Color, &key); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if key != "" {
@@ -132,7 +132,7 @@ func (s *Server) handleServersList(w http.ResponseWriter, r *http.Request) {
 		list = append(list, si)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -228,7 +228,7 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, secret_enc=?, root_path=?, max_connections=?, icon=?, color=?, host_key=''
 			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, enc, in.RootPath, in.MaxConnections, in.Icon, in.Color, id, u.ID)
 		if err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	} else {
@@ -236,7 +236,7 @@ func (s *Server) handleServerUpdate(w http.ResponseWriter, r *http.Request) {
 		res, err = s.DB.Exec(`UPDATE servers SET name=?, protocol=?, host=?, port=?, username=?, root_path=?, max_connections=?, icon=?, color=?
 			WHERE id=? AND user_id=?`, in.Name, in.Protocol, in.Host, in.Port, in.Username, in.RootPath, in.MaxConnections, in.Icon, in.Color, id, u.ID)
 		if err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
@@ -323,7 +323,7 @@ func (s *Server) handleServerMigrateFTPS(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if cfg.Protocol != "ftp" {
@@ -357,7 +357,7 @@ func (s *Server) handleServerMigrateFTPS(w http.ResponseWriter, r *http.Request)
 	}
 	if _, err := s.DB.Exec(`UPDATE servers SET protocol = 'ftps', port = ? WHERE id = ? AND user_id = ? AND protocol = 'ftp'`,
 		cfg.Port, id, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	s.Conns.Evict(id)
@@ -413,7 +413,7 @@ func (s *Server) handleServerDelete(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if !found {
@@ -541,7 +541,7 @@ func (s *Server) handleServerTrustHostKey(w http.ResponseWriter, r *http.Request
 	}
 	res, err := s.DB.Exec(`UPDATE servers SET host_key = ? WHERE id = ? AND user_id = ?`, in.Key, id, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

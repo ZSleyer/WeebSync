@@ -159,25 +159,27 @@ func main() {
 	defer stop()
 
 	api.ClearBookCache() // the reader's unpacked books: their tokens died with the last run
-	go srv.WatchLoop(rootCtx)
-	go srv.IndexLoop(rootCtx)
-	go srv.GeoipLoop(rootCtx) // session locations: opens or refreshes the DB-IP database when the setting is on
-	go func() {
+	// every loop and startup job runs through srv.Go: Shutdown waits for them
+	// before the database closes
+	srv.Go(func() { srv.WatchLoop(rootCtx) })
+	srv.Go(func() { srv.IndexLoop(rootCtx) })
+	srv.Go(func() { srv.GeoipLoop(rootCtx) }) // session locations: opens or refreshes the DB-IP database when the setting is on
+	srv.Go(func() {
 		srv.BackfillSeries()
 		srv.SettleMatchedSeries()    // once per rule set: name series after the match their folder holds
 		srv.RepairCatalog()          // once: stale rows under old marks, Plex ids dropped as leftovers
 		srv.RefreshProviderRecords() // once: TVDB/TMDB records cached with one overview, now German and English
-	}()
-	go srv.RevalidateMatches()         // once per matcher rule set: drop what the rules would not match today
-	go srv.BackfillUnits()             // one-time, self-detecting: fill show_key/season on pre-migration rows
-	go srv.ClearStaleSuggestionCache() // drop cached suggestion blobs once when their format changed
-	go func() {
+	})
+	srv.Go(srv.RevalidateMatches)         // once per matcher rule set: drop what the rules would not match today
+	srv.Go(srv.BackfillUnits)             // one-time, self-detecting: fill show_key/season on pre-migration rows
+	srv.Go(srv.ClearStaleSuggestionCache) // drop cached suggestion blobs once when their format changed
+	srv.Go(func() {
 		srv.RefreshPlexRoots()     // auto-detect Plex library mounts up front (not just on the hourly index)
 		srv.BackfillWatchMatches() // after the roots: a watch is matched in its library's source
-	}()
-	go srv.SweepLoop(rootCtx)
-	go srv.HaAttentionLoop(rootCtx) // webhook push when the needs-attention picture changes
-	go srv.LangProbeLoop(rootCtx)   // measures remote copies an upgrade is waiting on (dials, so not part of the sweep)
+	})
+	srv.Go(func() { srv.SweepLoop(rootCtx) })
+	srv.Go(func() { srv.HaAttentionLoop(rootCtx) }) // webhook push when the needs-attention picture changes
+	srv.Go(func() { srv.LangProbeLoop(rootCtx) })   // measures remote copies an upgrade is waiting on (dials, so not part of the sweep)
 	mux := http.NewServeMux()
 	srv.Register(mux)
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -220,8 +222,10 @@ func main() {
 	if err := httpSrv.Shutdown(shutCtx); err != nil {
 		httpSrv.Close()
 	}
-	srv.Shutdown(shutCtx)           // stop background jobs, wait for those that write the database
-	srv.Transfers.Shutdown(shutCtx) // requeue active downloads, wait for workers
+	// transfers first: a download finishing while they stop still fires
+	// OnFinished, and that work (trash moves, notices) is the server's to wait for
+	srv.Transfers.Shutdown(shutCtx) // requeue active downloads, wait for workers and OnFinished
+	srv.Shutdown(shutCtx)           // stop background jobs and loops, wait for those that write the database
 	srv.Conns.Close()               // tear down pooled SSH/FTP connections
 	slog.Info("shutdown complete")
 }

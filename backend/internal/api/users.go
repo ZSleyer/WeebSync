@@ -47,7 +47,7 @@ type userUpdatedResponse struct {
 func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, email, is_admin, created_at, email_verified, approved FROM users ORDER BY id`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -55,13 +55,13 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var u userInfo
 		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt, &u.EmailVerified, &u.Approved); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		users = append(users, u)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, users)
@@ -90,7 +90,7 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 	// mints a password account) is disabled.
 	mode, err := auth.AuthModeErr(s.DB)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if mode != "password" {
@@ -124,7 +124,7 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -176,7 +176,7 @@ func (s *Server) handleUserUpdate(w http.ResponseWriter, r *http.Request) {
 		AND NOT (? = 0 AND is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`,
 		body.IsAdmin, id, body.IsAdmin)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -207,7 +207,7 @@ func (s *Server) handleUserApprove(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	res, err := s.DB.Exec(`UPDATE users SET approved = 1 WHERE id = ? AND approved = 0`, id)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -247,7 +247,7 @@ func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM users WHERE id = ?
 		AND NOT (is_admin = 1 AND (SELECT COUNT(*) FROM users WHERE is_admin = 1) <= 1)`, id)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

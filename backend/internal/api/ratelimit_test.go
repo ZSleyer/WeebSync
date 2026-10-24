@@ -119,7 +119,13 @@ func TestDeviceCookieBeatsLockout(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		loginFrom(mux, "198.51.100."+strconv.Itoa(i+20), "a@example.com", "wrong-password")
 	}
-	forged := &http.Cookie{Name: deviceCookie, Value: device.Value[:len(device.Value)-2] + "00"}
+	// flip the last character to one it is not: a fixed "00" was a no-op
+	// whenever the signature already ended that way
+	last := byte('0')
+	if device.Value[len(device.Value)-1] == last {
+		last = '1'
+	}
+	forged := &http.Cookie{Name: deviceCookie, Value: device.Value[:len(device.Value)-1] + string(last)}
 	if rec := loginFrom(mux, "203.0.113.72", "a@example.com", "longenough123", forged); rec.Code != http.StatusTooManyRequests {
 		t.Errorf("a forged device cookie got through: %d", rec.Code)
 	}

@@ -195,7 +195,7 @@ func liftPasskeyHold(tx interface {
 func (s *Server) reauth(w http.ResponseWriter, r *http.Request, userID int64, password string) bool {
 	var hash, email string
 	if err := s.DB.QueryRow(`SELECT password_hash, email FROM users WHERE id = ?`, userID).Scan(&hash, &email); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return false
 	}
 	if hash == "" {
@@ -278,7 +278,7 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	}
 	user, err := s.loadWAUser(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	passwordless := r.Header.Get("X-WA-Type") != "key"
@@ -338,7 +338,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	}
 	user, err := s.loadWAUser(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	cred, err := wa.FinishRegistration(user, *session, r)
@@ -361,7 +361,11 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 	// could turn a security key (no user verification) into a passkey
 	passwordless := session.UserVerification == protocol.VerificationRequired
 	if err := s.storeCredential(u.ID, cred, name, passwordless); err != nil {
-		writeErr(w, http.StatusConflict, "credential already registered")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "credential already registered")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	if passwordless {
@@ -462,7 +466,7 @@ func (s *Server) handleWebAuthnLoginFinish(w http.ResponseWriter, r *http.Reques
 	// a security key confirms a password sign-in; on its own it is no way in
 	var passwordless int
 	if err := s.DB.QueryRow(`SELECT passwordless FROM webauthn_credentials WHERE credential_id = ?`, cred.ID).Scan(&passwordless); err != nil && !errors.Is(err, sql.ErrNoRows) {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if passwordless != 1 {
@@ -544,7 +548,7 @@ func (s *Server) handleWebAuthn2FABegin(w http.ResponseWriter, r *http.Request) 
 	}
 	user, err := s.loadWAUser(userID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	assertion, session, err := wa.BeginLogin(user)
@@ -587,7 +591,7 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 	}
 	user, err := s.loadWAUser(userID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if wait := s.accountWait(r, user.email); wait > 0 {
@@ -658,7 +662,7 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, name, passwordless, created_at, COALESCE(last_used,''), replace_due
 		FROM webauthn_credentials WHERE user_id = ? ORDER BY id`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -667,7 +671,7 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 		var c WebAuthnCredential
 		var pw, due int
 		if err := rows.Scan(&c.ID, &c.Name, &pw, &c.CreatedAt, &c.LastUsed, &due); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		c.Passwordless = pw == 1
@@ -675,7 +679,7 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 		list = append(list, c)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -716,7 +720,7 @@ func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
 		removed = n > 0
 		return liftPasskeyHold(tx, u.ID)
 	}); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if removed {

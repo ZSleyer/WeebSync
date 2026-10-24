@@ -66,7 +66,7 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rows, err := s.DB.Query(`SELECT id, title, updated_at FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT 200`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -78,7 +78,7 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -120,7 +120,7 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 	turns, _ := json.Marshal(in.Turns)
 	res, err := s.DB.Exec(`INSERT INTO ai_chats (user_id, title, turns) VALUES (?, ?, ?)`, u.ID, in.Title, string(turns))
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -155,7 +155,7 @@ func (s *Server) handleAiChatGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if json.Unmarshal([]byte(turns), &c.Turns) != nil || c.Turns == nil {
@@ -190,7 +190,7 @@ func (s *Server) handleAiChatPut(w http.ResponseWriter, r *http.Request) {
 		in.Title, string(turns), pathID(r), u.ID)
 	defer s.trimAIChats(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -215,7 +215,7 @@ func (s *Server) handleAiChatDelete(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	res, err := s.DB.Exec(`DELETE FROM ai_chats WHERE id = ? AND user_id = ?`, pathID(r), u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

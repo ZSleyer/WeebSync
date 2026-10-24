@@ -96,6 +96,7 @@ type catalogExplainResponse struct {
 //	@Success		200		{object}	catalogExplainResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/servers/{id}/catalog/explain [get]
@@ -110,7 +111,11 @@ func (s *Server) handleCatalogExplain(w http.ResponseWriter, r *http.Request) {
 	if serverID != localServerID {
 		var one int
 		if err := s.DB.QueryRow(`SELECT 1 FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&one); err != nil {
-			writeErr(w, http.StatusNotFound, "server not found")
+			if errors.Is(err, sql.ErrNoRows) {
+				writeErr(w, http.StatusNotFound, "server not found")
+				return
+			}
+			dbErr(w, err)
 			return
 		}
 	}

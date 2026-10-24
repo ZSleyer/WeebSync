@@ -42,7 +42,7 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT token_hash, created_at, expires_at, last_seen, ip, user_agent, oidc_sid != '' OR oidc_sub != ''
 		FROM sessions WHERE user_id = ? ORDER BY created_at DESC`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -52,7 +52,7 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 		var hash string
 		var it sessionInfo
 		if err := rows.Scan(&hash, &it.CreatedAt, &it.ExpiresAt, &it.LastSeen, &it.IP, &it.UserAgent, &it.OIDC); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		it.ID, it.Current = hash[:sessionIDLen], hash == cur
@@ -61,7 +61,7 @@ func (s *Server) handleSessionsList(w http.ResponseWriter, r *http.Request) {
 		out = append(out, it)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -91,7 +91,7 @@ func (s *Server) handleSessionDelete(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND substr(token_hash, 1, ?) = ? AND token_hash != ?`,
 		u.ID, sessionIDLen, id, cur)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -121,7 +121,7 @@ func (s *Server) handleSessionsEndOthers(w http.ResponseWriter, r *http.Request)
 	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`,
 		u.ID, auth.TokenHash(auth.SessionToken(r)))
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	n, _ := res.RowsAffected()

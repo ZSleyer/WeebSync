@@ -47,7 +47,7 @@ func (s *Server) handleCatalogHintDismiss(w http.ResponseWriter, r *http.Request
 	if serverID != localServerID {
 		var owned int
 		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if owned == 0 {
@@ -57,7 +57,7 @@ func (s *Server) handleCatalogHintDismiss(w http.ResponseWriter, r *http.Request
 	}
 	if _, err := s.DB.Exec(`UPDATE match_hints SET state = 'dismissed', checked_at = ? WHERE server_id = ? AND folder = ?`,
 		time.Now().Unix(), serverID, in.Folder); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

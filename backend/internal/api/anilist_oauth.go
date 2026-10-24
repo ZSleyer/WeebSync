@@ -259,13 +259,13 @@ func (s *Server) handleAnilistToken(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAnilistDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	if _, err := s.DB.Exec(`DELETE FROM anilist_accounts WHERE user_id = ?`, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the write permissions were given for this account: a later one, maybe
 	// someone else's, starts with nothing allowed again
 	if _, err := s.DB.Exec(`UPDATE users SET anilist_write_list = 0, anilist_write_social = 0 WHERE id = ?`, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

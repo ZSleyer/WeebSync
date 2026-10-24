@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -256,51 +258,60 @@ func (s *Server) WatchLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-tick.C:
-			interval := time.Duration(s.watchInterval()) * time.Minute
-			cands, err := s.watchCandidates()
-			if err != nil {
-				slog.Warn("watch loop: list watches", "err", err)
-				continue
+			s.checkDueWatches(ctx)
+		}
+	}
+}
+
+// checkDueWatches runs one pass of WatchLoop over the watches that are due.
+func (s *Server) checkDueWatches(ctx context.Context) {
+	interval := time.Duration(s.watchInterval()) * time.Minute
+	cands, err := s.watchCandidates()
+	if err != nil {
+		slog.Warn("watch loop: list watches", "err", err)
+		return
+	}
+	now := time.Now()
+	for _, c := range cands {
+		// shutdown: stop before the next watch, not after all of them
+		if ctx.Err() != nil {
+			return
+		}
+		// a check that failed is on its own short backoff: it decides
+		// alone, in both directions. Letting the interval rule also
+		// speak here would hand a failing watch its normal slot back
+		// and undo the wait.
+		if c.retryAt > 0 {
+			if now.Unix() >= c.retryAt {
+				slog.Debug("watch retry due", "id", c.id)
+				s.runWatch(ctx, c.id)
 			}
-			now := time.Now()
-			for _, c := range cands {
-				// a check that failed is on its own short backoff: it decides
-				// alone, in both directions. Letting the interval rule also
-				// speak here would hand a failing watch its normal slot back
-				// and undo the wait.
-				if c.retryAt > 0 {
-					if now.Unix() >= c.retryAt {
-						slog.Debug("watch retry due", "id", c.id)
-						s.runWatch(c.id)
-					}
-					continue
-				}
-				intervalDue := true
-				stale := true // unparseable/empty last_check counts as stale
-				if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
-					intervalDue = !t.Add(interval).After(now.UTC())
-					stale = now.UTC().Sub(t) > staleRecheck
-				}
-				media := s.watchMedia(c.serverID, c.remotePath)
-				local := c.localPath
-				if c.subfolder {
-					local = path.Join(c.localPath, path.Base(c.remotePath))
-				}
-				minEp := c.fromEpisode
-				if c.aired {
-					minEp = 0
-				}
-				have := s.countVideos(local, minEp)
-				if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, watchComplete(media, have), now) {
-					slog.Debug("watch due", "id", c.id, "stale", stale,
-						"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
-					s.runWatch(c.id)
-				} else {
-					// caught up, waiting for the next airing slot (very chatty: per
-					// watch, per minute) - TRACE only
-					logbus.Trace("watch waiting", "id", c.id, "have", have, "aired", c.aired)
-				}
-			}
+			continue
+		}
+		intervalDue := true
+		stale := true // unparseable/empty last_check counts as stale
+		if t, err := time.Parse("2006-01-02 15:04:05", c.lastCheck); err == nil {
+			intervalDue = !t.Add(interval).After(now.UTC())
+			stale = now.UTC().Sub(t) > staleRecheck
+		}
+		media := s.watchMedia(c.serverID, c.remotePath)
+		local := c.localPath
+		if c.subfolder {
+			local = path.Join(c.localPath, path.Base(c.remotePath))
+		}
+		minEp := c.fromEpisode
+		if c.aired {
+			minEp = 0
+		}
+		have := s.countVideos(local, minEp)
+		if stale || smartDue(intervalDue, media, have, watchOffset(c.template), c.fromEpisode, c.filtered, c.aired, watchComplete(media, have), now) {
+			slog.Debug("watch due", "id", c.id, "stale", stale,
+				"have", have, "fromEpisode", c.fromEpisode, "aired", c.aired, "filtered", c.filtered)
+			s.runWatch(ctx, c.id)
+		} else {
+			// caught up, waiting for the next airing slot (very chatty: per
+			// watch, per minute) - TRACE only
+			logbus.Trace("watch waiting", "id", c.id, "have", have, "aired", c.aired)
 		}
 	}
 }
@@ -442,19 +453,22 @@ func (s *Server) loadWatch(id int64) (Watch, bool) {
 	return w, err == nil
 }
 
-// runWatch checks one watch now: stamps last_check first (self-reset), then
+// runWatch checks one watch now: stamps last_check when it goes to the server (self-reset), then
 // enqueues missing/changed files through the normal transfer queue. It
 // reports what it did for a caller that waits on it; the loop ignores it.
-func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
+func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse) {
 	out.Status = "checked"
+	// canceled (shutdown, or the waiting request is gone): not started, so
+	// neither stamped nor dialed
+	if err := ctx.Err(); err != nil {
+		out.Error = err.Error()
+		return out
+	}
 	w, ok := s.loadWatch(id)
 	if !ok {
 		out.Error = "watch not found"
 		return out
 	}
-	// a missed timestamp only shows an older check time
-	_, _ = s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
-
 	nameFn, waiting := s.watchNameFnQuarantine(w, s.unsortedDir(w.UserID))
 	// files already collected must not be fetched again: Enqueue only skips
 	// what is complete at the EXPECTED target, and theirs is still empty
@@ -464,6 +478,14 @@ func (s *Server) runWatch(id int64) (out WatchCheckResponse) {
 		out.Error = err.Error()
 		return out
 	}
+	// the rename setup may have asked a provider; canceled meanwhile: no dial,
+	// and no stamp either - a check that never reached the server did not run
+	if err := ctx.Err(); err != nil {
+		out.Error = err.Error()
+		return out
+	}
+	// a missed timestamp only shows an older check time
+	_, _ = s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 	res, err := s.Transfers.EnqueueSkipping(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), s.watchOwned(w), true, !w.Subfolder, false)
 	ids, uploading, filtered, owned := res.IDs, res.Uploading, res.Filtered, res.Owned
@@ -1035,7 +1057,7 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 	serverID := pathID(r)
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -1191,7 +1213,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	list, err := s.watchesFor(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -1917,6 +1939,7 @@ func (s *Server) rejectUnwritable(w http.ResponseWriter, localPath string) bool 
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/watches [post]
 func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
@@ -1936,7 +1959,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -1962,7 +1985,11 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		u.ID, in.ServerID, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang)
 	if err != nil {
-		writeErr(w, http.StatusConflict, "watch already exists")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "watch already exists")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -1970,7 +1997,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	if in.MediaID <= 0 {
 		s.ensureWatchMatch(in.ServerID, in.RemotePath, in.LocalPath)
 	}
-	s.spawn(func() { s.runWatch(id) }) // first sync right away
+	s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) }) // first sync right away
 	writeJSON(w, http.StatusCreated, WatchCreateResponse{ID: id})
 }
 
@@ -1988,6 +2015,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 // @Failure      404  {object}  ErrorResponse
 // @Failure      409  {object}  ErrorResponse  "a duplicate watch, or the files could not be moved (moveFiles)"
 // @Failure      415  {object}  ErrorResponse
+// @Failure      500  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/watches/{id} [put]
 func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
@@ -2045,7 +2073,11 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	var oldSubfolder bool
 	if err := s.DB.QueryRow(`SELECT server_id, remote_path, local_path, plex_audio_lang, plex_sub_lang, subfolder FROM watches WHERE id = ? AND user_id = ?`, id, u.ID).
 		Scan(&serverID, &oldRemote, &oldLocal, &oldAudio, &oldSub, &oldSubfolder); err != nil {
-		writeErr(w, http.StatusNotFound, "watch not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			writeErr(w, http.StatusNotFound, "watch not found")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	// moving a folder's contents reaches into the shared library, whatever
@@ -2075,7 +2107,11 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
 		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
 	if err != nil {
-		writeErr(w, http.StatusConflict, "watch already exists")
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "watch already exists")
+			return
+		}
+		dbErr(w, err)
 		return
 	}
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)
@@ -2083,7 +2119,7 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 		s.ensureWatchMatch(serverID, in.RemotePath, in.LocalPath)
 	}
 	if in.RemotePath != oldRemote || in.LocalPath != oldLocal {
-		s.spawn(func() { s.runWatch(id) }) // paths changed: check the new folder right away
+		s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) }) // paths changed: check the new folder right away
 	}
 	// The queue only ever covers downloads that come AFTER the preference was
 	// set, so changing it used to do nothing at all to the episodes already in
@@ -2345,7 +2381,7 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	res, err := s.DB.Exec(`DELETE FROM watches WHERE id = ? AND user_id = ?`, id, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -2380,7 +2416,7 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	var owned int
 	if err := s.DB.QueryRow(q, args...).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -2390,10 +2426,10 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	// a button that turns into the progress of what it started has to know
 	// what that was: wait=1 runs the check in the request
 	if r.URL.Query().Get("wait") == "1" {
-		writeJSON(w, http.StatusOK, s.runWatch(id))
+		writeJSON(w, http.StatusOK, s.runWatch(context.WithoutCancel(r.Context()), id))
 		return
 	}
-	s.spawn(func() { s.runWatch(id) })
+	s.spawn(func() { s.runWatch(s.lifetimeCtx(), id) })
 	writeJSON(w, http.StatusAccepted, WatchCheckResponse{Status: "checking"})
 }
 

@@ -30,7 +30,7 @@ func writePasswordErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, sql.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "user not found")
 	default:
-		dbErr(w)
+		dbErr(w, err)
 	}
 }
 
@@ -58,7 +58,7 @@ func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 	}
 	var hash string
 	if err := s.DB.QueryRow(`SELECT password_hash FROM users WHERE id = ?`, u.ID).Scan(&hash); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// a password here would be a way in past the provider's group check,
@@ -162,7 +162,7 @@ func (s *Server) handlePasswordForgot(w http.ResponseWriter, r *http.Request) {
 		WHERE email = ? AND password_hash != ''
 		AND (reset_sent_at = '' OR reset_sent_at <= datetime('now', '-5 minutes'))`, resetHash(token), email)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 1 {
@@ -204,7 +204,7 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// clears the token with the old password, in one go

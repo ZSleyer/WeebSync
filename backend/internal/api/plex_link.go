@@ -118,7 +118,7 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 	}
 	if in.RatingKey == "" {
 		if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex'`, seriesID); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		slog.Info("plex link cleared", "series", seriesID, "watch", wt.ID)
@@ -156,7 +156,7 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 	res, err := s.DB.Exec(`UPDATE series_provider SET manual = 1 WHERE series_id = ? AND source = 'plex' AND media_id = ?`,
 		seriesID, rk)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -166,7 +166,7 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 	}
 	if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE series_id = ? AND source = 'plex' AND media_id != ?`,
 		seriesID, rk); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	slog.Info("plex link set by hand", "series", seriesID, "watch", wt.ID, "ratingKey", rk)

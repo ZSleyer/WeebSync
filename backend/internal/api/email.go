@@ -311,7 +311,7 @@ func (s *Server) handleVerifyEmail(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`UPDATE users SET email_verified = 1, verify_token = ''
 		WHERE verify_token = ? AND verify_token != '' AND verify_sent_at > datetime('now', '-24 hours')`, hashToken(token))
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -702,7 +702,7 @@ func (s *Server) handleEmailPrefsPut(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if _, err := s.DB.Exec(`UPDATE users SET email_prefs = ? WHERE id = ?`, strings.Join(clean, ","), u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, EmailPrefsUpdateResponse{Enabled: clean})

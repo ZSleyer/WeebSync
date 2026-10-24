@@ -148,7 +148,7 @@ func (s *Server) handleAdminJobPause(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Strings(paused)
 	if err := db.SetSetting(s.DB, "jobs_paused", strings.Join(paused, ",")); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	slog.Info("job family paused", "family", in.Family, "paused", in.Paused,

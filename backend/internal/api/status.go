@@ -258,7 +258,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.DB.Query(`SELECT id, remote_path, status, size, transferred FROM downloads
 		WHERE status IN ('queued','running','paused') ORDER BY id`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -286,7 +286,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		out.Downloads.Running = append(out.Downloads.Running, d)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	if out.Downloads.TotalBytesPerSec > 0 {
@@ -298,7 +298,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	rows, err = s.DB.Query(`SELECT id, remote_path, status, error, error_code, updated_at FROM downloads
 		WHERE status IN ('done','error') ORDER BY updated_at DESC, id DESC LIMIT 10`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -312,13 +312,13 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		out.LastFinished = append(out.LastFinished, f)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 
 	rows, err = s.DB.Query(`SELECT id, title_override, remote_path, last_check, last_result, last_queued, last_uploading FROM watches ORDER BY id`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -344,7 +344,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		out.Watches = append(out.Watches, wch)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 

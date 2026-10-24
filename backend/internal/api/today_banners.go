@@ -101,7 +101,7 @@ func (s *Server) handleTodayBanners(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	resp := todayBannersResponse{}
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM watches WHERE user_id = ?`, u.ID).Scan(&resp.Watches); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// titles as source and id, read as banners of one tier
@@ -134,7 +134,7 @@ func (s *Server) handleTodayBanners(w http.ResponseWriter, r *http.Request) {
 		JOIN catalog_matches c ON c.server_id = w.server_id AND c.folder = w.remote_path
 		WHERE w.user_id = ? AND c.media_id != 0 AND c.source IN ('anilist', 'anilist:manga')`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the caller's own servers and the local library
@@ -143,7 +143,7 @@ func (s *Server) handleTodayBanners(w http.ResponseWriter, r *http.Request) {
 		  AND (c.server_id = 0 OR c.server_id IN (SELECT id FROM servers WHERE user_id = ?))
 		ORDER BY random() LIMIT ?`, u.ID, matchBannerPool)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defaults := make([]todayBanner, 0, len(defaultBannerIDs))

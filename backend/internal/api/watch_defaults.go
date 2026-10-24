@@ -462,7 +462,7 @@ func (s *Server) handleWatchDefaultsPut(w http.ResponseWriter, r *http.Request) 
 	}
 	raw, _ := json.Marshal(clean)
 	if _, err := s.DB.Exec(`UPDATE users SET watch_defaults = ? WHERE id = ?`, string(raw), u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
