@@ -474,8 +474,11 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 	// what is complete at the EXPECTED target, and theirs is still empty
 	skip, err := s.pendingRemotePaths(w.ID)
 	if err != nil {
+		// not stamped (it never reached the server), but booked like any
+		// failed check: a result the overview shows and a backoff, or the loop
+		// would start it again on every tick while the watch looks healthy
 		slog.Warn("watch check skipped: waiting files unreadable", "watch", w.ID, "err", err)
-		out.Error = err.Error()
+		out.Error = s.recordWatchFailure(id, err)
 		return out
 	}
 	// the rename setup may have asked a provider; canceled meanwhile: no dial,
@@ -513,41 +516,51 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 	}
 	// structured result: the frontend localizes the counts; last_result only
 	// carries the error text of a failed check
-	result, queued := "", len(ids)
-	// A check that cannot reach the server yet is the common failure, and it is
-	// usually over in seconds - waiting out a full interval for the next try
-	// means the episode that just appeared sits there for half an hour. Count
-	// the consecutive failures and bring the next check forward onto a short
-	// backoff; a successful check clears both.
-	attempts, retryAt := 0, int64(0)
 	if err != nil {
-		// unreadable counts as the first failure
-		_ = s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
-		attempts++
-		retryAt = time.Now().Add(s.watchBackoff(attempts)).Unix()
-		result, queued, uploading, filtered, filteredKeys, owned = err.Error(), -1, 0, 0, nil, 0
-		slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
-	} else if queued > 0 || uploading > 0 || filtered > 0 {
+		out.Error = s.recordWatchFailure(id, err)
+		return out
+	}
+	queued := len(ids)
+	if queued > 0 || uploading > 0 || filtered > 0 {
 		slog.Info("watch checked", "id", id, "queued", queued, "uploading", uploading, "filtered", filtered, "owned", owned)
 	} else {
 		slog.Debug("watch checked", "id", id, "queued", 0, "owned", owned)
 	}
 	skips := res.Skips
-	if err != nil || skips == nil {
+	if skips == nil {
 		skips = []transfer.Skip{}
 	}
 	skipsJSON, _ := json.Marshal(skips)
-	if _, err := s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
-		last_owned = ?, check_attempts = ?, retry_at = ?, last_skips = ? WHERE id = ?`, result, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, attempts, retryAt, string(skipsJSON), id); err != nil {
-		// the check ran; only its outcome and the backoff are missing
+	// a good check clears the failure count and the backoff
+	if _, err := s.DB.Exec(`UPDATE watches SET last_result = '', last_queued = ?, last_uploading = ?, last_filtered = ?, last_filtered_eps = ?,
+		last_owned = ?, check_attempts = 0, retry_at = 0, last_skips = ? WHERE id = ?`, queued, uploading, filtered, epKeysCSV(filteredKeys), owned, string(skipsJSON), id); err != nil {
+		// the check ran; only its outcome is missing
 		slog.Warn("watch check result not saved", "id", id, "err", err)
-	}
-	if err != nil {
-		out.Error = result
-		return out
 	}
 	out.Queued, out.Uploading, out.Filtered, out.Owned = ids, uploading, filtered, owned
 	return out
+}
+
+// recordWatchFailure books a failed check and returns its error text. A check
+// that cannot reach the server yet is the common failure, and it is usually
+// over in seconds - waiting out a full interval for the next try means the
+// episode that just appeared sits there for half an hour. So the consecutive
+// failures are counted and the next check is brought forward onto a short
+// backoff; a successful check clears both. last_result carries the error,
+// last_queued -1 marks the counts as not known.
+func (s *Server) recordWatchFailure(id int64, err error) string {
+	attempts := 0
+	// unreadable counts as the first failure
+	_ = s.DB.QueryRow(`SELECT check_attempts FROM watches WHERE id = ?`, id).Scan(&attempts)
+	attempts++
+	retryAt := time.Now().Add(s.watchBackoff(attempts)).Unix()
+	slog.Warn("watch check", "id", id, "attempt", attempts, "err", err)
+	if _, dbErr := s.DB.Exec(`UPDATE watches SET last_result = ?, last_queued = -1, last_uploading = 0, last_filtered = 0, last_filtered_eps = '',
+		last_owned = 0, check_attempts = ?, retry_at = ?, last_skips = '[]' WHERE id = ?`, err.Error(), attempts, retryAt, id); dbErr != nil {
+		// the check failed either way; only its outcome and the backoff are missing
+		slog.Warn("watch check result not saved", "id", id, "err", dbErr)
+	}
+	return err.Error()
 }
 
 // watchBackoff staggers the wait before a failed check is repeated: a minute,
