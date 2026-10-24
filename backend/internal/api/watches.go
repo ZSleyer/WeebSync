@@ -464,6 +464,15 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 		out.Error = err.Error()
 		return out
 	}
+	// one check per watch at a time: two listings at once would both find a
+	// new file not queued yet and both queue it. A second check waits for the
+	// first and then sees what it queued.
+	release, err := s.holdWatch(ctx, id)
+	if err != nil {
+		out.Error = err.Error()
+		return out
+	}
+	defer release()
 	w, ok := s.loadWatch(id)
 	if !ok {
 		out.Error = "watch not found"
@@ -539,6 +548,30 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 	}
 	out.Queued, out.Uploading, out.Filtered, out.Owned = ids, uploading, filtered, owned
 	return out
+}
+
+// watchRunKey names one watch of one server: tests run several servers whose
+// watch ids overlap.
+type watchRunKey struct {
+	s  *Server
+	id int64
+}
+
+// watchRunning holds a one-slot channel per watch, taken while a check runs.
+// ponytail: the slots are never dropped; one small channel per watch.
+var watchRunning sync.Map // watchRunKey -> chan struct{}
+
+// holdWatch waits until no other check of the watch runs and takes its slot;
+// release frees it. A canceled ctx stops the wait.
+func (s *Server) holdWatch(ctx context.Context, id int64) (release func(), err error) {
+	v, _ := watchRunning.LoadOrStore(watchRunKey{s, id}, make(chan struct{}, 1))
+	slot := v.(chan struct{})
+	select {
+	case slot <- struct{}{}:
+		return func() { <-slot }, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // recordWatchFailure books a failed check and returns its error text. A check
