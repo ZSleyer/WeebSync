@@ -104,6 +104,42 @@ describe('MatchRouting', () => {
     expect(screen.getByText('settings.routing.noKey', { exact: false })).toBeTruthy()
   })
 
+  it('keeps every key press of a held arrow while the first save is in flight', async () => {
+    const state = { matchRouting: routing(), tvdbApiKeySet: true, tmdbApiKeySet: true }
+    vi.spyOn(api, 'get').mockImplementation(async () => structuredClone(state))
+    const releases: (() => void)[] = []
+    const put = vi.spyOn(api, 'put').mockImplementation(
+      (_url, body) =>
+        new Promise((res) =>
+          releases.push(() => {
+            Object.assign(state, body)
+            res({ ...state })
+          }),
+        ),
+    )
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MatchRouting />
+      </QueryClientProvider>,
+    )
+    await screen.findByText('settings.routing.list.animeSeries')
+    const grip = () => screen.getAllByLabelText(/^settings\.routing\.reorder settings\.routing\.provider\.anilist/)[0]
+    const order = () =>
+      [...screen.getByRole('region', { name: 'settings.routing.list.animeSeries' }).querySelectorAll('li')].map(
+        (r) => r.textContent,
+      )
+    fireEvent.keyDown(grip(), { key: 'ArrowDown' })
+    // the list moves at once, before the server has answered
+    await waitFor(() => expect(order()[1]).toBe('settings.routing.provider.anilist'))
+    fireEvent.keyDown(grip(), { key: 'ArrowDown' })
+    await waitFor(() => expect(order()[2]).toBe('settings.routing.provider.anilist'))
+    releases[0]()
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
+    releases[1]()
+    const last = put.mock.calls[1][1] as { matchRouting: ReturnType<typeof routing> }
+    expect(last.matchRouting.animeSeries.map((e) => e.provider)).toEqual(['tvdb', 'tmdb', 'anilist'])
+  })
+
   it('says so when nothing is left to match with', async () => {
     const state = {
       matchRouting: { ...routing(), providers: { anilist: false, tvdb: false, tmdb: false } },
