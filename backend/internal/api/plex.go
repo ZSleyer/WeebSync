@@ -918,12 +918,12 @@ func (s *Server) plexLinkFor(c plex.Server, key string) string {
 // plexWebLinkByKey resolves the deep link from what the series knows about
 // itself, falling back to the title index only when the series has no provider
 // id Plex shares.
-func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
+func (s *Server) plexWebLinkByKey(showKey string, movie bool, titles ...string) string {
 	c := s.plexClient()
 	if c == nil {
 		return s.plexWebLink(titles...)
 	}
-	if rk := s.plexRatingKeyResolve(showKey); rk != "" {
+	if rk := s.plexRatingKeyResolveKind(showKey, movie); rk != "" {
 		if l := s.plexLinkFor(c, rk); l != "" {
 			return l
 		}
@@ -941,14 +941,21 @@ func (s *Server) plexWebLinkByKey(showKey string, titles ...string) string {
 // ever invalidates it, so a wrong binding - a renumbered show, or a title match
 // that once landed on the wrong item - would otherwise stand forever.
 func (s *Server) plexRatingKeyResolve(showKey string) string {
+	return s.plexRatingKeyResolveKind(showKey, false)
+}
+
+// plexRatingKeyResolveKind is plexRatingKeyResolve for a film (movie) or a
+// series: a show_key ("tmdb:42") does not say which, and one TMDB number names
+// a series and an unrelated film alike.
+func (s *Server) plexRatingKeyResolveKind(showKey string, movie bool) string {
 	if showKey == "" {
 		return ""
 	}
-	stored, manual := s.plexRatingKeyFor(showKey)
+	stored, manual := s.plexRatingKeyForKind(showKey, movie)
 	if manual {
 		return stored // a person decided this; nothing here overrules it
 	}
-	hits := guidsForShowKey(s.plexGuidIndexNoWait(), showKey)
+	hits := guidsForShowKey(s.plexGuidIndexNoWait(), showKey, movie)
 	if len(hits) == 0 {
 		return stored // Plex unreachable: a stale address still beats none
 	}
@@ -975,6 +982,11 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 // manual reports whether that row was set by hand, which puts it beyond the
 // reach of every automatic pass.
 func (s *Server) plexRatingKeyFor(showKey string) (rk string, manual bool) {
+	return s.plexRatingKeyForKind(showKey, false)
+}
+
+// plexRatingKeyForKind is plexRatingKeyFor for a film (movie) or a series.
+func (s *Server) plexRatingKeyForKind(showKey string, movie bool) (rk string, manual bool) {
 	src, idStr, ok := strings.Cut(showKey, ":")
 	if !ok {
 		return "", false
@@ -984,7 +996,11 @@ func (s *Server) plexRatingKeyFor(showKey string) (rk string, manual bool) {
 		return "", false
 	}
 	if src == "tmdb" {
-		src = "tmdb:tv" // show_key drops the kind; tv is what a series carries
+		// show_key drops the kind; the caller knows it
+		src = "tmdb:tv"
+		if movie {
+			src = "tmdb:movie"
+		}
 	}
 	var key int
 	// a series can end up with two plex rows (library rebuilt, show split and
@@ -1001,14 +1017,14 @@ func (s *Server) plexRatingKeyFor(showKey string) (rk string, manual bool) {
 // guidRatingKey finds the ratingKey whose Plex guid carries the show_key's
 // provider id.
 func guidRatingKey(idx map[string]plexGuid, showKey string) string {
-	g, _ := guidForShowKey(idx, showKey)
+	g, _ := guidForShowKey(idx, showKey, false)
 	return g.RatingKey
 }
 
-// guidForShowKey finds the Plex show whose guid carries the show_key's provider
-// id: the first of guidsForShowKey.
-func guidForShowKey(idx map[string]plexGuid, showKey string) (plexGuid, bool) {
-	if hits := guidsForShowKey(idx, showKey); len(hits) > 0 {
+// guidForShowKey finds the Plex entry of the given kind (film or series) whose
+// guid carries the show_key's provider id: the first of guidsForShowKey.
+func guidForShowKey(idx map[string]plexGuid, showKey string, movie bool) (plexGuid, bool) {
+	if hits := guidsForShowKey(idx, showKey, movie); len(hits) > 0 {
 		return hits[0], true
 	}
 	return plexGuid{}, false
@@ -1017,16 +1033,18 @@ func guidForShowKey(idx map[string]plexGuid, showKey string) (plexGuid, bool) {
 // guidsForShowKey lists every Plex entry whose guid carries the show_key's
 // provider id, in a fixed order: one id can sit in two libraries ("Anime" and
 // "Anime 4K"), and map order would hand out a different one on every call.
-// Series come before films (a TMDB number names both), then the lowest
-// ratingKey. ponytail: linear scan, the index holds one entry per library show.
-func guidsForShowKey(idx map[string]plexGuid, showKey string) []plexGuid {
+// Only entries of the asked kind count: a show_key does not say film or series,
+// and one TMDB number names a series and an unrelated film alike. Lowest
+// ratingKey first. ponytail: linear scan, the index holds one entry per
+// library show.
+func guidsForShowKey(idx map[string]plexGuid, showKey string, movie bool) []plexGuid {
 	if showKey == "" {
 		return nil
 	}
 	var hits []plexGuid
 	seen := map[string]bool{}
 	for _, g := range idx {
-		if g.RatingKey == "" || seen[g.RatingKey] {
+		if g.RatingKey == "" || seen[g.RatingKey] || g.Movie != movie {
 			continue
 		}
 		if (g.TVDB != 0 && showKey == "tvdb:"+strconv.Itoa(g.TVDB)) ||
@@ -1037,12 +1055,6 @@ func guidsForShowKey(idx map[string]plexGuid, showKey string) []plexGuid {
 		}
 	}
 	slices.SortFunc(hits, func(a, b plexGuid) int {
-		if a.Movie != b.Movie {
-			if a.Movie {
-				return 1
-			}
-			return -1
-		}
 		ka, _ := strconv.Atoi(a.RatingKey)
 		kb, _ := strconv.Atoi(b.RatingKey)
 		if ka != kb {

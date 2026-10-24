@@ -805,8 +805,8 @@ func (s *Server) plexShowForWatch(w Watch, title string) (sh *plex.Show, ord ple
 	if c == nil {
 		return nil, plex.Ordering{}, "", false
 	}
-	if showKey, _, _ := s.folderUnit(w.ServerID, w.RemotePath); showKey != "" {
-		if rk := s.plexRatingKeyResolve(showKey); rk != "" {
+	if showKey, _, isMovie := s.folderUnit(w.ServerID, w.RemotePath); showKey != "" {
+		if rk := s.plexRatingKeyResolveKind(showKey, isMovie); rk != "" {
 			if sh, ord, ok := plexShowByKey(c, rk); ok {
 				return sh, ord, "series", true
 			}

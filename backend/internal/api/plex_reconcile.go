@@ -218,8 +218,8 @@ func (s *Server) reconcilePlex(budget int) {
 			// the folder title folds to nothing Plex knows - but the series it is
 			// matched to may already carry an id Plex publishes for its own shows.
 			// That is the same identity from the other end, and it needs no title.
-			showKey, _, _ := s.folderUnit(h.serverID, h.folder)
-			g, ok = guidForShowKey(idx, showKey)
+			showKey, _, isMovie := s.folderUnit(h.serverID, h.folder)
+			g, ok = guidForShowKey(idx, showKey, isMovie)
 		}
 		if !ok {
 			_, _ = s.DB.Exec(`INSERT OR REPLACE INTO plex_reconciled (server_id, folder, checked_at) VALUES (?, ?, datetime('now'))`, h.serverID, h.folder) // a lost marker only means one more retry next sweep

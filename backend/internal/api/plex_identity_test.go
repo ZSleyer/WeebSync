@@ -80,7 +80,7 @@ func TestGuidForShowKey(t *testing.T) {
 		{"fold:yominotsugai", ""},
 		{"", ""},
 	} {
-		g, ok := guidForShowKey(idx, tc.key)
+		g, ok := guidForShowKey(idx, tc.key, false)
 		if (tc.want == "") == ok || g.RatingKey != tc.want {
 			t.Errorf("guidForShowKey(%q) = %q, %v; want %q", tc.key, g.RatingKey, ok, tc.want)
 		}

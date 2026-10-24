@@ -116,15 +116,80 @@ func TestPlexRatingKeyResolveIsStableWithTwoEntries(t *testing.T) {
 	}
 }
 
-// A film and a series can share a TMDB number; a show_key names the series.
-func TestGuidForShowKeyPrefersTheSeries(t *testing.T) {
+// A film and a series can share a TMDB number, and a show_key ("tmdb:42")
+// does not say which: the folder's kind does. A film folder used to land on
+// the series entry, and a series could take the film's ids.
+func TestGuidForShowKeyTakesTheFoldersKind(t *testing.T) {
 	idx := map[string]plexGuid{
 		"movie:a": {TMDB: 42, RatingKey: "1", Movie: true},
 		"b":       {TMDB: 42, RatingKey: "9"},
+		"movie:c": {TMDB: 77, RatingKey: "5", Movie: true},
 	}
 	for range 30 {
-		if g, _ := guidForShowKey(idx, "tmdb:42"); g.RatingKey != "9" {
-			t.Fatalf("guidForShowKey = %q, want the series 9", g.RatingKey)
+		if g, _ := guidForShowKey(idx, "tmdb:42", false); g.RatingKey != "9" {
+			t.Fatalf("series: %q, want 9", g.RatingKey)
 		}
+		if g, _ := guidForShowKey(idx, "tmdb:42", true); g.RatingKey != "1" {
+			t.Fatalf("film: %q, want 1", g.RatingKey)
+		}
+	}
+	// a film is no answer for a series of the same number, nor the reverse
+	if g, ok := guidForShowKey(idx, "tmdb:77", false); ok {
+		t.Errorf("a series took the film %q", g.RatingKey)
+	}
+	if g, ok := guidForShowKey(map[string]plexGuid{"b": {TMDB: 42, RatingKey: "9"}}, "tmdb:42", true); ok {
+		t.Errorf("a film took the series %q", g.RatingKey)
+	}
+}
+
+// The badge link only has the show_key and the refs: a tmdb key the refs
+// carry as a film id (and not as a series id) names the film.
+func TestShowKeyIsFilm(t *testing.T) {
+	film := []providerRef{{"tmdb:movie", 42}, {"imdb", 7}}
+	both := []providerRef{{"tmdb:movie", 42}, {"tmdb:tv", 42}}
+	series := []providerRef{{"tmdb:tv", 42}}
+	for _, tc := range []struct {
+		refs []providerRef
+		key  string
+		want bool
+	}{
+		{film, "tmdb:42", true},
+		{both, "tmdb:42", false},
+		{series, "tmdb:42", false},
+		{film, "tvdb:42", false},
+		{film, "tmdb:43", false},
+		{nil, "", false},
+	} {
+		if got := showKeyIsFilm(tc.refs, tc.key); got != tc.want {
+			t.Errorf("showKeyIsFilm(%v, %q) = %v, want %v", tc.refs, tc.key, got, tc.want)
+		}
+	}
+}
+
+// The deep link and stream selection of a film folder resolve to the film,
+// through its tmdb:movie row as much as through the live index.
+func TestPlexRatingKeyResolveTakesTheFoldersKind(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'fargo','Fargo'), (2,'fargo film','Fargo')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES
+		('tmdb:tv',42,1), ('plex',9,1), ('tmdb:movie',42,2), ('plex',1,2)`)
+	seedGuidIndex(t, s, `{"movie:fargo":{"tmdb":42,"ratingKey":"1","movie":true},"fargo":{"tmdb":42,"ratingKey":"9"}}`)
+
+	if got := s.plexRatingKeyResolveKind("tmdb:42", true); got != "1" {
+		t.Errorf("film = %q, want 1", got)
+	}
+	if got := s.plexRatingKeyResolveKind("tmdb:42", false); got != "9" {
+		t.Errorf("series = %q, want 9", got)
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = 'plex'`).Scan(&n)
+	if n != 2 {
+		t.Errorf("%d plex rows left, want both: neither contradicts its own kind", n)
+	}
+	// with Plex silent, the film's stored row answers
+	seedGuidIndex(t, s, `{}`)
+	if got := s.plexRatingKeyResolveKind("tmdb:42", true); got != "1" {
+		t.Errorf("stored film = %q, want 1", got)
 	}
 }

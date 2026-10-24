@@ -334,13 +334,35 @@ func providerLinks(refs []providerRef) (map[string]bool, ProviderLinks) {
 	return set, l
 }
 
+// showKeyIsFilm reports whether a "tmdb:N" show_key names a film: the refs
+// carry N as a film id and not as a series id. Every other key is a series'.
+func showKeyIsFilm(refs []providerRef, showKey string) bool {
+	src, id, ok := strings.Cut(showKey, ":")
+	if !ok || src != "tmdb" {
+		return false
+	}
+	film := false
+	for _, r := range refs {
+		if strconv.Itoa(r.MediaID) != id {
+			continue
+		}
+		switch r.Source {
+		case "tmdb:tv":
+			return false
+		case "tmdb:movie":
+			film = true
+		}
+	}
+	return film
+}
+
 // providerBadgesLinks turns provider hits into the badge set and per-integration
 // title links. A Plex web link is added when the title is in a Plex library;
 // showKey ("tvdb:123"...) makes that lookup id-based (reliable for localized
 // titles), "" falls back to the title index alone.
 func (s *Server) providerBadgesLinks(refs []providerRef, title, showKey string) ([]string, ProviderLinks) {
 	set, l := providerLinks(refs)
-	if pl := s.plexWebLinkByKey(showKey, title); pl != "" {
+	if pl := s.plexWebLinkByKey(showKey, showKeyIsFilm(refs, showKey), title); pl != "" {
 		set["plex"] = true
 		l.Plex = pl
 	}
