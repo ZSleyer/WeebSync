@@ -30,7 +30,10 @@
     "tooManyWait_other": "Too many attempts. Try again in {{count}} seconds.",
     "targetBusy": "Another download for the same file is still in the queue. Let it finish or cancel it first.",
     "hostKeyUnknown": "The server's SSH host key is not trusted yet. Run the connection test in the server settings to check and accept it, then try again.",
-    "hostKeyChanged": "The server's SSH host key has changed. Review it with the connection test in the server settings before trying again."
+    "hostKeyChanged": "The server's SSH host key has changed. Review it with the connection test in the server settings before trying again.",
+    "plexLinkExpired": "Plex no longer accepts the linked account. Link Plex again in the settings.",
+    "plexEnvSet": "The Plex connection is set by the PLEX_URL and PLEX_TOKEN environment variables. Change it there.",
+    "jellyfinEnvSet": "The Jellyfin connection is set by the JELLYFIN_URL and JELLYFIN_TOKEN environment variables. Change it there."
   },
   "common": {
     "undo": "Undo",

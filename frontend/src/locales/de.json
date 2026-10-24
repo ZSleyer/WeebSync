@@ -30,7 +30,10 @@
     "tooManyWait_other": "Zu viele Versuche. Versuch es in {{count}} Sekunden wieder.",
     "targetBusy": "Für dieselbe Datei steht schon ein anderer Download in der Warteschlange. Lass ihn fertig laufen oder brich ihn zuerst ab.",
     "hostKeyUnknown": "Der SSH-Host-Key des Servers ist noch nicht bestätigt. Prüfe und bestätige ihn mit dem Verbindungstest in den Servereinstellungen und versuche es dann erneut.",
-    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Prüfe ihn mit dem Verbindungstest in den Servereinstellungen, bevor du es erneut versuchst."
+    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Prüfe ihn mit dem Verbindungstest in den Servereinstellungen, bevor du es erneut versuchst.",
+    "plexLinkExpired": "Plex akzeptiert das verknüpfte Konto nicht mehr. Verknüpfe Plex in den Einstellungen erneut.",
+    "plexEnvSet": "Die Plex-Verbindung ist über die Umgebungsvariablen PLEX_URL und PLEX_TOKEN festgelegt. Ändere sie dort.",
+    "jellyfinEnvSet": "Die Jellyfin-Verbindung ist über die Umgebungsvariablen JELLYFIN_URL und JELLYFIN_TOKEN festgelegt. Ändere sie dort."
   },
   "common": {
     "undo": "Rückgängig",
