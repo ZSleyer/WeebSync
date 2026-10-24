@@ -1627,6 +1627,7 @@
       "fixNvencHint": "Needs the NVIDIA container toolkit on the host. In your compose file:",
       "copy": "Copy",
       "copied": "Copied",
+      "copyFailed": "Copying is not possible here; select the code and copy it by hand.",
       "retest": "Test again",
       "testing": "Testing, this takes a few seconds",
       "testedAt": "Tested {{when}}",

@@ -1627,6 +1627,7 @@
       "fixNvencHint": "Braucht das NVIDIA Container Toolkit auf dem Host. In deiner Compose-Datei:",
       "copy": "Kopieren",
       "copied": "Kopiert",
+      "copyFailed": "Kopieren nicht möglich, bitte den Code von Hand markieren und kopieren.",
       "retest": "Erneut testen",
       "testing": "Teste, das dauert ein paar Sekunden",
       "testedAt": "Getestet {{when}}",
