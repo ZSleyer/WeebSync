@@ -46,12 +46,18 @@ func TestLogoutDropsLegacyPushSubscriptionByEndpoint(t *testing.T) {
 		t.Fatalf("logout = %d %s", out.Code, out.Body)
 	}
 	var left []string
-	rows, _ := s.DB.Query(`SELECT endpoint FROM push_subscriptions ORDER BY endpoint`)
+	rows, err := s.DB.Query(`SELECT endpoint FROM push_subscriptions ORDER BY endpoint`)
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer rows.Close()
 	for rows.Next() {
 		var e string
 		rows.Scan(&e)
 		left = append(left, e)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
 	}
 	if strings.Join(left, ",") != "https://push.example/foreign,https://push.example/other" {
 		t.Errorf("rows left = %v, want only the other and the foreign one", left)
