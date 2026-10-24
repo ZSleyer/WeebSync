@@ -151,3 +151,22 @@ func TestAnilistMediaResolvesMangaIDs(t *testing.T) {
 		t.Fatalf("the media lookup filters on anime: %s", q)
 	}
 }
+
+// Ageing one user's blob must leave the same mark staleSuggestions does, or a
+// build already running stores its pre-change result as fresh.
+func TestStaleUserSuggestionsWritesAgedMarker(t *testing.T) {
+	_, _, _, _, d := linkedServer(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (suggestions:1, {}, datetime('now'))`)
+	s.staleUserSuggestions(1)
+	var marker int
+	d.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ?`, suggestAgedKey).Scan(&marker)
+	if marker != 1 {
+		t.Fatal("no suggestions-aged marker after staleUserSuggestions")
+	}
+	var fetched string
+	d.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = suggestions:1`).Scan(&fetched)
+	if fetched != suggestStaleAt {
+		t.Fatalf("blob not aged: %q", fetched)
+	}
+}

@@ -212,7 +212,10 @@ func (s *Server) handleAnilistEntryDelete(w http.ResponseWriter, r *http.Request
 // page keeps showing it and rebuilds it in the background, now without the
 // title that left the list or changed its status.
 func (s *Server) staleUserSuggestions(userID int64) {
+	// the mark first, like staleSuggestions: a build already running must see it
+	// came too early
+	s.markSuggestionsAged()
 	// a cache touch: when it fails the blob simply ages out on its own
-	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key = ?`,
-		"suggestions:"+strconv.FormatInt(userID, 10))
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`,
+		suggestStaleAt, "suggestions:"+strconv.FormatInt(userID, 10))
 }
