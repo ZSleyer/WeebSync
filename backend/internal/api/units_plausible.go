@@ -23,7 +23,7 @@ var (
 	folderYearRe  = regexp.MustCompile(`\b(19|20)\d{2}\b`)
 	folderParenRe = regexp.MustCompile(`\(([^)]+)\)`)
 	folderTagRe   = regexp.MustCompile(`\[[^\]]*\]|\([^)]*\)`)
-	notAlnumRe    = regexp.MustCompile(`[^a-z0-9]+`)
+	notAlnumRe    = regexp.MustCompile(`[^\p{L}\p{N}]+`)
 )
 
 // pruneImplausibleRemotes drops remote copies whose folder contradicts the
@@ -94,7 +94,7 @@ func copyAgrees(folder string, folded []string, years []int) bool {
 	}
 	for _, mine := range folderTitleKeys(folder) {
 		for _, theirs := range folded {
-			if mine == theirs || titleContains(mine, theirs) || squashed(mine) == squashed(theirs) {
+			if mine == theirs || titleContains(mine, theirs) || squashedEqual(mine, theirs) {
 				return true
 			}
 		}
@@ -111,11 +111,19 @@ func yearFits(y int, years []int) bool {
 	return false
 }
 
-// squashed drops everything but letters and digits: libraries and release
+// squashed drops everything but letters and digits (any script): libraries and release
 // groups disagree on where the spaces go ("NieRAutomata Ver 1.1a" against
 // "NieR Automata Ver1.1a").
 func squashed(s string) string {
 	return notAlnumRe.ReplaceAllString(s, "")
+}
+
+// squashedEqual compares two names squashed. Letters of every script count:
+// with ASCII only, a Japanese or Cyrillic name squashed to nothing and agreed
+// with every other such name. Nothing left is never agreement.
+func squashedEqual(a, b string) bool {
+	sa := squashed(a)
+	return sa != "" && sa == squashed(b)
 }
 
 // titleContains: the known title sits whole inside the folder name ("Alpha"

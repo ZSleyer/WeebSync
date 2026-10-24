@@ -58,6 +58,25 @@ func TestCopyAgrees(t *testing.T) {
 	}
 }
 
+// A folder named in a script without ASCII letters squashed to nothing, and
+// "" equalled the "" of every non-Latin title the show carries: any such
+// folder agreed with any show.
+func TestCopyAgreesNonLatinTitles(t *testing.T) {
+	aot := folded("進撃の巨人", "Shingeki no Kyojin", "Attack on Titan")
+	if copyAgrees("/FTP/WEB/ゴジラ", aot, nil) {
+		t.Error("a folder of another show in Japanese must not agree")
+	}
+	if copyAgrees("/FTP/WEB/Годзилла", aot, nil) {
+		t.Error("a Cyrillic folder of another show must not agree")
+	}
+	if !copyAgrees("/FTP/WEB/進撃の巨人", aot, nil) {
+		t.Error("the show's own Japanese title should agree")
+	}
+	if !copyAgrees("/FTP/WEB/進撃の・巨人 [JapDub]", aot, nil) {
+		t.Error("the Japanese title punctuated differently should still agree")
+	}
+}
+
 func TestPruneImplausibleRemotesKeepsUnjudgeable(t *testing.T) {
 	s, _ := sizeTestServer(t)
 	s.DB.Exec(`INSERT INTO series (id, key, title, year) VALUES (7, 'meitantei conan', 'Detektiv Conan', 1996)`)
