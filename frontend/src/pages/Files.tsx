@@ -443,6 +443,8 @@ export default function Files() {
   if (checkedPlace !== `${source}:${path}`) {
     setCheckedPlace(`${source}:${path}`)
     setChecked(new Set())
+    // a failure message belongs to the folder it happened in
+    setError('')
   }
   const toggle = (e: Entry) =>
     setChecked((prev) => {
