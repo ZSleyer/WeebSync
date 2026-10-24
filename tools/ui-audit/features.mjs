@@ -706,8 +706,8 @@ async function run(engine) {
     const before = (await watchesOf()).find((x) => x.id === st.watch.id)
     await sleep(1100) // lastCheck has a resolution of a second
     const dlg = await openWatch()
-    // its name sits in a live status inside the button, which some engines
-    // leave out of the accessible name: found by its text
+    // the visible label is the button's accessible name (its live status sits
+    // beside it, not inside); found by text so a label caught mid-roll still matches
     await dlg.getByRole('button').filter({ hasText: 'Check now' }).first().click()
     const end = Date.now() + 20000
     let now
