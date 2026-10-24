@@ -114,6 +114,25 @@ describe('Player page', () => {
     await waitFor(() => expect(infoCalls()).toBe(1))
   })
 
+  it('F01a-5: the announcement region is in the page before its text is', async () => {
+    localStorage.setItem('weebsync.player.pos', JSON.stringify({ '0:/a/ep1.mp4': { at: 300, t: 1 } }))
+    const { container } = mount()
+    const seen: { target: Node; text: boolean }[] = []
+    const mo = new MutationObserver((rs) => {
+      for (const r of rs) seen.push({ target: r.target, text: [...r.addedNodes].some((n) => n.nodeType === 3) })
+    })
+    mo.observe(container, { childList: true, subtree: true })
+    await screen.findByRole('button', { name: 'Resume' })
+    await act(async () => {})
+    mo.disconnect()
+    const region = [...container.querySelectorAll('.sr-only[role="status"]')].find((r) =>
+      /5:00/.test(r.textContent ?? ''),
+    )!
+    expect(region).toBeTruthy()
+    // the text was put into a region that already stood, not added with it
+    expect(seen.some((m) => m.target === region && m.text)).toBe(true)
+  })
+
   // media-chrome 4.19.3 acts on j, l and c itself at keyup (media-controller.js,
   // ButtonPressedKeys + keyboardShortcutHandler) unless the controller's
   // `hotkeys` attribute holds `no<key>` for it (same file, keyboardShortcutHandler).

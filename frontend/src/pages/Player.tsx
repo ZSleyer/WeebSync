@@ -634,6 +634,21 @@ function PlayerView({
   const chapterIdx = chapter ? chapters.indexOf(chapter) : -1
   const chapterName = chapterIdx < 0 ? undefined : chapter?.title || t('player.chapterN', { n: chapterIdx + 1 })
   const skipOffered = nextIn === null && offer === null ? skippable : undefined
+  // What the region announces. It stands empty from the first render and gets
+  // its text in an effect: a live region that appears with its text is often
+  // not read out.
+  const announce =
+    nextIn !== null && next
+      ? t('player.nextIn', { secs: NEXT_COUNT })
+      : offer !== null
+        ? t('player.resumeAt', { time: clock(offer) })
+        : skipOffered
+          ? t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')
+          : ''
+  const said = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (said.current) said.current.textContent = announce
+  }, [announce])
   // a card or pill goes away under the focus (skipped, waved off, chapter
   // over, resume answered, sound on): focus stays in the player, where its keys work, not on the page
   const keepFocusInPlayer = useCallback((el: HTMLElement | null) => {
@@ -1326,13 +1341,7 @@ function PlayerView({
           )}
           {/* always there, only its words change: a live region added together
               with its text is often not read out */}
-          <span className="sr-only" role="status">
-            {nextIn !== null && next
-              ? t('player.nextIn', { secs: NEXT_COUNT })
-              : offer !== null
-                ? t('player.resumeAt', { time: clock(offer) })
-                : skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
-          </span>
+          <span className="sr-only" role="status" ref={said} />
           {skipOffered && (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
               <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={skipChapter}>
