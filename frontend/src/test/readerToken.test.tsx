@@ -16,28 +16,10 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
     }) as never,
 }))
 
-const pic = (name: string) => ({ name, path: `/pics/${name}`, isDir: false, size: 1, modTime: '' })
-
 afterEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
 })
-
-function open() {
-  vi.spyOn(api, 'get').mockResolvedValue([pic('a.jpg'), pic('b.jpg'), pic('c.jpg')] as never)
-  // the first-open hint is shown once; not in these tests
-  localStorage.setItem('viewer.hinted', '1')
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={[`/view?server=0&path=${encodeURIComponent('/pics/a.jpg')}`]}>
-        <AudioProvider>
-          <Viewer />
-        </AudioProvider>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
-}
 
 describe('stale read-open token', () => {
   it('asks for the token again when a page fails to load, once', async () => {

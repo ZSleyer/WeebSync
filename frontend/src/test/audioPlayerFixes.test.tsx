@@ -36,10 +36,10 @@ const mount = (q: Queue) =>
   )
 const audioEl = () => document.querySelector('audio') as HTMLAudioElement
 
-let play: ReturnType<typeof vi.fn>
+let play: ReturnType<typeof vi.fn<() => Promise<void>>>
 beforeEach(() => {
   toast.mockClear()
-  play = vi.fn(() => Promise.resolve())
+  play = vi.fn<() => Promise<void>>(() => Promise.resolve())
   vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play)
   vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
 })

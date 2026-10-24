@@ -1068,17 +1068,7 @@ async function loadEpub(base: string): Promise<EpubData> {
  * itself, the bar turns chapters. A position inside a chapter cannot be read
  * from a frame without scripts, so progress counts in chapters.
  */
-function EpubView({
-  base,
-  server,
-  path,
-  onDead,
-}: {
-  base: string
-  server: number
-  path: string
-  onDead: () => void
-}) {
+function EpubView({ base, server, path, onDead }: { base: string; server: number; path: string; onDead: () => void }) {
   const { t } = useTranslation()
   const frame = useFrame()
   const data = useQuery({ queryKey: ['epub', base], queryFn: () => loadEpub(base), staleTime: Infinity })

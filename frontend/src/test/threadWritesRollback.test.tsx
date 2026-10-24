@@ -24,7 +24,18 @@ const seed = (): ThreadData => ({
   pageParams: [1],
   pages: [
     {
-      thread: { id: 9, title: 't', body: 'b', replies: 0, views: 0, createdAt: 0, url: '', user: { name: 'op' }, likes: 0, isLiked: false },
+      thread: {
+        id: 9,
+        title: 't',
+        body: 'b',
+        replies: 0,
+        views: 0,
+        createdAt: 0,
+        url: '',
+        user: { name: 'op' },
+        likes: 0,
+        isLiked: false,
+      },
       comments: [comment(1)],
       hasNextPage: false,
     },
@@ -37,7 +48,9 @@ function setup() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   qc.setQueryData(['anilist-me'], { connected: true, allow: { social: true }, name: 'me' })
   qc.setQueryData(['anilist-thread', 9], seed())
-  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  )
   const hook = renderHook(() => useThreadWrites(9), { wrapper })
   const ids = () => qc.getQueryData<ThreadData>(['anilist-thread', 9])!.pages[0].comments.map((c) => c.id)
   return { qc, hook, ids }

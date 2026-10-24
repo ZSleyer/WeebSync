@@ -19,7 +19,9 @@ afterEach(() => {
 function setup() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   qc.setQueryData(['anilist-me'], { connected: true, allow: { social: true }, name: 'me' })
-  const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  )
   const link = document.body.appendChild(document.createElement('button'))
   const field = document.body.appendChild(document.createElement('textarea'))
   return { link, field, hook: renderHook(() => useThreadWrites(9), { wrapper }) }

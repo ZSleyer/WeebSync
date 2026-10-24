@@ -228,7 +228,10 @@ export function xlsxRows(sheetXml: string, strings: string[]): string[][] {
         type === 's'
           ? (strings[Number(v)] ?? '')
           : type === 'inlineStr'
-            ? [...c.children].filter((x) => x.localName === 'is').map(itemText).join('')
+            ? [...c.children]
+                .filter((x) => x.localName === 'is')
+                .map(itemText)
+                .join('')
             : type === 'b'
               ? v === '1'
                 ? 'TRUE'
