@@ -334,7 +334,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		return err
 	}
 	defer local.Close()
-	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Size() == size {
+	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Mode().IsRegular() && fi.Size() == size {
 		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
 		// self-heal skip: file already present at full size (stale queue)
 		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
