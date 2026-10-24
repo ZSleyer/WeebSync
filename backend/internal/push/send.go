@@ -7,6 +7,7 @@ package push
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
@@ -37,6 +38,27 @@ func decodeKey(s string) ([]byte, error) {
 		return b, nil
 	}
 	return base64.RawStdEncoding.DecodeString(s)
+}
+
+// ValidKeys reports whether a subscription's keys can be encrypted for at
+// all: p256dh a point on P-256, auth a 16-byte secret. A subscription that
+// fails this never receives a push.
+func ValidKeys(p256dh, auth string) error {
+	ua, err := decodeKey(p256dh)
+	if err != nil {
+		return fmt.Errorf("push: p256dh: %w", err)
+	}
+	if _, err := ecdh.P256().NewPublicKey(ua); err != nil {
+		return fmt.Errorf("push: p256dh: %w", err)
+	}
+	secret, err := decodeKey(auth)
+	if err != nil {
+		return fmt.Errorf("push: auth: %w", err)
+	}
+	if len(secret) != 16 {
+		return errors.New("push: auth secret is not 16 bytes")
+	}
+	return nil
 }
 
 // generateKeys makes a VAPID key pair.
@@ -167,7 +189,7 @@ func vapid(endpoint, subscriber, public, private string, now time.Time) (string,
 }
 
 // send delivers payload to one subscription. The caller closes the body.
-func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int, urgency string) (*http.Response, error) {
+func send(ctx context.Context, client *http.Client, endpoint, p256dh, auth string, payload []byte, subscriber, public, private string, ttl int, urgency string) (*http.Response, error) {
 	ua, err := decodeKey(p256dh)
 	if err != nil {
 		return nil, fmt.Errorf("push: p256dh: %w", err)
@@ -184,7 +206,7 @@ func send(client *http.Client, endpoint, p256dh, auth string, payload []byte, su
 	if err != nil {
 		return nil, err
 	}
-	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
 	}

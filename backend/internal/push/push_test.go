@@ -24,10 +24,10 @@ func TestSubscriptionCannotChangeOwner(t *testing.T) {
 		(1, 'one@example.com', ''), (2, 'two@example.com', '')`); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Subscribe(1, "https://push.example/a", "key", "auth"); err != nil {
+	if err := s.Subscribe(1, "https://push.example/a", "key", "auth", ""); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Subscribe(2, "https://push.example/a", "other", "other"); !errors.Is(err, ErrEndpointOwned) {
+	if err := s.Subscribe(2, "https://push.example/a", "other", "other", ""); !errors.Is(err, ErrEndpointOwned) {
 		t.Fatalf("owner transfer error = %v", err)
 	}
 }
