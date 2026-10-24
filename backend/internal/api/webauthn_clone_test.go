@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 type waBegin struct {
@@ -99,5 +101,57 @@ func TestWebAuthnCloneWarningRefusesSignIn(t *testing.T) {
 	key.count = 5
 	if rec := keyLogin(); rec.Code != http.StatusOK {
 		t.Fatalf("real key after a refused copy: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// What the clone check must leave alone: a passkey that never counts (both
+// counters 0, as synced passkeys send) signs in every time, and a warning an
+// earlier release stored with the credential does not refuse the next
+// sign-in of a key that counts on.
+func TestWebAuthnCloneWarningSparesZeroCountersAndLegacyFlags(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	s.DB.Exec(`INSERT INTO settings (key, value) VALUES ('base_url', 'https://example.com')`)
+	setPassword(t, s, userID, "longenough123")
+	handle := []byte("handle-of-the-test-user-32-bytes")
+	s.DB.Exec(`UPDATE users SET webauthn_handle = ? WHERE id = ?`, handle, userID)
+	synced := newSoftKey(t, handle)
+	synced.still = true
+	legacy := newSoftKey(t, handle)
+	var flagged webauthn.Credential
+	if err := json.Unmarshal(legacy.credJSON(t), &flagged); err != nil {
+		t.Fatal(err)
+	}
+	flagged.Authenticator.SignCount, flagged.Authenticator.CloneWarning = 3, true
+	legacy.count = 3
+	flaggedJSON, _ := json.Marshal(flagged)
+	if _, err := s.DB.Exec(`INSERT INTO webauthn_credentials (user_id, credential_id, cred_json, name, passwordless, uv_required)
+		VALUES (?, ?, ?, 'synced', 1, 1), (?, ?, ?, 'legacy', 1, 1)`, userID, synced.id, synced.credJSON(t), userID, legacy.id, flaggedJSON); err != nil {
+		t.Fatal(err)
+	}
+	login := func(k *softKey) *httptest.ResponseRecorder {
+		t.Helper()
+		s.authLimiter.resetAll()
+		var b waBegin
+		json.Unmarshal(doReq(mux, "POST", "/api/auth/webauthn/login/begin", "", nil).Body.Bytes(), &b)
+		return waFinish(mux, "/api/auth/webauthn/login/finish",
+			k.assertion(b.PublicKey.Challenge, "example.com", "https://example.com", true),
+			map[string]string{"X-WA-Session": b.SessionID})
+	}
+	for i := range 3 {
+		if rec := login(synced); rec.Code != http.StatusOK {
+			t.Fatalf("synced passkey, sign-in %d: %d %s", i+1, rec.Code, rec.Body)
+		}
+	}
+	if rec := login(legacy); rec.Code != http.StatusOK {
+		t.Fatalf("key with a stored legacy warning: %d %s", rec.Code, rec.Body)
+	}
+	var raw []byte
+	if err := s.DB.QueryRow(`SELECT cred_json FROM webauthn_credentials WHERE credential_id = ?`, legacy.id).Scan(&raw); err != nil {
+		t.Fatal(err)
+	}
+	var stored webauthn.Credential
+	json.Unmarshal(raw, &stored)
+	if stored.Authenticator.CloneWarning || stored.Authenticator.SignCount != 4 {
+		t.Errorf("stored after the sign-in: warning %v count %d, want false 4", stored.Authenticator.CloneWarning, stored.Authenticator.SignCount)
 	}
 }

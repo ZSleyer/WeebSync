@@ -27,6 +27,7 @@ type softKey struct {
 	id     []byte
 	handle []byte
 	count  uint32
+	still  bool // a counter that stays 0, as synced passkeys send
 }
 
 func newSoftKey(t *testing.T, handle []byte) *softKey {
@@ -64,7 +65,9 @@ func (k *softKey) assertion(challenge, rpID, origin string, uv bool) string {
 	if uv {
 		flags |= 0x04
 	}
-	k.count++
+	if !k.still {
+		k.count++
+	}
 	auth := append(append(rp[:], flags), binary.BigEndian.AppendUint32(nil, k.count)...)
 	ch := sha256.Sum256(client)
 	digest := sha256.Sum256(append(append([]byte{}, auth...), ch[:]...))
