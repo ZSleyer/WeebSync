@@ -99,6 +99,10 @@ type Manager struct {
 	wg       sync.WaitGroup
 
 	speeds speedHistory
+
+	// beforeStart, when set (tests only), runs in startDownload between reading
+	// the row and claiming it - the window a concurrent pause or cancel hits.
+	beforeStart func(id int64)
 }
 
 // ResolveLocal maps a target path to an absolute path under one of the allowed
@@ -260,22 +264,49 @@ func (m *Manager) startDownload(id int64) {
 	if d.Status != "queued" {
 		return
 	}
+	if m.beforeStart != nil {
+		m.beforeStart(id)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	r := &running{userID: d.UserID, cancel: cancel, limiter: newLimiter(d.RateLimit)}
+	// registered and counted under mu together with the stopping check:
+	// Shutdown either sees this worker in active (and cancels it) or this
+	// start sees stopping, and the Add happens before Shutdown's Wait
 	m.mu.Lock()
-	if _, dup := m.active[id]; dup {
+	if _, dup := m.active[id]; dup || m.stopping {
 		m.mu.Unlock()
 		cancel()
 		return
 	}
 	m.active[id] = r
+	m.wg.Add(1)
 	m.mu.Unlock()
 
-	// the start of this run and the bytes it resumes from: the history's
-	// duration and rate are measured from here to the row's last write
-	m.execRetry("startedAt", `UPDATE downloads SET started_at = datetime('now'), start_bytes = transferred WHERE id = ?`, id)
-	m.setStatus(id, "running", "", "")
-	m.wg.Add(1)
+	// claim the row in one step: only a row that is still queued starts, so a
+	// pause or cancel that reached the database since it was read sticks. The
+	// start of this run and the bytes it resumes from go along, for the
+	// history's duration and rate.
+	claimed, err := m.DB.Exec(`UPDATE downloads SET status = 'running', error = '', error_code = '',
+		started_at = datetime('now'), start_bytes = transferred, updated_at = datetime('now')
+		WHERE id = ? AND status = 'queued'`, id)
+	var n int64
+	if err == nil {
+		n, err = claimed.RowsAffected()
+	}
+	if err != nil || n == 0 {
+		if err != nil {
+			slog.Warn("download not started", "id", id, "err", err) // the next tick tries again
+		}
+		m.mu.Lock()
+		delete(m.active, id)
+		m.mu.Unlock()
+		cancel()
+		m.wg.Done()
+		return
+	}
+	if cur, err := m.get(id); err == nil {
+		m.publish(cur)
+	}
 	go func() {
 		defer m.wg.Done()
 		err := m.runDownload(ctx, d, r)
