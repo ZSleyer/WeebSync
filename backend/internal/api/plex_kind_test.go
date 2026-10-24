@@ -148,3 +148,24 @@ func TestPlexOwnedTellsFilmAndSeriesIDsApart(t *testing.T) {
 		t.Error("the film itself is not owned")
 	}
 }
+
+// A TMDB TV id the anime mapping hung on a series stays only when Plex holds
+// that series. A film of the same number in Plex used to vouch for it, and
+// the leftover was never dropped.
+func TestDropAnimeLeftoversTellsFilmAndSeriesIDsApart(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'k','T')`)
+	d.Exec(`INSERT INTO anime_ids (anilist_id, tmdb_id, tmdb_kind) VALUES (9, 1234, 'tv'), (8, 77, 'tv')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tmdb:tv',1234,1), ('tmdb:tv',77,1)`)
+	s.cacheSet(plexGuidKey, `{"movie:somefilm":{"tmdb":1234,"ratingKey":"1","movie":true},
+		"someseries":{"tmdb":77,"ratingKey":"2"}}`)
+
+	out := s.dropAnimeLeftovers(1, []providerRef{{"tmdb:tv", 1234}, {"tmdb:tv", 77}})
+	if len(out) != 1 || out[0].MediaID != 77 {
+		t.Errorf("left %v, want only the id Plex holds as a series (77)", out)
+	}
+	if k := plexIDKey("tmdb:movie", 1234); s.plexIDs()[k] != true {
+		t.Errorf("the film's id is not known as a film id (%s)", k)
+	}
+}

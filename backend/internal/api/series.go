@@ -386,26 +386,29 @@ func (s *Server) dropAnimeLeftovers(seriesID int64, refs []providerRef) []provid
 }
 
 // plexIDs is every TVDB and TMDB id the Plex library holds, keyed as
-// plexIDKey does; empty without Plex.
+// plexIDKey does; empty without Plex. One TMDB number names a series and an
+// unrelated film alike, so a film's id counts as tmdb:movie and a series' as
+// tmdb:tv; the TVDB id Plex holds for a film is from TVDB's film catalogue and
+// says nothing about the series of that number.
 func (s *Server) plexIDs() map[string]bool {
 	out := map[string]bool{}
 	for _, g := range s.plexGuidIndexNoWait() {
-		if g.TVDB != 0 {
+		if g.TVDB != 0 && !g.Movie {
 			out[plexIDKey("tvdb", g.TVDB)] = true
 		}
 		if g.TMDB != 0 {
-			out[plexIDKey("tmdb:", g.TMDB)] = true
+			src := "tmdb:tv"
+			if g.Movie {
+				src = "tmdb:movie"
+			}
+			out[plexIDKey(src, g.TMDB)] = true
 		}
 	}
 	return out
 }
 
-// plexIDKey names an id by its catalogue; TMDB's tv and movie tags count as
-// one, as Plex's guid does not say which.
+// plexIDKey names an id by its catalogue and, for TMDB, its kind.
 func plexIDKey(source string, id int) string {
-	if strings.HasPrefix(source, "tmdb") {
-		source = "tmdb"
-	}
 	return source + ":" + strconv.Itoa(id)
 }
 
