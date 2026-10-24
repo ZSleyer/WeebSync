@@ -453,7 +453,7 @@ func (s *Server) loadWatch(id int64) (Watch, bool) {
 	return w, err == nil
 }
 
-// runWatch checks one watch now: stamps last_check first (self-reset), then
+// runWatch checks one watch now: stamps last_check when it goes to the server (self-reset), then
 // enqueues missing/changed files through the normal transfer queue. It
 // reports what it did for a caller that waits on it; the loop ignores it.
 func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse) {
@@ -469,9 +469,6 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 		out.Error = "watch not found"
 		return out
 	}
-	// a missed timestamp only shows an older check time
-	_, _ = s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
-
 	nameFn, waiting := s.watchNameFnQuarantine(w, s.unsortedDir(w.UserID))
 	// files already collected must not be fetched again: Enqueue only skips
 	// what is complete at the EXPECTED target, and theirs is still empty
@@ -481,11 +478,14 @@ func (s *Server) runWatch(ctx context.Context, id int64) (out WatchCheckResponse
 		out.Error = err.Error()
 		return out
 	}
-	// the rename setup may have asked a provider; canceled meanwhile: no dial
+	// the rename setup may have asked a provider; canceled meanwhile: no dial,
+	// and no stamp either - a check that never reached the server did not run
 	if err := ctx.Err(); err != nil {
 		out.Error = err.Error()
 		return out
 	}
+	// a missed timestamp only shows an older check time
+	_, _ = s.DB.Exec(`UPDATE watches SET last_check = datetime('now') WHERE id = ?`, id)
 	res, err := s.Transfers.EnqueueSkipping(w.UserID, w.ServerID, w.RemotePath, w.LocalPath,
 		nameFn, andNotPending(s.watchLangFilter(w), skip), s.watchOwned(w), true, !w.Subfolder, false)
 	ids, uploading, filtered, owned := res.IDs, res.Uploading, res.Filtered, res.Owned
@@ -2426,7 +2426,7 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	// a button that turns into the progress of what it started has to know
 	// what that was: wait=1 runs the check in the request
 	if r.URL.Query().Get("wait") == "1" {
-		writeJSON(w, http.StatusOK, s.runWatch(r.Context(), id))
+		writeJSON(w, http.StatusOK, s.runWatch(context.WithoutCancel(r.Context()), id))
 		return
 	}
 	s.spawn(func() { s.runWatch(context.Background(), id) })
