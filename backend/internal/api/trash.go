@@ -40,33 +40,40 @@ type TrashRequest struct {
 	Path string `json:"path"`
 }
 
-// trashRows lists every recorded trash path with its row, newest first.
-func (s *Server) trashRows() (paths []string, at map[string]trashRow) {
+// trashRows lists every recorded trash path with its row, newest first. A
+// read that fails is an error, never a shorter or empty list: that would read
+// as "the trash is empty" or "not in the trash", and a cut-off list would
+// mis-group sidecars.
+func (s *Server) trashRows() (paths []string, at map[string]trashRow, err error) {
 	at = map[string]trashRow{}
 	rows, err := s.DB.Query(`SELECT path, trashed_at, reason, replaced_by FROM trash_files ORDER BY trashed_at DESC, path`)
 	if err != nil {
-		return nil, at
+		return nil, nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p string
 		var r trashRow
-		if rows.Scan(&p, &r.at, &r.reason, &r.by) == nil {
-			paths = append(paths, p)
-			at[p] = r
+		if err := rows.Scan(&p, &r.at, &r.reason, &r.by); err != nil {
+			return nil, nil, err
 		}
+		paths = append(paths, p)
+		at[p] = r
 	}
-	if rows.Err() != nil {
-		return nil, map[string]trashRow{} // a cut-off list would mis-group sidecars
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
 	}
-	return paths, at
+	return paths, at, nil
 }
 
 // trashGroup expands one entry's path to the rows it stands for: a folder or a
 // non-video file is its own row, a video takes the sidecars sharing its stem
 // in the same trash folder. Nil when the path is not in the table.
-func (s *Server) trashGroup(path string) []string {
-	paths, _ := s.trashRows()
+func (s *Server) trashGroup(path string) ([]string, error) {
+	paths, _, err := s.trashRows()
+	if err != nil {
+		return nil, err
+	}
 	found := false
 	for _, p := range paths {
 		if p == path {
@@ -74,11 +81,11 @@ func (s *Server) trashGroup(path string) []string {
 		}
 	}
 	if !found {
-		return nil
+		return nil, nil
 	}
 	dir, name := filepath.Split(path)
 	if !videoExt[strings.ToLower(filepath.Ext(name))] {
-		return []string{path}
+		return []string{path}, nil
 	}
 	stem := strings.TrimSuffix(name, filepath.Ext(name)) + "."
 	group := []string{path}
@@ -88,7 +95,7 @@ func (s *Server) trashGroup(path string) []string {
 			group = append(group, p)
 		}
 	}
-	return group
+	return group, nil
 }
 
 // handleTrashList lists what waits in the trash folders, grouped like the
@@ -102,10 +109,15 @@ func (s *Server) trashGroup(path string) []string {
 //	@Produce		json
 //	@Success		200	{array}		TrashEntry
 //	@Failure		401	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/trash [get]
 func (s *Server) handleTrashList(w http.ResponseWriter, r *http.Request) {
-	paths, at := s.trashRows()
+	paths, at, err := s.trashRows()
+	if err != nil {
+		dbErr(w, err)
+		return
+	}
 	entries := []TrashEntry{}
 	index := map[string]int{} // entry position by path; the slice grows, so no pointers
 	// videos and folders first, so a sidecar always finds its entry
@@ -198,7 +210,11 @@ func (s *Server) handleTrashRestore(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	group := s.trashGroup(in.Path)
+	group, err := s.trashGroup(in.Path)
+	if err != nil {
+		dbErrDetail(w, "read the trash", err)
+		return
+	}
 	if group == nil {
 		writeErr(w, http.StatusNotFound, "not in the trash")
 		return
@@ -257,6 +273,7 @@ func restoreTarget(rel string) string {
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		403		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/trash [delete]
 func (s *Server) handleTrashDelete(w http.ResponseWriter, r *http.Request) {
@@ -265,9 +282,17 @@ func (s *Server) handleTrashDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var group []string
+	var err error
 	if in.Path == "" {
-		group, _ = s.trashRows()
-	} else if group = s.trashGroup(in.Path); group == nil {
+		group, _, err = s.trashRows()
+	} else {
+		group, err = s.trashGroup(in.Path)
+	}
+	if err != nil {
+		dbErrDetail(w, "read the trash", err)
+		return
+	}
+	if in.Path != "" && group == nil {
 		writeErr(w, http.StatusNotFound, "not in the trash")
 		return
 	}
