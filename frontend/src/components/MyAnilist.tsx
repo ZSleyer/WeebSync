@@ -67,6 +67,9 @@ export function MyAnilist({ mediaId, title, onDisk }: { mediaId: number; title: 
     retry: false,
   })
   const save = useMutation({
+    // one request at a time per entry: parallel PUTs can arrive out of order
+    // and a failed early one would roll the cache back over later successes
+    scope: { id: `anilist-entry-${mediaId}` },
     mutationFn: (p: Patch) => api.put<EntryResponse>(`/api/anilist/entry/${mediaId}`, p),
     onMutate: async (p) => {
       await qc.cancelQueries({ queryKey: entryKey(mediaId) })
@@ -87,12 +90,19 @@ export function MyAnilist({ mediaId, title, onDisk }: { mediaId: number; title: 
       return prev
     },
     onError: (e, _p, prev) => {
-      if (prev) qc.setQueryData(entryKey(mediaId), prev)
+      // a rollback is only right when nothing newer is queued behind it
+      if (prev && qc.isMutating({ predicate: (m) => m.options.scope?.id === `anilist-entry-${mediaId}` }) <= 1)
+        qc.setQueryData(entryKey(mediaId), prev)
       fail(e)
     },
     onSuccess: (r) => {
       qc.setQueryData(entryKey(mediaId), r)
       qc.invalidateQueries({ queryKey: ['suggestions'] })
+    },
+    // the last of a burst settles on what AniList really holds
+    onSettled: () => {
+      if (qc.isMutating({ predicate: (m) => m.options.scope?.id === `anilist-entry-${mediaId}` }) <= 1)
+        void qc.invalidateQueries({ queryKey: entryKey(mediaId) })
     },
   })
   const remove = useMutation({
