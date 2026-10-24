@@ -1,12 +1,14 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -929,11 +931,19 @@ func (s *Server) plexRatingKeyResolve(showKey string) string {
 	if manual {
 		return stored // a person decided this; nothing here overrules it
 	}
-	live := guidRatingKey(s.plexGuidIndexNoWait(), showKey)
-	if live == "" {
+	hits := guidsForShowKey(s.plexGuidIndexNoWait(), showKey)
+	if len(hits) == 0 {
 		return stored // Plex unreachable: a stale address still beats none
 	}
-	if stored != "" && stored != live {
+	// the same show in two libraries is two entries: the stored one stands
+	// while Plex still lists it for this show, and only a contradicted one goes
+	for _, g := range hits {
+		if g.RatingKey == stored {
+			return stored
+		}
+	}
+	live := hits[0].RatingKey
+	if stored != "" {
 		if _, err := s.DB.Exec(`DELETE FROM series_provider WHERE source = 'plex' AND media_id = ? AND manual = 0`, stored); err != nil {
 			slog.Warn("plex stale ratingKey kept", "was", stored, "err", err)
 		}
@@ -979,22 +989,51 @@ func guidRatingKey(idx map[string]plexGuid, showKey string) string {
 }
 
 // guidForShowKey finds the Plex show whose guid carries the show_key's provider
-// id. ponytail: linear scan, the index holds one entry per library show.
+// id: the first of guidsForShowKey.
 func guidForShowKey(idx map[string]plexGuid, showKey string) (plexGuid, bool) {
-	if showKey == "" {
-		return plexGuid{}, false
+	if hits := guidsForShowKey(idx, showKey); len(hits) > 0 {
+		return hits[0], true
 	}
+	return plexGuid{}, false
+}
+
+// guidsForShowKey lists every Plex entry whose guid carries the show_key's
+// provider id, in a fixed order: one id can sit in two libraries ("Anime" and
+// "Anime 4K"), and map order would hand out a different one on every call.
+// Series come before films (a TMDB number names both), then the lowest
+// ratingKey. ponytail: linear scan, the index holds one entry per library show.
+func guidsForShowKey(idx map[string]plexGuid, showKey string) []plexGuid {
+	if showKey == "" {
+		return nil
+	}
+	var hits []plexGuid
+	seen := map[string]bool{}
 	for _, g := range idx {
-		if g.RatingKey == "" {
+		if g.RatingKey == "" || seen[g.RatingKey] {
 			continue
 		}
 		if (g.TVDB != 0 && showKey == "tvdb:"+strconv.Itoa(g.TVDB)) ||
 			(g.TMDB != 0 && showKey == "tmdb:"+strconv.Itoa(g.TMDB)) ||
 			(g.IMDB != 0 && showKey == "imdb:"+strconv.Itoa(g.IMDB)) {
-			return g, true
+			seen[g.RatingKey] = true
+			hits = append(hits, g)
 		}
 	}
-	return plexGuid{}, false
+	slices.SortFunc(hits, func(a, b plexGuid) int {
+		if a.Movie != b.Movie {
+			if a.Movie {
+				return 1
+			}
+			return -1
+		}
+		ka, _ := strconv.Atoi(a.RatingKey)
+		kb, _ := strconv.Atoi(b.RatingKey)
+		if ka != kb {
+			return cmp.Compare(ka, kb)
+		}
+		return strings.Compare(a.RatingKey, b.RatingKey)
+	})
+	return hits
 }
 
 // attachPlexIdentity hangs the provider identity of one Plex show on a series,

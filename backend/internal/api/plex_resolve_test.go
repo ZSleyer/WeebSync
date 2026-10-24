@@ -85,3 +85,46 @@ func TestPlexRatingKeyResolveNeedsNoTitle(t *testing.T) {
 		t.Errorf("resolve = %q, want 71812", got)
 	}
 }
+
+// One show can sit in two libraries ("Anime" and "Anime 4K"), so one id finds
+// two ratingKeys. The pick used to follow map order: the resolve then saw the
+// stored key contradicted at random and deleted it.
+func TestPlexRatingKeyResolveIsStableWithTwoEntries(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO series (id, key, title) VALUES (1,'rezero','Re:ZERO')`)
+	d.Exec(`INSERT INTO series_provider (source, media_id, series_id) VALUES ('tvdb',305089,1), ('plex',200,1)`)
+	seedGuidIndex(t, s, `{"rezero":{"tvdb":305089,"ratingKey":"200"},"rezero4k":{"tvdb":305089,"ratingKey":"100"},
+		"tvdb:305089":{"tvdb":305089,"ratingKey":"200"}}`)
+
+	for range 30 {
+		if got := s.plexRatingKeyResolve("tvdb:305089"); got != "200" {
+			t.Fatalf("resolve = %q, want the stored 200, which Plex still lists", got)
+		}
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM series_provider WHERE source = 'plex' AND media_id = 200`).Scan(&n)
+	if n != 1 {
+		t.Fatal("the stored ratingKey was deleted although Plex still lists it for the show")
+	}
+
+	idx := s.plexGuidIndexNoWait()
+	for range 30 {
+		if got := guidRatingKey(idx, "tvdb:305089"); got != "100" {
+			t.Fatalf("guidRatingKey = %q, want the lowest key 100 every time", got)
+		}
+	}
+}
+
+// A film and a series can share a TMDB number; a show_key names the series.
+func TestGuidForShowKeyPrefersTheSeries(t *testing.T) {
+	idx := map[string]plexGuid{
+		"movie:a": {TMDB: 42, RatingKey: "1", Movie: true},
+		"b":       {TMDB: 42, RatingKey: "9"},
+	}
+	for range 30 {
+		if g, _ := guidForShowKey(idx, "tmdb:42"); g.RatingKey != "9" {
+			t.Fatalf("guidForShowKey = %q, want the series 9", g.RatingKey)
+		}
+	}
+}
