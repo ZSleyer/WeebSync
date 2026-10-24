@@ -219,7 +219,12 @@ export default function PlayerInfo({
   useEffect(() => {
     const el = list.current
     const li = el?.querySelector<HTMLElement>('[aria-current="true"]')
-    if (el && li) el.scrollTop = li.offsetTop - el.clientHeight / 2 + li.offsetHeight / 2
+    if (!el || !li) return
+    // by where the row is drawn: offsetTop counts from the nearest positioned
+    // ancestor, which is not this list
+    const row = li.getBoundingClientRect()
+    const top = row.top - el.getBoundingClientRect().top + el.scrollTop
+    el.scrollTop = top - el.clientHeight / 2 + row.height / 2
   }, [at, files.length])
 
   // AniList counts its own numbers: the playing file tells how they line up

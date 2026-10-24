@@ -272,4 +272,32 @@ describe('Player page', () => {
       vi.useRealTimers()
     }
   })
+
+  // the list scrolls to the playing episode by where the row is drawn, not by
+  // offsetTop (which counts from the nearest positioned ancestor, not the list)
+  it('F01a-8: the episode list centres the playing episode in the list itself', async () => {
+    const set: number[] = []
+    Object.defineProperty(HTMLOListElement.prototype, 'scrollTop', {
+      configurable: true,
+      get: () => 50,
+      set: (v: number) => void set.push(v),
+    })
+    Object.defineProperty(HTMLOListElement.prototype, 'clientHeight', { configurable: true, get: () => 300 })
+    const rect = (top: number, height: number) => ({ top, height, bottom: top + height }) as DOMRect
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.tagName === 'OL') return rect(200, 300)
+      if (this.getAttribute('aria-current') === 'true') return rect(700, 40)
+      return rect(0, 0)
+    })
+    try {
+      const { container } = mount()
+      await waitFor(() => expect(container.querySelector('ol [aria-current="true"]')).toBeTruthy())
+      // row 500 px under the list's top edge, the list already scrolled by 50
+      await waitFor(() => expect(set.at(-1)).toBe(500 + 50 - 150 + 20))
+    } finally {
+      spy.mockRestore()
+      delete (HTMLOListElement.prototype as unknown as Record<string, unknown>).scrollTop
+      delete (HTMLOListElement.prototype as unknown as Record<string, unknown>).clientHeight
+    }
+  })
 })
