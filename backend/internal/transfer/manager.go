@@ -439,6 +439,10 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 
 var ErrNotFound = fmt.Errorf("download not found")
 
+// ErrQueueStore marks an Enqueue failure in the local queue database rather
+// than at the remote, so a handler can tell its own fault from the server's.
+var ErrQueueStore = errors.New("download queue not written")
+
 // VideoExt lists file extensions treated as episodes (upload guard,
 // completeness checks).
 var VideoExt = map[string]bool{".mkv": true, ".mp4": true, ".avi": true, ".ts": true, ".m2ts": true, ".webm": true, ".mov": true}
@@ -775,7 +779,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			  AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?)`,
 			userID, serverID, j.remote, local).Scan(&existing); err != nil {
 			m.Wake() // what was queued before the failure still runs
-			return res, err
+			return res, fmt.Errorf("%w: %w", ErrQueueStore, err)
 		}
 		if existing > 0 {
 			res.skip(j.remote, "queued", "")
@@ -797,7 +801,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads))`, userID, serverID, j.remote, local, j.size, replaceOld)
 		if ierr != nil {
 			m.Wake()
-			return res, ierr
+			return res, fmt.Errorf("%w: %w", ErrQueueStore, ierr)
 		}
 		if id, lerr := ins.LastInsertId(); lerr == nil {
 			res.IDs = append(res.IDs, id)

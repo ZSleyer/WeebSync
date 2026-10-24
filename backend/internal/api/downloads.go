@@ -109,6 +109,9 @@ type DownloadCreateResponse struct {
 // @Success  201 {object} DownloadCreateResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
+// @Failure  500 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads [post]
@@ -128,10 +131,21 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat, false)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeEnqueueErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, enqueueResponse(res))
+}
+
+// writeEnqueueErr reports an Enqueue failure by its kind: a dial failure as
+// writeDialErr does (409 with fingerprints for an untrusted host key, 404 for
+// an unknown server, else 502), a failed queue write as the server's own 500.
+func writeEnqueueErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, transfer.ErrQueueStore) {
+		dbErr(w, err)
+		return
+	}
+	writeDialErr(w, err)
 }
 
 // handleSyncOnce runs a ONE-OFF sync with the full auto-sync rename pipeline
@@ -148,6 +162,8 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 // @Success  201 {object} DownloadCreateResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
+// @Failure  500 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads/sync [post]
@@ -185,7 +201,7 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
 		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder, in.ReplaceOld)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeEnqueueErr(w, err)
 		return
 	}
 	// "like auto-sync, just once" has to include the last step of it: a Plex

@@ -14470,6 +14470,36 @@
                         },
                         "description": "Unauthorized"
                     },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -14941,6 +14971,26 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
                     },
                     "502": {
                         "content": {
