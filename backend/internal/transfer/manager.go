@@ -512,6 +512,14 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		// progress and the history's start follow what is really resumed
 		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ?, start_bytes = ? WHERE id = ?`, offset, offset, d.ID)
 	}
+	// From here the .part is this row's. Any other unfinished row for the
+	// same file recorded progress on bytes that are no longer there: a retry
+	// of it must start over, not resume on this row's bytes. Fail the
+	// download rather than risk that - the next attempt tries again.
+	if _, err := m.DB.Exec(`UPDATE downloads SET transferred = 0 WHERE local_path = ? AND id <> ?
+		AND status IN ('queued','paused','error','canceled') AND transferred <> 0`, d.LocalPath, d.ID); err != nil {
+		return err
+	}
 
 	if cerr := call(func() { opened, err = client.Open(d.RemotePath, offset) }); cerr != nil {
 		return cerr
