@@ -124,9 +124,9 @@ describe('a refused media server choice and library table', () => {
     for (const k of Object.keys(both)) delete (settings as Record<string, unknown>)[k]
   })
 
-  it('marks the mediaServer select, also for the unprefixed backend wording', async () => {
+  it('marks the mediaServer select with the field-prefixed backend error', async () => {
     withSections(both)
-    vi.spyOn(api, 'put').mockRejectedValue(new Error('mediaServer must be plex or jellyfin'))
+    vi.spyOn(api, 'put').mockRejectedValue(new Error('mediaServer: must be plex or jellyfin'))
     const sel = await screen.findByLabelText('settings.mediaServerUse')
     fireEvent.click(sel)
     fireEvent.click(await screen.findByRole('option', { name: 'Jellyfin' }))

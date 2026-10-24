@@ -96,11 +96,9 @@ const BLANK_SECRETS = {
 // leaves out and checks only what changed, so a stale tab no longer reverts
 // another tab's save (edits are kept as a patch, never as a snapshot), and a value on another page that went bad since does
 // not block this one.
-// The refusal of one field in a save error: the backend writes "field: reason",
-// and "field must be ..." for the one check (mediaServer) that predates the prefix.
+// The refusal of one field in a save error: the backend writes "field: reason".
 function refusal(msg: string | undefined, k: string): string | undefined {
   if (msg?.startsWith(`${k}:`)) return msg.slice(k.length + 1).trim()
-  if (msg?.startsWith(`${k} `)) return msg.slice(k.length + 1).trim()
   return undefined
 }
 
