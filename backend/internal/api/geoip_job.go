@@ -211,6 +211,23 @@ func (s *Server) dropGeoip() {
 	if err := os.Remove(s.geoipPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		slog.Warn("geoip: stored database not removed", "err", err)
 	}
+	s.sweepGeoipParts()
+}
+
+// sweepGeoipParts removes partial downloads a killed process left behind (a
+// failed download cleans up after itself, a SIGKILL or power loss cannot).
+// Downloads are serialised by the job key, so none is in flight when this runs
+// from the download itself.
+func (s *Server) sweepGeoipParts() {
+	parts, err := filepath.Glob(filepath.Join(s.geoipDir(), "dbip-*.part"))
+	if err != nil {
+		return // only a malformed pattern, which this one is not
+	}
+	for _, p := range parts {
+		if err := os.Remove(p); err != nil && !errors.Is(err, os.ErrNotExist) {
+			slog.Warn("geoip: leftover partial file not removed", "err", err)
+		}
+	}
 }
 
 // downloadGeoip fetches one monthly file, checks that it is a city database
@@ -221,6 +238,7 @@ func (s *Server) downloadGeoip(ctx context.Context, url string) (r *geoip.Reader
 	if err := os.MkdirAll(s.geoipDir(), 0o755); err != nil {
 		return nil, err
 	}
+	s.sweepGeoipParts()
 	// The partial file lives next to its destination, not in the temp dir:
 	// the rename must not cross file systems and the service's sandbox may
 	// not allow the temp dir at all.
