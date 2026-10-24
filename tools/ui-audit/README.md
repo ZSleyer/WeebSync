@@ -144,6 +144,62 @@ and do not fail the run. What a run needs to reach all of them:
 `--routes /a,/b` limits `e2e.mjs` to a subset, `--out` and `--tag` steer where
 the screenshots land.
 
+## Functional pass
+
+`features.mjs` asks whether the app still does what it did, not how it looks.
+It drives about sixty user flows through the UI in English and reports each
+one PASS, FAIL or SKIP with a reason: the setup wizard, password and TOTP
+sign-in (codes computed per RFC 6238, a reused code must be refused), adding
+the SFTP test server and accepting its host key, browsing it, a download into
+a folder made in the target picker, pause, resume and cancel on a throttled
+second one, inline rename of a file and a folder, restore from and emptying of
+the trash, a watch created, checked, edited and deleted, the name tester and a
+rename applied to the downloaded copies, every settings page (a value changed,
+saved and read back after a reload), the API token, Jellyfin with its
+libraries, a second account that may create folders but not rename or delete,
+and the read-only views, player, viewer and command palette. A step also fails
+on an uncaught page error, a console error or a 5xx answer while it ran. API
+calls only set preconditions up or check results.
+
+It is built to run **differentially**: the same pass against two builds, each
+on a fresh instance, then the two JSON files side by side. A step that passes
+on one build and fails on the other is the finding; a step that fails on both
+is old.
+
+    export WS_EMAIL=<admin e-mail> WS_PASSWORD=<admin password> WS_SETUP_TOKEN=<setup code>
+    export WS_SFTP_HOST=localhost WS_SFTP_PORT=2222 WS_SFTP_USER=<from tools/sftp-test/.env> WS_SFTP_PASS=<...>
+    export WS_JELLYFIN_URL=http://localhost:8096 WS_JELLYFIN_KEY=<api key>   # optional
+    node tools/ui-audit/features.mjs --base http://localhost:8091 --out /tmp/features --tag main
+
+- **Only a scratch instance.** The run creates the admin account through the
+  wizard (`WEEBSYNC_SETUP_TOKEN` fixes the code, so it need not be read from
+  the log), downloads a few files from the test server, toggles settings back
+  and forth and creates and deletes a second account. It looks for a folder of
+  small video files on the server through the API, so no server path is
+  written into the script.
+- **Reach it by host name, with `WEEBSYNC_BASE_URL` set to the same origin**
+  (`http://localhost:8091`). A WebAuthn relying party cannot be an IP address:
+  through `127.0.0.1` every login page answers 500 on the passkey request and
+  every sign-in step fails on it.
+- Two preconditions go through the API on purpose. The sign-in limiter allows
+  five attempts a minute and the run signs in a dozen times, so the loopback
+  address is put on the trusted networks first. And the UI moves files into
+  the trash only from the duplicates list or on an upgrade, both of which need
+  a matched library; the trash steps put a folder there through the
+  duplicates endpoint and then restore and empty it by hand.
+- Two 5xx answers are expected and allowed: `/api/watches/{id}/plex-show`
+  (503 while no Plex is connected) and `/api/play/*` in the player step (the
+  test files are sparse dummies that cannot be probed).
+- `--only <regex>` runs a subset of steps; it signs in first and picks up the
+  server, download and watch an earlier full run left behind. `--browsers
+  chromium,firefox` picks the engines (Chromium is the default). The results go
+  to `<out>/features-<tag>.json`, with a screenshot per failed step next to
+  them. `WS_DEBUG=1` prints the full error and the page's accessibility tree on
+  a failure, `WS_TRACE=1` every API response with the cookies it sets (names
+  only).
+- A full run takes about five minutes per engine; the TOTP steps wait for
+  fresh 30-second windows.
+
 ## On a real device
 
 `device/` holds two standalone pages for the questions the emulators cannot
