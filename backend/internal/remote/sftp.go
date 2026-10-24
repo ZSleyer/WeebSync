@@ -21,8 +21,21 @@ import (
 type sftpClient struct {
 	// ssh is nil for a pooled channel (SFTPChannel): Close then shuts only
 	// the sftp channel, leaving the shared connection open for reuse.
-	ssh  *ssh.Client
-	sftp *sftp.Client
+	ssh *ssh.Client
+	// transport is the SSH connection the channel runs on, pooled or not;
+	// Abort closes it
+	transport *ssh.Client
+	sftp      *sftp.Client
+}
+
+// Abort closes the SSH connection under the client. pkg/sftp has no
+// per-request timeout and its Close waits for the session to end
+// (pkg/sftp@v1.13.11 conn.go:85), so a request the server never answers
+// would hold both forever while keepalives keep the transport alive. On a
+// pooled connection this ends the sibling channels too - their requests fail
+// and they retry; the pool drops the connection (see pool.lease.Abort).
+func (c *sftpClient) Abort() {
+	c.transport.Close()
 }
 
 // DialSSH opens the SSH transport (TCP + handshake + auth, TOFU host key)
@@ -44,7 +57,7 @@ func SFTPChannel(conn *ssh.Client) (Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sftpClient{sftp: sc}, nil
+	return &sftpClient{transport: conn, sftp: sc}, nil
 }
 
 func dialSFTP(cfg Config) (Client, error) {
@@ -57,7 +70,7 @@ func dialSFTP(cfg Config) (Client, error) {
 		conn.Close()
 		return nil, err
 	}
-	return &sftpClient{ssh: conn, sftp: sc}, nil
+	return &sftpClient{ssh: conn, transport: conn, sftp: sc}, nil
 }
 
 func dialSSH(cfg Config) (*ssh.Client, error) {
@@ -145,7 +158,7 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		return nil, err
 	}
 	client := ssh.NewClient(sc, chans, reqs)
-	go keepalive(client)
+	go keepalive(client, keepaliveInterval) // read here: tests change the var
 	return client, nil
 }
 
@@ -155,13 +168,13 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 // only fires on one that really went silent. A dead connection ends the wait
 // for the reply: the mux closes its response channel and SendRequest returns
 // io.EOF (x/crypto/ssh mux.go:183-185, :224).
-func keepalive(c *ssh.Client) {
+func keepalive(c *ssh.Client, every time.Duration) {
 	done := make(chan struct{})
 	go func() {
 		_ = c.Wait() // only the end matters here; the users of c see its error
 		close(done)
 	}()
-	t := time.NewTicker(keepaliveInterval)
+	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
 		select {

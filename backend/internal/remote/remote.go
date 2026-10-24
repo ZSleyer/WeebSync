@@ -54,6 +54,14 @@ type Client interface {
 	Close() error
 }
 
+// Aborter is a Client that can be torn down hard: Abort closes its network
+// connection at once, which fails every call still waiting on it, so a
+// later Close no longer waits for a peer that will not answer. For a pooled
+// lease it also gives the slot back and keeps the connection out of reuse.
+type Aborter interface {
+	Abort()
+}
+
 type Config struct {
 	Protocol string // sftp | ftps
 	Host     string

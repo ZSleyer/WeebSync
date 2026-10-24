@@ -373,6 +373,13 @@ func (m *Manager) startDownload(id int64) {
 	}()
 }
 
+// abandonGrace is how long a remote call left behind by a pause, cancel or
+// shutdown may take to return by itself before its client is aborted. Most
+// return within milliseconds; one that does not is stuck on a server whose
+// transport is alive (keepalives answered) but whose SFTP side hangs, which no
+// idle deadline catches. A var so tests can shorten it.
+var abandonGrace = 60 * time.Second
+
 // dialDetached runs the Dialer on its own goroutine so that a pause, cancel
 // or shutdown ends the download while a dial still waits (for a pool slot, a
 // slow handshake). A connection that arrives after that is closed unused.
@@ -408,11 +415,13 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	// cancel or shutdown takes effect at once even while a stalled peer holds
 	// the call - before, the worker sat in a blocked Read until the kernel gave
 	// up on the connection. The call itself ends when it returns or at the
-	// latest at the connection's idle deadline (remote.ioTimeout). A call
-	// still out when the download ends owns the cleanup: closing a file or
-	// client under a running call would block on it (pkg/sftp File.Close
-	// waits for the lock a running Read holds). Not counted in wg: it touches
-	// no database, and Shutdown should not wait for a dead peer.
+	// latest at the connection's idle deadline (remote.ioTimeout), or, if the
+	// transport stays alive while the server never answers, when the client is
+	// aborted after abandonGrace. A call still out when the download ends owns
+	// the cleanup: closing a file or client under a running call would block
+	// on it (pkg/sftp File.Close waits for the lock a running Read holds). Not
+	// counted in wg: it touches no database, and Shutdown should not wait for
+	// a dead peer.
 	var opened io.ReadCloser    // the remote file, set by the Open call
 	var abandoned chan struct{} // closed when an abandoned call returns
 	call := func(op func()) error {
@@ -441,7 +450,16 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 			return
 		}
 		go func() {
-			<-abandoned
+			select {
+			case <-abandoned:
+			case <-time.After(abandonGrace):
+				// stuck for good: tear the connection down, which fails the
+				// call and lets a pooled lease give its slot back
+				if a, ok := client.(remote.Aborter); ok {
+					a.Abort()
+				}
+				<-abandoned
+			}
 			release()
 		}()
 	}()
