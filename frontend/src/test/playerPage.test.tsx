@@ -383,4 +383,61 @@ describe('Player page', () => {
       await waitFor(() => expect(video).toHaveFocus())
     })
   })
+
+  // media-chrome shows a control's tooltip while it matches :hover or
+  // :focus-visible (media-chrome-button.js 4.19.3); a phone keeps :hover on
+  // the last button tapped, so its tooltip stayed. player.css hides the
+  // tooltips while the player carries data-notips; jsdom cannot match
+  // ::part, so the tests follow the attribute.
+  describe('control tooltips', () => {
+    const pointer = (type: string, pointerType: string) =>
+      Object.assign(new Event(type, { bubbles: true }), { pointerType })
+    const setup = async () => {
+      const { container } = mount()
+      await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+      const player = container.querySelector('media-controller')!
+      const button = player.querySelector('media-fullscreen-button') ?? player
+      return { player, button }
+    }
+
+    it('stay away after a tap or a pen, so none lingers on the last button tapped', async () => {
+      const { player, button } = await setup()
+      expect(player.hasAttribute('data-notips')).toBe(false)
+      await act(async () => {
+        button.dispatchEvent(pointer('pointerdown', 'touch'))
+        fireEvent.click(button)
+      })
+      expect(player.hasAttribute('data-notips')).toBe(true)
+      // a touch moving over the controls does not bring them back
+      button.dispatchEvent(pointer('pointerover', 'touch'))
+      expect(player.hasAttribute('data-notips')).toBe(true)
+      fireEvent.keyDown(player, { key: 'Tab' })
+      button.dispatchEvent(pointer('pointerdown', 'pen'))
+      expect(player.hasAttribute('data-notips')).toBe(true)
+    })
+
+    it('come back for the keyboard and for a mouse', async () => {
+      const { player, button } = await setup()
+      button.dispatchEvent(pointer('pointerdown', 'touch'))
+      fireEvent.keyDown(player, { key: 'Tab' })
+      expect(player.hasAttribute('data-notips')).toBe(false)
+      button.dispatchEvent(pointer('pointerdown', 'touch'))
+      button.dispatchEvent(pointer('pointerover', 'mouse'))
+      expect(player.hasAttribute('data-notips')).toBe(false)
+    })
+
+    it('are dismissed with Escape until the pointer or the focus moves on (WCAG 1.4.13)', async () => {
+      const { player, button } = await setup()
+      // with no menu open Escape leaves the player; with one open while the
+      // focus is on the bar it only closes the tooltip
+      player.querySelector('media-settings-menu')!.removeAttribute('hidden')
+      fireEvent.keyDown(player, { key: 'Escape' })
+      expect(player.hasAttribute('data-notips')).toBe(true)
+      button.dispatchEvent(pointer('pointerover', 'mouse'))
+      expect(player.hasAttribute('data-notips')).toBe(false)
+      fireEvent.keyDown(player, { key: 'Escape' })
+      fireEvent.keyDown(player, { key: 'Tab' })
+      expect(player.hasAttribute('data-notips')).toBe(false)
+    })
+  })
 })

@@ -898,6 +898,28 @@ function PlayerView({
     el.addEventListener('keydown', handle)
     return () => el.removeEventListener('keydown', handle)
   }, [data])
+  // media-chrome shows a control's tooltip while it is hovered or has visible
+  // focus. A phone keeps :hover on the last button tapped, so its tooltip
+  // ("Exit fullscreen" after going fullscreen) stayed for good: after a touch
+  // or a pen the tooltips stay away (player.css, data-notips) until a mouse
+  // moves or a key is pressed. Escape hides a shown one until the pointer or
+  // the focus moves on (WCAG 1.4.13, dismissible).
+  useEffect(() => {
+    const el = playerRef.current
+    if (!el) return
+    const tips = (on: boolean) => el.toggleAttribute('data-notips', !on)
+    const down = (e: globalThis.PointerEvent) => tips(e.pointerType === 'mouse')
+    const over = (e: globalThis.PointerEvent) => e.pointerType === 'mouse' && tips(true)
+    const key = (e: KeyboardEvent) => tips(e.key !== 'Escape')
+    el.addEventListener('pointerdown', down)
+    el.addEventListener('pointerover', over)
+    el.addEventListener('keydown', key)
+    return () => {
+      el.removeEventListener('pointerdown', down)
+      el.removeEventListener('pointerover', over)
+      el.removeEventListener('keydown', key)
+    }
+  }, [data])
   useEffect(() => {
     const player = playerRef.current
     const dock = player?.querySelector<HTMLElement>('.t-player-dock')

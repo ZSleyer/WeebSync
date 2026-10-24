@@ -114,6 +114,9 @@
   --media-menu-transition-out: opacity var(--dur-1) var(--ease-in), transform var(--dur-1) var(--ease-in);
   --media-menu-transform-out: translateY(4px) scale(0.98);
 }
+/* after a tap or a pen, and after Escape: no control shows its tooltip (see
+   the data-notips effect in Player.tsx) */
+.t-player[data-notips] *::part(tooltip) { display: none; }
 /* fullscreen goes to the page, which outlives the player of each file: the
    picture fills it and what the file is stays out of it */
 .t-player-page:fullscreen {
