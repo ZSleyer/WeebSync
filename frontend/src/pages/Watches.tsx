@@ -832,6 +832,16 @@ export default function Watches() {
           watchId={edit.id}
           initial={watchFields(edit)}
           onSave={(f) => save(edit.id, f)}
+          // a watch without a record has no series page, whose menu holds the
+          // delete: the dialog is its only place for it (no touch long press)
+          onDelete={
+            edit.media
+              ? undefined
+              : () => {
+                  void del(edit)
+                  setEdit(null)
+                }
+          }
           onClose={() => setEdit(null)}
         />
       )}
