@@ -158,7 +158,7 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 func keepalive(c *ssh.Client) {
 	done := make(chan struct{})
 	go func() {
-		c.Wait()
+		_ = c.Wait() // only the end matters here; the users of c see its error
 		close(done)
 	}()
 	t := time.NewTicker(keepaliveInterval)
