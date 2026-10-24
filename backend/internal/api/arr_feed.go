@@ -54,7 +54,7 @@ type arrRelease struct {
 //
 // ponytail: direct children only - a show folder holding Season subfolders
 // is reached through the season folders the catalog matched on their own
-func (s *Server) arrFiles(where string, limit int, args ...any) []arrFile {
+func (s *Server) arrFiles(where string, limit int, args ...any) ([]arrFile, error) {
 	q := `SELECT ri.server_id, ri.path, ri.size, ri.mod_time, cv.folder, cv.season, cv.res_rank, cv.show_key, cv.series_id, cv.is_movie
 		FROM catalog_variants cv
 		JOIN remote_index ri ON ri.server_id = cv.server_id AND ri.parent = cv.folder AND ri.is_dir = 0
@@ -62,23 +62,23 @@ func (s *Server) arrFiles(where string, limit int, args ...any) []arrFile {
 		ORDER BY ri.mod_time DESC LIMIT ?`
 	rows, err := s.DB.Query(q, append(args, limit)...)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 	var out []arrFile
 	for rows.Next() {
 		var f arrFile
-		if rows.Scan(&f.serverID, &f.path, &f.size, &f.modTime, &f.folder, &f.season, &f.resRank, &f.showKey, &f.seriesID, &f.isMovie) != nil {
-			continue
+		if err := rows.Scan(&f.serverID, &f.path, &f.size, &f.modTime, &f.folder, &f.season, &f.resRank, &f.showKey, &f.seriesID, &f.isMovie); err != nil {
+			return nil, err
 		}
 		if transfer.VideoExt[strings.ToLower(path.Ext(f.path))] {
 			out = append(out, f)
 		}
 	}
-	if rows.Err() != nil {
-		return nil
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
-	return out
+	return out, nil
 }
 
 // arrSeriesTitle is the name the apps know a show by: the English title when
@@ -350,16 +350,26 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 	wantEp, _ := strconv.Atoi(r.FormValue("ep"))
 	wantNum := 0
 	var files []arrFile
+	// a database error must not read as "no results": the app would take the
+	// indexer for healthy
+	var dbFailure error
+	fetch := func(where string, limit int, args ...any) []arrFile {
+		f, err := s.arrFiles(where, limit, args...)
+		if err != nil && dbFailure == nil {
+			dbFailure = err
+		}
+		return f
+	}
 	switch {
 	case movie && r.FormValue("tmdbid") != "":
 		id, _ := strconv.Atoi(r.FormValue("tmdbid"))
-		files = s.arrFiles(`cv.is_movie = 1 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
+		files = fetch(`cv.is_movie = 1 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
 			(SELECT series_id FROM series_provider WHERE source = 'tmdb:movie' AND media_id = ?)))`, limit, "tmdb:"+strconv.Itoa(id), id)
 	case !movie && r.FormValue("tvdbid") != "":
 		id, _ := strconv.Atoi(r.FormValue("tvdbid"))
 		// a search for one episode reads every file of the show: the
 		// episode is only known after naming, so the cap is generous
-		files = s.arrFiles(`cv.is_movie = 0 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
+		files = fetch(`cv.is_movie = 0 AND (cv.show_key = ? OR (cv.series_id > 0 AND cv.series_id IN
 			(SELECT series_id FROM series_provider WHERE source = 'tvdb' AND media_id = ?)))`, 2000, "tvdb:"+strconv.Itoa(id), id)
 	case r.FormValue("q") != "":
 		kind := "cv.is_movie = 0 AND "
@@ -371,7 +381,7 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		}
 		byTitle := func(words []string) []arrFile {
 			like := "%" + strings.Join(words, "%") + "%"
-			return s.arrFiles(kind+`(cv.folder LIKE ? OR (cv.series_id > 0 AND (
+			return fetch(kind+`(cv.folder LIKE ? OR (cv.series_id > 0 AND (
 				cv.series_id IN (SELECT id FROM series WHERE title LIKE ?) OR
 				cv.series_id IN (SELECT series_id FROM series_titles WHERE title LIKE ?))))`, 2000+offset, like, like, like)
 		}
@@ -395,12 +405,19 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 			// every matched film, not only those with a TMDB id: Radarr reads
 			// a film in the feed by title and year, and a new anime film is
 			// matched long before the id lists carry its TMDB id
-			files = s.arrFiles(`cv.is_movie = 1 AND cv.show_key != ''`, n)
+			files = fetch(`cv.is_movie = 1 AND cv.show_key != ''`, n)
 		} else {
-			files = s.arrFiles(`cv.is_movie = 0 AND cv.show_key LIKE 'tvdb:%'`, n)
+			files = fetch(`cv.is_movie = 0 AND cv.show_key LIKE 'tvdb:%'`, n)
 		}
 	}
 
+	if dbFailure != nil {
+		slog.Warn("newznab feed: file lookup failed", "err", dbFailure)
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, `<?xml version="1.0" encoding="UTF-8"?><error code="900" description="database error"/>`)
+		return
+	}
 	base := arrBaseURL(r)
 	key := r.URL.Query().Get("apikey")
 	var items strings.Builder
