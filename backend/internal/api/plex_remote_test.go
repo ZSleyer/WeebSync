@@ -17,8 +17,8 @@ func TestPlexFilmReachesTvdbThroughItsImdbID(t *testing.T) {
 	d := dbtest.Open(t)
 	db.SetSetting(d, "tvdb_api_key", "test-key")
 	s := testServer(t, &Server{DB: d, Anilist: anilist.New(d), Tvdb: tvdb.New(d)})
-	// keyed as the index keys it: the folded title
-	seedGuidIndex(t, s, `{"yor name":{"tmdb":372058,"imdb":5311514,"year":2016,"ratingKey":"7","movie":true}}`)
+	// keyed as the index keys it: a film under its folded title
+	seedGuidIndex(t, s, `{"movie:yor name":{"tmdb":372058,"imdb":5311514,"year":2016,"ratingKey":"7","movie":true}}`)
 	// what /search/remoteid answered, already cached
 	s.cacheSet("tvdb:remoteid:tt5311514", `{"Series":0,"Movie":197}`)
 

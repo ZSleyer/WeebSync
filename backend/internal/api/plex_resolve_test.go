@@ -10,7 +10,7 @@ import (
 // resolution can be tested without a Plex server behind it.
 func seedGuidIndex(t *testing.T, s *Server, payload string) {
 	t.Helper()
-	s.cacheSet("plex:guididx:v4", payload)
+	s.cacheSet("plex:guididx:v5", payload)
 }
 
 // A ratingKey is a row id in Plex's metadata db, not an identity: rebuilding an

@@ -808,15 +808,32 @@ func (s *Server) plexOwned() func(m anilist.Media, source string) bool {
 		return func(anilist.Media, string) bool { return false }
 	}
 	titles := s.plexTitleIndex(c)
-	tmdb := map[int]bool{}
+	// one TMDB number names a series and an unrelated film alike: a film in
+	// the library says nothing about the series of the same number
+	tmdbTV, tmdbFilm := map[int]bool{}, map[int]bool{}
 	for _, g := range s.plexGuidIndex() {
 		if g.TMDB > 0 {
-			tmdb[g.TMDB] = true
+			if g.Movie {
+				tmdbFilm[g.TMDB] = true
+			} else {
+				tmdbTV[g.TMDB] = true
+			}
 		}
 	}
 	return func(m anilist.Media, source string) bool {
-		if src, _, _ := strings.Cut(source, ":"); src == "tmdb" && tmdb[m.ID] {
-			return true
+		switch source {
+		case "tmdb:tv":
+			if tmdbTV[m.ID] {
+				return true
+			}
+		case "tmdb:movie":
+			if tmdbFilm[m.ID] {
+				return true
+			}
+		case "tmdb":
+			if tmdbTV[m.ID] || tmdbFilm[m.ID] {
+				return true
+			}
 		}
 		for _, t := range []string{m.Title.Romaji, m.Title.English, m.Title.Native} {
 			if t != "" && titles[normTitle(t)] != "" {
@@ -991,8 +1008,14 @@ func guidForShowKey(idx map[string]plexGuid, showKey string) (plexGuid, bool) {
 func (s *Server) attachPlexIdentity(seriesID int64, g plexGuid, exact bool) {
 	rk, _ := strconv.Atoi(g.RatingKey)
 	// imdb only ever comes from Plex (suggestion badge, extra dedup axis); the
-	// plex row is its own address, needed for deep links and stream selection
-	for _, r := range []providerRef{{"tvdb", g.TVDB}, {"tmdb:tv", g.TMDB}, {"imdb", g.IMDB}, {"plex", rk}} {
+	// plex row is its own address, needed for deep links and stream selection.
+	// A film's TMDB id is a film id, and the TVDB id Plex holds for it is from
+	// TVDB's film catalogue, which series_provider does not carry.
+	refs := []providerRef{{"tvdb", g.TVDB}, {"tmdb:tv", g.TMDB}, {"imdb", g.IMDB}, {"plex", rk}}
+	if g.Movie {
+		refs = []providerRef{{"tmdb:movie", g.TMDB}, {"imdb", g.IMDB}, {"plex", rk}}
+	}
+	for _, r := range refs {
 		if r.MediaID <= 0 {
 			continue
 		}

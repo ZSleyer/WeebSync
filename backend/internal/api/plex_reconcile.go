@@ -55,8 +55,9 @@ func (s *Server) plexGuidIndexNoWait() map[string]plexGuid {
 	return s.plexGuids.get(s, plexGuidKey, false, s.buildPlexGuidIndex)
 }
 
-// v3: movie flag; v4: tvdbKey entries. A key bump skips stale cached blobs
-const plexGuidKey = "plex:guididx:v4"
+// v3: movie flag; v4: tvdbKey entries; v5: films under filmKey. A key bump
+// skips stale cached blobs
+const plexGuidKey = "plex:guididx:v5"
 
 func (s *Server) buildPlexGuidIndex() (map[string]plexGuid, bool) {
 	idx := map[string]plexGuid{}
@@ -85,8 +86,14 @@ func (s *Server) buildPlexGuidIndex() (map[string]plexGuid, bool) {
 			}
 			g := plexGuid{TVDB: sh.TVDBID, TMDB: sh.TMDBID, IMDB: sh.IMDBID, Year: sh.Year, RatingKey: sh.RatingKey,
 				Movie: sec.Type == "movie"}
+			// a film and a series of one title ("Fargo") are different
+			// entries with unrelated ids: each kind keeps its own title key,
+			// or the library read last would answer for both
 			for _, t := range []string{sh.Title, sh.OriginalTitle} {
 				if k := match.FoldKey(t); k != "" {
+					if g.Movie {
+						k = filmKey(k)
+					}
 					idx[k] = g
 				}
 			}
@@ -106,6 +113,20 @@ func (s *Server) buildPlexGuidIndex() (map[string]plexGuid, bool) {
 // tvdbKey files a Plex show under its TVDB id in plexGuidIndex. A folded title
 // carries no colon, so the two kinds of key never meet.
 func tvdbKey(id int) string { return "tvdb:" + strconv.Itoa(id) }
+
+// filmKey files a Plex film under its folded title in plexGuidIndex; the bare
+// folded title belongs to the series.
+func filmKey(fold string) string { return "movie:" + fold }
+
+// guidTitleKey is the guid index key of a folder's title for the kind of
+// entry its match source names.
+func guidTitleKey(folder, source string) string {
+	k := match.FoldKey(match.GuessTitle(path.Base(folder)))
+	if k != "" && (source == "tmdb:movie" || source == tvdbMovieSource) {
+		return filmKey(k)
+	}
+	return k
+}
 
 // plexByTVDB is the Plex show holding one of the TVDB ids a series already
 // carries: the same show by id, whatever its title or year in Plex.
@@ -149,7 +170,7 @@ func (s *Server) reconcilePlex(budget int) {
 	// Plex calls the show 262954 - both real entries for the same show. Skipping
 	// on "has any tvdb" is what kept those two apart. INSERT OR IGNORE below
 	// makes a repeat pass free, so the only cost is the title lookup.
-	rows, err := s.DB.Query(`SELECT DISTINCT cm.server_id, cm.folder, sp.series_id
+	rows, err := s.DB.Query(`SELECT DISTINCT cm.server_id, cm.folder, cm.source, sp.series_id
 		FROM catalog_matches cm
 		JOIN series_provider sp ON sp.source = cm.source AND sp.media_id = cm.media_id
 		WHERE cm.media_id != 0
@@ -162,12 +183,13 @@ func (s *Server) reconcilePlex(budget int) {
 	type hit struct {
 		serverID int64
 		folder   string
+		source   string
 		seriesID int64
 	}
 	var hits []hit
 	for rows.Next() {
 		var h hit
-		if rows.Scan(&h.serverID, &h.folder, &h.seriesID) == nil {
+		if rows.Scan(&h.serverID, &h.folder, &h.source, &h.seriesID) == nil {
 			hits = append(hits, h)
 		}
 	}
@@ -184,7 +206,7 @@ func (s *Server) reconcilePlex(budget int) {
 		g, byID := s.plexByTVDB(idx, h.seriesID)
 		ok := byID
 		if !ok {
-			g, ok = idx[match.FoldKey(match.GuessTitle(path.Base(h.folder)))]
+			g, ok = idx[guidTitleKey(h.folder, h.source)]
 		}
 		switch {
 		case byID:

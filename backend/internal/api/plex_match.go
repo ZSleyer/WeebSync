@@ -25,7 +25,7 @@ func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
 		return 0, false // no Plex configured / nothing indexed
 	}
 	base := path.Base(folder)
-	g, ok := idx[match.FoldKey(match.GuessTitle(base))]
+	g, ok := idx[guidTitleKey(folder, itemSource)]
 	if !ok {
 		return 0, false
 	}
@@ -54,11 +54,20 @@ func (s *Server) matchLocalByPlexID(folder, itemSource string) (int, bool) {
 			return id, true
 		}
 	case "tmdb:tv", "tmdb:movie":
+		// one TMDB number names a series and an unrelated film alike
+		if g.Movie != (itemSource == "tmdb:movie") {
+			return 0, false
+		}
 		if g.TMDB != 0 {
 			s.logLocalIDMatch(folder, "tmdb-direct", g.TMDB)
 			return g.TMDB, true
 		}
 	case "anilist":
+		if g.Movie {
+			// both lookups read the ids as a series' (tvdb, tmdb:tv): a
+			// film's numbers name something else there
+			return 0, false
+		}
 		if id, ok := s.anilistFromSeries(g.TVDB, g.TMDB, season); ok {
 			s.logLocalIDMatch(folder, "series", id)
 			return id, true

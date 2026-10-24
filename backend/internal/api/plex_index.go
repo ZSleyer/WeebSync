@@ -327,7 +327,7 @@ func (s *Server) refreshPlexRoots() {
 // the switch to be done again from the start.
 func (s *Server) forgetMediaServer(c plex.Server, mid, prev string) error {
 	if _, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key LIKE 'plex:machineid%'
-		OR key IN ('plex:guididx:v4', 'plex:titleidx:v2', 'plex:showlist:v1')`); err != nil {
+		OR key IN ('plex:guididx:v5', 'plex:titleidx:v2', 'plex:showlist:v1')`); err != nil {
 		return err
 	}
 	s.plexGuids.reset()

@@ -51,9 +51,9 @@ func TestRescanNamesTheServerPath(t *testing.T) {
 	d.Exec(`INSERT INTO users (id, email) VALUES (1, 'chisato@da.jp')`)
 	d.Exec(`INSERT INTO plex_accounts (user_id, token_enc) VALUES (1, 'x')`)
 	s.cacheSet("plex:machineid:jellyfin", "old-server")
-	s.cacheSet("plex:guididx:v4", "{}")
+	s.cacheSet("plex:guididx:v5", "{}")
 	s.refreshPlexRoots()
-	for _, k := range []string{"plex:machineid:jellyfin", "plex:guididx:v4"} {
+	for _, k := range []string{"plex:machineid:jellyfin", "plex:guididx:v5"} {
 		if _, ok := s.cacheGet(k, time.Hour); ok {
 			t.Errorf("%s survived the server change", k)
 		}
