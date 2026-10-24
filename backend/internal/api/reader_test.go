@@ -2,15 +2,20 @@ package api
 
 import (
 	"archive/zip"
+	"context"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/auth"
 )
 
 func TestUnpackComic(t *testing.T) {
@@ -67,6 +72,118 @@ func TestUnpackComic(t *testing.T) {
 				t.Errorf("entry not sandboxed: %q", csp)
 			}
 		}
+	}
+}
+
+// Each unpack in progress may write gigabytes, and the shelf only bounds the
+// finished ones: fifty parallel opens of fifty paths used to unpack fifty
+// books at once. Now a user unpacks one book at a time, and no more than the
+// slots run across all users; a request waiting for a slot leaves when it
+// ends.
+func TestReadOpenBoundsUnpacks(t *testing.T) {
+	mux, s, adminC, userC, _, _ := setupUsersTest(t)
+	res, err := s.DB.Exec(`INSERT INTO users (email) VALUES ('third@example.com')`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	thirdID, _ := res.LastInsertId()
+	rec := httptest.NewRecorder()
+	if err := auth.CreateSession(s.DB, rec, httptest.NewRequest("GET", "/", nil), thirdID, true); err != nil {
+		t.Fatal(err)
+	}
+	thirdC := rec.Result().Cookies()[0]
+
+	var mu sync.Mutex
+	active, peak, runs := 0, 0, 0
+	entered := make(chan struct{}, 8)
+	release := make(chan struct{})
+	defer func(f func(*Server, context.Context, playSource) (*book, error)) { bookUnpack = f }(bookUnpack)
+	bookUnpack = func(_ *Server, _ context.Context, src playSource) (*book, error) {
+		mu.Lock()
+		active++
+		runs++
+		peak = max(peak, active)
+		mu.Unlock()
+		entered <- struct{}{}
+		<-release
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return &book{dir: t.TempDir(), kind: "comic", token: src.path, pages: []string{"1.jpg"}, used: time.Now()}, nil
+	}
+	open := func(path string, c *http.Cookie, ctx context.Context) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/api/read/open?path="+path, nil).WithContext(ctx)
+		req.AddCookie(c)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	var wg sync.WaitGroup
+	codes := make([]int, 2)
+	wg.Go(func() { codes[0] = open("/a.cbz", userC, context.Background()).Code })
+	<-entered
+	// the same user's next book is refused while the first unpacks
+	if rec := open("/b.cbz", userC, context.Background()); rec.Code != http.StatusTooManyRequests || rec.Header().Get("Retry-After") == "" {
+		t.Fatalf("second parallel book of one user: %d %s", rec.Code, rec.Body)
+	}
+	wg.Go(func() { codes[1] = open("/c.cbz", adminC, context.Background()).Code })
+	<-entered
+	// both slots are taken: a third user waits, and leaves with its request
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan int)
+	go func() { done <- open("/d.cbz", thirdC, ctx).Code }()
+	cancel()
+	if code := <-done; code == http.StatusOK {
+		t.Fatal("a request past the slots unpacked anyway")
+	}
+	close(release)
+	wg.Wait()
+	if codes[0] != http.StatusOK || codes[1] != http.StatusOK {
+		t.Fatalf("books within the limits: %v", codes)
+	}
+	if peak != 2 || runs != 2 {
+		t.Fatalf("peak %d runs %d, want 2 and 2", peak, runs)
+	}
+	// the user's slot is free again once the unpack is done
+	if rec := open("/b.cbz", userC, context.Background()); rec.Code != http.StatusOK {
+		t.Fatalf("next book after the first finished: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// An unpack leaves bookMinFree on the disk: an archive that would write past
+// it stops with errBookDisk (507), however far below the per-book cap it is.
+func TestUnpackStopsAtDiskBudget(t *testing.T) {
+	defer func(f func(string) (uint64, error)) { bookDiskFree = f }(bookDiskFree)
+	// 10 bytes of room per slot above the reserve
+	bookDiskFree = func(string) (uint64, error) { return bookMinFree + uint64(10*cap(bookUnpackSlots)), nil }
+	tmp := t.TempDir()
+	for name, size := range map[string]int{"small.cbz": 8, "big.cbz": 50} {
+		arc := filepath.Join(tmp, name)
+		f, _ := os.Create(arc)
+		zw := zip.NewWriter(f)
+		w, _ := zw.Create("1.jpg")
+		w.Write(make([]byte, size))
+		zw.Close()
+		f.Close()
+		in, _ := os.Open(arc)
+		fi, _ := in.Stat()
+		out := filepath.Join(tmp, name+".out")
+		os.Mkdir(out, 0o700)
+		err := unpack(&playFile{ReadSeeker: in, size: fi.Size()}, out)
+		in.Close()
+		if name == "small.cbz" && err != nil {
+			t.Errorf("%s within the room: %v", name, err)
+		}
+		if name == "big.cbz" && !errors.Is(err, errBookDisk) {
+			t.Errorf("%s past the room: %v, want errBookDisk", name, err)
+		}
+	}
+	// and the reader says so
+	mux, _, _, userC, _, _ := setupUsersTest(t)
+	defer func(f func(*Server, context.Context, playSource) (*book, error)) { bookUnpack = f }(bookUnpack)
+	bookUnpack = func(*Server, context.Context, playSource) (*book, error) { return nil, errBookDisk }
+	if rec := doReq(mux, "GET", "/api/read/open?path=/big.cbz", "", userC); rec.Code != http.StatusInsufficientStorage {
+		t.Errorf("open past the disk budget: %d %s", rec.Code, rec.Body)
 	}
 }
 

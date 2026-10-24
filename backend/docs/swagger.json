@@ -18063,6 +18063,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -18072,6 +18082,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "507": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Insufficient Storage"
                     }
                 },
                 "security": [
