@@ -72,7 +72,7 @@ function useHidden() {
 export interface ToastProps {
   message: ReactNode
   /** a single action, e.g. undo */
-  action?: { label: string; onClick: () => void }
+  action?: { label: string; onClick: () => void; /** aria-keyshortcuts, e.g. "Control+Z" */ keyShortcuts?: string }
   /**
    * how long it stays, in milliseconds (see toastDuration). With `onClose`
    * the toast keeps the time itself: a close button whose ring runs down,
@@ -124,7 +124,12 @@ export function Toast({ message, action, duration, onClose, closeLabel = 'Close'
     >
       <span className="t-toast__text">{message}</span>
       {action && (
-        <button type="button" className="t-toast__action" onClick={action.onClick}>
+        <button
+          type="button"
+          className="t-toast__action"
+          aria-keyshortcuts={action.keyShortcuts}
+          onClick={action.onClick}
+        >
           {action.label}
         </button>
       )}

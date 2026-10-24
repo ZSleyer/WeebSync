@@ -31,6 +31,7 @@
   },
   "common": {
     "undo": "Rückgängig",
+    "undoKeys": "Rückgängig ({{keys}})",
     "undoFailed": "Das hat nicht geklappt, der Eintrag ist wieder da.",
     "actionFailed": "Hat nicht geklappt: {{msg}}",
     "confirm": "Bestätigen",

@@ -92,6 +92,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return () => removeEventListener('pagehide', flush)
   }, [flush])
 
+  // the shortcut is named on the button where a keyboard is likely (a fine
+  // pointer), in the platform's own words
+  const mac = /Mac|iPhone|iPad/.test(navigator.platform)
+  const undoKeys = mac ? 'Meta+Z' : 'Control+Z'
+  const keyboard = typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches
+  const undoLabel = keyboard ? t('common.undoKeys', { keys: mac ? '⌘Z' : 'Ctrl+Z' }) : t('common.undo')
+
   const undo = () => {
     pending.current = null
     live?.undo?.()
@@ -153,7 +160,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           <Toast
             key={live.id}
             message={live.message}
-            action={live.undo ? { label: t('common.undo'), onClick: undo } : undefined}
+            action={live.undo ? { label: undoLabel, onClick: undo, keyShortcuts: undoKeys } : undefined}
             duration={toastDuration(live.message, !!live.undo)}
             onClose={closeLive}
             closeLabel={t('common.close')}

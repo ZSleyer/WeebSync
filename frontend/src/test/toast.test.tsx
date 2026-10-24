@@ -116,6 +116,17 @@ describe('undoable removal', () => {
     expect(screen.getByText(/item 2/)).toBeInTheDocument()
   })
 
+  it('names the shortcut on the undo button and exposes it as aria-keyshortcuts', async () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: true }))
+    app(vi.fn(async () => {}))
+    await act(() => vi.runOnlyPendingTimersAsync())
+    fireEvent.click(screen.getByText('del 1'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    const undo = screen.getByText('common.undoKeys')
+    expect(undo).toHaveAttribute('aria-keyshortcuts', 'Control+Z')
+    vi.unstubAllGlobals()
+  })
+
   it('undoes with Ctrl+Z from anywhere, but leaves a text field its own undo', async () => {
     const remove = vi.fn(async () => {})
     app(remove)

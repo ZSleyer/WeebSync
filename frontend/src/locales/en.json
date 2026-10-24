@@ -31,6 +31,7 @@
   },
   "common": {
     "undo": "Undo",
+    "undoKeys": "Undo ({{keys}})",
     "undoFailed": "That did not work, the entry is back.",
     "actionFailed": "That did not work: {{msg}}",
     "confirm": "Confirm",
