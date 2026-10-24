@@ -54,6 +54,14 @@ type Client interface {
 	Close() error
 }
 
+// Aborter is a Client that can be torn down hard: Abort closes its network
+// connection at once, which fails every call still waiting on it, so a
+// later Close no longer waits for a peer that will not answer. For a pooled
+// lease it also gives the slot back and keeps the connection out of reuse.
+type Aborter interface {
+	Abort()
+}
+
 type Config struct {
 	Protocol string // sftp | ftps
 	Host     string
@@ -77,8 +85,50 @@ type Config struct {
 // instead of a connection: USER and PASS would cross the network in clear text.
 var ErrPlainFTP = errors.New("plain FTP is not supported (credentials would be sent unencrypted), use protocol ftps")
 
+// ErrBlockedHost marks a host netguard refuses to connect to (cloud metadata,
+// link-local and the like). Retrying cannot help; the server's host has to
+// change.
+var ErrBlockedHost = errors.New("host is a blocked address")
+
+// Connection timeouts, vars so tests can shorten them.
+var (
+	// ioTimeout: a connection on which nothing arrives (or nothing can be
+	// sent) for this long is dead. SSH keepalives keep an idle but healthy
+	// connection well inside it.
+	ioTimeout = 60 * time.Second
+	// handshakeTimeout bounds the whole SSH handshake (banner, key exchange,
+	// login), however slowly a peer trickles it.
+	handshakeTimeout = 15 * time.Second
+	// keepaliveInterval paces the SSH keepalive requests.
+	keepaliveInterval = 30 * time.Second
+)
+
+// ErrServerBusy marks a connection request that ran out of time waiting for a
+// free slot under the server's connection limit: nothing failed, the server
+// was in use.
+var ErrServerBusy = errors.New("all connections to the server are in use")
+
+// blockedError keeps netguard's text while matching ErrBlockedHost.
+type blockedError struct{ err error }
+
+func (e *blockedError) Error() string        { return e.err.Error() }
+func (e *blockedError) Unwrap() error        { return e.err }
+func (e *blockedError) Is(target error) bool { return target == ErrBlockedHost }
+
+// checkHost runs netguard.Allowed and marks its refusals ErrBlockedHost.
+// netguard wraps a failed lookup (%w, transient: retrying may succeed) and
+// returns its refusals unwrapped, which is what tells the two apart.
+// TODO(orchestrator): a sentinel exported by netguard would make this explicit.
+func checkHost(host string) error {
+	err := netguard.Allowed(host)
+	if err == nil || errors.Unwrap(err) != nil {
+		return err
+	}
+	return &blockedError{err}
+}
+
 func Dial(cfg Config) (Client, error) {
-	if err := netguard.Allowed(cfg.Host); err != nil {
+	if err := checkHost(cfg.Host); err != nil {
 		return nil, err
 	}
 	switch cfg.Protocol {

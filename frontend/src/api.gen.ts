@@ -3626,7 +3626,8 @@ export interface Schemas {
     /**
      * ErrorCode classifies Error into a stable machine-readable reason
      * (see classifyError): permission_denied, disk_full, read_only, rename_failed,
-     * auth_failed; empty when the failure is not one we recognize.
+     * auth_failed, foreign_target, host_key, plain_ftp, blocked_host; empty when
+     * the failure is not one we recognize.
      */
     errorCode?: string
     /**
@@ -3661,6 +3662,6 @@ export interface Schemas {
      */
     detail?: string
     path: string
-    reason: "outside_roots" | "language" | "worse_variant" | "owned" | "uploading" | "queued" | "blocked"
+    reason: "outside_roots" | "language" | "worse_variant" | "owned" | "uploading" | "queued" | "blocked" | "foreign_target"
   }
 }

@@ -8247,7 +8247,7 @@
                         "type": "string"
                     },
                     "errorCode": {
-                        "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError): permission_denied, disk_full, read_only, rename_failed,\nauth_failed; empty when the failure is not one we recognize.",
+                        "description": "ErrorCode classifies Error into a stable machine-readable reason\n(see classifyError): permission_denied, disk_full, read_only, rename_failed,\nauth_failed, foreign_target, host_key, plain_ftp, blocked_host; empty when\nthe failure is not one we recognize.",
                         "type": "string"
                     },
                     "finishedAt": {
@@ -8333,7 +8333,8 @@
                             "owned",
                             "uploading",
                             "queued",
-                            "blocked"
+                            "blocked",
+                            "foreign_target"
                         ],
                         "type": "string"
                     }
@@ -14552,6 +14553,36 @@
                         },
                         "description": "Unauthorized"
                     },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -15024,6 +15055,26 @@
                         },
                         "description": "Not Found"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.HostKeyConflict"
+                                }
+                            }
+                        },
+                        "description": "SSH host key unknown or changed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -15206,6 +15257,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
+                    },
                     "500": {
                         "content": {
                             "application/json": {
@@ -15338,6 +15399,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
                     },
                     "500": {
                         "content": {
@@ -15568,6 +15639,16 @@
                             }
                         },
                         "description": "Not Found"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "another download for the same file is still queued, running or paused"
                     },
                     "500": {
                         "content": {
@@ -19688,6 +19769,16 @@
                             }
                         },
                         "description": "SSH host key unknown or changed"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
                     },
                     "502": {
                         "content": {

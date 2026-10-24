@@ -44,7 +44,8 @@ type Download struct {
 	Error       string `json:"error,omitempty"`
 	// ErrorCode classifies Error into a stable machine-readable reason
 	// (see classifyError): permission_denied, disk_full, read_only, rename_failed,
-	// auth_failed; empty when the failure is not one we recognize.
+	// auth_failed, foreign_target, host_key, plain_ftp, blocked_host; empty when
+	// the failure is not one we recognize.
 	ErrorCode   string `json:"errorCode,omitempty"`
 	RateLimit   int64  `json:"rateLimit"`
 	BytesPerSec int64  `json:"bytesPerSec,omitempty"`
@@ -67,11 +68,12 @@ type Download struct {
 }
 
 type running struct {
-	userID  int64 // owner, so the in-memory pause/cancel path stays user-scoped
-	cancel  context.CancelFunc
-	paused  bool // pause vs. hard cancel, checked when the ctx fires
-	limiter *rate.Limiter
-	bps     int64 // last measured rate, for the aggregate status endpoint
+	userID    int64  // owner, so the in-memory pause/cancel path stays user-scoped
+	localPath string // target, so no second row for it starts alongside
+	cancel    context.CancelFunc
+	paused    bool // pause vs. hard cancel, checked when the ctx fires
+	limiter   *rate.Limiter
+	bps       int64 // last measured rate, for the aggregate status endpoint
 }
 
 type Manager struct {
@@ -79,7 +81,9 @@ type Manager struct {
 	Dial         Dialer
 	DownloadRoot string
 	// Roots is the allowlist of local roots a target path may live under
-	// (arbitrary media mounts). Empty falls back to [DownloadRoot].
+	// (arbitrary media mounts). Empty falls back to [DownloadRoot]. Set it
+	// directly only before the manager is in use; afterwards SetRoots, since
+	// workers and Enqueue read it concurrently.
 	Roots []string
 	// OnFinished is called when a download reaches done/error (for push
 	// notifications); may be nil.
@@ -96,6 +100,13 @@ type Manager struct {
 	wg       sync.WaitGroup
 
 	speeds speedHistory
+
+	// beforeStart, when set (tests only), runs in startDownload between reading
+	// the row and claiming it - the window a concurrent pause or cancel hits.
+	beforeStart func(id int64)
+	// beforeInsert, when set (tests only), runs in Enqueue between the
+	// duplicate check and the insert of a row.
+	beforeInsert func()
 }
 
 // ResolveLocal maps a target path to an absolute path under one of the allowed
@@ -109,10 +120,21 @@ func ResolveLocal(roots []string, p string) (string, error) {
 }
 
 func (m *Manager) roots() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if len(m.Roots) > 0 {
 		return m.Roots
 	}
 	return []string{m.DownloadRoot}
+}
+
+// SetRoots replaces the root allowlist while downloads may be resolving
+// targets against it. The slice is never modified after this, so readers may
+// keep using the one they got.
+func (m *Manager) SetRoots(roots []string) {
+	m.mu.Lock()
+	m.Roots = roots
+	m.mu.Unlock()
 }
 
 func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
@@ -236,6 +258,17 @@ func (m *Manager) startPending() {
 	}
 }
 
+// targetActiveLocked reports whether a running download writes localPath.
+// Caller holds mu.
+func (m *Manager) targetActiveLocked(localPath string) bool {
+	for _, r := range m.active {
+		if r.localPath == localPath {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *Manager) startDownload(id int64) {
 	d, err := m.get(id)
 	if err != nil {
@@ -246,22 +279,51 @@ func (m *Manager) startDownload(id int64) {
 	if d.Status != "queued" {
 		return
 	}
+	if m.beforeStart != nil {
+		m.beforeStart(id)
+	}
 	ctx, cancel := context.WithCancel(context.Background())
-	r := &running{userID: d.UserID, cancel: cancel, limiter: newLimiter(d.RateLimit)}
+	r := &running{userID: d.UserID, localPath: d.LocalPath, cancel: cancel, limiter: newLimiter(d.RateLimit)}
+	// registered and counted under mu together with the stopping check:
+	// Shutdown either sees this worker in active (and cancels it) or this
+	// start sees stopping, and the Add happens before Shutdown's Wait. A row
+	// whose target another running row writes stays queued for a later tick:
+	// both would append into the same .part.
 	m.mu.Lock()
-	if _, dup := m.active[id]; dup {
+	if _, dup := m.active[id]; dup || m.stopping || m.targetActiveLocked(d.LocalPath) {
 		m.mu.Unlock()
 		cancel()
 		return
 	}
 	m.active[id] = r
+	m.wg.Add(1)
 	m.mu.Unlock()
 
-	// the start of this run and the bytes it resumes from: the history's
-	// duration and rate are measured from here to the row's last write
-	m.execRetry("startedAt", `UPDATE downloads SET started_at = datetime('now'), start_bytes = transferred WHERE id = ?`, id)
-	m.setStatus(id, "running", "", "")
-	m.wg.Add(1)
+	// claim the row in one step: only a row that is still queued starts, so a
+	// pause or cancel that reached the database since it was read sticks. The
+	// start of this run and the bytes it resumes from go along, for the
+	// history's duration and rate.
+	claimed, err := m.DB.Exec(`UPDATE downloads SET status = 'running', error = '', error_code = '',
+		started_at = datetime('now'), start_bytes = transferred, updated_at = datetime('now')
+		WHERE id = ? AND status = 'queued'`, id)
+	var n int64
+	if err == nil {
+		n, err = claimed.RowsAffected()
+	}
+	if err != nil || n == 0 {
+		if err != nil {
+			slog.Warn("download not started", "id", id, "err", err) // the next tick tries again
+		}
+		m.mu.Lock()
+		delete(m.active, id)
+		m.mu.Unlock()
+		cancel()
+		m.wg.Done()
+		return
+	}
+	if cur, err := m.get(id); err == nil {
+		m.publish(cur)
+	}
 	go func() {
 		defer m.wg.Done()
 		err := m.runDownload(ctx, d, r)
@@ -279,7 +341,18 @@ func (m *Manager) startDownload(id int64) {
 			// graceful shutdown: back to the queue, resumes from .part on restart
 			m.setStatus(id, "queued", "", "")
 		case ctx.Err() != nil:
+			// a canceled run is not resumed: its partial file is only clutter,
+			// and the next row for this target would find it
+			m.removePart(id, d.LocalPath)
 			m.setStatus(id, "canceled", "", "")
+		case errors.Is(err, remote.ErrServerBusy):
+			// waited for a free connection under the server's limit and did
+			// not get one: nothing failed, so no attempt is spent. Back into
+			// the queue as it was, for the next free slot
+			m.execRetry("serverBusy", `UPDATE downloads SET status = 'queued', updated_at = datetime('now') WHERE id = ?`, id)
+			if cur, gerr := m.get(id); gerr == nil {
+				m.publish(cur)
+			}
 		default:
 			code := classifyError(err)
 			// a failure that clears up by itself (dropped connection, short
@@ -295,14 +368,101 @@ func (m *Manager) startDownload(id int64) {
 	}()
 }
 
+// abandonGrace is how long a remote call left behind by a pause, cancel or
+// shutdown may take to return by itself before its client is aborted. Most
+// return within milliseconds; one that does not is stuck on a server whose
+// transport is alive (keepalives answered) but whose SFTP side hangs, which no
+// idle deadline catches. A var so tests can shorten it.
+var abandonGrace = 60 * time.Second
+
+// dialDetached runs the Dialer on its own goroutine so that a pause, cancel
+// or shutdown ends the download while a dial still waits (for a pool slot, a
+// slow handshake). A connection that arrives after that is closed unused.
+func (m *Manager) dialDetached(ctx context.Context, d *Download) (remote.Client, error) {
+	type dialed struct {
+		c   remote.Client
+		err error
+	}
+	ch := make(chan dialed, 1)
+	go func() {
+		c, _, err := m.Dial(d.UserID, d.ServerID)
+		ch <- dialed{c, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.c, r.err
+	case <-ctx.Done():
+		go func() {
+			if r := <-ch; r.err == nil {
+				r.c.Close()
+			}
+		}()
+		return nil, ctx.Err()
+	}
+}
+
 func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) error {
-	client, _, err := m.Dial(d.UserID, d.ServerID)
+	client, err := m.dialDetached(ctx, d)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	// Every remote call below runs on its own goroutine (call), so a pause,
+	// cancel or shutdown takes effect at once even while a stalled peer holds
+	// the call - before, the worker sat in a blocked Read until the kernel gave
+	// up on the connection. The call itself ends when it returns or at the
+	// latest at the connection's idle deadline (remote.ioTimeout), or, if the
+	// transport stays alive while the server never answers, when the client is
+	// aborted after abandonGrace. A call still out when the download ends owns
+	// the cleanup: closing a file or client under a running call would block
+	// on it (pkg/sftp File.Close waits for the lock a running Read holds). Not
+	// counted in wg: it touches no database, and Shutdown should not wait for
+	// a dead peer.
+	var opened io.ReadCloser    // the remote file, set by the Open call
+	var abandoned chan struct{} // closed when an abandoned call returns
+	call := func(op func()) error {
+		done := make(chan struct{})
+		go func() {
+			op()
+			close(done)
+		}()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			abandoned = done
+			return ctx.Err()
+		}
+	}
+	defer func() {
+		release := func() {
+			if opened != nil {
+				opened.Close()
+			}
+			client.Close()
+		}
+		if abandoned == nil {
+			release()
+			return
+		}
+		go func() {
+			select {
+			case <-abandoned:
+			case <-time.After(abandonGrace):
+				// stuck for good: tear the connection down, which fails the
+				// call and lets a pooled lease give its slot back
+				if a, ok := client.(remote.Aborter); ok {
+					a.Abort()
+				}
+				<-abandoned
+			}
+			release()
+		}()
+	}()
 
-	size, err := client.Size(d.RemotePath)
+	var size int64
+	if cerr := call(func() { size, err = client.Size(d.RemotePath) }); cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return err
 	}
@@ -321,37 +481,65 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		return err
 	}
 	defer local.Close()
-	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Size() == size {
+	if fi, err := local.Root.Stat(local.Name); err == nil && fi.Mode().IsRegular() && fi.Size() == size {
 		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ? WHERE id = ?`, size, d.ID)
 		// self-heal skip: file already present at full size (stale queue)
 		slog.Debug("download skipped", "id", d.ID, "reason", "already complete", "size", size)
 		return nil
+	}
+	if err := m.guardReplace(d.UserID, local, d.LocalPath); err != nil {
+		return err // before a byte is fetched for a file that may not land
 	}
 
 	part := local.Name + ".part"
 	if err := local.Root.MkdirAll(filepath.Dir(part), 0o755); err != nil {
 		return err
 	}
+	// Resume only what this row wrote itself. A .part says nothing about
+	// where its bytes came from: one left by another row (a worse variant
+	// that gave up, a remote file since replaced) would get this file's rest
+	// appended - right size, mixed content. d.Transferred is this row's own
+	// progress as last recorded (every second); the file may be ahead of it
+	// by up to a second's worth, or behind it after a crash before a sync.
 	var offset int64
 	if fi, err := local.Root.Stat(part); err == nil {
-		offset = fi.Size()
+		offset = min(fi.Size(), d.Transferred)
+		if offset > size {
+			offset = 0 // remote file changed, start over
+		}
+		if offset != fi.Size() {
+			f, err := local.Root.OpenFile(part, os.O_WRONLY, 0)
+			if err != nil {
+				return err
+			}
+			terr := f.Truncate(offset)
+			if err := f.Close(); terr == nil {
+				terr = err
+			}
+			if terr != nil {
+				return terr
+			}
+		}
 	}
-	if offset > size {
-		offset = 0 // remote file changed, start over
-		f, err := local.Root.OpenFile(part, os.O_WRONLY|os.O_TRUNC, 0)
-		if err != nil {
-			return err
-		}
-		if err := f.Close(); err != nil {
-			return err
-		}
+	if offset != d.Transferred {
+		// progress and the history's start follow what is really resumed
+		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ?, start_bytes = ? WHERE id = ?`, offset, offset, d.ID)
+	}
+	// From here the .part is this row's. Any other unfinished row for the
+	// same file recorded progress on bytes that are no longer there: a retry
+	// of it must start over, not resume on this row's bytes. Fail the
+	// download rather than risk that - the next attempt tries again.
+	if _, err := m.DB.Exec(`UPDATE downloads SET transferred = 0 WHERE local_path = ? AND id <> ?
+		AND status IN ('queued','paused','error','canceled') AND transferred <> 0`, d.LocalPath, d.ID); err != nil {
+		return err
 	}
 
-	src, err := client.Open(d.RemotePath, offset)
+	if cerr := call(func() { opened, err = client.Open(d.RemotePath, offset) }); cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return err
 	}
-	defer src.Close()
 
 	dst, err := local.Root.OpenFile(part, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -361,7 +549,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 
 	// fetched per Read under mu: SetRateLimit and reloadSettings swap these
 	// pointers concurrently (including nil ↔ *Limiter transitions)
-	reader := &throttledReader{r: src, ctx: ctx, limiters: func() []*rate.Limiter {
+	reader := &throttledReader{r: opened, ctx: ctx, limiters: func() []*rate.Limiter {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		return []*rate.Limiter{m.global, r.limiter}
@@ -375,7 +563,11 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		n, rerr := reader.Read(buf)
+		var n int
+		var rerr error
+		if cerr := call(func() { n, rerr = reader.Read(buf) }); cerr != nil {
+			return cerr
+		}
 		if n > 0 {
 			if _, werr := dst.Write(buf[:n]); werr != nil {
 				return werr
@@ -415,6 +607,10 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 	if transferred < size {
 		return fmt.Errorf("incomplete transfer: %d of %d bytes", transferred, size)
 	}
+	// again at the last moment: the file may have arrived while this one ran
+	if err := m.guardReplace(d.UserID, local, d.LocalPath); err != nil {
+		return err
+	}
 	if err := local.Root.Rename(part, local.Name); err != nil {
 		return err
 	}
@@ -425,6 +621,49 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 // ── public API used by handlers ─────────────────────────────
 
 var ErrNotFound = fmt.Errorf("download not found")
+
+// ErrTargetBusy: another download for the same local file is queued, running
+// or paused. Two of them would append into one .part file.
+var ErrTargetBusy = errors.New("another download for the same file is still in the queue")
+
+// ErrForeignTarget: the target already holds a file the download's owner may
+// not replace (see mayReplace).
+var ErrForeignTarget = errors.New("a file is already at the target and only an admin may replace it")
+
+// mayReplace reports whether userID may replace the file already at local (an
+// absolute target): replacing what is in the shared library is an admin's
+// call, but anyone may replace what their own download put there - the
+// latest finished download for that path, since a later one by someone else
+// replaced it.
+func (m *Manager) mayReplace(userID int64, local string) (bool, error) {
+	var ok bool
+	err := m.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND is_admin = 1)
+		OR COALESCE((SELECT user_id FROM downloads WHERE local_path = ? AND status = 'done'
+			ORDER BY updated_at DESC, id DESC LIMIT 1), 0) = ?`,
+		userID, local, userID).Scan(&ok)
+	return ok, err
+}
+
+// guardReplace fails with ErrForeignTarget when a regular file sits at the
+// target and userID may not replace it. A database error fails it too.
+func (m *Manager) guardReplace(userID int64, local *LocalPath, abs string) error {
+	fi, err := local.Root.Stat(local.Name)
+	if err != nil || !fi.Mode().IsRegular() {
+		return nil // nothing to replace (a directory fails the rename by itself)
+	}
+	ok, err := m.mayReplace(userID, abs)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrForeignTarget
+	}
+	return nil
+}
+
+// ErrQueueStore marks an Enqueue failure in the local queue database rather
+// than at the remote, so a handler can tell its own fault from the server's.
+var ErrQueueStore = errors.New("download queue not written")
 
 // VideoExt lists file extensions treated as episodes (upload guard,
 // completeness checks).
@@ -558,7 +797,7 @@ type EnqueueResult struct {
 // Skip is one file a check did not queue, and why.
 type Skip struct {
 	Path   string `json:"path"`
-	Reason string `json:"reason" enums:"outside_roots,language,worse_variant,owned,uploading,queued,blocked"`
+	Reason string `json:"reason" enums:"outside_roots,language,worse_variant,owned,uploading,queued,blocked,foreign_target"`
 	Detail string `json:"detail,omitempty"` // worse_variant: the release kept instead
 }
 
@@ -720,6 +959,19 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			res.Skipped++
 			continue
 		}
+		// a file of another size is there: replacing it is the caller's only
+		// when they are an admin or one of their own downloads put it there
+		if serr == nil && fi.Mode().IsRegular() {
+			ok, err := m.mayReplace(userID, local)
+			if err != nil {
+				m.Wake()
+				return res, fmt.Errorf("%w: %w", ErrQueueStore, err)
+			}
+			if !ok {
+				res.skip(j.remote, "foreign_target", "")
+				continue
+			}
+		}
 		// the uploader renamed the release ("x264" corrected to "h265"): the
 		// same episode with the very same bytes lies beside the target under
 		// its old name. Left alone rather than renamed, so the media server
@@ -762,7 +1014,7 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			  AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?)`,
 			userID, serverID, j.remote, local).Scan(&existing); err != nil {
 			m.Wake() // what was queued before the failure still runs
-			return res, err
+			return res, fmt.Errorf("%w: %w", ErrQueueStore, err)
 		}
 		if existing > 0 {
 			res.skip(j.remote, "queued", "")
@@ -779,12 +1031,24 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			res.skip(j.remote, "blocked", "")
 			continue
 		}
-		// a new row joins the end of the queue
+		if m.beforeInsert != nil {
+			m.beforeInsert()
+		}
+		// a new row joins the end of the queue. The duplicate check is repeated
+		// in the insert itself: two requests at once (a double click) both pass
+		// the check above before either inserts, and one statement is atomic
 		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old, queue_pos)
-			VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads))`, userID, serverID, j.remote, local, j.size, replaceOld)
+			SELECT ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads)
+			WHERE NOT EXISTS (SELECT 1 FROM downloads WHERE status IN ('queued','running','paused')
+				AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?))`,
+			userID, serverID, j.remote, local, j.size, replaceOld, userID, serverID, j.remote, local)
 		if ierr != nil {
 			m.Wake()
-			return res, ierr
+			return res, fmt.Errorf("%w: %w", ErrQueueStore, ierr)
+		}
+		if n, err := ins.RowsAffected(); err == nil && n == 0 {
+			res.skip(j.remote, "queued", "")
+			continue
 		}
 		if id, lerr := ins.LastInsertId(); lerr == nil {
 			res.IDs = append(res.IDs, id)
@@ -911,7 +1175,28 @@ func (m *Manager) Cancel(userID, id int64) error {
 		return nil
 	}
 	m.mu.Unlock()
-	return m.setStatusOwned(userID, id, "canceled", []string{"queued", "paused", "error"})
+	if err := m.setStatusOwned(userID, id, "canceled", []string{"queued", "paused", "error"}); err != nil {
+		return err
+	}
+	// a canceled row is not resumed: drop its partial file, but only one it
+	// wrote itself (progress of its own; a row that takes the .part over
+	// zeroes everyone else's), never another row's
+	if d, err := m.get(id); err == nil && d.Transferred > 0 {
+		m.removePart(id, d.LocalPath)
+	}
+	return nil
+}
+
+// removePart deletes the .part file of a download that will not be resumed.
+func (m *Manager) removePart(id int64, localPath string) {
+	local, err := OpenLocal(m.roots(), localPath)
+	if err != nil {
+		return
+	}
+	defer local.Close()
+	if err := local.Root.Remove(local.Name + ".part"); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		slog.Warn("partial file of a canceled download not removed", "id", id, "err", err)
+	}
 }
 
 // ErrQueueChanged: a reorder named a different set of queued downloads than
@@ -1044,6 +1329,10 @@ const (
 	ErrCodeReadOnly         = "read_only"         // target mounted read-only
 	ErrCodeRenameFailed     = "rename_failed"     // the finished file cannot take its final name
 	ErrCodeAuthFailed       = "auth_failed"       // the remote server rejected the login
+	ErrCodeForeignTarget    = "foreign_target"    // the target holds a file the user may not replace
+	ErrCodeHostKey          = "host_key"          // the SSH host key is not trusted (yet) or changed
+	ErrCodePlainFTP         = "plain_ftp"         // the server is stored with unencrypted FTP
+	ErrCodeBlockedHost      = "blocked_host"      // the server's address is one netguard refuses
 )
 
 // classifyError maps a transfer failure onto one of the error codes above.
@@ -1066,6 +1355,16 @@ func classifyError(err error) string {
 		return ErrCodeReadOnly
 	case errors.Is(err, remote.ErrAuthRejected):
 		return ErrCodeAuthFailed
+	case errors.Is(err, ErrForeignTarget):
+		return ErrCodeForeignTarget
+	case errors.Is(err, remote.ErrPlainFTP):
+		return ErrCodePlainFTP
+	case errors.Is(err, remote.ErrBlockedHost):
+		return ErrCodeBlockedHost
+	}
+	var hk *remote.HostKeyError
+	if errors.As(err, &hk) {
+		return ErrCodeHostKey
 	}
 	// A refused rename is its own cause and needs its own answer: the directory
 	// took every byte of the download, only the final swap was denied. Calling
@@ -1092,11 +1391,14 @@ func classifyError(err error) string {
 // again on its own. Permission, space, read-only, a refused rename and a
 // rejected login are not: they last until a human changes something, and
 // repeating them only buries the real problem under identical entries (a
-// rejected login also counts against the server's intrusion protection). An unclassified failure
+// rejected login also counts against the server's intrusion protection). Nor
+// is a connection the server's settings rule out: a host key awaiting review,
+// plain FTP, a blocked address. An unclassified failure
 // (a dropped connection, a short read, a target another process holds open) is
 // retryable - those clear up by themselves.
 func RetryableCode(code string) bool {
-	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed}, code)
+	return !slices.Contains([]string{ErrCodePermissionDenied, ErrCodeDiskFull, ErrCodeReadOnly, ErrCodeRenameFailed, ErrCodeAuthFailed, ErrCodeForeignTarget,
+		ErrCodeHostKey, ErrCodePlainFTP, ErrCodeBlockedHost}, code)
 }
 
 // CheckWritableAt reports whether a download can finish in local.Name, as the
@@ -1247,11 +1549,33 @@ func (m *Manager) setStatusOwned(userID, id int64, status string, from []string)
 		args = append(args, f)
 	}
 	q += ")"
+	if status == "queued" {
+		// back into the queue only while no other row for the same file is
+		// on its way: two of them would append into one .part. One statement,
+		// so a concurrent enqueue or retry cannot slip in between
+		q += ` AND NOT EXISTS (SELECT 1 FROM downloads o WHERE o.id <> ?
+			AND o.local_path = (SELECT local_path FROM downloads WHERE id = ?)
+			AND o.status IN ('queued','running','paused'))`
+		args = append(args, id, id)
+	}
 	res, err := m.DB.Exec(q, args...)
 	if err != nil {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
+		if status == "queued" {
+			// tell a busy target apart from a row that is not there (or not
+			// in a state this may leave)
+			var busy bool
+			if err := m.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM downloads d JOIN downloads o
+				ON o.local_path = d.local_path AND o.id <> d.id AND o.status IN ('queued','running','paused')
+				WHERE d.id = ? AND d.user_id = ? AND d.status IN ('paused','error','canceled'))`, id, userID).Scan(&busy); err != nil {
+				return err
+			}
+			if busy {
+				return ErrTargetBusy
+			}
+		}
 		return ErrNotFound
 	}
 	if d, err := m.get(id); err == nil {
@@ -1280,11 +1604,26 @@ func (m *Manager) publish(d *Download) {
 		return
 	}
 	msg := string(payload)
+	final := d.Status == "done" || d.Status == "error" || d.Status == "canceled"
 	m.mu.Lock()
 	for ch := range m.subs {
 		select {
 		case ch <- msg:
 		default: // slow subscriber: drop rather than block transfers
+			if !final {
+				continue
+			}
+			// a download's end is not followed by anything that would correct
+			// it: make room by dropping the oldest event. Only publish sends,
+			// under mu, so the slot freed here stays free for this send.
+			select {
+			case <-ch:
+			default:
+			}
+			select {
+			case ch <- msg:
+			default:
+			}
 		}
 	}
 	m.mu.Unlock()

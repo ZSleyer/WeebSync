@@ -139,7 +139,7 @@ func (s *Server) storePlexRoots(sections []plex.Section) {
 		return
 	}
 	if s.Transfers != nil {
-		s.Transfers.Roots = s.localRoots()
+		s.Transfers.SetRoots(s.localRoots())
 	}
 	if changed := changedRoots(before, scopeLines); len(changed) > 0 {
 		s.rematchLibraryWatches(changed)

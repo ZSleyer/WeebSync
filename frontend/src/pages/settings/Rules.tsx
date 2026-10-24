@@ -25,7 +25,17 @@ const POINTS: [key: string, points: string][] = [
 // match.MinScore
 const MIN_SCORE = 20
 // in the order a check meets them (internal/transfer EnqueueSkipping)
-const SKIPS = ['outside_roots', 'language', 'worse_variant', 'present', 'owned', 'uploading', 'queued', 'blocked']
+const SKIPS = [
+  'outside_roots',
+  'language',
+  'worse_variant',
+  'present',
+  'owned',
+  'uploading',
+  'queued',
+  'blocked',
+  'foreign_target',
+]
 // the anchors the explanations link to: /rules#match lands on #r-match
 const SECTIONS = ['names', 'scope', 'match', 'bundle', 'sync', 'files'] as const
 

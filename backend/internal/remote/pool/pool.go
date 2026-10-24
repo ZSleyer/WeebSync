@@ -287,7 +287,7 @@ func (sp *serverPool) leaseSFTP(ctx context.Context, cfg remote.Config, prio Pri
 		select {
 		case <-ctx.Done():
 			sp.undoWait(prio)
-			return nil, ctx.Err()
+			return nil, waitErr(ctx)
 		case <-ready:
 			sp.undoWait(prio)
 		}
@@ -385,7 +385,7 @@ func (sp *serverPool) leaseFTP(ctx context.Context, cfg remote.Config, prio Prio
 		select {
 		case <-ctx.Done():
 			sp.undoWait(prio)
-			return nil, ctx.Err()
+			return nil, waitErr(ctx)
 		case <-ready:
 			sp.undoWait(prio)
 		}
@@ -393,6 +393,16 @@ func (sp *serverPool) leaseFTP(ctx context.Context, cfg remote.Config, prio Prio
 }
 
 // ── shared helpers ──────────────────────────────────────────────────────────
+
+// waitErr is what a lease that stopped waiting for a slot returns: a wait
+// that ran out is remote.ErrServerBusy (the server was in use, nothing
+// failed), a caller that gave up gets its own ctx error.
+func waitErr(ctx context.Context) error {
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return fmt.Errorf("%w: %w", remote.ErrServerBusy, ctx.Err())
+	}
+	return ctx.Err()
+}
 
 func (sp *serverPool) undoWait(prio Prio) {
 	if prio != PriHigh {
@@ -431,6 +441,11 @@ func (sp *serverPool) wrap(ch remote.Client, c *sshConn) remote.Client {
 		}
 		sp.wake()
 		sp.mu.Unlock()
+	}, abort: func() {
+		sp.mu.Lock()
+		sp.dropLocked(c) // closes the connection under every channel on it
+		sp.wake()
+		sp.mu.Unlock()
 	}}
 }
 
@@ -438,6 +453,21 @@ type lease struct {
 	remote.Client
 	release func()
 	once    sync.Once
+	// abort, when set, tears down what the lease runs on (an SFTP lease: its
+	// shared connection, dropped from the pool); else Abort goes to Client
+	abort func()
+}
+
+// Abort tears the lease's connection down and gives its slot back at once,
+// without waiting for a Close that a stuck call would hold up. The
+// connection is not handed out again. A later Close frees nothing twice.
+func (l *lease) Abort() {
+	if l.abort != nil {
+		l.abort()
+	} else if a, ok := l.Client.(remote.Aborter); ok {
+		a.Abort()
+	}
+	l.once.Do(l.release)
 }
 
 func (l *lease) Close() error {

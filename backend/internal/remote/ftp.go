@@ -12,6 +12,7 @@ import (
 	"net/textproto"
 	"path"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,6 +22,30 @@ import (
 
 type ftpClient struct {
 	conn *ftp.ServerConn
+	nets *connSet // every connection this client dialed, for Abort
+}
+
+// connSet collects the network connections of one FTP client: the control
+// connection and every data connection.
+type connSet struct {
+	mu    sync.Mutex
+	conns []net.Conn
+}
+
+func (s *connSet) add(c net.Conn) {
+	s.mu.Lock()
+	s.conns = append(s.conns, c)
+	s.mu.Unlock()
+}
+
+// Abort closes every connection the client dialed, which fails a transfer
+// or command still waiting on the server at once.
+func (c *ftpClient) Abort() {
+	c.nets.mu.Lock()
+	defer c.nets.mu.Unlock()
+	for _, n := range c.nets.conns {
+		n.Close()
+	}
 }
 
 // implicitFTPSPort is the port on which FTPS starts TLS right after the TCP
@@ -43,6 +68,7 @@ func dialFTPTLS(cfg Config, roots *x509.CertPool, implicit bool) (Client, error)
 	}
 	tlsCfg := &tls.Config{ServerName: cfg.Host, RootCAs: roots, MinVersion: tls.VersionTLS12, ClientSessionCache: tls.NewLRUClientSessionCache(16)}
 	var dials atomic.Int32
+	nets := &connSet{}
 	opts := []ftp.DialOption{
 		ftp.DialWithTimeout(15 * time.Second),
 		ftp.DialWithDialFunc(func(network, address string) (net.Conn, error) {
@@ -55,6 +81,15 @@ func dialFTPTLS(cfg Config, roots *x509.CertPool, implicit bool) (Client, error)
 				return nil, err
 			}
 			conn, err := netguard.SafeDial(context.Background(), network, host, port, 15*time.Second)
+			if err == nil {
+				// jlaffaye/ftp sets no read deadlines of its own (only the
+				// optional shut timeout, ftp.go:956-958) and its
+				// DialWithTimeout is unused once a dial func is set
+				// (ftp.go:121-131): without this a silent greeting or a data
+				// connection gone quiet blocks forever
+				nets.add(conn)
+				conn = withIdleTimeout(conn)
+			}
 			// The first dial is the control connection, which the library
 			// upgrades itself (AUTH TLS) unless the port is the implicit one,
 			// where TLS starts before the greeting. Every later one is a data
@@ -89,7 +124,7 @@ func dialFTPTLS(cfg Config, roots *x509.CertPool, implicit bool) (Client, error)
 		}
 		return nil, err
 	}
-	return &ftpClient{conn: conn}, nil
+	return &ftpClient{conn: conn, nets: nets}, nil
 }
 
 func (c *ftpClient) List(dir string) ([]Entry, error) {

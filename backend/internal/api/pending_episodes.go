@@ -98,8 +98,14 @@ func (s *Server) processPendingEpisodes(ctx context.Context) {
 		token, localPath    string
 	}
 	var todo []entry
-	rows, err := s.DB.Query(`SELECT download_id, watch_id, token, local_path FROM pending_episodes
-		WHERE created_at < datetime('now', ?)`, fmt.Sprintf("-%d seconds", int(pendingRecheck.Seconds())))
+	// an entry is recorded when its download is queued, so a long queue still
+	// holds episodes whose file is not there yet; those wait for their
+	// download, or the entry would be dropped as "moved by hand" and the file
+	// left in the collecting folder for good
+	rows, err := s.DB.Query(`SELECT p.download_id, p.watch_id, p.token, p.local_path FROM pending_episodes p
+		JOIN downloads d ON d.id = p.download_id
+		WHERE p.created_at < datetime('now', ?) AND d.status NOT IN ('queued','running','paused')`,
+		fmt.Sprintf("-%d seconds", int(pendingRecheck.Seconds())))
 	if err != nil {
 		return
 	}

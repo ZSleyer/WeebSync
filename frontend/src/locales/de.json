@@ -27,7 +27,10 @@
     "noManualUsers": "Bei Anmeldung über einen Anbieter kommen Konten vom Anbieter.",
     "tooMany": "Zu viele Versuche. Warte einen Moment.",
     "tooManyWait_one": "Zu viele Versuche. Versuch es in {{count}} Sekunde wieder.",
-    "tooManyWait_other": "Zu viele Versuche. Versuch es in {{count}} Sekunden wieder."
+    "tooManyWait_other": "Zu viele Versuche. Versuch es in {{count}} Sekunden wieder.",
+    "targetBusy": "Für dieselbe Datei steht schon ein anderer Download in der Warteschlange. Lass ihn fertig laufen oder brich ihn zuerst ab.",
+    "hostKeyUnknown": "Der SSH-Host-Key des Servers ist noch nicht bestätigt. Prüfe und bestätige ihn mit dem Verbindungstest in den Servereinstellungen und versuche es dann erneut.",
+    "hostKeyChanged": "Der SSH-Host-Key des Servers hat sich geändert. Prüfe ihn mit dem Verbindungstest in den Servereinstellungen, bevor du es erneut versuchst."
   },
   "common": {
     "undo": "Rückgängig",
@@ -2727,6 +2730,22 @@
     "rename_failed": {
       "what": "Der Download ist fertig, die Datei konnte ihren endgültigen Namen in {{path}} aber nicht annehmen.",
       "fix": "Das Ziel nimmt neue Dateien an, weigert sich aber, eine vorhandene zu ersetzen - typisch für eine Netzfreigabe oder einen zusammengesetzten Mount (SMB, NFS, mergerfs) und für ein Verzeichnis mit Sticky-Bit, in dem die vorhandene Folge jemand anderem gehört. Lege das Ziel auf ein lokales Dateisystem oder übertrage die vorhandene Datei an die UID, unter der WeebSync schreibt."
+    },
+    "foreign_target": {
+      "what": "In {{path}} liegt unter diesem Namen schon eine Datei, die du nicht ersetzen darfst.",
+      "fix": "Eine Datei in der Bibliothek, die nicht aus deinem eigenen letzten Download stammt, darf nur ein Admin ersetzen. Frag einen Admin oder wähle ein anderes Ziel."
+    },
+    "host_key": {
+      "what": "Der SSH-Host-Key des Servers ist noch nicht bestätigt oder hat sich geändert.",
+      "fix": "Öffne den Server in den Einstellungen und starte den Verbindungstest: Er zeigt den Fingerprint des Schlüssels zum Prüfen und Bestätigen. Danach den Download wiederholen."
+    },
+    "plain_ftp": {
+      "what": "Der Server ist mit unverschlüsseltem FTP eingerichtet, das Passwort ginge im Klartext übers Netz.",
+      "fix": "Stelle den Server in den Einstellungen auf FTPS um und wiederhole dann den Download."
+    },
+    "blocked_host": {
+      "what": "Mit der Adresse des Servers verbindet sich WeebSync nicht (Link-Local oder Cloud-Metadaten).",
+      "fix": "Trage in den Einstellungen den echten Hostnamen oder die LAN-Adresse des Servers ein und wiederhole dann den Download."
     }
   },
   "jobs": {
@@ -2821,6 +2840,7 @@
       "uploading": "Die Datei wird auf dem Server noch hochgeladen.",
       "queued": "Steht schon in der Warteschlange.",
       "blocked": "Der Zielordner hat beim letzten Versuch nichts angenommen.",
+      "foreign_target": "Am Ziel liegt schon eine Datei anderer Größe, und nur ein Admin darf sie ersetzen.",
       "rules": "Wann eine Datei nicht geladen wird",
       "present": "Die Folge liegt schon vollständig am Ziel."
     },
@@ -3009,6 +3029,10 @@
         "blocked": {
           "head": "Letzter Versuch scheiterte an der Platte",
           "body": "Voll, schreibgeschützt oder keine Rechte. Erst wenn das behoben ist, geht es weiter."
+        },
+        "foreign_target": {
+          "head": "Am Ziel liegt die Datei von jemand anderem",
+          "body": "Eine Datei anderer Größe, die nicht aus deinem eigenen letzten Download stammt, bleibt liegen; ersetzen darf sie ein Admin."
         }
       },
       "files": {

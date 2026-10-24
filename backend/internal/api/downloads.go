@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -109,6 +110,9 @@ type DownloadCreateResponse struct {
 // @Success  201 {object} DownloadCreateResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  401 {object} ErrorResponse
+// @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
+// @Failure  500 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads [post]
@@ -128,10 +132,21 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath, nil, nil, false, in.Flat, false)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeEnqueueErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusCreated, enqueueResponse(res))
+}
+
+// writeEnqueueErr reports an Enqueue failure by its kind: a dial failure as
+// writeDialErr does (409 with fingerprints for an untrusted host key, 404 for
+// an unknown server, else 502), a failed queue write as the server's own 500.
+func writeEnqueueErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, transfer.ErrQueueStore) {
+		dbErr(w, err)
+		return
+	}
+	writeDialErr(w, err)
 }
 
 // handleSyncOnce runs a ONE-OFF sync with the full auto-sync rename pipeline
@@ -148,6 +163,8 @@ func (s *Server) handleDownloadCreate(w http.ResponseWriter, r *http.Request) {
 // @Success  201 {object} DownloadCreateResponse
 // @Failure  400 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} HostKeyConflict "SSH host key unknown or changed"
+// @Failure  500 {object} ErrorResponse
 // @Failure  502 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads/sync [post]
@@ -185,7 +202,7 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	res, err := s.Transfers.Enqueue(u.ID, in.ServerID, in.RemotePath, in.LocalPath,
 		s.watchNameFn(in), s.watchLangFilter(in), true, !in.Subfolder, in.ReplaceOld)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeEnqueueErr(w, err)
 		return
 	}
 	// "like auto-sync, just once" has to include the last step of it: a Plex
@@ -466,6 +483,7 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 // @Success  200 {object} OkResponse
 // @Failure  401 {object} ErrorResponse
 // @Failure  404 {object} ErrorResponse
+// @Failure  409 {object} ErrorResponse "another download for the same file is still queued, running or paused"
 // @Failure  500 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/downloads/{id}/resume [post]
@@ -487,8 +505,11 @@ func (s *Server) downloadAction(fn func(userID, id int64) error) http.HandlerFun
 		id := pathID(r)
 		if err := fn(u.ID, id); err != nil {
 			status := http.StatusInternalServerError
-			if errors.Is(err, transfer.ErrNotFound) {
+			switch {
+			case errors.Is(err, transfer.ErrNotFound):
 				status = http.StatusNotFound
+			case errors.Is(err, transfer.ErrTargetBusy):
+				status = http.StatusConflict
 			}
 			writeErr(w, status, err.Error())
 			return
@@ -556,6 +577,11 @@ func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
+// sseHeartbeat is how often the event stream sends a comment line while no
+// event is due. Reverse proxies cut a response that stays silent for their
+// read timeout (nginx and Traefik default to 60 s). A var so tests can shorten it.
+var sseHeartbeat = 20 * time.Second
+
 // handleEvents streams download progress as SSE.
 // @Summary  Stream download events
 // @Description Streams download progress for the authenticated user as Server-Sent Events.
@@ -574,14 +600,20 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no") // nginx would hold small events back
 	ch, unsubscribe := s.Transfers.Subscribe()
 	defer unsubscribe()
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
+	beat := time.NewTicker(sseHeartbeat)
+	defer beat.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-beat.C:
+			fmt.Fprint(w, ": ping\n\n")
+			flusher.Flush()
 		case msg := <-ch:
 			// events carry userId; only forward the user's own
 			if !ownsEvent(msg, u.ID) {
