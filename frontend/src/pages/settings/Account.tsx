@@ -306,18 +306,15 @@ function TotpSection() {
   const id = useId()
   // the element a step change took the focus from is gone; the next one in
   // line (first id that exists) takes it
-  const [focusIds, setFocusIds] = useState<string[]>([])
+  const focusIds = useRef<string[]>([])
+  const setFocusIds = (ids: string[]) => {
+    focusIds.current = ids
+  }
   useEffect(() => {
-    if (!focusIds.length) return
-    for (const f of focusIds) {
-      const el = document.getElementById(f)
-      if (el) {
-        el.focus()
-        break
-      }
-    }
-    setFocusIds([])
-  }, [focusIds])
+    const ids = focusIds.current
+    focusIds.current = []
+    document.getElementById(ids.find((f) => document.getElementById(f)) ?? '')?.focus()
+  })
   // a refused code belongs to the code field while it is up, otherwise a
   // refused password belongs to the password field
   const bad = error ? { 'aria-invalid': true as const, 'aria-describedby': id + 'e' } : {}

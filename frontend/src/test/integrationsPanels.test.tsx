@@ -91,7 +91,7 @@ describe('a refused value is marked at its field', () => {
     ['aiModel', 'settings.aiModel'],
   ]
   for (const [key, label] of fields) {
-    it(key, async () => {
+    it(`${key}`, async () => {
       setup()
       vi.spyOn(api, 'put').mockRejectedValue(new Error(`${key}: not acceptable`))
       await screen.findByLabelText(label)
