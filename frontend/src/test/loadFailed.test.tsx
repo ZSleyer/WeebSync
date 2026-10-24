@@ -67,4 +67,24 @@ describe('a failed load is not an empty list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'app.tryAgain' }))
     await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(calls))
   })
+
+  it('with data from before, the list stays and a quiet status line offers the retry', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    qc.setQueryData(['dismissed'], [{ kind: 'suggestion', refKey: 'a:1', label: 'Kept Show', section: 'watchlist' }])
+    vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+      if (url === '/api/suggestions/dismissed') throw new Error('boom')
+      return [] as never
+    })
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={qc}>
+          <IgnoredSection />
+        </QueryClientProvider>
+      </MemoryRouter>,
+    )
+    expect(await screen.findByRole('status')).toHaveTextContent('discover.loadStale')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('Kept Show')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'app.tryAgain' })).toBeInTheDocument()
+  })
 })
