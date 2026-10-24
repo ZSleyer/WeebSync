@@ -116,7 +116,8 @@ export default function Setup({
     document.title = `${t('setup.title')} - WeebSync`
   }, [t])
   // move focus to the step heading on step CHANGES only - focusing on the
-  // initial render would greet the user with a bare focus ring
+  // initial render would greet the user with a bare focus ring. The OIDC
+  // step turning into its ready screen swaps the focused button out too.
   const mounted = useRef(false)
   useEffect(() => {
     if (!mounted.current) {
@@ -125,7 +126,7 @@ export default function Setup({
     }
     headingRef.current?.focus()
     setError('')
-  }, [step])
+  }, [step, oidcReady])
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)

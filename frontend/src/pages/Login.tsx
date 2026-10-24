@@ -143,6 +143,20 @@ export default function Login() {
     document.title = `${t('login.login')} - WeebSync`
   }, [t])
 
+  // A stage change replaces the subtree the focus was in (the pressed button is
+  // gone), which leaves it on <body>: put it on the new stage's heading, or on
+  // the email field of the sign-in form. Stages whose first field autofocuses
+  // already hold it.
+  const stageRef = useRef<HTMLDivElement>(null)
+  const stageSeen = useRef({ detour, twoFA: !!twoFA })
+  useEffect(() => {
+    const prev = stageSeen.current
+    stageSeen.current = { detour, twoFA: !!twoFA }
+    const root = stageRef.current
+    if (!root || (prev.detour === detour && prev.twoFA === !!twoFA) || root.contains(document.activeElement)) return
+    ;(root.querySelector<HTMLElement>('.ws-login-h') ?? root.querySelector<HTMLElement>('#email'))?.focus()
+  }, [detour, twoFA])
+
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setBusy(true)
@@ -316,7 +330,7 @@ export default function Login() {
         </h1>
       </div>
       <div className="ws-login-side">
-        <div key={stage} className="ws-login-form ws-stage">
+        <div key={stage} ref={stageRef} className="ws-login-form ws-stage">
           {insecure && (
             <p className="ws-login-err" role="alert">
               {t('login.insecure')}
@@ -357,7 +371,9 @@ export default function Login() {
             />
           ) : twoFA ? (
             <form className="grid" onSubmit={submitTotp}>
-              <h2 className="ws-login-h">{t('login.totpTitle')}</h2>
+              <h2 className="ws-login-h" tabIndex={-1}>
+                {t('login.totpTitle')}
+              </h2>
               {/* with only a security key there is no code field to point at */}
               <p className="ws-quiet">{twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}</p>
               {twoFA.totp && (
@@ -562,6 +578,11 @@ function PasswordDetour({
   const [busy, setBusy] = useState(false)
   // the link is asked for: the screen says where to look next
   const [sent, setSent] = useState(false)
+  const sentHeading = useRef<HTMLHeadingElement>(null)
+  // the form with the pressed button is gone: the new heading takes the focus
+  useEffect(() => {
+    if (sent) sentHeading.current?.focus()
+  }, [sent])
 
   // the refused address, or the passwords that did not match or were refused
   const bad = error ? { 'aria-invalid': true, 'aria-describedby': 'detour-error' } : {}
@@ -593,7 +614,9 @@ function PasswordDetour({
   if (sent)
     return (
       <div key="sent" className="grid ws-stage">
-        <h2 className="ws-login-h">{t('login.sentTitle')}</h2>
+        <h2 ref={sentHeading} tabIndex={-1} className="ws-login-h">
+          {t('login.sentTitle')}
+        </h2>
         <p className="ws-quiet" role="status">
           {t('login.forgotSent')}
         </p>
