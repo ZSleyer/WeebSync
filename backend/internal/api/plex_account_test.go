@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -68,6 +70,40 @@ func TestPlexWatchlistReportsAnExpiredLink(t *testing.T) {
 	status, body = http.StatusOK, `{"MediaContainer":{"Metadata":[{"title":"Frieren","year":2023,"type":"show"}]}}`
 	if code := get(); code != http.StatusOK {
 		t.Errorf("working link: %d, want 200", code)
+	}
+}
+
+// The suggestions page reads the same watchlist: an error answer is no
+// watchlist, whatever its body decodes to, and the cause is logged.
+func TestPlexWatchlistItemsChecksTheStatus(t *testing.T) {
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	status, body := http.StatusInternalServerError,
+		`{"MediaContainer":{"Metadata":[{"title":"Frieren","year":2023,"type":"show","Guid":[{"id":"tmdb://209867"}]}]}}`
+	plexTVFake(t, &status, &body)
+	if err := secret.Init(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	d.Exec(`INSERT INTO users (id, email) VALUES (1, 'a@example.com')`)
+	enc, err := secret.Encrypt("tok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Exec(`INSERT INTO plex_accounts (user_id, token_enc) VALUES (1, ?)`, enc)
+
+	if got := s.plexWatchlistItems(1, map[string]int64{}, map[int64][]providerRef{}); len(got) != 0 {
+		t.Errorf("an error answer became %d watchlist items", len(got))
+	}
+	if !strings.Contains(buf.String(), "500") {
+		t.Errorf("the failed watchlist read was not logged: %s", buf.String())
+	}
+	status = http.StatusOK
+	if got := s.plexWatchlistItems(1, map[string]int64{}, map[int64][]providerRef{}); len(got) != 1 {
+		t.Errorf("working watchlist: %d items, want 1", len(got))
 	}
 }
 

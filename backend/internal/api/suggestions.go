@@ -932,11 +932,18 @@ func (s *Server) plexWatchlistItems(userID int64, bySrc map[string]int64, bySeri
 		return out
 	}
 	resp, err := s.plexTVReq(http.MethodGet,
-		"https://discover.provider.plex.tv/library/sections/watchlist/all?includeGuids=1", token)
+		plexDiscoverBase+"/library/sections/watchlist/all?includeGuids=1", token)
 	if err != nil {
+		slog.Warn("plex.tv watchlist", "user", userID, "err", err)
 		return out
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		// an expired link (401/403) or an outage answers with an error body,
+		// which is no watchlist whatever it decodes to
+		slog.Warn("plex.tv watchlist", "user", userID, "status", resp.StatusCode)
+		return out
+	}
 	var body struct {
 		MediaContainer struct {
 			Metadata []struct {
