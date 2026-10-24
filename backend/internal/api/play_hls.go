@@ -57,6 +57,8 @@ type hlsSession struct {
 	cuts []float64
 	// waiting counts the requests held per segment, for the status line
 	waiting map[int]int
+	// stopped: evicted or reaped, its folder is gone; no run starts again
+	stopped bool
 }
 
 // hlsRun is one ffmpeg process. err is written before exited closes and read
@@ -274,6 +276,7 @@ func (sess *hlsSession) lastUsed() time.Time {
 // stop ends the run and drops the segments.
 func (sess *hlsSession) stop() {
 	sess.mu.Lock()
+	sess.stopped = true
 	sess.killLocked()
 	sess.mu.Unlock()
 	os.RemoveAll(sess.dir)
@@ -378,6 +381,10 @@ func (sess *hlsSession) ensureRun(ctx context.Context, s *Server, n int) error {
 	}
 	sess.mu.Lock()
 	defer sess.mu.Unlock()
+	if sess.stopped { // evicted or reaped during the dial
+		in.done()
+		return errors.New("the transcode was stopped")
+	}
 	if !sess.needsRunLocked(n) { // another request started one meanwhile
 		in.done()
 		return nil

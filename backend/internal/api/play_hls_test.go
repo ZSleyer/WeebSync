@@ -123,3 +123,41 @@ func TestHLSSegmentDialOutsideSessionLock(t *testing.T) {
 		t.Fatal("the dial outlived its request")
 	}
 }
+
+// The session is stopped (evicted, reaped) while a request dials for it: no
+// run is started into its removed folder.
+func TestHLSNoRunAfterStop(t *testing.T) {
+	entered, release := make(chan struct{}), make(chan struct{})
+	var inputDone bool
+	defer func(f func(*Server, context.Context, playSource) (*ffInput, error)) { hlsInput = f }(hlsInput)
+	hlsInput = func(*Server, context.Context, playSource) (*ffInput, error) {
+		close(entered)
+		<-release
+		return &ffInput{url: "/nonexistent", whitelist: "file", done: func() { inputDone = true }}, nil
+	}
+	sess := &hlsSession{key: hlsKey{src: playSource{path: "a.mkv"}, copy: true}, dir: t.TempDir(), cuts: []float64{0, 6}}
+	done := make(chan error, 1)
+	go func() {
+		_, err := sess.segment(t.Context(), &Server{}, 0)
+		done <- err
+	}()
+	<-entered
+	sess.stop()
+	close(release)
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("a stopped session served a segment")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the segment request hung")
+	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.run != nil {
+		t.Error("a run started after the stop")
+	}
+	if !inputDone {
+		t.Error("the input was not released")
+	}
+}
