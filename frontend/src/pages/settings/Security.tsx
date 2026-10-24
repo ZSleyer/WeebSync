@@ -220,7 +220,7 @@ export default function Security() {
 // Only the hash is stored server-side, so the raw token shows exactly once.
 // Reads ['settings'] directly (not the one-shot form) so the set/not-set
 // badge follows the invalidations from generate/revoke.
-function ApiTokenSection() {
+export function ApiTokenSection() {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -289,7 +289,16 @@ function ApiTokenSection() {
         </SettingsField>
       )}
       <div className="sf-acts">
-        <Button size="sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
+        <Button
+          size="sm"
+          disabled={generate.isPending}
+          onClick={async () => {
+            // the old token stops working at once and the new one shows only once
+            if (isSet && !(await confirm({ message: t('settings.apiTokenConfirmRegenerate'), destructive: true })))
+              return
+            generate.mutate()
+          }}
+        >
           {isSet ? t('settings.apiTokenRegenerate') : t('settings.apiTokenGenerate')}
         </Button>
         {isSet && (

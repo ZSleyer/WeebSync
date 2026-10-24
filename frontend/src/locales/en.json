@@ -2207,6 +2207,7 @@
     "apiTokenRegenerate": "Regenerate",
     "apiTokenRevoke": "Revoke",
     "apiTokenConfirmRevoke": "Revoke the API token? Integrations using it will stop working.",
+    "apiTokenConfirmRegenerate": "Generate a new API token? The current one stops working immediately and the new one is shown only once.",
     "apiTokenShowOnce": "Token (shown only once - copy it now)",
     "apiTokenCopy": "Copy",
     "apiTokenCopied": "Copied to clipboard",
