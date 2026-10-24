@@ -749,7 +749,11 @@ function PlexWatchlistAccount() {
   }
 
   const unlink = async () => {
-    await api.del('/api/plex/account')
+    try {
+      await api.del('/api/plex/account')
+    } catch (e) {
+      return fail(e)
+    }
     qc.invalidateQueries({ queryKey: ['plex-account'] })
   }
 
@@ -784,8 +788,13 @@ function JellyfinFavoritesAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = useQuery<PlexAccountT>({ queryKey: ['plex-account'], queryFn: () => api.get('/api/plex/account') })
+  const fail = useFailToast()
   const unlink = async () => {
-    await api.del('/api/plex/account')
+    try {
+      await api.del('/api/plex/account')
+    } catch (e) {
+      return fail(e)
+    }
     qc.invalidateQueries({ queryKey: ['plex-account'] })
   }
   if (data?.linked) {
