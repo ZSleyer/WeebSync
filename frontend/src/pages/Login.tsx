@@ -21,16 +21,25 @@ interface AuthConfig {
   passwordReset: boolean
 }
 
-// what the address brings, read once: the token of a password reset link, a
-// sign-in the provider refused, and a fresh logout. The reset token comes in
-// the fragment (never sent to a server, so never in an access log); links
-// mailed before that carried it in the query.
-const landing = new URLSearchParams(window.location.search)
-const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? landing.get('reset') ?? ''
-const oidcError = landing.get('oidc_error') ?? ''
-const loggedOut = landing.has('loggedout')
-// a refused sign-in or a logout must not bounce back to the provider
-const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
+// what the address brings, read when the login mounts (not once per page load:
+// the screen mounts again, without a reload, whenever a session expires): the
+// token of a password reset link, a sign-in the provider refused, and a fresh
+// logout. The reset token comes in the fragment (never sent to a server, so
+// never in an access log); links mailed before that carried it in the query.
+function readLanding() {
+  const q = new URLSearchParams(window.location.search)
+  const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? q.get('reset') ?? ''
+  const oidcError = q.get('oidc_error') ?? ''
+  const loggedOut = q.has('loggedout')
+  return {
+    resetToken,
+    oidcError,
+    loggedOut,
+    noRedirect: q.has('noredirect'),
+    // a refused sign-in or a logout must not bounce back to the provider
+    holdRedirect: q.has('noredirect') || !!oidcError || loggedOut,
+  }
+}
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
 
 // "stay signed in" is remembered per browser and ticked until someone unticks
@@ -84,6 +93,8 @@ export default function Login() {
     queryKey: ['authConfig'],
     queryFn: () => api.get('/api/auth/config'),
   })
+  const [landing] = useState(readLanding)
+  const { resetToken, oidcError, loggedOut, noRedirect, holdRedirect } = landing
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -126,18 +137,26 @@ export default function Login() {
     else if (v === 'invalid') setError(t('login.verifyInvalid'))
     if (oidcError) setError(t(`login.oidcError.${oidcError}`, { defaultValue: t('login.oidcError.generic') }))
     if (loggedOut) setNotice(t('login.loggedOut'))
-  }, [t])
+  }, [t, oidcError, loggedOut])
+  // said once: a login that mounts again later must not repeat it
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    if (!q.has('oidc_error') && !q.has('loggedout')) return
+    q.delete('oidc_error')
+    q.delete('loggedout')
+    const rest = q.toString()
+    history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash)
+  }, [])
 
   // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
   // (e.g. admin needs the password form while the provider is down)
-  const noRedirect = landing.has('noredirect')
   useEffect(() => {
     // not while setting up: the wizard sends the first sign-in itself, with the setup code
     if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect && !cfg.setupNeeded) {
       rememberReturn()
       window.location.href = oidcHref(readRemember())
     }
-  }, [cfg])
+  }, [cfg, holdRedirect])
 
   useEffect(() => {
     document.title = `${t('login.login')} - WeebSync`
@@ -362,6 +381,7 @@ export default function Login() {
           ) : detour ? (
             <PasswordDetour
               kind={detour}
+              resetToken={resetToken}
               email={email}
               onDone={(msg) => {
                 setDetour(null)
@@ -563,10 +583,12 @@ export default function Login() {
 // where the link lands: a new password, twice, and back to the login.
 function PasswordDetour({
   kind,
+  resetToken,
   email: initialEmail,
   onDone,
 }: {
   kind: 'forgot' | 'reset'
+  resetToken: string
   email: string
   onDone: (notice: string) => void
 }) {

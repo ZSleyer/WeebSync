@@ -60,3 +60,35 @@ describe('Login stage changes keep the focus on the page', () => {
     expect(document.activeElement).toBe(screen.getByLabelText('login.email'))
   })
 })
+
+describe('Login address parameters', () => {
+  it('says a refused provider sign-in once, not again when the login mounts after a session expiry', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(cfg)
+    window.history.replaceState(null, '', '/?oidc_error=denied&loggedout=1')
+    const first = mount()
+    expect((await screen.findByRole('alert')).textContent).toBe('login.oidcError.denied')
+    expect(screen.getByRole('status').textContent).toBe('login.loggedOut')
+    expect(window.location.search).toBe('')
+    first.unmount()
+    // the session ran out in the SPA: the login screen comes back without a reload
+    mount()
+    await screen.findByLabelText('login.email')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText('login.loggedOut')).toBeNull()
+  })
+
+  it('opens the reset form with the token of the address, and not again once it is spent', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(cfg)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({})
+    window.history.replaceState(null, '', '/#reset=tok123')
+    const first = mount()
+    fireEvent.change(await screen.findByLabelText('account.passwordNew'), { target: { value: 'a long password' } })
+    fireEvent.change(screen.getByLabelText('account.passwordAgain'), { target: { value: 'a long password' } })
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'login.resetSubmit' })))
+    expect(post).toHaveBeenCalledWith('/api/auth/reset', { token: 'tok123', password: 'a long password' })
+    first.unmount()
+    mount()
+    expect(await screen.findByLabelText('login.email')).toBeTruthy()
+  })
+})
+
