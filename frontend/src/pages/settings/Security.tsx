@@ -6,7 +6,7 @@ import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
-import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
+import { EnvChip, ListSetting, LoadGate, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import Users from './Users'
 import { copyText } from '../../clipboard'
 import './security.css'
@@ -23,7 +23,7 @@ export const linesToCsv = (lines: string) => lines.split('\n').join(',')
 
 export default function Security() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty, reset, clearSecret } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, reset, clearSecret, isError, refetch } = useSettingsForm()
   const modeId = useId()
   const issuerId = useId()
 
@@ -40,7 +40,7 @@ export default function Security() {
     }
   }
 
-  if (!form) return null
+  if (!form) return <LoadGate error={isError} onRetry={() => refetch()} />
 
   return (
     <>
@@ -220,7 +220,7 @@ export default function Security() {
 // Only the hash is stored server-side, so the raw token shows exactly once.
 // Reads ['settings'] directly (not the one-shot form) so the set/not-set
 // badge follows the invalidations from generate/revoke.
-function ApiTokenSection() {
+export function ApiTokenSection() {
   const { t } = useTranslation()
   const confirm = useConfirm()
   const qc = useQueryClient()
@@ -289,7 +289,16 @@ function ApiTokenSection() {
         </SettingsField>
       )}
       <div className="sf-acts">
-        <Button size="sm" disabled={generate.isPending} onClick={() => generate.mutate()}>
+        <Button
+          size="sm"
+          disabled={generate.isPending}
+          onClick={async () => {
+            // the old token stops working at once and the new one shows only once
+            if (isSet && !(await confirm({ message: t('settings.apiTokenConfirmRegenerate'), destructive: true })))
+              return
+            generate.mutate()
+          }}
+        >
           {isSet ? t('settings.apiTokenRegenerate') : t('settings.apiTokenGenerate')}
         </Button>
         {isSet && (
@@ -322,7 +331,7 @@ interface IpStatus {
 }
 
 // Addresses and accounts with failed sign-ins, and the way to free one at once.
-function RateLimitSection() {
+export function RateLimitSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
@@ -358,7 +367,11 @@ function RateLimitSection() {
                   (s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk'))
                 }
                 trailing={
-                  <RowAction disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
+                  <RowAction
+                    aria-label={`${t('settings.rateLimitUnblock')}: ${s.ip}`}
+                    disabled={reset.isPending}
+                    onClick={() => reset.mutate(s.ip)}
+                  >
                     {t('settings.rateLimitUnblock')}
                   </RowAction>
                 }

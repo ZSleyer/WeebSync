@@ -9,7 +9,7 @@ const toInt = (v: string) => Math.trunc(Number(v)) || 0
 
 export default function Downloads() {
   const { t } = useTranslation()
-  const { form, set, save, saved, dirty, reset } = useSettingsForm()
+  const { form, set, save, saved, dirty, reset, issue } = useSettingsForm()
   if (!form) return null
 
   return (
@@ -26,6 +26,7 @@ export default function Downloads() {
           max={20}
           step={1}
           value={form.maxConcurrent}
+          issue={issue('maxConcurrent')}
           onChange={(v) => set('maxConcurrent', toInt(v))}
         />
         <TextSetting
@@ -38,6 +39,7 @@ export default function Downloads() {
           min={0}
           step={1}
           value={Math.round(form.globalRateLimit / 1024)}
+          issue={issue('globalRateLimit')}
           onChange={(v) => set('globalRateLimit', toInt(v) * 1024)}
         />
       </SettingsPanel>
