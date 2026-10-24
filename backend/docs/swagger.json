@@ -11884,7 +11884,7 @@
         },
         "/api/auth/logout": {
             "post": {
-                "description": "Destroys the current session and clears the session cookie.",
+                "description": "Destroys the current session, removes the push subscription made in it and clears the session cookie. Asks the browser to clear its site storage (Clear-Site-Data).",
                 "responses": {
                     "200": {
                         "content": {
