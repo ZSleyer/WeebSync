@@ -21205,7 +21205,7 @@
         },
         "/api/upgrades": {
             "get": {
-                "description": "Better-quality copies (resolution / more sub or dub) of series already present.",
+                "description": "Better-quality copies (resolution / more sub or dub) of series already present, from the cached suggestions; empty until the first build has finished.",
                 "responses": {
                     "200": {
                         "content": {

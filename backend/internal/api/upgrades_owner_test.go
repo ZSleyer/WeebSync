@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -64,14 +65,26 @@ func TestUnitSuggestionsStayOnTheOwnersServers(t *testing.T) {
 		t.Errorf("owner: want the missing season and episodes, got %+v", inc)
 	}
 
-	// and the HTTP route answers per caller as well
+	// and each user's cached blob, which /api/upgrades and /api/suggestions
+	// serve, is built from that user's view and read back under their own key
+	s.DB.Exec(`INSERT INTO settings (key, value) VALUES ('jobs_paused', 'suggestions')`) // no background build
+	for _, id := range []int64{1, 2} {
+		ups, inc := collect(id)
+		b, _ := json.Marshal(SuggestionsResponse{Upgrades: ups, Incomplete: inc})
+		s.cacheSet(fmt.Sprintf("suggestions:%d", id), string(b))
+	}
 	mux := http.NewServeMux()
 	s.Register(mux)
-	rec := doReq(mux, "GET", "/api/upgrades", "", cookieForUser(t, s.DB, 1))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("upgrades: %d %s", rec.Code, rec.Body)
-	}
-	if b := rec.Body.String(); strings.Contains(b, "Anime-NAS") || strings.Contains(b, "/privat/") {
-		t.Errorf("/api/upgrades leaked another user's server: %s", b)
+	for _, path := range []string{"/api/upgrades", "/api/suggestions"} {
+		for id, want := range map[int64]bool{1: false, 2: true} {
+			rec := doReq(mux, "GET", path, "", cookieForUser(t, s.DB, id))
+			if rec.Code != http.StatusOK {
+				t.Fatalf("%s as %d: %d %s", path, id, rec.Code, rec.Body)
+			}
+			b := rec.Body.String()
+			if got := strings.Contains(b, "Anime-NAS") || strings.Contains(b, "/privat/"); got != want {
+				t.Errorf("%s as user %d: shows Anime-NAS = %v, want %v: %s", path, id, got, want, b)
+			}
+		}
 	}
 }

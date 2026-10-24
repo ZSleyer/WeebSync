@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -683,10 +684,13 @@ type UpgradeSuggestion struct {
 // handleUpgrades lists, per series, every copy that a sibling copy beats on one
 // of the user's enabled axes (a higher resolution tier, or a strict superset of
 // the sub/dub languages - flagged languageUnverified when the two sides were
-// established differently). Read-time over catalog_variants; nothing is stored.
+// established differently). Served from the user's cached suggestions blob,
+// the same list /api/suggestions carries: building it walks the mounts and
+// costs seconds, so it never runs on the request. A missing or stale blob is
+// rebuilt in the background, and until then the list is what the blob holds.
 //
 //	@Summary		Upgrade suggestions
-//	@Description	Better-quality copies (resolution / more sub or dub) of series already present.
+//	@Description	Better-quality copies (resolution / more sub or dub) of series already present, from the cached suggestions; empty until the first build has finished.
 //	@Tags			Suggestions
 //	@Produce		json
 //	@Success		200	{array}	UpgradeSuggestion
@@ -694,9 +698,22 @@ type UpgradeSuggestion struct {
 //	@Router			/api/upgrades [get]
 func (s *Server) handleUpgrades(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	key := fmt.Sprintf("suggestions:%d", u.ID)
+	if _, fresh := s.cacheGet(key, suggestTTL); !fresh {
+		s.rebuildSuggestions(u.ID)
+	}
+	var payload string
+	// no blob yet, or an unreadable row: nothing to list until the build lands
+	_ = s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload)
+	var blob SuggestionsResponse
+	if payload != "" {
+		if err := json.Unmarshal([]byte(payload), &blob); err != nil {
+			slog.Warn("suggestions blob unreadable", "user", u.ID, "err", err)
+		}
+	}
 	ignored := s.dismissedKeys(u.ID, "upgrade")
 	out := []UpgradeSuggestion{}
-	for _, up := range s.buildUpgrades(u.ID) {
+	for _, up := range blob.Upgrades {
 		if !ignored[up.Key] {
 			out = append(out, up)
 		}
