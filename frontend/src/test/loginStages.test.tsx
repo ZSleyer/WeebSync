@@ -91,3 +91,22 @@ describe('Login address parameters', () => {
     expect(await screen.findByLabelText('login.email')).toBeTruthy()
   })
 })
+
+describe('Login redirect hold across a reload', () => {
+  it('keeps holding the provider redirect after logout when the page is reloaded, but not in the running app', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue({ ...cfg, oidc: true, authMode: 'oidc-auto' })
+    window.history.replaceState(null, '', '/?loggedout=1')
+    const first = mount()
+    await screen.findByRole('status')
+    expect(window.location.search).toBe('')
+    first.unmount()
+    // a reload: the module is evaluated afresh, the address no longer names the logout
+    vi.resetModules()
+    const fresh = await import('../pages/Login')
+    const reloaded = fresh.readLanding()
+    expect(reloaded.holdRedirect).toBe(true)
+    expect(reloaded.loggedOut).toBe(false)
+    // the same page load mounting the login again (session expiry) redirects as usual
+    expect(fresh.readLanding().holdRedirect).toBe(false)
+  })
+})

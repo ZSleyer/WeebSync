@@ -26,7 +26,17 @@ interface AuthConfig {
 // token of a password reset link, a sign-in the provider refused, and a fresh
 // logout. The reset token comes in the fragment (never sent to a server, so
 // never in an access log); links mailed before that carried it in the query.
-function readLanding() {
+// A reload of the same history entry (F5, tab restore, PWA resume) must keep
+// holding the provider redirect that ?loggedout or a refused sign-in asked for,
+// although the message was said once and its parameters are gone from the
+// address: the hold rides in history.state, which survives a reload. Only the
+// first read of a page load honours it; a login that mounts again inside the
+// running app (session expiry) starts clean.
+const HOLD_STATE = 'wsHoldRedirect'
+let landingRead = false
+export function readLanding() {
+  const held = !landingRead && !!(window.history.state as Record<string, unknown> | null)?.[HOLD_STATE]
+  landingRead = true
   const q = new URLSearchParams(window.location.search)
   const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? q.get('reset') ?? ''
   const oidcError = q.get('oidc_error') ?? ''
@@ -37,7 +47,7 @@ function readLanding() {
     loggedOut,
     noRedirect: q.has('noredirect'),
     // a refused sign-in or a logout must not bounce back to the provider
-    holdRedirect: q.has('noredirect') || !!oidcError || loggedOut,
+    holdRedirect: q.has('noredirect') || !!oidcError || loggedOut || held,
   }
 }
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
@@ -145,7 +155,11 @@ export default function Login() {
     q.delete('oidc_error')
     q.delete('loggedout')
     const rest = q.toString()
-    history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash)
+    history.replaceState(
+      { ...(history.state as object | null), [HOLD_STATE]: true },
+      '',
+      window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash,
+    )
   }, [])
 
   // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
