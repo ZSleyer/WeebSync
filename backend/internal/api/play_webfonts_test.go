@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestWebFonts(t *testing.T) {
@@ -71,5 +73,57 @@ func TestWebFonts(t *testing.T) {
 		if rec := get(u); rec.Code != code {
 			t.Errorf("%s: %d, want %d", u, rec.Code, code)
 		}
+	}
+}
+
+// The first caller going away does not leave everybody without the list for
+// ten minutes, and nobody waits on a lock behind its fetch.
+func TestWebFontListOutlivesCaller(t *testing.T) {
+	release := make(chan struct{})
+	var fetches atomic.Int32
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fetches.Add(1)
+		<-release
+		fmt.Fprint(w, `{"familyMetadataList":[{"family":"Carlito","fonts":{"400":{}}}]}`)
+	}))
+	defer google.Close()
+	defer close(release)
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	var l webFontList
+	ctx, cancel := context.WithCancel(t.Context())
+	first := make(chan map[string]webFamily, 1)
+	go func() { first <- l.get(ctx) }()
+	for fetches.Load() == 0 {
+		time.Sleep(5 * time.Millisecond)
+	}
+	// a second caller with little patience is not held behind the fetch
+	short, cancelShort := context.WithTimeout(t.Context(), 100*time.Millisecond)
+	defer cancelShort()
+	began := time.Now()
+	l.get(short)
+	if d := time.Since(began); d > 2*time.Second {
+		t.Fatalf("the second caller waited %v", d)
+	}
+	cancel()
+	select {
+	case <-first:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the first caller was not let go")
+	}
+	release <- struct{}{} // the fetch finishes for whoever asks next
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := l.get(t.Context())["carlito"]; ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the list stayed empty after the first caller left")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if n := fetches.Load(); n != 1 {
+		t.Fatalf("%d fetches, want 1", n)
 	}
 }

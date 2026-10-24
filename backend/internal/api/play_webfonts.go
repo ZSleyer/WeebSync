@@ -52,22 +52,51 @@ type webFontList struct {
 	mu     sync.Mutex
 	next   time.Time
 	byName map[string]webFamily // lower-case family
+	// fetching closes when the read under way is done; nil when none is
+	fetching chan struct{}
 }
 
+// get is the list, read first when it is due. The read is one for all
+// callers and runs on its own: a caller that goes away stops waiting, the
+// read goes on for the next one.
 func (l *webFontList) get(ctx context.Context) map[string]webFamily {
 	l.mu.Lock()
-	defer l.mu.Unlock()
 	if time.Now().Before(l.next) {
+		defer l.mu.Unlock()
 		return l.byName
 	}
-	l.next = time.Now().Add(10 * time.Minute)
+	done := l.fetching
+	if done == nil {
+		done = make(chan struct{})
+		l.fetching = done
+		go l.fetch(context.WithoutCancel(ctx), done)
+	}
+	l.mu.Unlock()
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.byName
+}
+
+// fetch reads the list for everyone waiting on done; ctx carries no
+// cancellation of the caller that started it, only a time limit.
+func (l *webFontList) fetch(ctx context.Context, done chan struct{}) {
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
 	m, err := fetchWebFontList(ctx)
+	l.mu.Lock()
 	if err != nil {
 		slog.Warn("web font list", "err", err)
-		return l.byName
+		l.next = time.Now().Add(10 * time.Minute)
+	} else {
+		l.byName, l.next = m, time.Now().Add(24*time.Hour)
 	}
-	l.byName, l.next = m, time.Now().Add(24*time.Hour)
-	return m
+	l.fetching = nil
+	l.mu.Unlock()
+	close(done)
 }
 
 func fetchWebFontList(ctx context.Context) (map[string]webFamily, error) {
