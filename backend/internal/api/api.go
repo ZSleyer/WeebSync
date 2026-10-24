@@ -150,6 +150,8 @@ type Server struct {
 	digestMu    sync.Mutex
 	digest      map[string][]digestItem
 	digestTimer map[string]*time.Timer
+	// replaces the digest's push and mail send in tests
+	digestSend func(userID int64, category string, items []digestItem)
 
 	// new-series finds per user, waiting for their summary (newseries_digest.go)
 	newSeriesMu sync.Mutex

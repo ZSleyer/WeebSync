@@ -30,10 +30,13 @@ func (s *Server) lifetimeCtx() context.Context {
 // Shutdown cancels the running background jobs and waits until they and the
 // goroutines started with spawn have ended, or ctx is done. Work still writing
 // to the database when the process (or a test) lets go of it is the one thing
-// a clean exit must not leave behind.
+// a clean exit must not leave behind. The download digests still collecting
+// in memory are sent last, once the jobs that could add to them are done,
+// within what is left of ctx.
 func (s *Server) Shutdown(ctx context.Context) {
 	s.lifetimeCtx()
 	s.lifeCancel()
+	defer s.flushDigests(ctx)
 	for {
 		s.matchMu.Lock()
 		for _, cancel := range s.matchJobs {
