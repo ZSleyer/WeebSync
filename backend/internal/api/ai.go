@@ -506,6 +506,10 @@ const (
 	aiResearchRounds = 30
 )
 
+// aiKeepalive is how often a silent chat stream gets a comment line, so
+// proxies do not drop it. A var so tests can tick fast.
+var aiKeepalive = 15 * time.Second
+
 // handleAiChat streams one assistant answer for the given conversation.
 //
 //	@Summary		Assistant chat
@@ -607,9 +611,13 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	// a model thinking or a tool waiting on a provider can leave the line
 	// silent for a while; proxies drop idle responses, so keep it warm
 	ctx, stop := context.WithCancel(r.Context())
-	defer stop()
+	keepaliveDone := make(chan struct{})
+	// the writer is off limits once the handler returns: wait for the
+	// goroutine, which may be mid-write on a tick that just fired
+	defer func() { stop(); <-keepaliveDone }()
 	go func() {
-		t := time.NewTicker(15 * time.Second)
+		defer close(keepaliveDone)
+		t := time.NewTicker(aiKeepalive)
 		defer t.Stop()
 		for {
 			select {
