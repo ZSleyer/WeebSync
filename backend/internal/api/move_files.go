@@ -79,13 +79,14 @@ func watchFolder(localPath, remotePath string, subfolder bool) string {
 }
 
 // moveFolderContents moves every entry of the old folder into the new one,
-// each a rename inside the media root both lie in, and removes the old folder
-// once it is empty. Entries the new folder already has stay where they are,
+// each a rename inside the media root both lie in, then calls commit (the
+// caller's database write) and removes the old folder once it is empty. A
+// commit that fails puts every moved entry back. Entries the new folder already has stay where they are,
 // and so does the trash folder: its rows name the copies by their place, and
 // the sweep empties it where it is.
 // ponytail: renames only, no copy across roots; add a copy-then-delete when a
 // library spans disks and moving between them is wanted.
-func (s *Server) moveFolderContents(oldRel, newRel string) (moveResult, error) {
+func (s *Server) moveFolderContents(oldRel, newRel string, commit func() error) (moveResult, error) {
 	var res moveResult
 	src, err := transfer.OpenLocal(s.localRoots(), oldRel)
 	if err != nil {
@@ -101,7 +102,7 @@ func (s *Server) moveFolderContents(oldRel, newRel string) (moveResult, error) {
 		return res, errMoveAcrossRoots
 	}
 	if src.Name == dst.Name || filepath.Clean(src.Name) == "." {
-		return res, nil // same folder, or a whole root: nothing to move
+		return res, commit() // same folder, or a whole root: nothing to move
 	}
 	// a new folder inside the old one would swallow itself
 	if rel, err := filepath.Rel(src.Name, dst.Name); err == nil && filepath.IsLocal(rel) {
@@ -109,7 +110,7 @@ func (s *Server) moveFolderContents(oldRel, newRel string) (moveResult, error) {
 	}
 	entries, err := fs.ReadDir(src.Root.FS(), filepath.ToSlash(src.Name))
 	if errors.Is(err, fs.ErrNotExist) {
-		return res, nil // nothing was downloaded yet
+		return res, commit() // nothing was downloaded yet
 	}
 	if err != nil {
 		return res, err
@@ -147,6 +148,15 @@ func (s *Server) moveFolderContents(oldRel, newRel string) (moveResult, error) {
 		}
 		done = append(done, n)
 		res.Moved++
+	}
+	if err := commit(); err != nil {
+		stuck := moveBack(src, dst, done, created)
+		res.Moved = len(stuck)
+		if len(stuck) == 0 {
+			return res, fmt.Errorf("%w; the %d moved entries were moved back", err, len(done))
+		}
+		return res, fmt.Errorf("%w; %d of %d entries could not be moved back and are in the new folder: %s",
+			err, len(stuck), len(done), strings.Join(stuck, ", "))
 	}
 	if len(res.Kept) == 0 {
 		// best effort: the folder is empty now unless something wrote into it

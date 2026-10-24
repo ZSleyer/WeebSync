@@ -22441,7 +22441,7 @@
                 ]
             },
             "put": {
-                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one first (within one media root, never overwriting).",
+                "description": "Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one together with the update (within one media root, never overwriting, the trash folder staying behind): a failed update moves nothing, a failed move or save puts the moved entries back, and a folder another watch also fills is refused.",
                 "parameters": [
                     {
                         "description": "Watch ID",

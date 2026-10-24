@@ -2060,7 +2060,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 // handleWatchUpdate edits an existing watch; a path change re-checks the folder.
 //
 // @Summary      Update watch
-// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one first (within one media root, never overwriting).
+// @Description  Updates an existing watch's paths, rename rule, media link and language filters. Changing the remote or local path triggers an immediate re-check. The local target is probed for writability and the update is rejected when it cannot be written. With moveFiles the old target folder's entries are moved into the new one together with the update (within one media root, never overwriting, the trash folder staying behind): a failed update moves nothing, a failed move or save puts the moved entries back, and a folder another watch also fills is refused.
 // @Tags         Watches
 // @Accept       json
 // @Produce      json
@@ -2149,8 +2149,26 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 	if s.rejectUnwritable(w, in.LocalPath) {
 		return
 	}
-	// the files follow the target before it is saved: a move that fails leaves
-	// the watch on the folder its files are still in
+	update := func(ex interface {
+		Exec(string, ...any) (sql.Result, error)
+	}) error {
+		_, err := ex.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
+		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
+		return err
+	}
+	updateFailed := func(err error) {
+		if db.IsUnique(err) {
+			writeErr(w, http.StatusConflict, "watch already exists")
+			return
+		}
+		dbErr(w, err)
+	}
+	// The watch and its files change together. With moveFiles the update is
+	// written first, inside a transaction; the files move; the commit comes
+	// last. An update that fails moves nothing, a move that fails rolls the
+	// update back (and puts back what it moved), and a commit that fails puts
+	// the files back too - the watch always points at the folder its files
+	// are in.
 	var moved *moveResult
 	if from, to := watchFolder(oldLocal, oldRemote, oldSubfolder), watchFolder(in.LocalPath, in.RemotePath, in.Subfolder); in.MoveFiles && from != to {
 		// another watch filling the same folder would lose its files to the move
@@ -2163,26 +2181,39 @@ func (s *Server) handleWatchUpdate(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusConflict, "files not moved: another watch ("+logSafe(other)+") uses the same folder")
 			return
 		}
-		res, err := s.moveFolderContents(from, to)
+		tx, err := s.DB.Begin()
+		if err != nil {
+			dbErr(w, err)
+			return
+		}
+		// after a commit this is a no-op that reports sql.ErrTxDone
+		defer func() { _ = tx.Rollback() }()
+		if err := update(tx); err != nil {
+			updateFailed(err)
+			return
+		}
+		var commitErr error
+		res, err := s.moveFolderContents(from, to, func() error {
+			commitErr = tx.Commit()
+			return commitErr
+		})
 		if err != nil {
 			if res.Moved > 0 {
 				// entries that could not go back changed the disk: the
 				// listings must not keep showing them where they were
 				s.forgetUnwatched()
 			}
+			if commitErr != nil {
+				slog.Error("db error", "err", commitErr)
+				writeErr(w, http.StatusInternalServerError, "watch not saved: "+err.Error())
+				return
+			}
 			writeErr(w, http.StatusConflict, "files not moved: "+err.Error())
 			return
 		}
 		moved = &res
-	}
-	_, err := s.DB.Exec(`UPDATE watches SET remote_path = ?, local_path = ?, mode = ?, template = ?, separator = ?, title_override = ?, pattern = ?, replacement = ?, subfolder = ?, from_episode = ?, aired_mapping = ?, rename_provider = ?, rename_ordering = ?, rename_title_lang = ?, rename_series_id = ?, want_dub = ?, want_sub = ?, dub_lag_days = ?, plex_audio_lang = ?, plex_sub_lang = ?
-		WHERE id = ? AND user_id = ?`, in.RemotePath, in.LocalPath, in.Mode, in.Template, in.Separator, in.TitleOverride, in.Pattern, in.Replacement, in.Subfolder, in.FromEpisode, in.AiredMapping, in.RenameProvider, in.RenameOrdering, in.RenameTitleLang, in.RenameSeriesID, in.WantDub, in.WantSub, in.DubLagDays, in.PlexAudioLang, in.PlexSubLang, id, u.ID)
-	if err != nil {
-		if db.IsUnique(err) {
-			writeErr(w, http.StatusConflict, "watch already exists")
-			return
-		}
-		dbErr(w, err)
+	} else if err := update(s.DB); err != nil {
+		updateFailed(err)
 		return
 	}
 	s.linkMedia(serverID, in.RemotePath, in.MediaID, in.MediaSource)

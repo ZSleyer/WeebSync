@@ -115,6 +115,53 @@ func TestWatchMoveRefusedForASharedFolder(t *testing.T) {
 	}
 }
 
+// The update that follows the move can fail - here the new target is already
+// another watch of the same remote folder. The files used to be in the new
+// folder by then, the watch still on the old, now empty one, and its next
+// check fetched the whole series again. Nothing moves unless the watch saves.
+func TestWatchMoveNotDoneWhenTheUpdateFails(t *testing.T) {
+	s, mux, cookie, root := moveTestServer(t)
+	writeFiles(t, filepath.Join(root, "Show"), map[string]int64{"Show - E01.mkv": 1, "Show - E02.mkv": 1})
+	for _, q := range []string{
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Show', 'Show')`,
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Show', 'Show S2')`,
+	} {
+		if _, err := s.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"Show S2","moveFiles":true}`, cookie)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "already exists") {
+		t.Errorf("update onto another watch: %d %s, want 409 watch already exists", rec.Code, rec.Body)
+	}
+	if n := names(t, filepath.Join(root, "Show")); !n["Show - E01.mkv"] || !n["Show - E02.mkv"] {
+		t.Errorf("the files left the folder of a watch that was not saved: %v", n)
+	}
+	if local := watchLocal(t, s, 1); local != "Show" {
+		t.Errorf("local_path = %q, want Show", local)
+	}
+}
+
+// The files moved, then the watch's save failed at its commit: they go back
+// to the folder the watch still points at.
+func TestWatchMoveUndoneWhenTheSaveFails(t *testing.T) {
+	s, _, _, root := moveTestServer(t)
+	writeFiles(t, filepath.Join(root, "old"), map[string]int64{"Show - E01.mkv": 1, "Show - E02.mkv": 1})
+	res, err := s.moveFolderContents("old", "new", func() error { return errors.New("database is locked") })
+	if err == nil || !strings.Contains(err.Error(), "database is locked") || !strings.Contains(err.Error(), "moved back") {
+		t.Errorf("move with a failing save: %v, want the save error and that the files went back", err)
+	}
+	if res.Moved != 0 {
+		t.Errorf("moved = %d, want 0 left in the new folder", res.Moved)
+	}
+	if n := names(t, filepath.Join(root, "old")); !n["Show - E01.mkv"] || !n["Show - E02.mkv"] {
+		t.Errorf("old folder: %v, want both episodes back", n)
+	}
+	if _, err := os.Stat(filepath.Join(root, "new")); !os.IsNotExist(err) {
+		t.Errorf("the new folder the move created is still there: %v", err)
+	}
+}
+
 // One entry cannot be moved (a folder without write permission, a mount of
 // its own): the entries moved before it go back, the watch stays on the old
 // folder, and the answer says what happened instead of "not moved" while half
@@ -152,7 +199,7 @@ func TestWatchMovePartialFailureMovesBack(t *testing.T) {
 		t.Errorf("local_path = %q, want old", local)
 	}
 	// a new folder the move itself created goes again with the move
-	res, err := s.moveFolderContents("old", "fresh")
+	res, err := s.moveFolderContents("old", "fresh", func() error { return nil })
 	if err == nil || res.Moved != 0 {
 		t.Errorf("direct move: %+v %v, want an error and nothing moved", res, err)
 	}
