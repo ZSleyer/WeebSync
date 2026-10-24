@@ -55,6 +55,14 @@ func dialFTPTLS(cfg Config, roots *x509.CertPool, implicit bool) (Client, error)
 				return nil, err
 			}
 			conn, err := netguard.SafeDial(context.Background(), network, host, port, 15*time.Second)
+			if err == nil {
+				// jlaffaye/ftp sets no read deadlines of its own (only the
+				// optional shut timeout, ftp.go:956-958) and its
+				// DialWithTimeout is unused once a dial func is set
+				// (ftp.go:121-131): without this a silent greeting or a data
+				// connection gone quiet blocks forever
+				conn = withIdleTimeout(conn)
+			}
 			// The first dial is the control connection, which the library
 			// upgrades itself (AUTH TLS) unless the port is the implicit one,
 			// where TLS starts before the greeting. Every later one is a data

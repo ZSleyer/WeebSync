@@ -10,6 +10,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/netguard"
@@ -91,10 +92,20 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 	// Resolve once and dial the verified IP through netguard, then run the SSH
 	// handshake over that connection - a plain ssh.Dial re-resolves the host and
 	// would reopen the DNS-rebinding TOCTOU that netguard.Allowed alone leaves.
-	netConn, err := netguard.SafeDial(context.Background(), "tcp", cfg.Host, cfg.Port, 15*time.Second)
+	rawConn, err := netguard.SafeDial(context.Background(), "tcp", cfg.Host, cfg.Port, 15*time.Second)
 	if err != nil {
 		return nil, err
 	}
+	netConn := withIdleTimeout(rawConn)
+	// ClientConfig.Timeout below only bounds ssh.Dial's own TCP connect
+	// (x/crypto/ssh client.go:204), not a handshake over a ready connection:
+	// bound the whole handshake here, or a server that accepts and never
+	// sends its banner holds the dial forever
+	var handshakeExpired atomic.Bool
+	timer := time.AfterFunc(handshakeTimeout, func() {
+		handshakeExpired.Store(true)
+		netConn.Close()
+	})
 	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
 	algos := ssh.SupportedAlgorithms()
 	sc, chans, reqs, err := ssh.NewClientConn(netConn, addr, &ssh.ClientConfig{
@@ -112,10 +123,19 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		HostKeyAlgorithms: hostKeyAlgorithms(cfg.HostKey, algos.HostKeys),
 		Timeout:           15 * time.Second,
 	})
+	if !timer.Stop() && err == nil {
+		// the timer fired just as the handshake finished: the connection is
+		// already closed under it
+		sc.Close()
+		err = fmt.Errorf("ssh handshake with %s timed out after %v", cfg.Host, handshakeTimeout)
+	}
 	if err != nil {
 		netConn.Close()
 		if hkErr != nil {
 			return nil, hkErr
+		}
+		if handshakeExpired.Load() {
+			return nil, fmt.Errorf("ssh handshake with %s timed out after %v: %w", cfg.Host, handshakeTimeout, err)
 		}
 		// x/crypto has no typed error for a refused login; its text is the
 		// only marker ("ssh: unable to authenticate, attempted methods ...")
@@ -124,7 +144,35 @@ func dialSSH(cfg Config) (*ssh.Client, error) {
 		}
 		return nil, err
 	}
-	return ssh.NewClient(sc, chans, reqs), nil
+	client := ssh.NewClient(sc, chans, reqs)
+	go keepalive(client)
+	return client, nil
+}
+
+// keepalive sends keepalive@openssh.com at keepaliveInterval until the
+// connection ends. The reply (OpenSSH answers with a request failure, which
+// counts) is traffic on an otherwise idle connection, so the idle deadline
+// only fires on one that really went silent. A dead connection ends the wait
+// for the reply: the mux closes its response channel and SendRequest returns
+// io.EOF (x/crypto/ssh mux.go:183-185, :224).
+func keepalive(c *ssh.Client) {
+	done := make(chan struct{})
+	go func() {
+		c.Wait()
+		close(done)
+	}()
+	t := time.NewTicker(keepaliveInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-done:
+			return
+		case <-t.C:
+			if _, _, err := c.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+				return
+			}
+		}
+	}
 }
 
 // noChaCha drops chacha20-poly1305@openssh.com. Without the strict key

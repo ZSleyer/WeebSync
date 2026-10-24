@@ -82,6 +82,19 @@ var ErrPlainFTP = errors.New("plain FTP is not supported (credentials would be s
 // change.
 var ErrBlockedHost = errors.New("host is a blocked address")
 
+// Connection timeouts, vars so tests can shorten them.
+var (
+	// ioTimeout: a connection on which nothing arrives (or nothing can be
+	// sent) for this long is dead. SSH keepalives keep an idle but healthy
+	// connection well inside it.
+	ioTimeout = 60 * time.Second
+	// handshakeTimeout bounds the whole SSH handshake (banner, key exchange,
+	// login), however slowly a peer trickles it.
+	handshakeTimeout = 15 * time.Second
+	// keepaliveInterval paces the SSH keepalive requests.
+	keepaliveInterval = 30 * time.Second
+)
+
 // ErrServerBusy marks a connection request that ran out of time waiting for a
 // free slot under the server's connection limit: nothing failed, the server
 // was in use.

@@ -373,14 +373,83 @@ func (m *Manager) startDownload(id int64) {
 	}()
 }
 
+// dialDetached runs the Dialer on its own goroutine so that a pause, cancel
+// or shutdown ends the download while a dial still waits (for a pool slot, a
+// slow handshake). A connection that arrives after that is closed unused.
+func (m *Manager) dialDetached(ctx context.Context, d *Download) (remote.Client, error) {
+	type dialed struct {
+		c   remote.Client
+		err error
+	}
+	ch := make(chan dialed, 1)
+	go func() {
+		c, _, err := m.Dial(d.UserID, d.ServerID)
+		ch <- dialed{c, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.c, r.err
+	case <-ctx.Done():
+		go func() {
+			if r := <-ch; r.err == nil {
+				r.c.Close()
+			}
+		}()
+		return nil, ctx.Err()
+	}
+}
+
 func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) error {
-	client, _, err := m.Dial(d.UserID, d.ServerID)
+	client, err := m.dialDetached(ctx, d)
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	// Every remote call below runs on its own goroutine (call), so a pause,
+	// cancel or shutdown takes effect at once even while a stalled peer holds
+	// the call - before, the worker sat in a blocked Read until the kernel gave
+	// up on the connection. The call itself ends when it returns or at the
+	// latest at the connection's idle deadline (remote.ioTimeout). A call
+	// still out when the download ends owns the cleanup: closing a file or
+	// client under a running call would block on it (pkg/sftp File.Close
+	// waits for the lock a running Read holds). Not counted in wg: it touches
+	// no database, and Shutdown should not wait for a dead peer.
+	var opened io.ReadCloser    // the remote file, set by the Open call
+	var abandoned chan struct{} // closed when an abandoned call returns
+	call := func(op func()) error {
+		done := make(chan struct{})
+		go func() {
+			op()
+			close(done)
+		}()
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			abandoned = done
+			return ctx.Err()
+		}
+	}
+	defer func() {
+		release := func() {
+			if opened != nil {
+				opened.Close()
+			}
+			client.Close()
+		}
+		if abandoned == nil {
+			release()
+			return
+		}
+		go func() {
+			<-abandoned
+			release()
+		}()
+	}()
 
-	size, err := client.Size(d.RemotePath)
+	var size int64
+	if cerr := call(func() { size, err = client.Size(d.RemotePath) }); cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return err
 	}
@@ -444,11 +513,12 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		_, _ = m.DB.Exec(`UPDATE downloads SET transferred = ?, start_bytes = ? WHERE id = ?`, offset, offset, d.ID)
 	}
 
-	src, err := client.Open(d.RemotePath, offset)
+	if cerr := call(func() { opened, err = client.Open(d.RemotePath, offset) }); cerr != nil {
+		return cerr
+	}
 	if err != nil {
 		return err
 	}
-	defer src.Close()
 
 	dst, err := local.Root.OpenFile(part, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -458,7 +528,7 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 
 	// fetched per Read under mu: SetRateLimit and reloadSettings swap these
 	// pointers concurrently (including nil ↔ *Limiter transitions)
-	reader := &throttledReader{r: src, ctx: ctx, limiters: func() []*rate.Limiter {
+	reader := &throttledReader{r: opened, ctx: ctx, limiters: func() []*rate.Limiter {
 		m.mu.Lock()
 		defer m.mu.Unlock()
 		return []*rate.Limiter{m.global, r.limiter}
@@ -472,7 +542,11 @@ func (m *Manager) runDownload(ctx context.Context, d *Download, r *running) erro
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		n, rerr := reader.Read(buf)
+		var n int
+		var rerr error
+		if cerr := call(func() { n, rerr = reader.Read(buf) }); cerr != nil {
+			return cerr
+		}
 		if n > 0 {
 			if _, werr := dst.Write(buf[:n]); werr != nil {
 				return werr
