@@ -637,12 +637,15 @@ var ErrForeignTarget = errors.New("a file is already at the target and only an a
 
 // mayReplace reports whether userID may replace the file already at local (an
 // absolute target): replacing what is in the shared library is an admin's
-// call, but anyone may replace what one of their own downloads put there.
+// call, but anyone may replace what their own download put there - the
+// latest finished download for that path, since a later one by someone else
+// replaced it.
 func (m *Manager) mayReplace(userID int64, local string) (bool, error) {
 	var ok bool
 	err := m.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM users WHERE id = ? AND is_admin = 1)
-		OR EXISTS (SELECT 1 FROM downloads WHERE user_id = ? AND local_path = ? AND status = 'done')`,
-		userID, userID, local).Scan(&ok)
+		OR COALESCE((SELECT user_id FROM downloads WHERE local_path = ? AND status = 'done'
+			ORDER BY updated_at DESC, id DESC LIMIT 1), 0) = ?`,
+		userID, local, userID).Scan(&ok)
 	return ok, err
 }
 

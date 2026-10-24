@@ -57,6 +57,13 @@ func TestMemberCannotQueueOverForeignFile(t *testing.T) {
 	if res, err := m.Enqueue(2, 2, "/x/Show", "Show", nil, nil, false, true, false); err != nil || len(res.IDs) != 1 {
 		t.Fatalf("member over their own file: ids %v err %v, want it queued", res.IDs, err)
 	}
+	// the admin replaced it since: the file there now is the admin's
+	m.DB.Exec(`DELETE FROM downloads WHERE status <> 'done'`)
+	m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, status, updated_at)
+		VALUES (1, 1, '/x/Show/ep01.mkv', ?, 7, 'done', datetime('now', '+1 minute'))`, target)
+	if res, err := m.Enqueue(2, 2, "/x/Show", "Show", nil, nil, false, true, false); err != nil || len(res.IDs) != 0 {
+		t.Fatalf("member over a file the admin replaced after them: ids %v err %v, want it skipped", res.IDs, err)
+	}
 	m.DB.Exec(`DELETE FROM downloads`)
 
 	if res, err := m.Enqueue(1, 1, "/x/Show", "Show", nil, nil, false, true, false); err != nil || len(res.IDs) != 1 {
