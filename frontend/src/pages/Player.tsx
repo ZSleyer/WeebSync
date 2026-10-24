@@ -556,6 +556,26 @@ function PlayerView({
       v.disablePictureInPicture = NO_NATIVE_PIP
     }
   }
+  // the same switch in the settings menu, which a phone always shows (the
+  // bar's button steps out first as the player narrows). media-chrome fires
+  // the menu's change on a click as on Enter or Space, after it flipped the
+  // item itself: the item goes back to the window's real state at once and
+  // the enter and leave events below set it.
+  const settingsRef = useRef<ChromeMenuElement>(null)
+  const pickPip = useEffectEvent((e: Event) => {
+    const menu = settingsRef.current
+    // a pick in a submenu (episodes, speed, size) bubbles up here as well
+    if (!menu || e.target !== menu) return
+    menu
+      .querySelector('.t-player-pipitem')
+      ?.setAttribute('aria-checked', document.pictureInPictureElement ? 'true' : 'false')
+    void togglePip()
+  })
+  useEffect(() => {
+    const menu = settingsRef.current
+    menu?.addEventListener('change', pickPip)
+    return () => menu?.removeEventListener('change', pickPip)
+  }, [data])
   useEffect(() => {
     const v = videoRef.current
     if (!v) return
@@ -1393,7 +1413,7 @@ function PlayerView({
               }}
             />
           )}
-          <MediaSettingsMenu hidden anchor="auto" className="t-player-menu">
+          <MediaSettingsMenu ref={settingsRef} hidden anchor="auto" className="t-player-menu">
             {episodes.length > 1 && (
               <MediaSettingsMenuItem>
                 {t('player.episodes')}
@@ -1436,6 +1456,12 @@ function PlayerView({
                   }}
                 />
               </MediaSettingsMenuItem>
+            )}
+            {pipSupported && (
+              <MediaChromeMenuItem type="checkbox" className="t-player-pipitem" aria-checked={inPip ? 'true' : 'false'}>
+                {t('player.pip')}
+                <Check slot="suffix" aria-hidden className="t-pm-check" />
+              </MediaChromeMenuItem>
             )}
           </MediaSettingsMenu>
 

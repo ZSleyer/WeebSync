@@ -569,6 +569,7 @@ media-chrome-menu.t-player-menu::part(back indicator) { display: none; }
    font the buttons grow, and steps in px let the bar run out of the player
    while the time was squeezed under the volume button. */
 @container player (width < 39rem) {
+  /* picture in picture stays in the settings menu */
   .t-player-bar .t-player-pip { display: none; }
 }
 @container player (width < 32.5rem) {

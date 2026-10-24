@@ -66,10 +66,13 @@ async function mount(ua = realUA) {
 }
 
 let pipElement: Element | null = null
+const float = (v: HTMLVideoElement) => {
+  pipElement = v
+  v.dispatchEvent(new Event('enterpictureinpicture'))
+}
 const request = vi.fn(async function (this: HTMLVideoElement) {
   if (this.disablePictureInPicture) throw new DOMException('disabled', 'InvalidStateError')
-  pipElement = this
-  this.dispatchEvent(new Event('enterpictureinpicture'))
+  float(this)
   return {} as PictureInPictureWindow
 })
 
@@ -147,5 +150,60 @@ describe('the native picture in picture of the browser', () => {
     expect(video.hasAttribute('disablepictureinpicture')).toBe(false)
     await act(async () => document.exitPictureInPicture())
     expect(video.hasAttribute('disablepictureinpicture')).toBe(true)
+  })
+})
+
+// media-chrome's settings menu: a checkable item toggles itself and the menu
+// fires change, on a click as on Enter or Space (media-chrome-menu.js 4.19.3,
+// handleSelect and selectItem). The test plays that part.
+function choose(menu: Element, item: Element) {
+  item.setAttribute('aria-checked', item.getAttribute('aria-checked') === 'true' ? 'false' : 'true')
+  menu.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+}
+
+describe('picture in picture in the settings menu', () => {
+  const find = (container: HTMLElement) => {
+    const menu = container.querySelector('media-settings-menu')!
+    const item = [...menu.querySelectorAll('media-chrome-menu-item')].find((i) =>
+      /Picture in picture/.test(i.textContent ?? ''),
+    )
+    return { menu, item }
+  }
+
+  it('is a checkable item there on every width, so a phone reaches it', async () => {
+    const { container } = await mount(CHROME_ANDROID)
+    const { item } = find(container)
+    expect(item).toBeTruthy()
+    expect(item!.getAttribute('type')).toBe('checkbox')
+    expect(item!.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('opens the window, shows it as checked, and closes it again', async () => {
+    const { container, video } = await mount(CHROME_ANDROID)
+    const { menu, item } = find(container)
+    await act(async () => choose(menu, item!))
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(document.pictureInPictureElement).toBe(video)
+    expect(item!.getAttribute('aria-checked')).toBe('true')
+    await act(async () => choose(menu, item!))
+    expect(document.pictureInPictureElement).toBeNull()
+    expect(item!.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('stays unchecked when the browser refuses the window', async () => {
+    const { container } = await mount(CHROME_ANDROID)
+    const { menu, item } = find(container)
+    request.mockRejectedValueOnce(new DOMException('no', 'NotAllowedError'))
+    await act(async () => choose(menu, item!))
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(item!.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('leaves a pick in a submenu (speed) alone', async () => {
+    const { container } = await mount(CHROME_ANDROID)
+    const { menu } = find(container)
+    const sub = menu.querySelector('media-chrome-menu[slot="submenu"]')!
+    await act(async () => sub.dispatchEvent(new Event('change', { bubbles: true, composed: true })))
+    expect(request).not.toHaveBeenCalled()
   })
 })
