@@ -250,9 +250,9 @@ function PlayerView({
     queryFn: () => api.get<PlayInfo>(`/api/play/info?${src}`),
     enabled: !!path,
     retry: false,
-    // the answer for a file does not age while it plays: a refocus must not
-    // refetch it (a failed or changed answer would tear the running video down)
-    staleTime: Infinity,
+    // a refocus or reconnect must not refetch it while it plays (a failed or
+    // changed answer would tear the running video down); a mount still does,
+    // so a cached answer with an old AniList progress is not trusted
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   })

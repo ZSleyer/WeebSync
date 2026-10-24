@@ -71,19 +71,47 @@ beforeEach(() => {
 })
 
 describe('Player page', () => {
-  it('F01a-1: a window refocus neither refetches play-info nor drops a running player on a failed refetch', async () => {
+  const infoCalls = () => calls.filter((c) => c.startsWith('/api/play/info')).length
+
+  it('F01a-1: a window refocus does not refetch play-info', async () => {
     const { container } = mount()
     await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
-    const infoCalls = () => calls.filter((c) => c.startsWith('/api/play/info')).length
     expect(infoCalls()).toBe(1)
-    infoFor.fail = true
     await act(async () => {
       focusManager.setFocused(false)
       focusManager.setFocused(true)
     })
     expect(infoCalls()).toBe(1)
-    expect(container.querySelector('video')).toBeTruthy()
+  })
+
+  it('F01a-1: a failed refetch leaves the running player in place', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: 0 } } })
+    const { container } = mount(client)
+    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+    const video = container.querySelector('video')
+    infoFor.fail = true
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['play-info'] })
+    })
+    expect(infoCalls()).toBe(2)
+    expect(client.getQueryState(['play-info', 0, '/a/ep1.mp4'])?.status).toBe('error')
+    expect(container.querySelector('video')).toBe(video)
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('F01a-1: a mount still refetches a stale cached answer', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: 0 } } })
+    client.setQueryData(['play-info', 0, '/a/ep1.mp4'], {
+      duration: 1400,
+      container: 'mp4',
+      video: { codec: 'h264', width: 1920, height: 1080 },
+      audio: [{ index: 1, codec: 'aac', lang: 'jpn', default: true }],
+      subs: [],
+      chapters: [],
+      anilist: { mediaId: 1, episode: 2, progress: 0 },
+    })
+    mount(client)
+    await waitFor(() => expect(infoCalls()).toBe(1))
   })
 
   // media-chrome 4.19.3 acts on j, l and c itself at keyup (media-controller.js,
