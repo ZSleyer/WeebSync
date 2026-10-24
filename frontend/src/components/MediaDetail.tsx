@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { ExternalLink, Play } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { mediaDescription, providerName, type Airing, type Media, type MediaExtras } from '../api'
@@ -279,6 +279,12 @@ function LinkMark({
 function Trailer({ id, art, focus }: { id: string; art?: string | null; focus?: Schemas['api.bannerFocus'] }) {
   const { t } = useTranslation()
   const [on, setOn] = useState(false)
+  const frame = useRef<HTMLIFrameElement>(null)
+  // the button it replaces had the focus: the player takes it over, once
+  // (an inline ref callback would pull it back on every render)
+  useEffect(() => {
+    if (on) frame.current?.focus({ preventScroll: true })
+  }, [on])
   // the box is 16:9 whatever the width
   const at = focusPosition(focus, 16, 9)
   if (!on)
@@ -301,8 +307,7 @@ function Trailer({ id, art, focus }: { id: string; art?: string | null; focus?: 
     )
   return (
     <iframe
-      // the button it replaces had the focus: the player takes it over
-      ref={(el) => el?.focus({ preventScroll: true })}
+      ref={frame}
       className="ws-d-trailer"
       title={t('remote.trailer')}
       src={`https://www.youtube-nocookie.com/embed/${id}?autoplay=1`}
