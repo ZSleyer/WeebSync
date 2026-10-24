@@ -17852,6 +17852,16 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -17928,6 +17938,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -18012,6 +18032,16 @@
                             }
                         },
                         "description": "Internal Server Error"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -18038,6 +18068,16 @@
                             }
                         },
                         "description": "OK"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [

@@ -380,10 +380,10 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/auth/ratelimit/reset", authed(adminOnly(http.HandlerFunc(s.handleRateLimitReset))))
 
 	// web push
-	mux.Handle("GET /api/push/key", authed(http.HandlerFunc(s.handlePushKey)))
-	mux.Handle("POST /api/push/subscribe", authed(http.HandlerFunc(s.handlePushSubscribe)))
-	mux.Handle("DELETE /api/push/subscribe", authed(http.HandlerFunc(s.handlePushUnsubscribe)))
-	mux.Handle("POST /api/push/test", authed(http.HandlerFunc(s.handlePushTest)))
+	mux.Handle("GET /api/push/key", authed(s.pushOn(s.handlePushKey)))
+	mux.Handle("POST /api/push/subscribe", authed(s.pushOn(s.handlePushSubscribe)))
+	mux.Handle("DELETE /api/push/subscribe", authed(s.pushOn(s.handlePushUnsubscribe)))
+	mux.Handle("POST /api/push/test", authed(s.pushOn(s.handlePushTest)))
 	// the system fetches notification icons without cookies: signed instead
 	mux.HandleFunc("GET /api/push/cover", s.handlePushCover)
 

@@ -16,11 +16,24 @@ type PushKeyResponse struct {
 	Key string `json:"key"`
 }
 
+// pushOn guards the push routes: a push service that failed to start leaves
+// Push nil and the rest of the app running, and its routes answer 503.
+func (s *Server) pushOn(h http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.Push == nil {
+			writeErr(w, http.StatusServiceUnavailable, "push unavailable")
+			return
+		}
+		h(w, r)
+	})
+}
+
 // @Summary      Web push public key
 // @Description  Returns the VAPID public key browsers use to subscribe to push notifications.
 // @Tags         Push
 // @Produce      json
 // @Success      200  {object}  PushKeyResponse
+// @Failure      503  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/push/key [get]
 func (s *Server) handlePushKey(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +59,7 @@ type pushSubInput struct {
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
 // @Failure      500  {object}  ErrorResponse
+// @Failure      503  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/push/subscribe [post]
 func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +112,7 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 // @Failure      400  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
 // @Failure      500  {object}  ErrorResponse
+// @Failure      503  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/push/subscribe [delete]
 func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
@@ -118,6 +133,7 @@ func (s *Server) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
 // @Tags         Push
 // @Produce      json
 // @Success      200  {object}  OkResponse
+// @Failure      503  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/push/test [post]
 func (s *Server) handlePushTest(w http.ResponseWriter, r *http.Request) {

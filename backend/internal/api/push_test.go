@@ -57,3 +57,25 @@ func TestPushUnsubscribeReportsDBError(t *testing.T) {
 		t.Fatalf("unsubscribe with a failing delete: %d %s, want 500", rec.Code, rec.Body)
 	}
 }
+
+// A push service that failed to start leaves Push nil and the rest of the
+// app running: every push route answers 503 instead of panicking, and the
+// notification paths skip push.
+func TestPushRoutesWithoutService(t *testing.T) {
+	mux, s, c := setupAiTest(t, nil)
+	s.Push = nil
+	sub := `{"endpoint":"https://1.1.1.1/sub","keys":{"p256dh":"k","auth":"a"}}`
+	for _, rt := range [][3]string{
+		{"GET", "/api/push/key", ""},
+		{"POST", "/api/push/subscribe", sub},
+		{"DELETE", "/api/push/subscribe", sub},
+		{"POST", "/api/push/test", ""},
+	} {
+		if rec := doReq(mux, rt[0], rt[1], rt[2], c); rec.Code != http.StatusServiceUnavailable {
+			t.Errorf("%s %s without a push service: %d %s, want 503", rt[0], rt[1], rec.Code, rec.Body)
+		}
+	}
+	// the senders stay quiet rather than dereference nil
+	s.NotifyEvent(1, "suggestion", "t", "b", "/", "")
+	s.pushDigest(1, "download_done", "en", []digestItem{{remotePath: "/a.mkv"}})
+}
