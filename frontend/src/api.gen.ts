@@ -1269,7 +1269,10 @@ export interface Schemas {
     trashedAt: number
   }
   'api.TrashRequest': {
-    path: string
+    /**
+     * one entry; empty when Paths is given
+     */
+    path?: string
     paths?: string[]
   }
   'api.TrustHostKeyInput': {

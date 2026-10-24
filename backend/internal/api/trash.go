@@ -38,7 +38,7 @@ type trashRow struct {
 // to empty the trash: the entries the page listed, so a copy that arrived
 // after the list was drawn is never deleted unseen.
 type TrashRequest struct {
-	Path  string   `json:"path"`
+	Path  string   `json:"path,omitempty"` // one entry; empty when Paths is given
 	Paths []string `json:"paths,omitempty"`
 }
 

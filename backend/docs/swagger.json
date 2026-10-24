@@ -2990,6 +2990,7 @@
             "api.TrashRequest": {
                 "properties": {
                     "path": {
+                        "description": "one entry; empty when Paths is given",
                         "type": "string"
                     },
                     "paths": {
@@ -3000,9 +3001,6 @@
                         "uniqueItems": false
                     }
                 },
-                "required": [
-                    "path"
-                ],
                 "type": "object"
             },
             "api.TrustHostKeyInput": {
