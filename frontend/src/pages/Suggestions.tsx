@@ -839,7 +839,7 @@ export function UpgradesSection() {
               chosen={choice[u.key] ?? u.to}
               onChoose={(o) => setChoice((c) => ({ ...c, [u.key]: o }))}
               onSync={(r) => setSync(withDefaults(r, u))}
-              onLoad={(r, replaceOld) => void load(r, u, replaceOld)}
+              onLoad={(r, replaceOld) => load(r, u, replaceOld)}
               onDismiss={(x, from) =>
                 void hide({ kind: 'upgrade', refKey: x.key, label: x.title, cover: x.cover, section: 'upgrades' }, from)
               }
