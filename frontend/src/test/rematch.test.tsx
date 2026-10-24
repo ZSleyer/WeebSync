@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { api, type CatalogItem } from '../api'
@@ -21,7 +22,11 @@ const item = (extra: Partial<CatalogItem> = {}) =>
 const media = (id: number, title: string) => ({ id, title: { romaji: title }, coverImage: {} })
 
 // every GET answers; the calls are what the test looks at
-function setup(it: CatalogItem, keys = { tvdbApiKeySet: true, tmdbApiKeySet: true }) {
+function setup(
+  it: CatalogItem,
+  keys = { tvdbApiKeySet: true, tmdbApiKeySet: true },
+  wrap: (children: ReactNode) => ReactNode = (c) => c,
+) {
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
     if (url === '/api/auth/me') return { id: 1, email: 'u@example.test', ...keys }
     if (url.includes('/search')) return [media(42, 'Hit')]
@@ -31,7 +36,7 @@ function setup(it: CatalogItem, keys = { tvdbApiKeySet: true, tmdbApiKeySet: tru
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   render(
     <QueryClientProvider client={qc}>
-      <RematchForm serverId={3} item={it} onClose={vi.fn()} onPicked={vi.fn()} />
+      {wrap(<RematchForm serverId={3} item={it} onClose={vi.fn()} onPicked={vi.fn()} />)}
     </QueryClientProvider>,
   )
   const searched = () => get.mock.calls.map((c) => String(c[0])).filter((u) => u !== '/api/auth/me')
@@ -94,5 +99,36 @@ describe('Rematch provider picker', () => {
     fireEvent.click(await screen.findByText('Hit'))
     await waitFor(() => expect(put).toHaveBeenCalled())
     expect(put.mock.calls[0][1]).toMatchObject({ source: 'tmdb:movie' })
+  })
+})
+
+// the match dialog sits inside the watch form's <form> (no portal)
+describe('Rematch inside a surrounding form', () => {
+  const inForm = (onSubmit: () => void) => (c: ReactNode) => (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        onSubmit()
+      }}
+    >
+      {c}
+    </form>
+  )
+
+  it('picking a hit does not submit the surrounding form', async () => {
+    const submit = vi.fn()
+    const { put } = setup(item(), undefined, inForm(submit))
+    fireEvent.click(await screen.findByText('Hit'))
+    await waitFor(() => expect(put).toHaveBeenCalled())
+    expect(submit).not.toHaveBeenCalled()
+  })
+
+  it('Enter in the search field searches without submitting the surrounding form', async () => {
+    const { searched } = setup(item(), undefined, inForm(vi.fn()))
+    await waitFor(() => expect(searched()).toHaveLength(1))
+    const field = await screen.findByRole('searchbox')
+    // fireEvent returns false when the default action (implicit submission) was prevented
+    expect(fireEvent.keyDown(field, { key: 'Enter' })).toBe(false)
+    await waitFor(() => expect(searched()).toHaveLength(2))
   })
 })

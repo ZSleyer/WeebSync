@@ -233,7 +233,12 @@ export function RematchForm({
           value={q}
           placeholder={t('remote.searchHint')}
           onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && search()}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return
+            // the dialog sits inside the watch form: Enter must not submit it
+            e.preventDefault()
+            void search()
+          }}
         />
         <Button className="shrink-0" onClick={search}>
           <Search aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
@@ -244,6 +249,7 @@ export function RematchForm({
         {results.map((m) => (
           <li key={m.id}>
             <button
+              type="button"
               className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
               onClick={() => pick(m.id)}
             >
