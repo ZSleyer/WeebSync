@@ -511,3 +511,19 @@
 .w-week .w-day[aria-current='date'] .t-sec-title {
   color: var(--accent-2);
 }
+
+/* the always-reachable actions button of a tile: over the cover's corner in
+   the grid, at the row's end in the list */
+.w-grid > li {
+  position: relative;
+}
+.w-more {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+}
+.w-grid.as-list .w-more {
+  top: 50%;
+  transform: translateY(-50%);
+}

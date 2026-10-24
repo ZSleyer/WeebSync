@@ -56,4 +56,15 @@ describe('deleting a watch without a series record', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: 'servers.delete' })).toBeNull())
     expect(screen.queryByRole('button', { name: /Unmatched 7/ })).toBeNull()
   })
+
+  it("is reachable for a manga watch without a record, from the tile's actions button", async () => {
+    renderWatches([watch(8, { category: 'manga' })])
+    // a click on the tile itself opens the reader, so the delete has its own way in
+    const more = await screen.findByRole('button', { name: 'watch.moreFor' })
+    more.focus()
+    expect(more).toHaveFocus()
+    fireEvent.click(more)
+    fireEvent.click(await screen.findByRole('button', { name: /servers.delete/ }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Unmatched 8/ })).toBeNull())
+  })
 })

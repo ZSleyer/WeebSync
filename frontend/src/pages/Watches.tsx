@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  Ellipsis,
   CalendarDays,
   CalendarRange,
   Check,
@@ -34,7 +35,6 @@ import {
   Rows,
   SectionHeading,
   Segmented,
-  SHEET_MQ,
   Slot,
   SwipeDeck,
   TextLink,
@@ -125,7 +125,6 @@ export default function Watches() {
   const [edit, setEdit] = useState<Watch | null>(null)
   // a long press on a tile opens every action of it in a sheet
   const [more, setMore] = useState<Watch | null>(null)
-  const narrow = useMediaQuery(SHEET_MQ)
   const wide = useMediaQuery(WIDE_MQ)
   const { applyPlexStreams, del, save, error } = useWatchActions()
   const toast = useToast()
@@ -814,7 +813,7 @@ export default function Watches() {
                       eager={gi === 0 && i < 12}
                       now={now}
                       onOpen={() => openTile(w)}
-                      onMore={narrow ? () => setMore(w) : undefined}
+                      onMore={() => setMore(w)}
                     />
                   ))}
                 </ul>
@@ -898,7 +897,7 @@ function WatchTile({
   eager: boolean
   now: number
   onOpen: () => void
-  onMore?: () => void
+  onMore: () => void
 }) {
   const { t } = useTranslation()
   const name = watchName(w)
@@ -932,6 +931,18 @@ function WatchTile({
           </>
         )}
       </button>
+      {/* every action of the watch for mouse and keyboard too: the long press
+          is a touch gesture, and a manga or unmatched watch opens the reader
+          or the editor on click */}
+      <IconButton
+        className="w-more"
+        aria-label={t('watch.moreFor', { name })}
+        title={t('watch.moreFor', { name })}
+        aria-haspopup="dialog"
+        onClick={onMore}
+      >
+        <Ellipsis aria-hidden size="1.2em" />
+      </IconButton>
     </Press>
   )
 }
