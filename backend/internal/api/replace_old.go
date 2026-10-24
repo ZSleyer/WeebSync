@@ -313,15 +313,37 @@ func (s *Server) trashed(p string) (*transfer.LocalPath, bool) {
 }
 
 // deleteTrash removes the given rows from disk and the table, and the trash
-// folder itself once nothing but the ignore marker is left. A row that fails
-// the trashed check is dropped without touching disk. Returns how many went.
+// folder itself once nothing but the ignore marker is left. A row that is not
+// a path inside a trash folder is dropped without touching disk. A row whose
+// disk cannot be reached stays: a media disk that is not mounted looks like a
+// missing file, and dropping the row would leave the copy in its trash folder
+// for good, out of every list. Returns how many went.
 func (s *Server) deleteTrash(paths []string) (n int) {
 	for _, p := range paths {
-		local, ok := s.trashed(p)
-		if !ok {
-			// a row that fails the check is retried on the next delete
-			_, _ = s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p)
+		local, err := s.openLocal(p)
+		if err != nil {
+			// the root cannot be opened (the disk is away) or no longer
+			// holds the path: kept for the next delete
+			slog.Debug("trash row kept: root not reachable", "file", logSafe(p), "err", err)
 			continue
+		}
+		if local.Abs != p || filepath.Base(filepath.Dir(p)) != trashDir {
+			// never acted on: whatever a row says, only a trash entry is removed
+			local.Close()
+			if _, err := s.DB.Exec(`DELETE FROM trash_files WHERE path = ?`, p); err != nil {
+				slog.Warn("bogus trash row not removed", "file", logSafe(p), "err", err)
+			}
+			continue
+		}
+		if _, err := local.Root.Lstat(local.Name); err != nil {
+			// not there: done with only when the folder the trash sits in is
+			// there to say so - an empty mount point lacks that folder too
+			_, perr := local.Root.Stat(filepath.Dir(filepath.Dir(local.Name)))
+			if !errors.Is(err, fs.ErrNotExist) || perr != nil {
+				slog.Debug("trash row kept: copy not reachable", "file", logSafe(p), "err", err)
+				local.Close()
+				continue
+			}
 		}
 		// a trashed folder goes as a whole; the row names the folder itself
 		if err := local.Root.RemoveAll(local.Name); err != nil && !errors.Is(err, fs.ErrNotExist) {
