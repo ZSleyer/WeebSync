@@ -111,7 +111,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return
       const el = e.target
-      if (el instanceof HTMLElement && el.closest('input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, select, [contenteditable]'))
+      if (
+        el instanceof HTMLElement &&
+        el.closest(
+          'input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, select, [contenteditable]',
+        )
+      )
         return
       e.preventDefault()
       undoNow()

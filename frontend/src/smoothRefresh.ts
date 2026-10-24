@@ -78,12 +78,7 @@ export async function smoothRefresh(
     qc.setQueryData(quiet[i].queryKey, value)
   }
   const got = await Promise.all(
-    fetches.map((p, i) =>
-      Promise.race([
-        p.then((value) => ({ value }), fail(i)),
-        deadline,
-      ]),
-    ),
+    fetches.map((p, i) => Promise.race([p.then((value) => ({ value }), fail(i)), deadline])),
   )
   got.forEach((r, i) => {
     if (r === 'late')
