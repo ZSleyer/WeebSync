@@ -96,7 +96,10 @@ export default function TrashPage() {
     if (fresh.length === 0) return
     if (
       await confirm({
-        message: t('trash.emptyConfirm', { count: fresh.length, size: fmtBytes(fresh.reduce((n, e) => n + e.size, 0)) }),
+        message: t('trash.emptyConfirm', {
+          count: fresh.length,
+          size: fmtBytes(fresh.reduce((n, e) => n + e.size, 0)),
+        }),
         confirmLabel: t('trash.empty'),
         destructive: true,
       })

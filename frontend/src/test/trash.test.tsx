@@ -9,8 +9,11 @@ import { ShellFooter } from '../components/PageActions'
 
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
-  useTranslation: () => ({ t: (k: string, o?: Record<string, unknown>) =>
-      k === 'trash.emptyConfirm' ? `${k}:${o?.count}` : o?.name ? `${k}:${o.name}` : k }) as never,
+  useTranslation: () =>
+    ({
+      t: (k: string, o?: Record<string, unknown>) =>
+        k === 'trash.emptyConfirm' ? `${k}:${o?.count}` : o?.name ? `${k}:${o.name}` : k,
+    }) as never,
 }))
 let admin = true
 vi.mock(import('../hooks'), async (importOriginal) => ({
