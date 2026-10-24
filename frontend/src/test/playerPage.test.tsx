@@ -6,12 +6,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const calls: string[] = []
 const infoFor = vi.hoisted(() => ({ fail: false }))
 
-vi.mock('hls.js', () => ({
-  default: class {
-    static isSupported = () => false
-  },
-}))
-vi.mock('jassub', () => ({ default: class {} }))
+vi.mock('hls.js', () => ({ default: { isSupported: () => false } }))
+vi.mock('jassub', () => ({ default: function () {} }))
 vi.mock('../pages/jassubWorker?worker&url', () => ({ default: 'worker.js' }))
 vi.mock('../components/useImmersive', () => ({ useImmersive: () => {} }))
 vi.mock('../components/toast', () => ({ useToast: () => () => {} }))
@@ -65,14 +61,9 @@ function mount(client = new QueryClient({ defaultOptions: { queries: { staleTime
 }
 
 beforeEach(() => {
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      disconnect() {}
-      unobserve() {}
-    },
-  )
+  vi.stubGlobal('ResizeObserver', function () {
+    return { observe() {}, disconnect() {}, unobserve() {} }
+  })
   calls.length = 0
   infoFor.fail = false
   Object.defineProperty(HTMLMediaElement.prototype, 'load', { value: () => {}, configurable: true })
@@ -299,5 +290,50 @@ describe('Player page', () => {
       delete (HTMLOListElement.prototype as unknown as Record<string, unknown>).scrollTop
       delete (HTMLOListElement.prototype as unknown as Record<string, unknown>).clientHeight
     }
+  })
+
+  describe('F01a-3: switching episodes', () => {
+    const switchToNext = async () => {
+      const view = mount()
+      const video = await waitFor(() => {
+        const v = view.container.querySelector('video')
+        expect(v).toBeTruthy()
+        return focusable(v!)
+      })
+      await waitFor(() => expect(calls.some((c) => c.startsWith('/api/browse/local'))).toBe(true))
+      const page = view.container.querySelector('.t-player-page')!
+      const controller = view.container.querySelector('media-controller')!
+      video.focus()
+      // the folder listing decides whether there is a next episode
+      await waitFor(async () => {
+        await act(async () => {
+          fireEvent.keyDown(video, { key: 'N', shiftKey: true })
+        })
+        expect(screen.getByTestId('where').textContent).toContain('ep2.mp4')
+      })
+      return { view, page, controller }
+    }
+
+    it('keeps the element that goes fullscreen, so the browser has nothing to leave', async () => {
+      const { view, page, controller } = await switchToNext()
+      await waitFor(() => expect(view.container.querySelector('video')).toBeTruthy())
+      expect(view.container.querySelector('.t-player-page')).toBe(page)
+      // the controller of the new file goes fullscreen through that same element
+      const next = view.container.querySelector('media-controller') as HTMLElement & { fullscreenElement?: Element }
+      expect(next).not.toBe(controller)
+      expect(next.fullscreenElement).toBe(page)
+    })
+
+    it('puts the focus back into the player when it was in it', async () => {
+      const { view } = await switchToNext()
+      const video = await waitFor(() => {
+        const v = view.container.querySelector('video')
+        expect(v).toBeTruthy()
+        return v!
+      })
+      video.tabIndex = -1
+      // the new player's video is focusable once media-chrome has it (jsdom: by hand)
+      await waitFor(() => expect(video).toHaveFocus())
+    })
   })
 })

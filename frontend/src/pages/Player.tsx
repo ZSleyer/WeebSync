@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -195,13 +196,42 @@ export default function Player() {
   const [params] = useSearchParams()
   const server = Number(params.get('server') || 0)
   const path = params.get('path') || ''
-  return <PlayerView key={`${server}:${path}`} server={server} path={path} />
+  // Whether the focus sat in the player when the last file's view went: the
+  // next one takes it back as soon as its picture is there.
+  const focusCarry = useRef(false)
+  const refocus = useMemo(
+    () => ({
+      keep: (v: boolean) => void (focusCarry.current = v),
+      take: () => {
+        const v = focusCarry.current
+        focusCarry.current = false
+        return v
+      },
+    }),
+    [],
+  )
+  // The page is the element that goes fullscreen (the controller takes it as
+  // its fullscreenElement), and it outlives the key below: the browser leaves
+  // fullscreen when its element is removed, which every episode switch used to do.
+  return (
+    <div className="t-player-page">
+      <PlayerView key={`${server}:${path}`} server={server} path={path} refocus={refocus} />
+    </div>
+  )
 }
 
 // seconds from the end of an episode to the start of the next
 const NEXT_COUNT = 8
 
-function PlayerView({ server, path }: { server: number; path: string }) {
+function PlayerView({
+  server,
+  path,
+  refocus,
+}: {
+  server: number
+  path: string
+  refocus: { keep: (v: boolean) => void; take: () => boolean }
+}) {
   const { t, i18n } = useTranslation()
   setLanguage(i18n.language)
   const navigate = useNavigate()
@@ -730,6 +760,29 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   }, [data])
 
   const playerRef = useRef<MediaControllerElement>(null)
+  // fullscreen goes to the page around this view (see Player), not to the
+  // controller that is replaced with every file. Set as a property: the
+  // attribute is looked up by id before the controller is in the document.
+  const ready = !!data
+  useEffect(() => {
+    const ctl = playerRef.current
+    const page = ctl?.closest<HTMLElement>('.t-player-page')
+    if (ctl && page) ctl.fullscreenElement = page
+  }, [ready])
+  // the focus the last file's player had comes back to this one's picture
+  // (media-chrome makes the media element focusable the same way)
+  useLayoutEffect(
+    () => () => {
+      refocus.keep(!!document.activeElement?.closest('media-controller'))
+    },
+    [refocus],
+  )
+  useEffect(() => {
+    const v = videoRef.current
+    if (!ready || !v || !refocus.take()) return
+    if (!v.hasAttribute('tabindex')) v.tabIndex = -1
+    v.focus({ preventScroll: true })
+  }, [ready, refocus])
   // media-chrome's keys (space, k, f, m, arrows) plus the player's own (the
   // controller's hotkeys attribute leaves them to us): j and
   // l skip 10 s, c turns the subtitles off and on, Shift+N and Shift+P change
@@ -1043,7 +1096,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   // before the file is read the page already stands: the black frame with
   // the way out, so a phone is never left in an empty overlay
   const frame = (body: ReactNode) => (
-    <div className="t-player-page">
+    <>
       <div className="t-player-wrap">
         <div className="t-player t-player--idle">
           <div className="t-player-top">
@@ -1057,7 +1110,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           <div className="t-player-idle">{body}</div>
         </div>
       </div>
-    </div>
+    </>
   )
   if (!path) return frame(<p>{t('player.noFile')}</p>)
   if (info.isPending)
@@ -1112,7 +1165,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
   const textSubs = data.subs.some((s) => !s.image)
 
   return (
-    <div className="t-player-page">
+    <>
       <div className="t-player-wrap">
         <MediaController
           ref={playerRef}
@@ -1492,7 +1545,7 @@ function PlayerView({ server, path }: { server: number; path: string }) {
         burned={burn >= 0}
         serverName={serverName}
       />
-    </div>
+    </>
   )
 }
 
