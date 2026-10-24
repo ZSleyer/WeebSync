@@ -25,7 +25,6 @@ func swapHashGate(t *testing.T, slots int, fn func([]byte, []byte, uint32, uint3
 // them at once than the gate allows, however many arrive.
 func TestHashGateCapsConcurrentRuns(t *testing.T) {
 	hash := legacyHash(t, "correct horse battery")
-	DummyVerify("warm up") // builds the dummy hash outside the fake
 	const slots, callers = 2, 8
 	var mu sync.Mutex
 	active, peak, runs := 0, 0, 0
@@ -69,6 +68,33 @@ func TestHashGateCapsConcurrentRuns(t *testing.T) {
 	wg.Wait()
 	if peak != slots || runs != callers {
 		t.Fatalf("peak %d runs %d, want peak %d runs %d", peak, runs, slots, callers)
+	}
+}
+
+// The dummy check for an unknown address must always cost a real hash. When
+// the dummy hash was built through the gate on first use, a full gate then
+// left it empty for good, and every later unknown address answered at once:
+// a lasting timing oracle for which addresses have accounts.
+func TestDummyVerifyAlwaysPaysTheHash(t *testing.T) {
+	runs := 0
+	swapHashGate(t, 1, func(_, _ []byte, _, _ uint32, _ uint8, keyLen uint32) []byte {
+		runs++
+		return make([]byte, keyLen)
+	})
+	hashWaitMax = time.Nanosecond
+	hashGate <- struct{}{} // the very first unknown address finds the gate full
+	if err := DummyVerifyContext(context.Background(), "guess-guess"); !errors.Is(err, ErrHashBusy) {
+		t.Fatalf("dummy check with the gate full: %v, want ErrHashBusy", err)
+	}
+	<-hashGate
+	hashWaitMax = time.Hour
+	for i := range 3 {
+		if err := DummyVerifyContext(context.Background(), "guess-guess"); err != nil {
+			t.Fatal(err)
+		}
+		if runs != i+1 {
+			t.Fatalf("dummy check %d ran argon2 %d times, want %d", i+1, runs, i+1)
+		}
 	}
 }
 

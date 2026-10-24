@@ -19,10 +19,15 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
-var (
-	dummyOnce sync.Once
-	dummyHash string
-)
+// dummyHash is a well-formed hash with the real cost parameters that no
+// password matches (its key is all zeros). Checking against it costs what a
+// real check costs. It is written out rather than hashed, so it exists from
+// the start and nothing - not even a full hashing gate on the first unknown
+// address - can leave it empty and turn the dummy check into a no-op.
+var dummyHash = fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
+	argon2.Version, argonMemory, argonTime, argonThreads,
+	base64.RawStdEncoding.EncodeToString([]byte("weebsync-dummy-s")),
+	base64.RawStdEncoding.EncodeToString(make([]byte, argonKeyLen)))
 
 // DummyVerify burns the same argon2 work as a real VerifyPassword so the login
 // path costs the same time whether or not the account exists - closing the
@@ -35,10 +40,6 @@ func DummyVerify(password string) {
 // does when no hashing slot frees up, so an unknown address answers "busy"
 // exactly when a known one would.
 func DummyVerifyContext(ctx context.Context, password string) error {
-	dummyOnce.Do(func() { dummyHash, _ = HashPassword("weebsync-nonexistent-account") })
-	if dummyHash == "" {
-		return nil
-	}
 	_, err := VerifyPasswordContext(ctx, password, dummyHash)
 	return err
 }
