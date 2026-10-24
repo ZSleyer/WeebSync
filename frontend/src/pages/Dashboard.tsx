@@ -114,7 +114,7 @@ function Transfers({
   meta?: DownloadMeta
   loading: boolean
   failed: boolean
-  onRetry: () => unknown
+  onRetry: () => Promise<boolean>
 }) {
   const { t, i18n } = useTranslation()
   const transfers = useTransfers()

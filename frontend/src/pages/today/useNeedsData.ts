@@ -35,7 +35,10 @@ export function useNeedsData() {
   const { data: watches = [], isLoading: watchesLoading } = wq
   // no answer yet and the last try failed: an empty list here is not "nothing open"
   const failed = (dl.isError && dl.data === undefined) || (wq.isError && wq.data === undefined)
-  const retry = () => Promise.all([dl.isError && dl.refetch(), wq.isError && wq.refetch()])
+  const retry = async () => {
+    const got = await Promise.all([dl.isError && dl.refetch(), wq.isError && wq.refetch()])
+    return got.some((r) => r && r.isError)
+  }
   // folders WeebSync marked on its own since the user last looked at the list
   const { data: marks } = useQuery<DetectedMarks>({
     queryKey: ['detected-marks'],

@@ -77,14 +77,23 @@ describe('when /api/downloads fails', () => {
       subtree: true,
       characterData: true,
     })
-    fireEvent.click(within(region).getByRole('button', { name: 'today.loadRetry' }))
+    const link = () => within(region).getByRole('button', { name: 'today.loadRetry' })
+    link().focus()
+    fireEvent.click(link())
+    // the link stays mounted and focused while it runs and after it failed
+    expect(document.activeElement).toBe(link())
     await waitFor(() => expect(fails).toBe(2))
     await waitFor(() => expect(region.textContent).toContain('today.loadFailed'))
     expect(seen.some((s) => s.includes('today.loadRetrying'))).toBe(true)
-    // a retry that works: announced, and focus is not dropped to the body
+    expect(document.activeElement).toBe(link())
+    // a retry that works: announced, never the failure in between, focus not on the body
     up = true
-    fireEvent.click(within(region).getByRole('button', { name: 'today.loadRetry' }))
+    seen.length = 0
+    fireEvent.click(link())
     await waitFor(() => expect(region.textContent).toContain('today.loadRecovered'))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(region.textContent).toContain('today.loadRecovered')
+    expect(seen.some((s) => s.includes('today.loadFailed'))).toBe(false)
     expect(document.activeElement).toBe(region)
   })
 

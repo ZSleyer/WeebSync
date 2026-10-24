@@ -205,7 +205,7 @@ describe('the hidden set', () => {
 })
 
 describe('a failed read', () => {
-  const retry = vi.fn()
+  const retry = vi.fn(async () => true)
   const failed = { ...base, downloads: [], watches: [], detected: 0, failed: true, retry }
 
   it('is an error with a retry on the needs page, not "all done"', async () => {
