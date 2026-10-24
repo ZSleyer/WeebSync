@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // mediaExtrasResponse is everything the title card shows beyond the media
@@ -91,6 +92,10 @@ func (s *Server) handleMediaExtras(w http.ResponseWriter, r *http.Request) {
 			out.Synonyms = x.Synonyms
 		}
 	case strings.HasPrefix(source, "tmdb:"):
+		if !tmdb.ValidKind(source[5:]) {
+			writeErr(w, http.StatusBadRequest, "unknown source")
+			return
+		}
 		recs, cast, err := s.Tmdb.Extras(r.Context(), source[5:], id)
 		if err != nil {
 			writeErr(w, http.StatusBadGateway, err.Error())
