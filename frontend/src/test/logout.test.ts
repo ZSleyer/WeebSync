@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const calls: string[] = []
+const bodies: unknown[] = []
 vi.mock('../api', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api')>()),
   api: {
-    post: vi.fn(async (path: string) => {
+    post: vi.fn(async (path: string, body?: unknown) => {
       calls.push(`post ${path}`)
+      bodies.push(body)
     }),
   },
 }))
 const unsubscribe = vi.fn()
+const subscription = vi.fn()
 vi.mock('../push', () => ({
   unsubscribePush: () => unsubscribe(),
+  pushSubscription: () => subscription(),
 }))
 
 import { logout } from '../hooks'
@@ -19,6 +23,9 @@ import { logout } from '../hooks'
 describe('logout', () => {
   beforeEach(() => {
     calls.length = 0
+    bodies.length = 0
+    subscription.mockReset()
+    subscription.mockResolvedValue({ endpoint: 'https://push.example/e1' })
     unsubscribe.mockReset()
     unsubscribe.mockImplementation(async () => {
       calls.push('unsubscribe')
@@ -28,7 +35,7 @@ describe('logout', () => {
     Object.defineProperty(window, 'location', { value: { href: '/' }, writable: true })
   })
 
-  it('drops the push subscription while the session is still valid, then the previous account data', async () => {
+  it('sends the push endpoint in the logout POST, starts the unsubscribe without awaiting it, and clears the previous account data', async () => {
     localStorage.setItem('weebsync.cache.7.watches', '[1]')
     localStorage.setItem('weebsync.ai.model.7', 'm')
     localStorage.setItem('weebsync.ai.tools.7', '{}')
@@ -46,31 +53,52 @@ describe('logout', () => {
     await logout()
 
     expect(calls).toEqual(['unsubscribe', 'post /api/auth/logout'])
+    expect(bodies).toEqual([{ endpoint: 'https://push.example/e1' }])
     expect(Object.keys(localStorage).sort()).toEqual(['weebsync.scheme', 'weebsync.theme'])
     expect(sessionStorage.length).toBe(0)
     expect(window.location.href).toBe('/?loggedout=1')
   })
 
-  it('still signs out and clears when the push cleanup fails or hangs', async () => {
+  it('still signs out and clears when the browser-side unsubscribe fails', async () => {
     unsubscribe.mockRejectedValue(new Error('no service worker'))
     localStorage.setItem('weebsync.cache.7.watches', '[1]')
     await logout()
     expect(calls).toEqual(['post /api/auth/logout'])
+    expect(bodies).toEqual([{ endpoint: 'https://push.example/e1' }])
     expect(localStorage.length).toBe(0)
   })
 
-  it('sends the logout POST at once even when the push cleanup never settles', async () => {
+  it('sends the logout POST at once even when the browser-side unsubscribe never settles', async () => {
     unsubscribe.mockReturnValue(new Promise(() => {}))
     localStorage.setItem('weebsync.cache.7.watches', '[1]')
     vi.useFakeTimers()
     try {
-      // no timer is advanced: the sign-out must not wait for the cleanup
+      // no timer is advanced: the sign-out must not wait for the unsubscribe
       await logout()
     } finally {
       vi.useRealTimers()
     }
     expect(calls).toEqual(['post /api/auth/logout'])
+    expect(bodies).toEqual([{ endpoint: 'https://push.example/e1' }])
     expect(localStorage.length).toBe(0)
     expect(window.location.href).toBe('/?loggedout=1')
+  })
+
+  it('signs out without an endpoint when the subscription cannot be read within 300 ms', async () => {
+    subscription.mockReturnValue(new Promise(() => {}))
+    localStorage.setItem('weebsync.cache.7.watches', '[1]')
+    vi.useFakeTimers()
+    try {
+      const done = logout()
+      await vi.advanceTimersByTimeAsync(299)
+      expect(calls).toEqual([])
+      await vi.advanceTimersByTimeAsync(1)
+      await done
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(calls).toEqual(['unsubscribe', 'post /api/auth/logout'])
+    expect(bodies).toEqual([undefined])
+    expect(localStorage.length).toBe(0)
   })
 })

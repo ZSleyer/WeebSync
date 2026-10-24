@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, type AiModels, type AiStatus, type Download, type PlexAccount, type User } from './api'
 import i18n, { setMediaServerName, syncLocale } from './locales'
-import { unsubscribePush } from './push'
+import { pushSubscription, unsubscribePush } from './push'
 
 let localeSynced = false
 
@@ -15,12 +15,21 @@ let localeSynced = false
  * again.
  */
 export async function logout() {
-  // best effort, not awaited: the server drops the push subscription of the
-  // session itself when it ends, and the service worker may be missing (ready
-  // never settles), which must not hold the sign-out back
+  // The push endpoint goes along in the logout body: the server drops that
+  // subscription itself, which also covers one from before subscriptions were
+  // tied to a session. Reading it is capped (the service worker may be
+  // missing, so ready never settles) and best effort.
+  const endpoint = await Promise.race([
+    pushSubscription().then(
+      (sub) => sub?.endpoint ?? '',
+      () => '',
+    ),
+    new Promise<string>((resolve) => setTimeout(() => resolve(''), 300)),
+  ])
+  // the browser-side unsubscribe is best effort and never awaited
   unsubscribePush().catch(() => {})
   try {
-    await api.post('/api/auth/logout')
+    await api.post('/api/auth/logout', endpoint ? { endpoint } : undefined)
   } catch {
     // drop to the login screen either way: the user wants out
   }
