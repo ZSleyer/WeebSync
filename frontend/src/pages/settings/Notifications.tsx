@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Button, Select, SettingsField, Switch } from 'fluid-lycoris'
 import { api } from '../../api'
@@ -113,9 +113,7 @@ export function categoryRows(push: string[], email: string[]): string[] {
 
 function CategoriesSection() {
   const { t } = useTranslation()
-  const qc = useQueryClient()
   const freqId = useId()
-  const [error, setError] = useState('')
   const { data: mail } = useQuery<EmailPrefs>({
     queryKey: ['email-prefs'],
     queryFn: () => api.get('/api/auth/email-prefs'),
@@ -124,14 +122,9 @@ function CategoriesSection() {
     queryKey: ['notify-prefs'],
     queryFn: () => api.get('/api/auth/notify-prefs'),
   })
-  const saveMail = useMutation({
-    mutationFn: (enabled: string[]) => api.put('/api/auth/email-prefs', { enabled }),
-    onSuccess: () => {
-      setError('')
-      void qc.invalidateQueries({ queryKey: ['email-prefs'] })
-    },
-    onError: (e: Error) => setError(e.message),
-  })
+  const saveMail = useWholeSave<EmailPrefs>('email-prefs', (p) =>
+    api.put('/api/auth/email-prefs', { enabled: p.enabled }),
+  )
   const update = useWholeSave<NotifyPrefs>('notify-prefs', (p) =>
     api.put('/api/auth/notify-prefs', { push: p.push, freq: p.freq }),
   )
@@ -139,7 +132,10 @@ function CategoriesSection() {
 
   const mailOn = mail.enabled ?? []
   const toggleMail = (cat: string, on: boolean) =>
-    saveMail.mutate(on ? [...mailOn, cat] : mailOn.filter((c) => c !== cat))
+    saveMail((p) => {
+      const cur = p.enabled ?? []
+      return { ...p, enabled: on ? [...cur.filter((c) => c !== cat), cat] : cur.filter((c) => c !== cat) }
+    })
   const togglePush = (cat: string) =>
     update((p) => ({ ...p, push: p.push.includes(cat) ? p.push.filter((c) => c !== cat) : [...p.push, cat] }))
   const rows = categoryRows(notify.available ?? [], mail.available ?? [])
@@ -183,7 +179,7 @@ function CategoriesSection() {
                     <Switch
                       aria-label={t('settings.catByEmail', { cat: name })}
                       checked={mailCan && mailOn.includes(cat)}
-                      disabled={!mailCan || saveMail.isPending}
+                      disabled={!mailCan}
                       onChange={(e) => toggleMail(cat, e.target.checked)}
                     />
                   </td>
@@ -194,11 +190,6 @@ function CategoriesSection() {
         </table>
         {!notify.pushAvailable && <p className="sf-note">{t('settings.pushUnavailable')}</p>}
         {!mail.smtpAvailable && <p className="sf-note">{t('settings.emailNotConfigured')}</p>}
-        {error && (
-          <p className="sf-issue" role="alert">
-            {error}
-          </p>
-        )}
       </SettingsPanel>
       {/* the cadence batches mail as well as push, so it is not a push setting */}
       <SettingsPanel title={t('settings.notifyDelivery')}>
