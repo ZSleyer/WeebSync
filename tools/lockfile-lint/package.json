@@ -1,0 +1,9 @@
+{
+  "name": "lockfile-lint-tool",
+  "private": true,
+  "description": "Runs lockfile-lint on frontend/yarn.lock before the frontend install, with its own pinned tree.",
+  "dependencies": {
+    "lockfile-lint": "5.0.1"
+  },
+  "packageManager": "yarn@4.18.1"
+}

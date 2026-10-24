@@ -91,6 +91,18 @@ jobs:
           node-version: 24
           cache: yarn
           cache-dependency-path: frontend/yarn.lock
+      - name: lockfile sources
+        # every package must resolve through the registry in .yarnrc.yml: a
+        # lockfile edit in a diff nobody reads line by line could point one
+        # at an https tarball URL (git sources are refused by
+        # approvedGitRepositories, tarballs are not), and the install takes it
+        # as written. So this runs BEFORE the install, from its own pinned
+        # tree (tools/lockfile-lint: own lockfile, age gate, no scripts)
+        # instead of an npx download with floating dependencies.
+        working-directory: tools/lockfile-lint
+        run: |
+          yarn install --immutable
+          node_modules/.bin/lockfile-lint --path ../../frontend/yarn.lock --type yarn --allowed-schemes "npm:" "patch:" "workspace:"
       - run: yarn install --immutable
         # the design system has no dependency tree of its own and borrows the
         # app's, the same link design-system/build.sh makes. Without it tsc
@@ -98,14 +110,6 @@ jobs:
         # degrades to any, which fails the build.
       - name: link the design system to the app's modules
         run: ln -sfn "$PWD/node_modules" ../design-system/node_modules
-      - name: lockfile sources
-        # every package must resolve through the registry in .yarnrc.yml: a
-        # lockfile edit in a diff nobody reads line by line could point one
-        # at a tarball URL or a git repo. lockfile-lint is a pinned devDependency
-        # (lockfile, 7-day age gate, no install scripts apply to it), not an npx
-        # download with floating dependencies; the install before it fetches only
-        # registry or approved sources and runs no scripts (.yarnrc.yml)
-        run: yarn lint:lockfile
       - name: lint (oxlint)
         run: yarn lint
       - name: format (oxfmt)
