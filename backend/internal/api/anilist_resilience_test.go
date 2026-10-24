@@ -68,6 +68,19 @@ func TestAnilistRateLimitAnswersFast503(t *testing.T) {
 	}
 }
 
+// A negative media id would be stored as a manual match that counts as
+// matched yet can never resolve; 0 stays the way to mark "no match".
+func TestCatalogMatchRejectsNegativeMediaID(t *testing.T) {
+	mux, c := anilistWith(t, &statusTripper{status: http.StatusOK, body: `{"data":{}}`})
+	rec := doReq(mux, "PUT", "/api/servers/0/catalog/match", `{"folder":"/x","mediaId":-1}`, c)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("mediaId -1: %d %s, want 400", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "PUT", "/api/servers/0/catalog/match", `{"folder":"/x","mediaId":0}`, c); rec.Code != http.StatusOK {
+		t.Fatalf("mediaId 0 (no match): %d %s, want 200", rec.Code, rec.Body)
+	}
+}
+
 // An id that cannot exist never reaches AniList (400), and one AniList does
 // not know is a 404 that is remembered rather than a 502 asked again each time.
 func TestAnilistMediaUnknownIDs(t *testing.T) {

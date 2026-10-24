@@ -1313,6 +1313,11 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid folder")
 		return
 	}
+	// 0 clears the match; a negative id would count as matched and never resolve
+	if in.MediaID < 0 {
+		writeErr(w, http.StatusBadRequest, "invalid mediaId")
+		return
+	}
 	// ownership check: the server must belong to the user. The local pseudo
 	// server has no row to own, same as in handleCatalogRematch and the scope
 	// handlers - without this branch correcting a local match 404s.
