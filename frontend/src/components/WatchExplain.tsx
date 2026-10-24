@@ -57,7 +57,17 @@ export function stateNotes(t: T, w: Watch): { key: string; text: string; tone?: 
 }
 
 // the reasons a file stays on the server, as rules (not the last check's list)
-const RULES = ['outside_roots', 'language', 'worse_variant_rule', 'present', 'owned', 'uploading', 'queued', 'blocked']
+const RULES = [
+  'outside_roots',
+  'language',
+  'worse_variant_rule',
+  'present',
+  'owned',
+  'uploading',
+  'queued',
+  'blocked',
+  'foreign_target',
+]
 
 /**
  * Why an auto-sync does what it does: the state in one sentence, the rule

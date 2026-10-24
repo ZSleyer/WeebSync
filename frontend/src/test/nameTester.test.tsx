@@ -81,6 +81,6 @@ describe('Rules', () => {
       expect(container.querySelector(`#r-${id} > h2`)).toBeTruthy()
     // one h1, the sections under it
     expect(container.querySelectorAll('h1')).toHaveLength(1)
-    expect(container.querySelectorAll('.ws-skips li')).toHaveLength(8)
+    expect(container.querySelectorAll('.ws-skips li')).toHaveLength(9) // one per skip reason, foreign_target included
   })
 })

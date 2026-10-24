@@ -27,7 +27,10 @@
     "noManualUsers": "With sign-in through a provider, accounts come from the provider.",
     "tooMany": "Too many attempts. Wait a moment.",
     "tooManyWait_one": "Too many attempts. Try again in {{count}} second.",
-    "tooManyWait_other": "Too many attempts. Try again in {{count}} seconds."
+    "tooManyWait_other": "Too many attempts. Try again in {{count}} seconds.",
+    "targetBusy": "Another download for the same file is still in the queue. Let it finish or cancel it first.",
+    "hostKeyUnknown": "The server's SSH host key is not trusted yet. Run the connection test in the server settings to check and accept it, then try again.",
+    "hostKeyChanged": "The server's SSH host key has changed. Review it with the connection test in the server settings before trying again."
   },
   "common": {
     "undo": "Undo",
@@ -2727,6 +2730,22 @@
     "rename_failed": {
       "what": "The download finished, but the file could not take its final name in {{path}}.",
       "fix": "The target accepts new files yet refuses to replace an existing one - typical for a network share or a merged mount (SMB, NFS, mergerfs), and for a directory with the sticky bit holding a copy of the episode that belongs to someone else. Put the target on a local filesystem, or hand the existing file to the UID WeebSync writes as."
+    },
+    "foreign_target": {
+      "what": "A file is already in {{path}} under this name, and you may not replace it.",
+      "fix": "Only an admin may replace a file in the library that your own latest download did not put there. Ask an admin, or pick a different target."
+    },
+    "host_key": {
+      "what": "The server's SSH host key is not trusted yet, or it changed.",
+      "fix": "Open the server in the settings and run the connection test: it shows the key's fingerprint for you to check and accept. Then retry the download."
+    },
+    "plain_ftp": {
+      "what": "The server is set up with plain FTP, which would send the password unencrypted.",
+      "fix": "Switch the server to FTPS in the settings, then retry the download."
+    },
+    "blocked_host": {
+      "what": "The server's address is one WeebSync does not connect to (link-local or cloud metadata).",
+      "fix": "Enter the server's real host name or LAN address in the settings, then retry the download."
     }
   },
   "jobs": {
@@ -2821,6 +2840,7 @@
       "uploading": "The file is still being uploaded to the server.",
       "queued": "Already in the queue.",
       "blocked": "The target folder accepted nothing on the last attempt.",
+      "foreign_target": "A file of another size is already at the target, and only an admin may replace it.",
       "rules": "When a file is not loaded",
       "present": "The episode is already complete at the target."
     },
@@ -3009,6 +3029,10 @@
         "blocked": {
           "head": "The last attempt failed on the disk",
           "body": "Full, read-only or no permission. It goes on once that is fixed."
+        },
+        "foreign_target": {
+          "head": "Someone else's file is at the target",
+          "body": "A file of another size that did not come from your own latest download stays; replacing it is for an admin."
         }
       },
       "files": {

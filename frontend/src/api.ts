@@ -29,11 +29,30 @@ export type WatchDefaults = Schemas['api.WatchDefaults']
 
 export type Entry = Schemas['remote.Entry']
 
-// Filesystem failures the backend classifies. Anything it did not recognize
-// arrives as '' and stays a raw error string.
-export type FsErrorCode = 'permission_denied' | 'disk_full' | 'read_only' | 'rename_failed'
+// Failures the backend classifies and FsErrorNote explains with the change that
+// fixes them: the filesystem ones, a library file the user may not replace,
+// and a server whose settings rule the connection out. Anything it did not
+// recognize arrives as '' and stays a raw error string.
+export type FsErrorCode =
+  | 'permission_denied'
+  | 'disk_full'
+  | 'read_only'
+  | 'rename_failed'
+  | 'foreign_target'
+  | 'host_key'
+  | 'plain_ftp'
+  | 'blocked_host'
 
-export const FS_ERROR_CODES: readonly string[] = ['permission_denied', 'disk_full', 'read_only', 'rename_failed']
+export const FS_ERROR_CODES: readonly string[] = [
+  'permission_denied',
+  'disk_full',
+  'read_only',
+  'rename_failed',
+  'foreign_target',
+  'host_key',
+  'plain_ftp',
+  'blocked_host',
+] satisfies readonly FsErrorCode[]
 
 // Identity the container writes files as. A "permission denied" on a mounted
 // media directory is only fixable once the user knows which UID to grant.
@@ -287,6 +306,10 @@ const ERROR_KEYS: Record<string, string> = {
   'cannot delete yourself': 'errors.deleteSelf',
   'roles managed by OIDC': 'errors.rolesByOidc',
   'manual user creation is disabled in OIDC mode; users onboard via the identity provider': 'errors.noManualUsers',
+  // the 409s of queueing, syncing and retrying a download
+  'another download for the same file is still in the queue': 'errors.targetBusy',
+  'ssh host key not trusted yet - review its fingerprint and accept it': 'errors.hostKeyUnknown',
+  'ssh host key mismatch - server changed or MITM': 'errors.hostKeyChanged',
 }
 
 // transport failures from the backend arrive as Go's raw error strings
