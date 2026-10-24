@@ -10,7 +10,13 @@ vi.mock(import('react-i18next'), async (importOriginal) => ({
   useTranslation: () => ({ t: (k: string) => k }) as never,
 }))
 
-afterEach(() => vi.restoreAllMocks())
+const confirmAnswer = vi.hoisted(() => ({ ok: true }))
+vi.mock('../components/confirm', () => ({ useConfirm: () => async () => confirmAnswer.ok }))
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  confirmAnswer.ok = true
+})
 
 const item = (extra: Partial<CatalogItem> = {}) =>
   ({
@@ -130,5 +136,32 @@ describe('Rematch inside a surrounding form', () => {
     // fireEvent returns false when the default action (implicit submission) was prevented
     expect(fireEvent.keyDown(field, { key: 'Enter' })).toBe(false)
     await waitFor(() => expect(searched()).toHaveLength(2))
+  })
+})
+
+describe('Rematch destructive and double actions', () => {
+  it('removes the match only after the confirm', async () => {
+    const { put } = setup(item())
+    confirmAnswer.ok = false
+    fireEvent.click(await screen.findByRole('button', { name: /remote.removeMatch/ }))
+    await new Promise((r) => setTimeout(r, 20))
+    expect(put).not.toHaveBeenCalled()
+    confirmAnswer.ok = true
+    fireEvent.click(screen.getByRole('button', { name: /remote.removeMatch/ }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/api/servers/3/catalog/match', { folder: '/Area/Example Show', mediaId: 0 }),
+    )
+  })
+
+  it('sends one PUT for a double click on a hit and locks the buttons meanwhile', async () => {
+    const { put } = setup(item())
+    let release: () => void = () => {}
+    put.mockImplementation(() => new Promise((r) => (release = () => r({}))))
+    const hit = await screen.findByText('Hit')
+    fireEvent.click(hit)
+    fireEvent.click(hit)
+    await waitFor(() => expect(screen.getByRole('button', { name: /remote.removeMatch/ })).toBeDisabled())
+    expect(put).toHaveBeenCalledTimes(1)
+    release()
   })
 })

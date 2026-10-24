@@ -1135,6 +1135,7 @@
     "forgetSearch": "Suche „{{q}}“ entfernen",
     "searchIn": "Suchen in {{dir}}",
     "removeMatch": "Zuordnung aufheben",
+    "removeMatchConfirm": "Zuordnung von {{name}} aufheben? Der Ordner wird danach wieder automatisch zugeordnet oder bleibt ohne Zuordnung.",
     "close": "Schließen",
     "select": "wählen",
     "selectItem": "{{name}} auswählen",

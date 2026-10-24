@@ -8,6 +8,7 @@ import { api, mediaTitle, type CatalogItem, type Media } from '../api'
 import { useProviders } from '../hooks'
 import type { CardViewProps } from './SeriesModal'
 import { MatchHint } from './MatchHint'
+import { useConfirm } from './confirm'
 
 type Provider = 'anilist' | 'tvdb' | 'tmdb'
 type Kind = 'series' | 'movie'
@@ -69,6 +70,7 @@ export function RematchForm({
 }: RematchProps & Partial<CardViewProps>) {
   const { t } = useTranslation()
   const qc = useQueryClient()
+  const confirm = useConfirm()
   const [q, setQ] = useState(item.entry.name)
   const [results, setResults] = useState<Media[]>([])
   const [pickError, setPickError] = useState('')
@@ -153,7 +155,32 @@ export function RematchForm({
     return () => clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [q, provider, kind])
+  // one PUT at a time: a second click while one is on its way is dropped
+  const [busy, setBusy] = useState(false)
+  const busyRef = useRef(false)
   const pick = async (mediaId: number) => {
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await doPick(mediaId)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
+  const removeMatch = async () => {
+    if (
+      await confirm({
+        title: t('remote.removeMatch'),
+        message: t('remote.removeMatchConfirm', { name: item.entry.name }),
+        confirmLabel: t('remote.removeMatch'),
+        destructive: true,
+      })
+    )
+      void pick(0)
+  }
+  const doPick = async (mediaId: number) => {
     setPickError('')
     try {
       await api.put(`/api/servers/${serverId}/catalog/match`, {
@@ -250,6 +277,7 @@ export function RematchForm({
           <li key={m.id}>
             <button
               type="button"
+              disabled={busy}
               className="flex w-full items-center gap-3 border-b border-border-subtle px-2 py-2 text-left hover:bg-bg-hover"
               onClick={() => pick(m.id)}
             >
@@ -270,7 +298,7 @@ export function RematchForm({
         </p>
       )}
       <div className="mt-4 flex justify-between">
-        <Button variant="danger" size="sm" onClick={() => pick(0)}>
+        <Button variant="danger" size="sm" disabled={busy} onClick={removeMatch}>
           <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
           {t('remote.removeMatch')}
         </Button>

@@ -1135,6 +1135,7 @@
     "forgetSearch": "Remove search \"{{q}}\"",
     "searchIn": "Search in {{dir}}",
     "removeMatch": "Unmatch",
+    "removeMatchConfirm": "Remove the match of {{name}}? The folder will be matched automatically again, or stay without a match.",
     "close": "Close",
     "select": "select",
     "selectItem": "Select {{name}}",
