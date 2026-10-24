@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"path"
 	"sort"
 	"strings"
@@ -24,19 +26,24 @@ import (
 var haClient = netguard.Client(5 * time.Second)
 
 // postHaWebhook fires one event at the configured webhook, fire-and-forget:
-// one retry after a pause, then a warning in the log. No-op without a URL.
-func (s *Server) postHaWebhook(payload any) {
+// one retry after a pause. It returns the error of a failed delivery (without
+// the URL, whose webhook id is the secret); nil without a URL.
+func (s *Server) postHaWebhook(payload any) error {
 	url := db.Setting(s.DB, "ha_webhook_url")
 	if url == "" {
-		return
+		return nil
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return
+		return err
 	}
 	post := func() error {
 		resp, err := haClient.Post(url, "application/json", bytes.NewReader(body))
 		if err != nil {
+			var ue *neturl.Error
+			if errors.As(err, &ue) {
+				err = ue.Err // *url.Error would print the whole URL
+			}
 			return err
 		}
 		resp.Body.Close()
@@ -45,12 +52,16 @@ func (s *Server) postHaWebhook(payload any) {
 		}
 		return nil
 	}
-	if err := post(); err != nil {
-		time.Sleep(2 * time.Second)
-		if err = post(); err != nil {
-			slog.Warn("ha webhook failed", "err", err)
-		}
+	err = post()
+	if err == nil {
+		return nil
 	}
+	select {
+	case <-time.After(2 * time.Second):
+	case <-s.lifetimeCtx().Done():
+		return err
+	}
+	return post()
 }
 
 // NotifyHaDownload tells Home Assistant a download reached done or error.
@@ -60,12 +71,17 @@ func (s *Server) NotifyHaDownload(d *transfer.Download) {
 	if d.Status == "error" {
 		event = "download_error"
 	}
-	go s.postHaWebhook(map[string]any{
+	payload := map[string]any{
 		"event":     event,
 		"name":      path.Base(d.RemotePath),
 		"error":     d.Error,
 		"errorCode": d.ErrorCode,
 		"at":        time.Now().Unix(),
+	}
+	s.spawn(func() {
+		if err := s.postHaWebhook(payload); err != nil {
+			slog.Warn("ha webhook failed", "err", err)
+		}
 	})
 }
 
@@ -91,7 +107,8 @@ func (s *Server) HaAttentionLoop(ctx context.Context) {
 }
 
 // haAttentionPost posts the attention aggregate when its fingerprint
-// differs from last, and returns the current fingerprint.
+// differs from last, and returns the current fingerprint. A failed post
+// returns last, so the next tick tries again.
 func (s *Server) haAttentionPost(last string) string {
 	reasons, needy, _ := s.statusAttention()
 	parts := make([]string, 0, len(needy))
@@ -103,12 +120,15 @@ func (s *Server) haAttentionPost(last string) string {
 	if fp == last {
 		return fp
 	}
-	s.postHaWebhook(map[string]any{
+	if err := s.postHaWebhook(map[string]any{
 		"event":   "attention_changed",
 		"count":   len(needy),
 		"reasons": reasons,
 		"watches": needy,
 		"at":      time.Now().Unix(),
-	})
+	}); err != nil {
+		slog.Warn("ha webhook failed", "err", err)
+		return last
+	}
 	return fp
 }
