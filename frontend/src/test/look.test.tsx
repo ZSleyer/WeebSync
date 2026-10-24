@@ -16,6 +16,7 @@ vi.mock('../locales', () => ({
 describe('Look', () => {
   afterEach(() => {
     localStorage.clear()
+    delete document.documentElement.dataset.theme
     delete document.documentElement.dataset.scheme
     delete document.documentElement.dataset.motion
   })
@@ -68,6 +69,8 @@ describe('Look', () => {
     expect(document.documentElement.dataset.theme).toBe('light')
     fireEvent.click(screen.getByRole('radio', { name: /settings.schemes.recoil/ }))
     expect(document.documentElement.dataset.scheme).toBe('recoil')
+    fireEvent.click(screen.getByRole('switch', { name: /settings.motion/ }))
+    expect(document.documentElement.dataset.motion).toBe('off')
     vi.restoreAllMocks()
   })
 })
