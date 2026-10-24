@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -44,7 +45,7 @@ func TestUnpackRar20(t *testing.T) {
 	for _, name := range []string{"v20_mixed.rar", "v20_solid.rar"} {
 		b := rarFixture(t, name)
 		out := t.TempDir()
-		if err := unpack(&playFile{ReadSeeker: bytes.NewReader(b), size: int64(len(b))}, out); err != nil {
+		if err := unpack(context.Background(), &playFile{ReadSeeker: bytes.NewReader(b), size: int64(len(b))}, out); err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
@@ -60,6 +61,6 @@ func FuzzUnpackRar(f *testing.F) {
 		if !bytes.HasPrefix(b, []byte("Rar!")) {
 			b = append([]byte("Rar!"), b...)
 		}
-		unpack(&playFile{ReadSeeker: bytes.NewReader(b), size: int64(len(b))}, t.TempDir())
+		unpack(context.Background(), &playFile{ReadSeeker: bytes.NewReader(b), size: int64(len(b))}, t.TempDir())
 	})
 }
