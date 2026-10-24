@@ -730,7 +730,15 @@ function PlexWatchlistAccount() {
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
   const fail = useFailToast()
 
-  useEffect(() => () => clearInterval(timer.current), [])
+  // false once the panel is gone: a start still awaiting must not begin polling
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearInterval(timer.current)
+    }
+  }, [])
 
   const start = async () => {
     // the tab opens inside the click, while the browser still counts it as
@@ -743,6 +751,7 @@ function PlexWatchlistAccount() {
       tab?.close()
       return fail(e)
     }
+    if (!alive.current) return tab?.close()
     setPin(p)
     setExpired(false)
     if (tab) {

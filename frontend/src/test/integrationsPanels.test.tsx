@@ -145,6 +145,20 @@ describe('plex.tv watchlist link', () => {
     expect(tab.opener).toBeNull()
   })
 
+  it('does not poll when the panel is gone before the server answered', async () => {
+    const view = setup()
+    const release = start()
+    const tab = fakeTab()
+    vi.spyOn(window, 'open').mockReturnValue(tab as never)
+    const timer = vi.spyOn(globalThis, 'setInterval')
+    fireEvent.click(await screen.findByRole('button', { name: 'settings.plexWatchlistLink' }))
+    view.unmount()
+    release()
+    await waitFor(() => expect(tab.close).toHaveBeenCalled())
+    // (waitFor runs its own timer; the poll is the 2 s one)
+    expect(timer.mock.calls.filter((c) => c[1] === 2000)).toHaveLength(0)
+  })
+
   it('closes the blank tab when starting fails', async () => {
     setup()
     const tab = fakeTab()
