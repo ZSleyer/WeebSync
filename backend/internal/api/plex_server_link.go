@@ -11,7 +11,6 @@ import (
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/netguard"
 	"github.com/ch4d1/weebsync/internal/plex"
-	"github.com/ch4d1/weebsync/internal/secret"
 )
 
 // Connecting the Plex server by signing in with plex.tv instead of pasting a
@@ -57,11 +56,26 @@ type plexServerPollResponse struct {
 //	@Tags			Settings
 //	@Produce		json
 //	@Success		200	{object}	plexLinkResponse
+//	@Failure		409	{object}	ErrorResponse	"connection set by environment"
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/server/link/start [post]
 func (s *Server) handlePlexServerLinkStart(w http.ResponseWriter, r *http.Request) {
+	if plexEnvLocked(w) {
+		return
+	}
 	s.startPlexPin(w, r, plexServerFlow)
+}
+
+// plexEnvLocked answers 409 when PLEX_URL or PLEX_TOKEN set the connection:
+// a server stored in the database would be shadowed by the env value, and the
+// sign-in would claim a connection the instance does not use.
+func plexEnvLocked(w http.ResponseWriter) bool {
+	if envLocked("plex_url") || envLocked("plex_token") {
+		writeErr(w, http.StatusConflict, "the Plex connection is set by PLEX_URL/PLEX_TOKEN in the environment")
+		return true
+	}
+	return false
 }
 
 // handlePlexServerLinkPoll reports whether the PIN was claimed and, once it
@@ -147,6 +161,7 @@ func saveSettings(d db.Execer, kv ...string) error {
 //	@Param			body	body		plexServerConnectRequest	true	"Sign-in and server"
 //	@Success		200		{object}	plexServerConnectResponse
 //	@Failure		404		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse	"connection set by environment"
 //	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/server/connect [post]
@@ -154,6 +169,9 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 	u := auth.UserFrom(r.Context())
 	var in plexServerConnectRequest
 	if !readJSON(w, r, &in) {
+		return
+	}
+	if plexEnvLocked(w) {
 		return
 	}
 	if !ownsLinkFlow(plexServerFlow, in.ID, u.ID) {
@@ -180,13 +198,17 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadGateway, "none of the server's addresses answered")
 		return
 	}
-	enc, err := secret.EncodeSetting(server.AccessToken)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "encrypt error")
-		return
+	// the env-lock aware writers, in order, stopping at the first failure; the
+	// lock itself was refused above. plex_auth "signin": no prompt to sign in
+	// any more
+	err = setSetting(s.DB, "plex_url", addr)
+	if err == nil {
+		err = setSecretSetting(s.DB, "plex_token", server.AccessToken)
 	}
-	// plex_auth "signin": no prompt to sign in any more
-	if err := saveSettings(s.DB, "plex_url", addr, "plex_token", enc, "plex_server_name", server.Name, "plex_auth", "signin"); err != nil {
+	if err == nil {
+		err = saveSettings(s.DB, "plex_server_name", server.Name, "plex_auth", "signin")
+	}
+	if err != nil {
 		slog.Error("plex server settings", "err", err)
 		dbErr(w, err)
 		return

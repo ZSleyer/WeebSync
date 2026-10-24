@@ -81,7 +81,7 @@ func (s *Server) handlePlexLinkStart(w http.ResponseWriter, r *http.Request) {
 // user signs in on - the official PIN flow.
 func (s *Server) startPlexPin(w http.ResponseWriter, r *http.Request, kind string) {
 	u := auth.UserFrom(r.Context())
-	resp, err := s.plexTVReq(http.MethodPost, "https://plex.tv/api/v2/pins?strong=true", "")
+	resp, err := s.plexTVReq(http.MethodPost, plexTVBase+"/api/v2/pins?strong=true", "")
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv unreachable")
 		return
