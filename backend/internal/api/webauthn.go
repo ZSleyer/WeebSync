@@ -117,23 +117,48 @@ type waCeremony struct {
 	exp  time.Time
 }
 
+// The store is fed without a login (passkey login/begin), so it is bounded:
+// at most waMaxCeremonies live at once, the oldest giving way to a new one.
+// Every ceremony lives waTTL, so the order they came in is the order they
+// expire in: waOrder keeps that order, and expired (or full-store) entries
+// leave from its front - no walk over the whole store under the lock, which
+// every insert used to do.
+const waTTL = 5 * time.Minute
+
 var (
 	waMu       sync.Mutex
 	waSessions = map[string]waCeremony{}
+	// ids in the order they were put; ones already taken are skipped
+	waOrder         []string
+	waMaxCeremonies = 10000
 )
 
 func waPut(data *webauthn.SessionData) string {
 	id := randToken()
 	waMu.Lock()
 	defer waMu.Unlock()
-	// opportunistic sweep of expired entries
 	now := time.Now()
-	for k, v := range waSessions {
-		if now.After(v.exp) {
-			delete(waSessions, k)
+	for len(waOrder) > 0 {
+		c, live := waSessions[waOrder[0]]
+		if live && now.Before(c.exp) && len(waSessions) < waMaxCeremonies {
+			break
 		}
+		delete(waSessions, waOrder[0])
+		waOrder = waOrder[1:]
 	}
-	waSessions[id] = waCeremony{data: data, exp: now.Add(5 * time.Minute)}
+	// ids of taken ceremonies wait in the queue until they reach its front;
+	// should they pile up behind a live one, the queue is rebuilt (rarely)
+	if len(waOrder) > 2*waMaxCeremonies {
+		live := waOrder[:0:0]
+		for _, k := range waOrder {
+			if _, ok := waSessions[k]; ok {
+				live = append(live, k)
+			}
+		}
+		waOrder = live
+	}
+	waSessions[id] = waCeremony{data: data, exp: now.Add(waTTL)}
+	waOrder = append(waOrder, id)
 	return id
 }
 
@@ -209,24 +234,31 @@ func (s *Server) reauth(w http.ResponseWriter, r *http.Request, userID int64, pa
 }
 
 // checkPassword verifies password for a request that already has a session,
-// counting a miss against the account's bucket. Unlike a sign-in it does not
-// trust the device cookie: the session may stem from a passkey that verified
-// nobody, and its browser must not guess the password unbounded. Only a
-// trusted network is exempt.
+// spending an attempt of the account's bucket before the check (as a sign-in
+// does) and giving the bucket back when the password was right. Unlike a
+// sign-in it does not trust the device cookie: the session may stem from a
+// passkey that verified nobody, and its browser must not guess the password
+// unbounded. Only a trusted network is exempt.
 func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, email, password, hash, refusal string) bool {
 	trusted := s.accountLimiter == nil || s.ipTrusted(auth.ClientIP(r))
 	if !trusted {
-		if wait := s.accountLimiter.blockedFor(accountKey(email)); wait > 0 {
-			tooMany(w, wait)
+		if ok, wait := s.accountLimiter.take(accountKey(email)); !ok {
+			tooMany(w, max(wait, time.Second))
 			return false
 		}
 	}
-	if !auth.VerifyPassword(password, hash) {
-		if !trusted {
-			s.accountLimiter.take(accountKey(email))
-		}
+	ok, err := auth.VerifyPasswordContext(r.Context(), password, hash)
+	if err != nil {
+		hashBusy(w)
+		return false
+	}
+	if !ok {
 		writeErr(w, http.StatusForbidden, refusal)
 		return false
+	}
+	// whoever knows the password has nothing left to guess, like a sign-in
+	if !trusted {
+		s.accountLimiter.reset(accountKey(email))
 	}
 	return true
 }
@@ -279,6 +311,7 @@ type WebAuthnBeginResponse struct {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/register/begin [post]
 func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
@@ -609,7 +642,8 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusBadRequest, "expired login session")
 		return
 	}
-	userID, ok := s.peekLoginPending(token)
+	// spent before the assertion is checked, like the TOTP code
+	userID, ok := s.reserveLoginPending(token)
 	if !ok {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
@@ -624,14 +658,12 @@ func (s *Server) handleWebAuthn2FAFinish(w http.ResponseWriter, r *http.Request)
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, strings.ToLower(user.email)); wait > 0 {
+	if wait := s.accountTake(r, strings.ToLower(user.email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	cred, err := wa.FinishLogin(user, *session, r)
 	if err != nil || cloned(cred, userID) {
-		s.failLoginPending(token)
-		s.accountFailed(r, strings.ToLower(user.email))
 		writeErr(w, http.StatusUnauthorized, "security key verification failed")
 		return
 	}
@@ -726,6 +758,7 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
@@ -789,19 +822,30 @@ func (s *Server) consumeLoginPending(token string, userID int64) bool {
 
 const loginPendingMaxAttempts = 5
 
-// failLoginPending counts a wrong second factor against the pending token and
-// drops it once the budget is spent, so the next attempt needs the password again.
+// reserveLoginPending spends one second-factor attempt of a pending login
+// before the factor is checked, and returns whose login it is. Counting only
+// the failures afterwards let parallel attempts all pass the check before the
+// first was counted; the conditional UPDATE hands out at most
+// loginPendingMaxAttempts, however many arrive at once. Once they are spent
+// (or the token expired) the token is dropped, so the next attempt needs the
+// password again.
 //
 // Fails closed: when the count cannot be written the token goes at once, so a
 // database error never hands out attempts the budget did not count.
-func (s *Server) failLoginPending(token string) {
+func (s *Server) reserveLoginPending(token string) (int64, bool) {
 	h := hashToken(token)
-	var attempts int
-	err := s.DB.QueryRow(`UPDATE login_pending SET attempts = attempts + 1 WHERE token_hash = ? RETURNING attempts`, h).Scan(&attempts)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && attempts < loginPendingMaxAttempts) {
-		return
+	var userID int64
+	err := s.DB.QueryRow(`UPDATE login_pending SET attempts = attempts + 1
+		WHERE token_hash = ? AND attempts < ? AND expires_at > ? RETURNING user_id`,
+		h, loginPendingMaxAttempts, time.Now().UTC().Format(time.RFC3339)).Scan(&userID)
+	if err == nil {
+		return userID, true
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		slog.Error("login pending attempt not counted", "err", err)
 	}
 	if _, derr := s.DB.Exec(`DELETE FROM login_pending WHERE token_hash = ?`, h); derr != nil {
 		slog.Error("login pending token not dropped", "err", derr)
 	}
+	return 0, false
 }

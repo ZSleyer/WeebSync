@@ -106,6 +106,7 @@ type TotpSetupResponse struct {
 // @Failure  401 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Param    body body reauthRequest true "the account's password"
 // @Failure  403 {object} ErrorResponse
@@ -201,6 +202,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/totp [delete]
 func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {
@@ -256,7 +258,9 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	userID, ok := s.peekLoginPending(in.Token)
+	// the attempt is spent before the code is checked, so parallel guesses
+	// cannot all pass a budget that only counted them afterwards
+	userID, ok := s.reserveLoginPending(in.Token)
 	if !ok {
 		writeErr(w, http.StatusUnauthorized, "invalid or expired login")
 		return
@@ -271,15 +275,13 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 		dbErr(w, err)
 		return
 	}
-	if wait := s.accountWait(r, strings.ToLower(email)); wait > 0 {
+	if wait := s.accountTake(r, strings.ToLower(email)); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
 	sec, ok := s.totpSecret(userID)
 	code := normalizeTotpCode(in.Code)
 	if !ok || (!s.totpValid(userID, code, sec) && !s.useRecoveryCode(userID, normalizeRecoveryCode(in.Code))) {
-		s.failLoginPending(in.Token)
-		s.accountFailed(r, strings.ToLower(email))
 		writeErr(w, http.StatusUnauthorized, "invalid code")
 		return
 	}

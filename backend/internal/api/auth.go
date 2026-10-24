@@ -73,6 +73,7 @@ type RegisterResponse struct {
 // @Failure  403 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Router   /api/auth/register [post]
 func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
@@ -113,7 +114,11 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusForbidden, "registration is disabled")
 		return
 	}
-	hash, err := auth.HashPassword(c.Password)
+	hash, err := auth.HashPasswordContext(r.Context(), c.Password)
+	if errors.Is(err, auth.ErrHashBusy) {
+		hashBusy(w)
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "hash error")
 		return
@@ -229,11 +234,10 @@ type LoginRefusedResponse struct {
 	PauseSeconds int    `json:"pauseSeconds,omitempty"`
 }
 
-// loginRefused answers a wrong email or password, counting the failure
-// against the account and saying what is left: the tighter of the address's
-// and the account's budget.
+// loginRefused answers a wrong email or password, saying what is left: the
+// tighter of the address's and the account's budget. The attempt was
+// counted against the account before the password was checked.
 func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request, email string) {
-	s.accountFailed(r, email)
 	out := LoginRefusedResponse{Error: "invalid credentials"}
 	if s.authLimiter != nil {
 		if n, pause, ok := s.authLimiter.left(auth.ClientIP(r)); ok {
@@ -261,6 +265,7 @@ func (s *Server) loginRefused(w http.ResponseWriter, r *http.Request, email stri
 // @Failure  401 {object} LoginRefusedResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Router   /api/auth/login [post]
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
@@ -272,7 +277,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
-	if wait := s.accountWait(r, c.Email); wait > 0 {
+	// spent before the check, so parallel guesses cannot all pass it; a
+	// successful sign-in gives the bucket back (accountSignedIn)
+	if wait := s.accountTake(r, c.Email); wait > 0 {
 		tooMany(w, wait)
 		return
 	}
@@ -286,7 +293,12 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) || hash == "" {
-		auth.DummyVerify(c.Password) // equalize timing so unknown emails aren't distinguishable
+		// equalize timing so unknown emails aren't distinguishable; busy
+		// answers the same 503 a known account would get
+		if auth.DummyVerifyContext(r.Context(), c.Password) != nil {
+			hashBusy(w)
+			return
+		}
 		s.loginRefused(w, r, c.Email)
 		return
 	}
@@ -294,8 +306,10 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// password: otherwise the different answer to the right one would
 	// confirm a guess before an admin ever let the account in
 	if !approved {
-		if !auth.VerifyPassword(c.Password, hash) {
-			s.accountFailed(r, c.Email)
+		// the hash still runs, so the answer takes as long as any other
+		if _, err := auth.VerifyPasswordContext(r.Context(), c.Password, hash); err != nil {
+			hashBusy(w)
+			return
 		}
 		writeErr(w, http.StatusForbidden, "account awaits approval")
 		return
@@ -307,15 +321,22 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// password; only the right one gets a fresh link (the old one expires
 	// after a day, so an expired link is never a lockout).
 	if verified == 0 && s.Mail != nil && s.Mail.Configured() {
-		if auth.VerifyPassword(c.Password, hash) {
+		ok, err := auth.VerifyPasswordContext(r.Context(), c.Password, hash)
+		if err != nil {
+			hashBusy(w)
+			return
+		}
+		if ok {
 			s.reissueVerify(id, c.Email)
-		} else {
-			s.accountFailed(r, c.Email)
 		}
 		writeErr(w, http.StatusForbidden, "email not verified - check your inbox")
 		return
 	}
-	ok, legacy := auth.VerifyPasswordLegacy(c.Password, hash)
+	ok, legacy, err := auth.VerifyPasswordLegacyContext(r.Context(), c.Password, hash)
+	if err != nil {
+		hashBusy(w)
+		return
+	}
 	if !ok {
 		s.loginRefused(w, r, c.Email)
 		return
@@ -323,7 +344,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	// a hash over the unnormalised bytes is renewed while the password is
 	// at hand; nothing changes for the user
 	if legacy {
-		if h, err := auth.HashPassword(c.Password); err == nil {
+		if h, err := auth.HashPasswordContext(r.Context(), c.Password); err == nil {
 			// best effort: the hash is renewed on the next sign-in
 			_, _ = s.DB.Exec(`UPDATE users SET password_hash = ? WHERE id = ?`, h, id)
 		}

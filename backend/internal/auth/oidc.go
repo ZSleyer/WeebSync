@@ -200,35 +200,39 @@ func (m *Manager) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_oidc_state", Value: state, Path: "/api/auth/oidc",
-		MaxAge: 600,
-	})
-	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_oidc_nonce", Value: nonce, Path: "/api/auth/oidc",
-		MaxAge: 600,
-	})
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_state", state, 600))
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_nonce", nonce, 600))
 	// the login page's "stay signed in" box, carried over the round trip
 	remember := "0"
 	if r.URL.Query().Get("remember") == "1" {
 		remember = "1"
 	}
-	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_oidc_remember", Value: remember, Path: "/api/auth/oidc",
-		MaxAge: 600,
-	})
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_remember", remember, 600))
 	opts := []oauth2.AuthCodeOption{oidc.Nonce(nonce)}
 	if o.pkce {
 		// the verifier stays with this browser; a stolen code alone cannot
 		// be exchanged without it
 		verifier := oauth2.GenerateVerifier()
-		SetCookie(w, r, &http.Cookie{
-			Name: "weebsync_oidc_pkce", Value: verifier, Path: "/api/auth/oidc",
-			MaxAge: 600,
-		})
+		SetCookie(w, r, oidcCookie(r, "weebsync_oidc_pkce", verifier, 600))
 		opts = append(opts, oauth2.S256ChallengeOption(verifier))
 	}
 	http.Redirect(w, r, o.config.AuthCodeURL(state, opts...), http.StatusFound)
+}
+
+// oidcCookie is one of the cookies carried over the provider round trip
+// (maxAge -1 drops it). Under HTTPS it is host-prefixed, so a sister
+// subdomain cannot plant its own state, nonce or verifier for a login CSRF.
+func oidcCookie(r *http.Request, name, value string, maxAge int) *http.Cookie {
+	return &http.Cookie{Name: cookieName(r, name), Value: value, Path: cookiePath(r, "/api/auth/oidc"), MaxAge: maxAge}
+}
+
+// oidcCookieValue reads a cookie oidcCookie set, "" without one.
+func oidcCookieValue(r *http.Request, name string) (string, bool) {
+	c, err := r.Cookie(cookieName(r, name))
+	if err != nil {
+		return "", false
+	}
+	return c.Value, true
 }
 
 func randHex() (string, error) {
@@ -264,31 +268,26 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		callbackFail(w, r, "not_allowed")
 		return
 	}
-	stateCookie, err := r.Cookie("weebsync_oidc_state")
-	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
+	// an empty state matched an empty cookie: "state=" alone was a pass
+	state, ok := oidcCookieValue(r, "weebsync_oidc_state")
+	if !ok || state == "" || r.URL.Query().Get("state") != state {
 		callbackFail(w, r, "invalid_state")
 		return
 	}
-	nonceCookie, nerr := r.Cookie("weebsync_oidc_nonce")
+	nonce, nonceOK := oidcCookieValue(r, "weebsync_oidc_nonce")
 	// state + nonce are single-use: invalidate both so the callback URL
 	// cannot be replayed within the cookies' lifetime
-	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_oidc_state", Value: "", Path: "/api/auth/oidc",
-		MaxAge: -1,
-	})
-	SetCookie(w, r, &http.Cookie{
-		Name: "weebsync_oidc_nonce", Value: "", Path: "/api/auth/oidc",
-		MaxAge: -1,
-	})
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_state", "", -1))
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_nonce", "", -1))
 	var exchangeOpts []oauth2.AuthCodeOption
 	if o.pkce {
-		pc, perr := r.Cookie("weebsync_oidc_pkce")
-		SetCookie(w, r, &http.Cookie{Name: "weebsync_oidc_pkce", Value: "", Path: "/api/auth/oidc", MaxAge: -1})
-		if perr != nil || pc.Value == "" {
+		verifier, _ := oidcCookieValue(r, "weebsync_oidc_pkce")
+		SetCookie(w, r, oidcCookie(r, "weebsync_oidc_pkce", "", -1))
+		if verifier == "" {
 			callbackFail(w, r, "invalid_state")
 			return
 		}
-		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(pc.Value))
+		exchangeOpts = append(exchangeOpts, oauth2.VerifierOption(verifier))
 	}
 	// token exchange + JWKS verification also go through the guarded client
 	octx := oidc.ClientContext(r.Context(), netguard.Client(10*time.Second))
@@ -299,7 +298,7 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	rawID, _ := token.Extra("id_token").(string)
 	idToken, err := o.verifier.Verify(octx, rawID)
-	if err == nil && (nerr != nil || idToken.Nonce != nonceCookie.Value) {
+	if err == nil && (!nonceOK || nonce == "" || idToken.Nonce != nonce) {
 		// bind the ID token to this login: replay of a token minted for another
 		// flow (different nonce) is rejected
 		callbackFail(w, r, "invalid_state")
@@ -380,9 +379,9 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 	// the provider's session id ties our session to the one at the IdP, so a
 	// logout there can end this one too (see BackchannelLogoutHandler)
 	sid, _ := claims["sid"].(string)
-	rc, _ := r.Cookie("weebsync_oidc_remember")
-	SetCookie(w, r, &http.Cookie{Name: "weebsync_oidc_remember", Value: "", Path: "/api/auth/oidc", MaxAge: -1})
-	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject, rc != nil && rc.Value == "1"); err != nil {
+	rc, _ := oidcCookieValue(r, "weebsync_oidc_remember")
+	SetCookie(w, r, oidcCookie(r, "weebsync_oidc_remember", "", -1))
+	if err := CreateSessionOIDC(m.DB, w, r, userID, sid, idToken.Subject, rc == "1"); err != nil {
 		callbackFail(w, r, "session_error")
 		return
 	}

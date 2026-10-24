@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 // in practice a host that stopped resolving) must not block saving the rest of
 // the form; it is reported on its field instead. A changed one still fails.
 func TestSettingsPutSkipsUnchangedBrokenURL(t *testing.T) {
-	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	mux, s, adminC, _, adminID, _ := setupUsersTest(t)
 	s.OIDC = auth.NewManager(context.Background(), s.DB)
 	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
 	db.SetSetting(s.DB, "ai_search_url", "http://169.254.169.254")
@@ -35,6 +36,13 @@ func TestSettingsPutSkipsUnchangedBrokenURL(t *testing.T) {
 	if rec := doReq(mux, "PUT", "/api/settings", string(body), adminC); rec.Code != http.StatusOK {
 		t.Fatalf("unchanged broken URL blocked the save: %d %s", rec.Code, rec.Body)
 	}
+	// force-https now holds: a session made over plain HTTP since the
+	// host-prefixed cookie came in is not carried over, so sign in again
+	srec := httptest.NewRecorder()
+	if err := auth.CreateSession(s.DB, srec, httptest.NewRequest("POST", "/api/auth/login", nil), adminID, true); err != nil {
+		t.Fatal(err)
+	}
+	adminC = srec.Result().Cookies()[0]
 
 	st.HaWebhookURL = "http://169.254.169.254/api/webhook/x"
 	body, _ = json.Marshal(st)
