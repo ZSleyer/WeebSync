@@ -104,6 +104,9 @@ type Manager struct {
 	// beforeStart, when set (tests only), runs in startDownload between reading
 	// the row and claiming it - the window a concurrent pause or cancel hits.
 	beforeStart func(id int64)
+	// beforeInsert, when set (tests only), runs in Enqueue between the
+	// duplicate check and the insert of a row.
+	beforeInsert func()
 }
 
 // ResolveLocal maps a target path to an absolute path under one of the allowed
@@ -898,12 +901,24 @@ func (m *Manager) EnqueueSkipping(userID, serverID int64, remotePath, localRel s
 			res.skip(j.remote, "blocked", "")
 			continue
 		}
-		// a new row joins the end of the queue
+		if m.beforeInsert != nil {
+			m.beforeInsert()
+		}
+		// a new row joins the end of the queue. The duplicate check is repeated
+		// in the insert itself: two requests at once (a double click) both pass
+		// the check above before either inserts, and one statement is atomic
 		ins, ierr := m.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, size, replace_old, queue_pos)
-			VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads))`, userID, serverID, j.remote, local, j.size, replaceOld)
+			SELECT ?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(queue_pos), 0) + 1 FROM downloads)
+			WHERE NOT EXISTS (SELECT 1 FROM downloads WHERE status IN ('queued','running','paused')
+				AND ((user_id = ? AND server_id = ? AND remote_path = ?) OR local_path = ?))`,
+			userID, serverID, j.remote, local, j.size, replaceOld, userID, serverID, j.remote, local)
 		if ierr != nil {
 			m.Wake()
 			return res, fmt.Errorf("%w: %w", ErrQueueStore, ierr)
+		}
+		if n, err := ins.RowsAffected(); err == nil && n == 0 {
+			res.skip(j.remote, "queued", "")
+			continue
 		}
 		if id, lerr := ins.LastInsertId(); lerr == nil {
 			res.IDs = append(res.IDs, id)
