@@ -207,3 +207,78 @@ describe('picture in picture in the settings menu', () => {
     expect(request).not.toHaveBeenCalled()
   })
 })
+
+describe('picture in picture when the tab is left', () => {
+  type Handler = ((d: object) => void) | null
+  const handlers = new Map<string, Handler>()
+  const keep = (a: string, fn: Handler) => void handlers.set(a, fn)
+  const session = {
+    metadata: null as unknown,
+    setActionHandler: vi.fn(keep),
+    setPositionState: () => {},
+  }
+  beforeEach(() => {
+    handlers.clear()
+    session.metadata = null
+    session.setActionHandler.mockReset()
+    session.setActionHandler.mockImplementation(keep)
+    Object.defineProperty(navigator, 'mediaSession', { value: session, configurable: true })
+    vi.stubGlobal('MediaMetadata', function (this: object, m: object) {
+      Object.assign(this, m)
+    })
+  })
+  afterEach(() => {
+    delete (navigator as { mediaSession?: unknown }).mediaSession
+  })
+  const playing = (v: HTMLVideoElement, on: boolean) =>
+    Object.defineProperty(v, 'paused', { value: !on, configurable: true })
+  const ask = () => handlers.get('enterpictureinpicture')!({ action: 'enterpictureinpicture' })
+
+  it('floats the playing video when the browser asks, and only then', async () => {
+    const { video } = await mount(CHROME_ANDROID)
+    await waitFor(() => expect(handlers.get('enterpictureinpicture')).toBeTypeOf('function'))
+    playing(video, false)
+    await act(async () => ask())
+    expect(request).not.toHaveBeenCalled()
+    playing(video, true)
+    await act(async () => ask())
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(document.pictureInPictureElement).toBe(video)
+  })
+
+  it('lifts the Firefox block for the request as the button does', async () => {
+    const { video } = await mount(FIREFOX_LINUX)
+    await waitFor(() => expect(handlers.get('enterpictureinpicture')).toBeTypeOf('function'))
+    playing(video, true)
+    await act(async () => ask())
+    expect(document.pictureInPictureElement).toBe(video)
+  })
+
+  it('is left out where the browser does not know the action, the others stay', async () => {
+    session.setActionHandler.mockImplementation((a: string, fn: Handler) => {
+      if (a === 'enterpictureinpicture') throw new TypeError('unknown action')
+      keep(a, fn)
+    })
+    await mount(CHROME_ANDROID)
+    await waitFor(() => expect(handlers.get('play')).toBeTypeOf('function'))
+    expect(handlers.has('enterpictureinpicture')).toBe(false)
+  })
+
+  it('is cleared with the others when the player goes', async () => {
+    const { unmount } = await mount(CHROME_ANDROID)
+    await waitFor(() => expect(handlers.get('enterpictureinpicture')).toBeTypeOf('function'))
+    unmount()
+    expect(handlers.get('enterpictureinpicture')).toBeNull()
+    expect(handlers.get('play')).toBeNull()
+  })
+
+  it('stays with the audio player once it took the session over', async () => {
+    const { unmount } = await mount(CHROME_ANDROID)
+    await waitFor(() => expect(handlers.get('enterpictureinpicture')).toBeTypeOf('function'))
+    session.metadata = { title: 'a song' }
+    const theirs = () => {}
+    handlers.set('enterpictureinpicture', theirs)
+    unmount()
+    expect(handlers.get('enterpictureinpicture')).toBe(theirs)
+  })
+})

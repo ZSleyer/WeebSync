@@ -123,6 +123,25 @@ const FIREFOX_ANDROID = /Android.*Firefox\//.test(navigator.userAgent)
 // fullscreen-then-Home and the iPhone's gestures
 // (https://developer.chrome.com/blog/picture-in-picture), so it is set here only.
 const NO_NATIVE_PIP = /Firefox\//.test(navigator.userAgent) && !FIREFOX_ANDROID
+// the attribute blocks our own request as well: lifted for the moment of
+// asking, set again if the browser says no (and once the window closes)
+async function askPip(v: HTMLVideoElement) {
+  v.disablePictureInPicture = false
+  try {
+    await v.requestPictureInPicture()
+  } catch {
+    v.disablePictureInPicture = NO_NATIVE_PIP
+  }
+}
+// Chrome 134+ on the desktop floats a playing, audible video by itself when
+// its tab is left, if the page handles this action; it calls the handler
+// without a user gesture
+// (https://developer.chrome.com/blog/automatic-picture-in-picture-media-playback).
+// From 142 Chrome asks such a handler for its own tab switches too (reason
+// "contentoccluded") instead of floating the page by itself
+// (https://developer.chrome.com/blog/automatic-picture-in-picture-initiated-by-the-browser).
+// TypeScript's DOM types do not know the action yet.
+type SessionAction = MediaSessionAction | 'enterpictureinpicture'
 // Safari, and every browser on an iPhone (all WebKit), reads no Matroska: a
 // direct .mkv loaded forever without a frame
 // an iPhone has fullscreen for a bare <video> only: iOS's own player, without
@@ -549,12 +568,7 @@ function PlayerView({
     const v = videoRef.current
     if (!v) return
     if (document.pictureInPictureElement) return void document.exitPictureInPicture().catch(() => {})
-    v.disablePictureInPicture = false
-    try {
-      await v.requestPictureInPicture()
-    } catch {
-      v.disablePictureInPicture = NO_NATIVE_PIP
-    }
+    await askPip(v)
   }
   // the same switch in the settings menu, which a phone always shows (the
   // bar's button steps out first as the player narrows). media-chrome fires
@@ -722,7 +736,7 @@ function PlayerView({
   // episode and its title, the series under it, the cover) instead of the
   // page's title, and the buttons for it. Previous and next show only where
   // there is an episode to go to.
-  const sessionAction = useEffectEvent((action: MediaSessionAction, d: MediaSessionActionDetails) => {
+  const sessionAction = useEffectEvent((action: SessionAction, d: MediaSessionActionDetails) => {
     const v = videoRef.current
     if (!v) return
     if (action === 'play') void v.play().catch(() => {})
@@ -733,6 +747,8 @@ function PlayerView({
       v.currentTime = Math.min(v.duration || Infinity, v.currentTime + (d.seekOffset ?? 10))
     else if (action === 'previoustrack' && prev) goTo(prev)
     else if (action === 'nexttrack' && next) goTo(next)
+    // the browser floats the video as the tab is left; a paused one stays
+    else if (action === 'enterpictureinpicture' && !v.paused && !document.pictureInPictureElement) void askPip(v)
   })
   const hasPrev = !!prev
   const hasNext = !!next
@@ -752,7 +768,7 @@ function PlayerView({
       ).flatMap(([src, sizes]) => (src ? [{ src, sizes }] : [])),
     })
     ms.metadata = meta
-    const on: [MediaSessionAction, boolean][] = [
+    const on: [SessionAction, boolean][] = [
       ['play', true],
       ['pause', true],
       ['seekto', true],
@@ -760,10 +776,11 @@ function PlayerView({
       ['seekforward', true],
       ['previoustrack', hasPrev],
       ['nexttrack', hasNext],
+      ['enterpictureinpicture', !!document.pictureInPictureEnabled],
     ]
-    const set = (a: MediaSessionAction, fn: MediaSessionActionHandler | null) => {
+    const set = (a: SessionAction, fn: MediaSessionActionHandler | null) => {
       try {
-        ms.setActionHandler(a, fn)
+        ms.setActionHandler(a as MediaSessionAction, fn)
       } catch {
         // an action this browser does not know
       }
