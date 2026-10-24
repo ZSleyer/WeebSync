@@ -77,19 +77,20 @@ describe('grouping the needs', () => {
   })
 })
 
+const qcOf = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+const wrap = (ui: React.ReactNode) => (
+  <QueryClientProvider client={qcOf}>
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="*" element={ui} />
+      </Routes>
+    </MemoryRouter>
+  </QueryClientProvider>
+)
 function view(ui: React.ReactNode) {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
   vi.spyOn(api, 'get').mockResolvedValue([] as never)
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="*" element={ui} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+  return render(wrap(ui))
 }
 
 const base = {
@@ -162,5 +163,17 @@ describe('Today', () => {
     // folders detected since: the row is back, with the new count
     view(<Needs {...props} detected={24} loading={false} />)
     expect(await screen.findByText('today.needDetected:24')).toBeTruthy()
+  })
+
+  it('brings a hidden row back in the same visit once its reason changes', async () => {
+    data = { ...base, ...props }
+    const page = view(<NeedsPage />)
+    const row = (await screen.findAllByRole('listitem')).find((r) => r.textContent?.includes('today.needDetected'))!
+    fireEvent.click(within(row).getByRole('button', { name: /today\.hide/ }))
+    await waitFor(() => expect(screen.queryByText('today.needDetected:23')).toBeNull())
+    // the poll finds more folders: no remount, the page just renders again
+    data = { ...base, ...props, detected: 25 }
+    page.rerender(wrap(<NeedsPage />))
+    expect(await screen.findByText('today.needDetected:25')).toBeTruthy()
   })
 })
