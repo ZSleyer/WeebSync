@@ -216,7 +216,8 @@ describe('groupHits', () => {
     expect(screen.queryByText('calendar page')).toBeNull()
     history.replaceState(null, '')
     window.dispatchEvent(new PopStateEvent('popstate'))
-    expect(await screen.findByText('calendar page')).toBeInTheDocument()
+    // under the 400 ms fallback, so only the popstate path can pass this
+    expect(await screen.findByText('calendar page', {}, { timeout: 300 })).toBeInTheDocument()
   })
 
   it("opens a file hit's folder only after the palette's history step has landed", async () => {
