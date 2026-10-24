@@ -204,7 +204,7 @@ describe('groupHits', () => {
     expect(groupHits(many, 'show')).toHaveLength(6)
   })
 
-  it('navigates only after the palette\'s own history step has landed', async () => {
+  it("navigates only after the palette's own history step has landed", async () => {
     app()
     // a back() that never lands on its own, so the order is ours to drive
     vi.spyOn(history, 'back').mockImplementation(() => {})
@@ -219,7 +219,7 @@ describe('groupHits', () => {
     expect(await screen.findByText('calendar page')).toBeInTheDocument()
   })
 
-  it('opens a file hit\'s folder only after the palette\'s history step has landed', async () => {
+  it("opens a file hit's folder only after the palette's history step has landed", async () => {
     app()
     vi.spyOn(history, 'back').mockImplementation(() => {})
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })

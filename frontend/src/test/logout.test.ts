@@ -57,7 +57,6 @@ describe('logout', () => {
     await logout()
     expect(calls).toEqual(['post /api/auth/logout'])
     expect(localStorage.length).toBe(0)
-
   })
 
   it('sends the logout POST at once even when the push cleanup never settles', async () => {
