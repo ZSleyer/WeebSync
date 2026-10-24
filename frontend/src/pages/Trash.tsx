@@ -51,6 +51,7 @@ export default function TrashPage() {
     setActionError('')
     void qc.invalidateQueries({ queryKey: ['trash'] })
     void qc.invalidateQueries({ queryKey: ['local'] })
+    void qc.invalidateQueries({ queryKey: ['catalog', 0] }) // the local catalog grid counts these files
   }
   const fail = (e: unknown) => setActionError(e instanceof Error ? e.message : String(e))
   const toast = useToast()

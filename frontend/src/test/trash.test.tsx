@@ -59,8 +59,9 @@ function Shell({ children }: { children: ReactNode }) {
   )
 }
 
+let qc: QueryClient
 function app() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter>
@@ -131,5 +132,15 @@ describe('TrashButton', () => {
     await waitFor(() => expect(del).toHaveBeenCalledWith('/api/trash'))
     expect(confirmFn).toHaveBeenCalledTimes(1)
     expect(confirmFn.mock.calls[0][0].message).toBe('trash.emptyConfirm:3')
+  })
+
+  it('marks the local catalog grid stale after a restore', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(entries)
+    vi.spyOn(api, 'post').mockResolvedValue({ status: 'ok' })
+    app()
+    qc.setQueryData(['catalog', 0, 'Show'], { items: [] })
+    fireEvent.click(await screen.findByRole('link', { name: 'trash.open' }))
+    fireEvent.click((await screen.findAllByRole('button', { name: 'trash.restore' }))[0])
+    await waitFor(() => expect(qc.getQueryState(['catalog', 0, 'Show'])?.isInvalidated).toBe(true))
   })
 })
