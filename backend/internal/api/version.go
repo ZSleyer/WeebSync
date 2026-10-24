@@ -182,7 +182,7 @@ func (s *Server) handleUpdateCheckToggle(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := db.SetSetting(s.DB, "update_check", map[bool]string{true: "1", false: "0"}[in.Enabled]); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, updateCheckResponse{UpdateCheck: in.Enabled})

@@ -129,7 +129,7 @@ func (s *Server) handleTmdbCallback(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTmdbDisconnect(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	if _, err := s.DB.Exec(`DELETE FROM tmdb_accounts WHERE user_id = ?`, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

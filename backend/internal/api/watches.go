@@ -1035,7 +1035,7 @@ func (s *Server) handleRenameProfile(w http.ResponseWriter, r *http.Request) {
 	serverID := pathID(r)
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -1191,7 +1191,7 @@ func (s *Server) handleWatchesList(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	list, err := s.watchesFor(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -1936,7 +1936,7 @@ func (s *Server) handleWatchCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -2345,7 +2345,7 @@ func (s *Server) handleWatchDelete(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	res, err := s.DB.Exec(`DELETE FROM watches WHERE id = ? AND user_id = ?`, id, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
@@ -2380,7 +2380,7 @@ func (s *Server) handleWatchCheck(w http.ResponseWriter, r *http.Request) {
 	}
 	var owned int
 	if err := s.DB.QueryRow(q, args...).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {

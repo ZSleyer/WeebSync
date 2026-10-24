@@ -548,7 +548,7 @@ func (s *Server) handleUpgradeDimsPut(w http.ResponseWriter, r *http.Request) {
 	}
 	d := dimsFromOrder(order)
 	if _, err := s.DB.Exec(`UPDATE users SET upgrade_dims = ? WHERE id = ?`, strings.Join(d.Order, ","), u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the cached suggestions were ranked under the old axes: age them and

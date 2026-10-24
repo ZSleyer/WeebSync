@@ -80,7 +80,7 @@ func (s *Server) handleArrKeyCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := db.SetSetting(s.DB, "arr_key_hash", hex.EncodeToString(sum[:])); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, tokenResponse{Token: key})
@@ -121,11 +121,11 @@ func (s *Server) handleArrKeyGet(w http.ResponseWriter, r *http.Request) {
 // @Router       /api/settings/arr-key [delete]
 func (s *Server) handleArrKeyDelete(w http.ResponseWriter, r *http.Request) {
 	if err := db.SetSetting(s.DB, "arr_key_hash", ""); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if err := db.SetSetting(s.DB, "arr_key", ""); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

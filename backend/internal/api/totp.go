@@ -81,7 +81,7 @@ func (s *Server) handleTotpStatus(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	on, err := s.totpEnabled(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, TwoFactorStatusResponse{Enabled: on})
@@ -116,7 +116,7 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if on, err := s.totpEnabled(u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	} else if on {
 		writeErr(w, http.StatusConflict, "TOTP already enabled")
@@ -136,7 +136,7 @@ func (s *Server) handleTotpSetup(w http.ResponseWriter, r *http.Request) {
 	if _, err := s.DB.Exec(`INSERT INTO user_totp (user_id, secret_enc, confirmed_at) VALUES (?, ?, NULL)
 		ON CONFLICT(user_id) DO UPDATE SET secret_enc = excluded.secret_enc, confirmed_at = NULL`,
 		u.ID, enc); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, TotpSetupResponse{Secret: sec, OtpauthUrl: uri})
@@ -265,7 +265,7 @@ func (s *Server) handleLoginTotp(w http.ResponseWriter, r *http.Request) {
 	var email string
 	if err := s.DB.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
 		// an empty email would put the attempt on nobody's counter
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if wait := s.accountWait(r, email); wait > 0 {

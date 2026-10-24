@@ -190,7 +190,7 @@ func (s *Server) handleJellyfinServerLinkPoll(w http.ResponseWriter, r *http.Req
 	}
 	if err := saveSettings(s.DB, "jellyfin_url", sg.url, "jellyfin_token", enc, "jellyfin_auth", "signin"); err != nil {
 		slog.Error("jellyfin server settings", "err", err)
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	slog.Info("jellyfin server connected", "url", logSafe(sg.url), "user", logSafe(user.Name))
@@ -248,7 +248,7 @@ func (s *Server) handleJellyfinLinkPoll(w http.ResponseWriter, r *http.Request) 
 	u := auth.UserFrom(r.Context())
 	if _, err := s.DB.Exec(`INSERT OR REPLACE INTO plex_accounts (user_id, token_enc, plex_user, created_at) VALUES (?, ?, ?, ?)`,
 		u.ID, enc, user.Name, time.Now().UTC().Format(time.RFC3339)); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, jellyfinPollResponse{Linked: true, User: user.Name})

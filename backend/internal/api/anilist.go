@@ -1155,7 +1155,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		serverID, src1, src2, scope == scopeAuto,
 		strings.TrimRight(in.Path, "/")+"/", strings.TrimRight(in.Path, "/")+"0")
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -1163,7 +1163,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f string
 		if err := rows.Scan(&f); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if strings.Contains(f[len(strings.TrimRight(in.Path, "/"))+1:], "/") {
@@ -1172,7 +1172,7 @@ func (s *Server) handleCatalogRematch(w http.ResponseWriter, r *http.Request) {
 		folders = append(folders, f)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	for _, f := range folders {
@@ -1288,7 +1288,7 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	if serverID != localServerID {
 		var owned int
 		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if owned == 0 {
@@ -1316,8 +1316,8 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 		s.fetchMedia(ctx, source, in.MediaID)
 		cancel()
 	}
-	if s.persistMatch(serverID, in.Folder, in.MediaID, true, source) != nil {
-		dbErr(w)
+	if err := s.persistMatch(serverID, in.Folder, in.MediaID, true, source); err != nil {
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

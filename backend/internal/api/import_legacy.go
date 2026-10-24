@@ -78,7 +78,7 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 	} else {
 		var owned int
 		if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if owned == 0 {
@@ -90,7 +90,7 @@ func (s *Server) handleLegacyImport(w http.ResponseWriter, r *http.Request) {
 	// the interval is the instance's, set for everyone: an admin's
 	if u.IsAdmin && in.IntervalMin >= 5 && in.IntervalMin <= 1440 {
 		if err := db.SetSetting(s.DB, "watch_interval_min", strconv.Itoa(in.IntervalMin)); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}

@@ -112,7 +112,7 @@ func (s *Server) handleWatchExplain(w http.ResponseWriter, r *http.Request) {
 	var attempts, filtered, fromEpisode int
 	if err := s.DB.QueryRow(`SELECT last_check, retry_at, check_attempts, last_filtered, last_skips, from_episode FROM watches WHERE id = ?`, wt.ID).
 		Scan(&lastCheck, &retryAt, &attempts, &filtered, &skipsJSON, &fromEpisode); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	out := watchExplainResponse{LastCheck: lastCheck, Template: wt.Template, Skips: []transfer.Skip{}}

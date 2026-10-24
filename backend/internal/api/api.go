@@ -524,8 +524,10 @@ func writeErr(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, ErrorResponse{Error: msg})
 }
 
-// dbErr writes the uniform response for internal database failures.
-func dbErr(w http.ResponseWriter) {
+// dbErr writes the uniform response for internal database failures and logs
+// the cause: the client only gets "db error", so the log is where it shows.
+func dbErr(w http.ResponseWriter, err error) {
+	slog.Error("db error", "err", err)
 	writeErr(w, http.StatusInternalServerError, "db error")
 }
 

@@ -346,7 +346,7 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -374,7 +374,7 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 		q += ` ORDER BY is_dir DESC, name COLLATE NOCASE LIMIT 50`
 		rows, err := s.DB.Query(q, args...)
 		if err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		defer rows.Close()
@@ -382,14 +382,14 @@ func (s *Server) handleServerSearch(w http.ResponseWriter, r *http.Request) {
 			var e remote.Entry
 			var mod string
 			if err := rows.Scan(&e.Path, &e.Name, &e.IsDir, &e.Size, &mod); err != nil {
-				dbErr(w)
+				dbErr(w, err)
 				return
 			}
 			e.ModTime, _ = time.Parse(sqliteTime, mod)
 			out.Results = append(out.Results, e)
 		}
 		if rows.Err() != nil {
-			dbErr(w)
+			dbErr(w, rows.Err())
 			return
 		}
 	}
@@ -417,7 +417,7 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 	id := pathID(r)
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, id, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -427,14 +427,14 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 	dubSet, subSet := map[string]bool{}, map[string]bool{}
 	rows, err := s.DB.Query(`SELECT name FROM remote_index WHERE server_id = ?`, id)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var name string
 		if err := rows.Scan(&name); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		dub, sub := rename.LangTags(name)
@@ -446,7 +446,7 @@ func (s *Server) handleServerLanguages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	out := ServerLanguagesResponse{Dub: keysSorted(dubSet), Sub: keysSorted(subSet)}

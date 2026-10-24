@@ -76,7 +76,7 @@ func normSetupToken(v string) string {
 func (s *Server) handleSetupOIDCStart(w http.ResponseWriter, r *http.Request) {
 	var users int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if users > 0 {

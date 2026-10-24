@@ -74,7 +74,7 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusConflict, "endpoint already registered")
 			return
 		}
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the newest few devices stay: each one is fetched on every notification

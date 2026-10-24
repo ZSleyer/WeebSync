@@ -34,7 +34,7 @@ func (s *Server) handleTipsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	rows, err := s.DB.Query(`SELECT tip_key FROM user_tips WHERE user_id = ? ORDER BY tip_key`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -42,13 +42,13 @@ func (s *Server) handleTipsGet(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var k string
 		if err := rows.Scan(&k); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		out.Dismissed = append(out.Dismissed, k)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -79,7 +79,7 @@ func (s *Server) handleTipDismiss(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := s.DB.Exec(`INSERT OR IGNORE INTO user_tips (user_id, tip_key) VALUES (?, ?)`, u.ID, in.Key); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})

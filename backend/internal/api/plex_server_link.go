@@ -188,7 +188,7 @@ func (s *Server) handlePlexServerConnect(w http.ResponseWriter, r *http.Request)
 	// plex_auth "signin": no prompt to sign in any more
 	if err := saveSettings(s.DB, "plex_url", addr, "plex_token", enc, "plex_server_name", server.Name, "plex_auth", "signin"); err != nil {
 		slog.Error("plex server settings", "err", err)
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	plexServerSignins.Lock()

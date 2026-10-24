@@ -106,7 +106,7 @@ func (s *Server) handleCatalogScopeGet(w http.ResponseWriter, r *http.Request) {
 	out := scopeResponse{Scope: s.scopeFor(serverID, dir)}
 	detectedAt, err := s.detectedAt(serverID, dir)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	out.Detected = detectedAt > 0
@@ -228,7 +228,7 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 	// again at the next sweep
 	detectedAt, err := s.detectedAt(serverID, in.Path)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	switch {
@@ -249,7 +249,7 @@ func (s *Server) handleCatalogScope(w http.ResponseWriter, r *http.Request) {
 			serverID, path.Dir(in.Path), shape, in.Kind)
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the folders under a new mark are matched now, not on the next sweep

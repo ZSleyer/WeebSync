@@ -83,13 +83,13 @@ func (s *Server) handleAnilistPermissions(w http.ResponseWriter, r *http.Request
 	}
 	if in.List != nil {
 		if _, err := s.DB.Exec(`UPDATE users SET anilist_write_list = ? WHERE id = ?`, *in.List, u.ID); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
 	if in.Social != nil {
 		if _, err := s.DB.Exec(`UPDATE users SET anilist_write_social = ? WHERE id = ?`, *in.Social, u.ID); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}

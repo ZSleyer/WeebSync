@@ -97,7 +97,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	// afterwards open registration must be explicitly enabled.
 	var existing int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&existing); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// the first account becomes the admin: only with the token from the log
@@ -138,7 +138,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	id, _ := res.LastInsertId()
@@ -198,7 +198,7 @@ func (s *Server) handleLocalePut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := s.DB.Exec(`UPDATE users SET locale = ? WHERE id = ?`, l, u.ID); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, LocaleResponse{Locale: l})
@@ -278,7 +278,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	var approved bool
 	err := s.DB.QueryRow(`SELECT id, password_hash, email_verified, approved FROM users WHERE email = ?`, c.Email).Scan(&id, &hash, &verified, &approved)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if errors.Is(err, sql.ErrNoRows) || hash == "" {
@@ -382,7 +382,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if err := auth.DestroySession(s.DB, w, r); err != nil {
 		// the cookie is cleared, but the session is still good on the server
 		slog.Error("logout: session not destroyed", "err", err)
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -464,7 +464,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated setup path
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if users > 0 {
@@ -505,7 +505,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := setSetting(s.DB, "base_url", o); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
@@ -516,7 +516,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		{"oidc_client_id", in.OidcClientID},
 	} {
 		if err := setSetting(s.DB, kv[0], kv[1]); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
@@ -531,7 +531,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 		{"oidc_user_values", in.OidcUserValues},
 	} {
 		if err := setSetting(s.DB, kv[0], kv[1]); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
@@ -545,7 +545,7 @@ func (s *Server) handleSetupOIDC(w http.ResponseWriter, r *http.Request) {
 	// to the password form on its own (passwordAuthBlocked).
 	if out.OidcEnabled {
 		if err := setSetting(s.DB, "auth_mode", "oidc-only"); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 	}
@@ -579,7 +579,7 @@ func (s *Server) handleOIDCDiscover(w http.ResponseWriter, r *http.Request) {
 	var users int
 	// fail closed: a db error must not reopen the unauthenticated probe
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if u := auth.UserFrom(r.Context()); users > 0 && (u == nil || !u.IsAdmin) {
@@ -668,7 +668,7 @@ func (s *Server) handleAuthConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	var users int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM users`).Scan(&users); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	// oidcEnvLocked: which OIDC fields the setup wizard must lock (this

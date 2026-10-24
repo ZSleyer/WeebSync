@@ -187,20 +187,20 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 		FROM servers s LEFT JOIN remote_index i ON i.server_id = s.id
 		GROUP BY s.id ORDER BY s.id`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var v adminIndexServer
 		if err := rows.Scan(&v.ID, &v.Name, &v.Rows, &v.Dirs, &v.PendingDirs, &v.StalestListedAt); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		out.Index.Servers = append(out.Index.Servers, v)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	for i := range out.Index.Servers {
@@ -217,20 +217,20 @@ func (s *Server) handleAdminJobs(w http.ResponseWriter, r *http.Request) {
 		FROM catalog_matches m JOIN servers s ON s.id = m.server_id
 		GROUP BY m.server_id, m.source ORDER BY m.server_id, m.source`)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var v adminMatchStat
 		if err := rows.Scan(&v.ServerID, &v.Name, &v.Source, &v.Total, &v.Matched, &v.Unmatched, &v.Manual); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		out.Matches = append(out.Matches, v)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 
@@ -288,7 +288,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 		// force-refresh every linked account's watchlist cache
 		rows, err := s.DB.Query(`SELECT anilist_user_id, token_enc FROM anilist_accounts`)
 		if err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		type account struct {
@@ -310,7 +310,7 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 			accounts = append(accounts, account{alID, token})
 		}
 		if rows.Err() != nil {
-			dbErr(w)
+			dbErr(w, rows.Err())
 			return
 		}
 		for _, a := range accounts {
@@ -495,7 +495,7 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 	}
 	total := 0
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE `+where, args...).Scan(&total); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	rows, err := s.DB.Query(`SELECT key, fetched_at, LENGTH(payload),
@@ -503,7 +503,7 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 		FROM anilist_cache WHERE `+where+` ORDER BY fetched_at DESC LIMIT ? OFFSET ?`,
 		append([]any{fmt.Sprintf("-%d seconds", int(s.scopeTTL(st)/time.Second))}, append(args, limit, offset)...)...)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -511,13 +511,13 @@ func (s *Server) handleAdminCacheEntries(w http.ResponseWriter, r *http.Request)
 	for rows.Next() {
 		var e adminCacheEntry
 		if err := rows.Scan(&e.Key, &e.FetchedAt, &e.Bytes, &e.Stale); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		entries = append(entries, e)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, adminCacheEntriesResponse{Total: total, Entries: entries})
@@ -555,7 +555,7 @@ func (s *Server) handleAdminCacheEntryDelete(w http.ResponseWriter, r *http.Requ
 	}
 	res, err := s.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, key)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	n, _ := res.RowsAffected()
@@ -651,13 +651,13 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 	offset, limit := pageParams(r)
 	total := 0
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE `+where, args...).Scan(&total); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	rows, err := s.DB.Query(`SELECT folder, media_id, manual, source FROM catalog_matches
 		WHERE `+where+` ORDER BY folder LIMIT ? OFFSET ?`, append(args, limit, offset)...)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -665,13 +665,13 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var e adminMatchEntry
 		if err := rows.Scan(&e.Folder, &e.MediaID, &e.Manual, &e.Source); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		entries = append(entries, e)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	// titles resolve per page (bounded by the limit cap), not per table
@@ -791,7 +791,7 @@ func (s *Server) handleAdminMatchDelete(w http.ResponseWriter, r *http.Request) 
 	}
 	res, err := s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ?`, serverID, folder)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	n, _ := res.RowsAffected()
@@ -902,7 +902,7 @@ func (s *Server) handleAdminLogStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminIndexFlush(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM remote_index WHERE server_id = ?`, pathID(r))
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	n, _ := res.RowsAffected()

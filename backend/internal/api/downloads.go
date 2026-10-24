@@ -30,7 +30,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		CASE WHEN status IN ('done', 'error', 'canceled') THEN COALESCE(updated_at, '') ELSE '' END
 		FROM downloads WHERE user_id = ? ORDER BY id DESC LIMIT 500`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -43,7 +43,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		var d transfer.Download
 		if err := rows.Scan(&d.ID, &d.UserID, &d.ServerID, &d.RemotePath, &d.LocalPath, &d.Size,
 			&d.Transferred, &d.Status, &d.Error, &d.ErrorCode, &d.RateLimit, &d.Attempts, &d.RetryAt, &d.ReplaceOld, &d.QueuePos, &d.CreatedAt, &d.FinishedAt); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		if d.Status == "running" {
@@ -52,7 +52,7 @@ func (s *Server) handleDownloadsList(w http.ResponseWriter, r *http.Request) {
 		list = append(list, d)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -168,7 +168,7 @@ func (s *Server) handleSyncOnce(w http.ResponseWriter, r *http.Request) {
 	}
 	var owned int
 	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, in.ServerID, u.ID).Scan(&owned); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if owned == 0 {
@@ -291,7 +291,7 @@ func (s *Server) handleDownloadsReorder(w http.ResponseWriter, r *http.Request) 
 	case errors.Is(err, transfer.ErrQueueChanged):
 		writeErr(w, http.StatusConflict, "queue changed")
 	case err != nil:
-		dbErr(w)
+		dbErr(w, err)
 	default:
 		writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 	}
@@ -362,7 +362,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	if in.Action == "delete" {
 		res, err := s.DB.Exec(`DELETE FROM downloads WHERE `+q, args...)
 		if err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		n, _ := res.RowsAffected()
@@ -371,7 +371,7 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := s.DB.Query(`SELECT id FROM downloads WHERE `+q, args...)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -379,13 +379,13 @@ func (s *Server) handleDownloadsBulk(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		ids = append(ids, id)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	affected := 0
@@ -433,7 +433,7 @@ func (s *Server) handleGlobalRateLimit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := db.SetSetting(s.DB, "global_rate_limit", strconv.FormatInt(in.RateLimit, 10)); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	s.Transfers.SettingsChanged()
@@ -523,7 +523,7 @@ func (s *Server) handleDownloadRateLimit(w http.ResponseWriter, r *http.Request)
 			writeErr(w, http.StatusNotFound, err.Error())
 			return
 		}
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
@@ -546,7 +546,7 @@ func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM downloads WHERE id = ? AND user_id = ?
 		AND status IN ('done','error','canceled')`, id, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

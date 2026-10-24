@@ -66,20 +66,20 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		ORDER BY ri.is_dir DESC, ri.name COLLATE NOCASE LIMIT ?`,
 		append(append([]any{u.ID}, args...), searchRemoteLimit)...)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var h SearchHit
 		if err := rows.Scan(&h.ServerID, &h.ServerName, &h.Path, &h.Name, &h.IsDir); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		out.Results = append(out.Results, h)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 
@@ -93,7 +93,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		ORDER BY folder COLLATE NOCASE LIMIT 500`,
 		append([]any{localServerID}, args...)...)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -101,7 +101,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() && local < searchLocalLimit {
 		var folder string
 		if err := rows.Scan(&folder); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		name := path.Base(folder)
@@ -112,7 +112,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 		local++
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)

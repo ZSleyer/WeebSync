@@ -109,7 +109,7 @@ func (s *Server) handleScopeRules(w http.ResponseWriter, r *http.Request) {
 		FROM catalog_scope_rules r LEFT JOIN servers sv ON sv.id = r.server_id
 		WHERE r.server_id = 0 OR sv.user_id = ? ORDER BY sv.name, r.parent, r.shape`, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
@@ -117,13 +117,13 @@ func (s *Server) handleScopeRules(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var sr scopeRule
 		if err := rows.Scan(&sr.ID, &sr.ServerID, &sr.ServerName, &sr.Parent, &sr.Shape, &sr.Kind); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		out = append(out, sr)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -149,7 +149,7 @@ func (s *Server) handleScopeRuleDelete(w http.ResponseWriter, r *http.Request) {
 	res, err := s.DB.Exec(`DELETE FROM catalog_scope_rules WHERE id = ? AND ((server_id = 0 AND ?)
 		OR server_id IN (SELECT id FROM servers WHERE user_id = ?))`, pathID(r), u.IsAdmin, u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	if n, _ := res.RowsAffected(); n == 0 {

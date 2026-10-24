@@ -156,20 +156,20 @@ func (s *Server) handleDetectedMarks(w http.ResponseWriter, r *http.Request) {
 		WHERE sv.user_id = ? AND cs.detected_at > 0 AND cs.kind != ?
 		ORDER BY cs.detected_at DESC, cs.path`, u.ID, scopeNone)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	defer rows.Close()
 	titles, err := s.markTitleCounts(u.ID)
 	if err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	out := detectedMarksResponse{Items: []detectedMark{}}
 	for rows.Next() {
 		var m detectedMark
 		if err := rows.Scan(&m.ServerID, &m.ServerName, &m.Path, &m.Kind, &m.DetectedAt); err != nil {
-			dbErr(w)
+			dbErr(w, err)
 			return
 		}
 		m.Name = path.Base(m.Path)
@@ -183,7 +183,7 @@ func (s *Server) handleDetectedMarks(w http.ResponseWriter, r *http.Request) {
 		out.Items = append(out.Items, m)
 	}
 	if rows.Err() != nil {
-		dbErr(w)
+		dbErr(w, rows.Err())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -202,7 +202,7 @@ func (s *Server) handleDetectedMarks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDetectedMarksSeen(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	if err := db.SetSetting(s.DB, seenKey(u.ID), strconv.FormatInt(time.Now().UnixMilli(), 10)); err != nil {
-		dbErr(w)
+		dbErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
