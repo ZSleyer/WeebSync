@@ -331,7 +331,7 @@ interface IpStatus {
 }
 
 // Addresses and accounts with failed sign-ins, and the way to free one at once.
-function RateLimitSection() {
+export function RateLimitSection() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const [error, setError] = useState('')
@@ -367,7 +367,11 @@ function RateLimitSection() {
                   (s.blocked ? t('settings.rateLimitBlocked') : t('settings.rateLimitOk'))
                 }
                 trailing={
-                  <RowAction disabled={reset.isPending} onClick={() => reset.mutate(s.ip)}>
+                  <RowAction
+                    aria-label={`${t('settings.rateLimitUnblock')}: ${s.ip}`}
+                    disabled={reset.isPending}
+                    onClick={() => reset.mutate(s.ip)}
+                  >
                     {t('settings.rateLimitUnblock')}
                   </RowAction>
                 }

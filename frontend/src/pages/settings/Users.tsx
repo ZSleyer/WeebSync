@@ -107,12 +107,17 @@ export default function Users() {
             trailing={
               <span className="ws-user-acts">
                 {!u.approved && (
-                  <RowAction disabled={approve.isPending} onClick={() => approve.mutate(u.id)}>
+                  <RowAction
+                    aria-label={`${t('settings.usersApprove')}: ${u.email}`}
+                    disabled={approve.isPending}
+                    onClick={() => approve.mutate(u.id)}
+                  >
                     {t('settings.usersApprove')}
                   </RowAction>
                 )}
                 {!rolesManagedByOidc && (
                   <RowAction
+                    aria-label={`${u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}: ${u.email}`}
                     disabled={toggle.isPending}
                     onClick={async () => {
                       // demoting yourself takes this very page away at once: ask first
@@ -132,10 +137,15 @@ export default function Users() {
                     {u.isAdmin ? t('settings.usersRemoveAdmin') : t('settings.usersMakeAdmin')}
                   </RowAction>
                 )}
-                {passwordMode && <RowAction onClick={() => setPwFor(u)}>{t('settings.usersSetPassword')}</RowAction>}
+                {passwordMode && (
+                  <RowAction aria-label={`${t('settings.usersSetPassword')}: ${u.email}`} onClick={() => setPwFor(u)}>
+                    {t('settings.usersSetPassword')}
+                  </RowAction>
+                )}
                 {u.id !== meId && (
                   <RowAction
                     className="text-err"
+                    aria-label={`${t('servers.delete')}: ${u.email}`}
                     disabled={del.isPending}
                     onClick={async () => {
                       if (
