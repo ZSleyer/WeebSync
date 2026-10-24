@@ -1384,8 +1384,12 @@ func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) (resp Sugge
 	key := fmt.Sprintf("suggestions:%d", userID)
 	payload, fresh := s.cacheGet(key, suggestTTL)
 	if !fresh {
+		// whatever is there beats nothing, however old: an aged blob
+		// (staleSuggestions dates it to suggestStaleAt) is served while the
+		// rebuild runs. No row or an unreadable one: no blob, the rebuild
+		// makes one.
+		_ = s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload)
 		s.rebuildSuggestions(userID)
-		payload, _ = s.cacheGet(key, 365*24*time.Hour) // whatever is there beats nothing
 		building = true
 	}
 	json.Unmarshal([]byte(payload), &resp)
