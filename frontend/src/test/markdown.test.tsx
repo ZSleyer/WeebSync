@@ -2,6 +2,51 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import Markdown, { parseMarkdown } from '../components/Markdown'
 
+vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (k: string) => k }) }))
+
+describe('Markdown accessibility and title links', () => {
+  it('makes a code block a focusable, named region so its long lines can be scrolled by keyboard', () => {
+    render(<Markdown text={'```\nsome very long shell line\n```'} />)
+    const region = screen.getByRole('region', { name: 'assistant.codeBlock' })
+    expect(region.tagName).toBe('PRE')
+    expect(region).toHaveAttribute('tabindex', '0')
+  })
+
+  it('links a short title only as a whole word', () => {
+    render(
+      <Markdown
+        text={'a fair price, elaborate, Gate keeper, but Air is fine, and (Air).'}
+        titles={[
+          { title: 'Air', onClick: () => {} },
+          { title: 'Gate', onClick: () => {} },
+        ]}
+      />,
+    )
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Gate', 'Air', 'Air'])
+    expect(screen.getByText(/a fair price, elaborate/)).toBeTruthy()
+  })
+
+  it('links a Korean title that carries a particle', () => {
+    render(<Markdown text={'나 혼자만 레벨업은 재밌다'} titles={[{ title: '레벨업', onClick: () => {} }]} />)
+    expect(screen.getByRole('button').textContent).toBe('레벨업')
+  })
+
+  it('links a Latin title next to Japanese text, but not inside a Latin word', () => {
+    render(
+      <Markdown
+        text={'Frierenの旅 と 葬送のFrieren and Frierens'}
+        titles={[{ title: 'Frieren', onClick: () => {} }]}
+      />,
+    )
+    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Frieren', 'Frieren'])
+  })
+
+  it('still links Japanese titles inside running text', () => {
+    render(<Markdown text={'今日はナルトの冒険'} titles={[{ title: 'ナルト', onClick: () => {} }]} />)
+    expect(screen.getByRole('button').textContent).toBe('ナルト')
+  })
+})
+
 describe('parseMarkdown', () => {
   it('splits headings, lists, code and paragraphs', () => {
     const blocks = parseMarkdown(

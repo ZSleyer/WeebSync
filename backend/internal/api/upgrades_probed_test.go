@@ -182,7 +182,7 @@ func TestStoreVariantRoundTripsProbed(t *testing.T) {
 	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0, kindAnime)
 	s.storeVariant(1, "/seed/Show", FolderQuality{ResRank: 1080}, "tvdb:3", 1, false, 0, "")
 
-	u := s.loadUnits().byKey[unitKey("tvdb:3", 1, false)]
+	u := s.loadUnits(1).byKey[unitKey("tvdb:3", 1, false)]
 	if u == nil || len(u.locals) != 1 || len(u.remotes) != 1 {
 		t.Fatalf("unit not loaded: %+v", u)
 	}
@@ -198,7 +198,7 @@ func TestStoreVariantRoundTripsProbed(t *testing.T) {
 
 	// rewriting the row must not silently lose it either
 	s.storeVariant(0, "/lib/Show/Season 01", q, "tvdb:3", 1, false, 0, kindAnime)
-	again := s.loadUnits().byKey[unitKey("tvdb:3", 1, false)]
+	again := s.loadUnits(1).byKey[unitKey("tvdb:3", 1, false)]
 	if again.locals[0].Probed != probeMeasured {
 		t.Error("probed reset on the second write")
 	}

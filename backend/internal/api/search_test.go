@@ -2,7 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 )
 
@@ -56,5 +58,25 @@ func TestSearchEverywhere(t *testing.T) {
 	}
 	if hits := search(adminC, "frieren%20s2"); len(hits) != 0 {
 		t.Errorf("admin has no S2 anywhere, got %+v", hits)
+	}
+}
+
+// SQL narrows on the whole path, the folder's own name decides. The narrowing
+// must not cut the candidates first: with more than 500 folders below an
+// "anime" root, the one whose name matches sorts behind them and was lost.
+func TestSearchLocalFindsNameBehindManyPathMatches(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	for i := 0; i < 600; i++ {
+		s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id) VALUES (0, ?, 1)`,
+			fmt.Sprintf("/Anime/Show %04d", i))
+	}
+	s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id) VALUES (0, '/Misc/Anime Hits', 1)`)
+
+	rec := doReq(mux, "GET", "/api/search?q=anime", "", adminC)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("search: %d %s", rec.Code, rec.Body)
+	}
+	if !strings.Contains(rec.Body.String(), "/Misc/Anime Hits") {
+		t.Errorf("the folder named Anime Hits is missing: %s", rec.Body)
 	}
 }

@@ -137,7 +137,8 @@
       "delete": "Entf",
       "forget": "aus „Zuletzt geöffnet“ entfernen"
     },
-    "searching": "Durchsucht die Server-Indexe …"
+    "searching": "Durchsucht die Server-Indexe …",
+    "searchFailed": "Die Dateisuche ist fehlgeschlagen. Versuch es noch einmal."
   },
   "nav": {
     "dashboard": "Heute",
@@ -156,6 +157,7 @@
     "files": "Dateien"
   },
   "assistant": {
+    "codeBlock": "Codeblock",
     "allUpgrades": "Alle Upgrades stehen unter Entdecken",
     "stepsDone_other": "{{count}} Schritte",
     "stepsDone_one": "{{count}} Schritt",
@@ -1432,6 +1434,8 @@
     "checkLoading": "Lädt Folge {{k}} von {{n}}",
     "checkDone_one": "Folge geladen",
     "checkDone_other": "{{count}} Folgen geladen",
+    "checkFailedDl_one": "Download fehlgeschlagen",
+    "checkFailedDl_other": "{{count}} Downloads fehlgeschlagen",
     "search": "Auto-Sync durchsuchen",
     "searchHint": "Titel oder Ordner",
     "searchNone": "Nichts gefunden für „{{query}}“.",
@@ -2245,6 +2249,8 @@
     "plexSignInOther": "Anderen Server verbinden",
     "plexPickServer": "Welchen Server soll WeebSync nutzen?",
     "plexNoServers": "Dieses Plex-Konto hat keinen Server.",
+    "plexOtherAccount": "Anderes Plex-Konto verwenden",
+    "plexOpenTab": "plex.tv öffnen",
     "plexConnecting": "Verbinde…",
     "plexShared": "geteilt",
     "plexConnected": "Verbunden mit <b>{{server}}</b> über {{url}}",
@@ -2264,6 +2270,7 @@
     "plexWatchlistLink": "Plex-Merkliste verknüpfen",
     "plexWatchlistUnlink": "Trennen",
     "plexWatchlistLinked": "Merkliste verknüpft als {{user}}",
+    "plexWatchlistOpen": "plex.tv öffnen",
     "plexWatchlistPending": "Im plex.tv-Tab bestätigen (Code {{code}})…",
     "plexWatchlistExpired": "Der plex.tv-Code ist abgelaufen. Verknüpfe erneut für einen neuen.",
     "emailCat_suggestion": "Vorschläge",
@@ -2423,6 +2430,7 @@
   },
   "audio": {
     "title": "Wiedergabe",
+    "error": "Dieser Titel konnte nicht abgespielt werden.",
     "open": "Audio-Player öffnen",
     "back15": "15 Sekunden zurück",
     "fwd30": "30 Sekunden vor",
@@ -3024,6 +3032,7 @@
     "comments": "Kommentare",
     "noComments": "Noch keine Kommentare.",
     "like": "Gefällt mir",
+    "posted": "Antwort gesendet.",
     "reply": "Antworten",
     "replyTo": "Antwort an {{name}}",
     "replyThread": "Antwort auf den Beitrag",

@@ -80,6 +80,12 @@ func (c *Client) cacheTTL() time.Duration {
 	return 24 * time.Hour
 }
 
+// StatusError is a non-success answer from TMDB, so a caller can tell a
+// rejected session (401) from an outage.
+type StatusError struct{ Code int }
+
+func (e *StatusError) Error() string { return fmt.Sprintf("tmdb: HTTP %d", e.Code) }
+
 func (c *Client) get(ctx context.Context, path string, params url.Values, out any) error {
 	if err := c.limiter.Wait(ctx); err != nil {
 		return err
@@ -128,7 +134,7 @@ func (c *Client) get(ctx context.Context, path string, params url.Values, out an
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
+			return &StatusError{Code: resp.StatusCode}
 		}
 		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 		resp.Body.Close()
@@ -579,11 +585,6 @@ func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]an
 	}
 	payload, _ := json.Marshal(list)
 	c.store(cacheKey, string(payload))
-	// a year-narrowed hit also answers the plain search for the same title
-	// ("Show (2020)" vs "Show" folders); empty results don't poison it
-	if year > 0 && len(list) > 0 {
-		c.store(SearchCacheKey(kind, query, 0), string(payload))
-	}
 	return list, nil
 }
 
@@ -624,10 +625,18 @@ func (c *Client) Media(ctx context.Context, kind string, id int) (*anilist.Media
 	return &m, nil
 }
 
+// ValidKind reports whether kind is a TMDB media kind ("tv" or "movie"). The
+// kind goes into the request path and the cache key, so any string that comes
+// from outside must pass this first.
+func ValidKind(kind string) bool { return kind == "tv" || kind == "movie" }
+
 // Extras returns what the detail dialog shows beyond the record: the
 // recommended titles and the main cast. Cached under tmdb:extras1:<kind>:<id>.
 // No threads and no external links here; TMDB has neither in a usable form.
 func (c *Client) Extras(ctx context.Context, kind string, id int) ([]anilist.Media, []anilist.Character, error) {
+	if !ValidKind(kind) {
+		return nil, nil, fmt.Errorf("tmdb: unknown kind %q", kind)
+	}
 	cacheKey := fmt.Sprintf("tmdb:extras1:%s:%d", kind, id)
 	type extras struct {
 		Recommendations []anilist.Media     `json:"recommendations"`

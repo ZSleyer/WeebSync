@@ -2,7 +2,10 @@ package mkvsubs
 
 import (
 	"bytes"
+	"encoding/binary"
+	"math"
 	"os"
+	"slices"
 	"testing"
 )
 
@@ -17,6 +20,60 @@ func fuzzSeed(f *testing.F) {
 		f.Fatal(err)
 	}
 	f.Add(seed)
+	f.Add(cueOverflowMKV(1<<63, 1<<63-5000))
+}
+
+// ebmlElem writes an element with an 8-byte size, so a parent's length does
+// not depend on the values inside it.
+func ebmlElem(id uint64, parts ...[]byte) []byte {
+	var b bytes.Buffer
+	idb := binary.BigEndian.AppendUint64(nil, id)
+	b.Write(bytes.TrimLeft(idb, "\x00"))
+	var payload []byte
+	for _, p := range parts {
+		payload = append(payload, p...)
+	}
+	size := binary.BigEndian.AppendUint64(nil, uint64(len(payload)))
+	size[0] = 0x01 // the 8-byte length marker
+	b.Write(size)
+	b.Write(payload)
+	return b.Bytes()
+}
+
+func ebmlUint(id, v uint64) []byte {
+	return ebmlElem(id, binary.BigEndian.AppendUint64(nil, v))
+}
+
+// cueOverflowMKV is a Matroska file with one text track whose two cue
+// points share a cluster and carry the given relative positions.
+func cueOverflowMKV(rel1, rel2 uint64) []byte {
+	head := slices.Concat(
+		ebmlElem(idInfo, ebmlUint(0x2AD7B1, 1_000_000)),
+		ebmlElem(idTracks, ebmlElem(0xAE, ebmlUint(0xD7, 1), ebmlUint(0x83, 17), ebmlElem(0x86, []byte("S_TEXT/UTF8")))),
+	)
+	cues := func(cluster uint64) []byte {
+		point := func(t, rel uint64) []byte {
+			return ebmlElem(0xBB, ebmlUint(0xB3, t),
+				ebmlElem(0xB7, ebmlUint(0xF7, 1), ebmlUint(0xF1, cluster), ebmlUint(0xF0, rel)))
+		}
+		return ebmlElem(idCues, point(0, rel1), point(1, rel2))
+	}
+	cluster := uint64(len(head) + len(cues(0)))
+	body := slices.Concat(head, cues(cluster), ebmlElem(idCluster, ebmlUint(0xE7, 0)))
+	return slices.Concat(ebmlElem(0x1A45DFA3, ebmlElem(0x4282, []byte("matroska"))), ebmlElem(idSegment, body))
+}
+
+// Cue positions past the end of the file are not followed: two near 2^63
+// once wrapped the distance between them negative and sized a read buffer
+// below zero, a panic on a worker goroutine.
+func TestReadCuePositionsOutOfFile(t *testing.T) {
+	for _, rels := range [][2]uint64{{1 << 63, 1<<63 - 5000}, {1 << 62, 1}, {math.MaxUint64, 1}} {
+		b := cueOverflowMKV(rels[0], rels[1])
+		_, err := Read(bytes.NewReader(b), int64(len(b)), 4)
+		if err == nil {
+			t.Errorf("%v: no error", rels)
+		}
+	}
 }
 
 func FuzzRead(f *testing.F) {

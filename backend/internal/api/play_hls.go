@@ -10,9 +10,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -44,15 +46,19 @@ type hlsKey struct {
 }
 
 type hlsSession struct {
-	key  hlsKey
-	dir  string
-	mu   sync.Mutex
-	last time.Time
+	key hlsKey
+	dir string
+	mu  sync.Mutex
+	// last is when a request used it, in Unix nanoseconds: read under the
+	// sessions' lock, so it never waits on the session's own
+	last atomic.Int64
 	run  *hlsRun // the current ffmpeg run, nil before the first
 	// the copy mode's segment starts, in seconds
 	cuts []float64
 	// waiting counts the requests held per segment, for the status line
 	waiting map[int]int
+	// stopped: evicted or reaped, its folder is gone; no run starts again
+	stopped bool
 }
 
 // hlsRun is one ffmpeg process. err is written before exited closes and read
@@ -135,7 +141,7 @@ func (s *Server) handlePlayHLSIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/vnd.apple.mpegurl")
 	q := r.URL.Query()
 	if key.copy {
-		if cuts := s.copyCuts(r.Context(), src); cuts != nil {
+		if cuts := s.copyCuts(r.Context(), src, true); cuts != nil {
 			w.Write([]byte(copyPlaylist(cuts, info.Duration, q)))
 			return
 		}
@@ -194,7 +200,7 @@ func (s *Server) handlePlayHLSSegment(w http.ResponseWriter, r *http.Request) {
 	}
 	var cuts []float64
 	if key.copy {
-		if cuts = s.copyCuts(r.Context(), key.src); cuts == nil || n >= len(cuts) {
+		if cuts = s.copyCuts(r.Context(), key.src, false); cuts == nil || n >= len(cuts) {
 			writeErr(w, http.StatusBadGateway, "the file has no keyframe index to cut at")
 			return
 		}
@@ -222,7 +228,13 @@ func (s *Server) hlsSession(key hlsKey, cuts []float64) (*hlsSession, error) {
 		h.all = map[hlsKey]*hlsSession{}
 	}
 	if sess, ok := h.all[key]; ok {
-		return sess, nil
+		// a copy's file replaced at the same path is cut elsewhere now: its
+		// segments are another file's, the session gives way
+		if !key.copy || slices.Equal(sess.cuts, cuts) {
+			return sess, nil
+		}
+		delete(h.all, key)
+		sess.stop()
 	}
 	for len(h.all) >= hlsMaxSessions {
 		var oldest *hlsSession
@@ -238,7 +250,8 @@ func (s *Server) hlsSession(key hlsKey, cuts []float64) (*hlsSession, error) {
 	if err != nil {
 		return nil, errors.New("no temp space")
 	}
-	sess := &hlsSession{key: key, dir: dir, last: time.Now(), cuts: cuts}
+	sess := &hlsSession{key: key, dir: dir, cuts: cuts}
+	sess.last.Store(time.Now().UnixNano())
 	h.all[key] = sess
 	return sess, nil
 }
@@ -257,14 +270,13 @@ func (h *hlsSessions) reaper() {
 }
 
 func (sess *hlsSession) lastUsed() time.Time {
-	sess.mu.Lock()
-	defer sess.mu.Unlock()
-	return sess.last
+	return time.Unix(0, sess.last.Load())
 }
 
 // stop ends the run and drops the segments.
 func (sess *hlsSession) stop() {
 	sess.mu.Lock()
+	sess.stopped = true
 	sess.killLocked()
 	sess.mu.Unlock()
 	os.RemoveAll(sess.dir)
@@ -299,17 +311,11 @@ func (sess *hlsSession) ready(n int) bool {
 // moving the ffmpeg run when n is not on its way.
 func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, error) {
 	p := sess.segPath(n)
-	sess.mu.Lock()
-	sess.last = time.Now()
-	if !sess.ready(n) {
-		run := sess.run
-		if run == nil || !run.running() || n < run.start || n > sess.written(run.start)+hlsAheadSegs {
-			if err := sess.runLocked(s, n); err != nil {
-				sess.mu.Unlock()
-				return "", err
-			}
-		}
+	sess.last.Store(time.Now().UnixNano())
+	if err := sess.ensureRun(ctx, s, n); err != nil {
+		return "", err
 	}
+	sess.mu.Lock()
 	if sess.waiting == nil {
 		sess.waiting = map[int]int{}
 	}
@@ -358,21 +364,82 @@ func (sess *hlsSession) segment(ctx context.Context, s *Server, n int) (string, 
 	}
 }
 
-// runLocked (re)starts ffmpeg at segment n.
-func (sess *hlsSession) runLocked(s *Server, n int) error {
-	sess.killLocked()
-	ctx, cancel := context.WithCancel(context.Background())
-	in, err := s.ffInputFor(ctx, sess.key.src)
+// ensureRun starts (or moves) the ffmpeg run when segment n is not on its
+// way. The dial (a remote may have no connection free) and the first
+// hardware probe happen outside the lock: the status poll and the session
+// scans read this session meanwhile.
+func (sess *hlsSession) ensureRun(ctx context.Context, s *Server, n int) error {
+	sess.mu.Lock()
+	need := sess.needsRunLocked(n)
+	sess.mu.Unlock()
+	if !need {
+		return nil
+	}
+	in, enc, err := sess.prepare(ctx, s)
 	if err != nil {
-		cancel()
 		return err
 	}
+	sess.mu.Lock()
+	defer sess.mu.Unlock()
+	if sess.stopped { // evicted or reaped during the dial
+		in.done()
+		return errors.New("the transcode was stopped")
+	}
+	if !sess.needsRunLocked(n) { // another request started one meanwhile
+		in.done()
+		return nil
+	}
+	return sess.runLocked(n, in, enc)
+}
+
+// needsRunLocked reports whether segment n needs a run started (or moved)
+// for it: it is not written, and the current run will not write it soon.
+func (sess *hlsSession) needsRunLocked(n int) bool {
+	if sess.ready(n) {
+		return false
+	}
+	run := sess.run
+	return run == nil || !run.running() || n < run.start || n > sess.written(run.start)+hlsAheadSegs
+}
+
+// hlsInput opens the source for a run; a test stands in for the network here.
+var hlsInput = (*Server).ffInputFor
+
+// hlsDialTimeout bounds opening the source for a run, waiting for a free
+// connection to the server included.
+const hlsDialTimeout = 60 * time.Second
+
+// prepare opens the source for a run and picks its encoder. The dial lasts
+// as long as the request asking for it, at most hlsDialTimeout; the run
+// itself outlives the request.
+func (sess *hlsSession) prepare(ctx context.Context, s *Server) (*ffInput, videoEncoder, error) {
+	dctx, cancel := context.WithTimeout(ctx, hlsDialTimeout)
+	defer cancel()
+	in, err := hlsInput(s, dctx, sess.key.src)
+	if err != nil {
+		return nil, videoEncoder{}, err
+	}
+	var enc videoEncoder
+	if !sess.key.copy {
+		enc = playEncoder()
+	}
+	return in, enc, nil
+}
+
+// runLocked (re)starts ffmpeg at segment n, reading in through enc. It owns
+// in from here on.
+func (sess *hlsSession) runLocked(n int, in *ffInput, enc videoEncoder) error {
+	if sess.key.copy && (n < 0 || n >= len(sess.cuts)) {
+		in.done()
+		return errors.New("the file has no keyframe there to cut at")
+	}
+	sess.killLocked()
+	ctx, cancel := context.WithCancel(context.Background())
 	before := []string{"-nostdin", "-progress", "pipe:1"}
 	start, out := strconv.Itoa(n*hlsSegSec), []string(nil)
 	if sess.key.copy {
 		start, out = strconv.FormatFloat(sess.cuts[n], 'f', 3, 64), copyArgs(sess.key, sess.cuts, n, sess.dir)
 	} else {
-		enc := playEncoder()
 		before = append(before, enc.pre...)
 		out = hlsArgs(sess.key, enc, n, sess.dir)
 	}

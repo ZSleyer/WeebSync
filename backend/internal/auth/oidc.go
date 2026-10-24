@@ -256,6 +256,14 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		callbackFail(w, r, "not_configured")
 		return
 	}
+	// an allowlist without the claim to check it against gates nobody, yet
+	// would provision every identity the provider vouches for (the settings
+	// refuse the combination; the environment can still set it)
+	if len(o.userValues) > 0 && o.claim == "" {
+		slog.Warn("oidc allowed values are set but no claim to check them against")
+		callbackFail(w, r, "not_allowed")
+		return
+	}
 	stateCookie, err := r.Cookie("weebsync_oidc_state")
 	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
 		callbackFail(w, r, "invalid_state")
@@ -307,6 +315,9 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	email, _ := claims["email"].(string)
+	// as sent: findOrCreateOIDCUserNew lowercases it, and also looks for an
+	// account an earlier release stored in this spelling
+	email = strings.TrimSpace(email)
 	if email == "" {
 		callbackFail(w, r, "no_email")
 		return
@@ -442,11 +453,25 @@ func findOrCreateOIDCUser(d *sql.DB, email string, admin *bool, gated bool) (int
 	return id, err
 }
 
+// normalizeEmail is the stored spelling of an address the provider sends:
+// the password sign-in lowercases what is typed, and an account stored with
+// capitals counted its failures and its device cookie under another key.
+func normalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
 // findOrCreateOIDCUserNew is findOrCreateOIDCUser that also reports whether
 // the account was created just now.
 func findOrCreateOIDCUserNew(d *sql.DB, email string, admin *bool, gated bool) (int64, bool, error) {
+	sent := strings.TrimSpace(email)
+	email = normalizeEmail(email)
 	var id int64
 	err := d.QueryRow(`SELECT id FROM users WHERE email = ?`, email).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) && sent != email {
+		// stored by an earlier release in the provider's spelling: NOCASE
+		// folds ASCII only, so a non-ASCII capital misses the lowercase lookup
+		err = d.QueryRow(`SELECT id FROM users WHERE email = ?`, sent).Scan(&id)
+	}
 	if err == nil {
 		if admin != nil {
 			if !*admin {

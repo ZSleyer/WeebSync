@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/tmdb"
 )
@@ -343,5 +344,76 @@ func TestAdminMatchesListing(t *testing.T) {
 	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ? AND folder = '/r/C'`, serverID).Scan(&n)
 	if n != 0 {
 		t.Errorf("manual row still present after delete")
+	}
+}
+
+// A failing delete must surface as an error and queue nothing; the deletes
+// run in one transaction before any search is queued.
+func TestAdminRematchDeleteFailure(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+	res, _ := s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'dev', 'sftp', 'example.com', 22, 'u', X'', '/r')`)
+	serverID, _ := res.LastInsertId()
+	for _, f := range []string{"/r/A", "/r/B"} {
+		s.DB.Exec(`INSERT INTO catalog_matches (server_id, folder, media_id, manual, source) VALUES (?, ?, 0, 0, 'tmdb:tv')`, serverID, f)
+	}
+	s.DB.Exec(`CREATE TRIGGER no_del_b BEFORE DELETE ON catalog_matches WHEN OLD.folder = '/r/B'
+		BEGIN SELECT RAISE(ABORT, 'nope'); END`)
+
+	rec := doReq(mux, "POST", "/api/admin/jobs/rematch/run", fmt.Sprintf(`{"serverId":%d}`, serverID), adminC)
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("rematch with failing delete: %d %s, want 500", rec.Code, rec.Body)
+	}
+	var n int
+	s.DB.QueryRow(`SELECT COUNT(*) FROM catalog_matches WHERE server_id = ?`, serverID).Scan(&n)
+	if n != 2 {
+		t.Errorf("rows after rolled-back rematch: %d, want 2 (one transaction)", n)
+	}
+	s.matchMu.Lock()
+	queued := len(s.matchJobs)
+	s.matchMu.Unlock()
+	if queued != 0 {
+		t.Errorf("queued jobs after failure: %d, want 0", queued)
+	}
+
+	// an unreadable table must not read as "0 queued"
+	s.DB.Exec(`DROP TRIGGER no_del_b`)
+	s.DB.Exec(`ALTER TABLE catalog_matches RENAME TO catalog_matches_gone`)
+	rec = doReq(mux, "POST", "/api/admin/jobs/rematch/run", fmt.Sprintf(`{"serverId":%d}`, serverID), adminC)
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("rematch with unreadable table: %d %s, want 500", rec.Code, rec.Body)
+	}
+}
+
+// The TTL update writes only the keys it names: a client changing one cache
+// must not pin the other two defaults as explicit overrides.
+func TestAdminTTLWritesOnlyPresentKeys(t *testing.T) {
+	mux, s, adminC, _ := setupAdminTest(t)
+
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"tmdbH":48}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("set one ttl: %d %s", rec.Code, rec.Body)
+	}
+	for k, want := range map[string]string{"ttl_tmdb_h": "48", "ttl_anilist_h": "", "ttl_plex_h": ""} {
+		if got := db.Setting(s.DB, k); got != want {
+			t.Errorf("%s = %q, want %q", k, got, want)
+		}
+	}
+	// an explicit 0 on one key still resets just that key
+	db.SetSetting(s.DB, "ttl_plex_h", "12")
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"tmdbH":0}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("reset one ttl: %d %s", rec.Code, rec.Body)
+	}
+	if got := db.Setting(s.DB, "ttl_tmdb_h"); got != "0" {
+		t.Errorf("ttl_tmdb_h = %q, want 0", got)
+	}
+	if got := db.Setting(s.DB, "ttl_plex_h"); got != "12" {
+		t.Errorf("ttl_plex_h = %q, an absent key changed", got)
+	}
+	// a refused value writes nothing, even beside a valid key
+	if rec := doReq(mux, "PUT", "/api/admin/ttl", `{"anilistH":5,"plexH":721}`, adminC); rec.Code != http.StatusBadRequest {
+		t.Errorf("ttl above bound: got %d, want 400", rec.Code)
+	}
+	if got := db.Setting(s.DB, "ttl_anilist_h"); got != "" {
+		t.Errorf("ttl_anilist_h = %q after a refused request", got)
 	}
 }

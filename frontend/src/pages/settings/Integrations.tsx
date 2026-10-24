@@ -7,7 +7,7 @@ import './integrations.css'
 import { scrollToSection } from '../../components/ScrollMemory'
 import { api, ApiError, type PlexAccount as PlexAccountT, type PlexLinkStart } from '../../api'
 import { useAiModels } from '../../hooks'
-import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
+import { FieldIssue, SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
 import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { useConfirm } from '../../components/confirm'
@@ -205,12 +205,14 @@ export default function Integrations() {
         rows={3}
         placeholder={'/media/anime => /mnt/disk1/anime\n/media/serien => /mnt/disk2/serien'}
         value={form.plexRoots}
+        issue={issue('plexRoots')}
         onChange={(v) => set('plexRoots', v)}
       />
       <SwitchSetting
         label={t('settings.plexSkipOwned')}
         hint={t('settings.plexSkipOwnedHint')}
         checked={form.plexSkipOwned}
+        issue={issue('plexSkipOwned')}
         onChange={(v) => set('plexSkipOwned', v)}
       />
     </>
@@ -225,7 +227,7 @@ export default function Integrations() {
       <SettingsPanel id="anilist" title="AniList">
         <AnilistAccount />
         <AnilistWrites />
-        <AnilistOwnApp form={form} set={set} locked={locked} clearSecret={clearSecret} />
+        <AnilistOwnApp form={form} set={set} locked={locked} clearSecret={clearSecret} issue={issue} />
       </SettingsPanel>
 
       <SettingsPanel id="tmdb" title="TMDB">
@@ -236,6 +238,7 @@ export default function Integrations() {
           env={locked('tmdbApiKey')}
           stored={form.tmdbApiKeySet}
           value={form.tmdbApiKey ?? ''}
+          issue={issue('tmdbApiKey')}
           onChange={(v) => set('tmdbApiKey', v)}
           onRemove={() => clearSecret('tmdbApiKey')}
         />
@@ -249,6 +252,7 @@ export default function Integrations() {
           env={locked('tvdbApiKey')}
           stored={form.tvdbApiKeySet}
           value={form.tvdbApiKey ?? ''}
+          issue={issue('tvdbApiKey')}
           onChange={(v) => set('tvdbApiKey', v)}
           onRemove={() => clearSecret('tvdbApiKey')}
         />
@@ -262,6 +266,7 @@ export default function Integrations() {
           env={locked('animescheduleToken')}
           stored={form.animescheduleTokenSet}
           value={form.animescheduleToken ?? ''}
+          issue={issue('animescheduleToken')}
           onChange={(v) => set('animescheduleToken', v)}
           onRemove={() => clearSecret('animescheduleToken')}
         />
@@ -318,6 +323,7 @@ export default function Integrations() {
             mono
             placeholder="https://plex.example.com"
             value={form.plexUrl}
+            issue={issue('plexUrl')}
             onChange={(v) => set('plexUrl', v)}
           />
           <SecretSetting
@@ -326,6 +332,7 @@ export default function Integrations() {
             env={locked('plexToken')}
             stored={form.plexTokenSet}
             value={form.plexToken ?? ''}
+            issue={issue('plexToken')}
             onChange={(v) => set('plexToken', v)}
             onRemove={() => clearSecret('plexToken')}
           />
@@ -364,6 +371,7 @@ export default function Integrations() {
             env={locked('jellyfinToken')}
             stored={form.jellyfinTokenSet}
             value={form.jellyfinToken ?? ''}
+            issue={issue('jellyfinToken')}
             onChange={(v) => set('jellyfinToken', v)}
             onRemove={() => clearSecret('jellyfinToken')}
           />
@@ -371,7 +379,7 @@ export default function Integrations() {
         {active === 'jellyfin' && library}
       </SettingsPanel>
 
-      <ArrPanel form={form} set={set} />
+      <ArrPanel form={form} set={set} issue={issue} />
 
       <SettingsPanel id="ai" title={t('settings.ai')}>
         <AiAccount />
@@ -391,10 +399,16 @@ export default function Integrations() {
           env={locked('aiApiKey')}
           stored={form.aiApiKeySet}
           value={form.aiApiKey ?? ''}
+          issue={issue('aiApiKey')}
           onChange={(v) => set('aiApiKey', v)}
           onRemove={() => clearSecret('aiApiKey')}
         />
-        <AiModelField value={form.aiModel} locked={locked('aiModel')} onChange={(m) => set('aiModel', m)} />
+        <AiModelField
+          value={form.aiModel}
+          locked={locked('aiModel')}
+          issue={issue('aiModel')}
+          onChange={(m) => set('aiModel', m)}
+        />
         <TextSetting
           label={t('settings.aiSearchUrl')}
           hint={t('settings.aiSearchUrlHint')}
@@ -648,11 +662,13 @@ function AnilistOwnApp({
   set,
   locked,
   clearSecret,
+  issue,
 }: {
   form: SettingsState
   set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
   locked: (k: keyof SettingsState) => boolean
   clearSecret: (k: keyof SettingsState) => void
+  issue: (k: keyof SettingsState) => string | undefined
 }) {
   const { t } = useTranslation()
   const { data } = useQuery(ANILIST_ME)
@@ -666,6 +682,7 @@ function AnilistOwnApp({
           env={locked('anilistClientId')}
           mono
           value={form.anilistClientId}
+          issue={issue('anilistClientId')}
           onChange={(v) => set('anilistClientId', v)}
         />
         <SecretSetting
@@ -673,6 +690,7 @@ function AnilistOwnApp({
           env={locked('anilistClientSecret')}
           stored={form.anilistSecretSet}
           value={form.anilistClientSecret ?? ''}
+          issue={issue('anilistClientSecret')}
           onChange={(v) => set('anilistClientSecret', v)}
           onRemove={() => clearSecret('anilistClientSecret')}
         />
@@ -683,6 +701,7 @@ function AnilistOwnApp({
         mono
         placeholder={`${window.location.origin}/api/anilist/callback`}
         value={form.anilistRedirectUrl}
+        issue={issue('anilistRedirectUrl')}
         onChange={(v) => set('anilistRedirectUrl', v)}
       />
       {/* OAuth redirect: belongs to the own-app path, needs a saved secret */}
@@ -711,18 +730,34 @@ function PlexWatchlistAccount() {
   const timer = useRef<ReturnType<typeof setInterval>>(undefined)
   const fail = useFailToast()
 
-  useEffect(() => () => clearInterval(timer.current), [])
+  // false once the panel is gone: a start still awaiting must not begin polling
+  const alive = useRef(true)
+  useEffect(() => {
+    alive.current = true
+    return () => {
+      alive.current = false
+      clearInterval(timer.current)
+    }
+  }, [])
 
   const start = async () => {
+    // the tab opens inside the click, while the browser still counts it as
+    // the user's own; it gets its address once the server has answered
+    const tab = window.open('', '_blank')
     let p: PlexLinkStart
     try {
       p = await api.post<PlexLinkStart>('/api/plex/link/start')
     } catch (e) {
+      tab?.close()
       return fail(e)
     }
+    if (!alive.current) return tab?.close()
     setPin(p)
     setExpired(false)
-    window.open(p.url, '_blank', 'noopener')
+    if (tab) {
+      tab.opener = null
+      tab.location.href = p.url
+    }
     clearInterval(timer.current)
     // the server forgets a link request after ten minutes and answers 404
     // from then on; polling stops there instead of asking every 2 s forever
@@ -749,8 +784,16 @@ function PlexWatchlistAccount() {
   }
 
   const unlink = async () => {
-    await api.del('/api/plex/account')
+    try {
+      await api.del('/api/plex/account')
+    } catch (e) {
+      return fail(e)
+    }
     qc.invalidateQueries({ queryKey: ['plex-account'] })
+  }
+  const cancel = () => {
+    clearInterval(timer.current)
+    setPin(null)
   }
 
   return (
@@ -765,7 +808,16 @@ function PlexWatchlistAccount() {
           </Button>
         </>
       ) : pin ? (
-        <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+        <>
+          <span>{t('settings.plexWatchlistPending', { code: pin.code })}</span>
+          {/* the way on when the browser held the tab back */}
+          <a className="t-link" href={pin.url} target="_blank" rel="noreferrer">
+            {t('settings.plexWatchlistOpen')}
+          </a>
+          <Button size="sm" onClick={cancel}>
+            {t('common.cancel')}
+          </Button>
+        </>
       ) : (
         <>
           <Button size="sm" onClick={start}>
@@ -784,8 +836,13 @@ function JellyfinFavoritesAccount() {
   const { t } = useTranslation()
   const qc = useQueryClient()
   const { data } = useQuery<PlexAccountT>({ queryKey: ['plex-account'], queryFn: () => api.get('/api/plex/account') })
+  const fail = useFailToast()
   const unlink = async () => {
-    await api.del('/api/plex/account')
+    try {
+      await api.del('/api/plex/account')
+    } catch (e) {
+      return fail(e)
+    }
     qc.invalidateQueries({ queryKey: ['plex-account'] })
   }
   if (data?.linked) {
@@ -844,9 +901,11 @@ function PlexAccount({ kind }: { kind: 'plex' | 'jellyfin' }) {
 function ArrPanel({
   form,
   set,
+  issue,
 }: {
   form: SettingsState
   set: <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => void
+  issue: (k: keyof SettingsState) => string | undefined
 }) {
   const { t } = useTranslation()
   const confirm = useConfirm()
@@ -939,7 +998,12 @@ function ArrPanel({
               value={key}
               onFocus={(e) => e.target.select()}
             />
-            <Button size="sm" className="shrink-0" onClick={() => copy('key', key)}>
+            <Button
+              size="sm"
+              className="shrink-0"
+              aria-label={`${t('settings.apiTokenCopy')}: ${t('settings.arrKeyShowOnce')}`}
+              onClick={() => copy('key', key)}
+            >
               {t('settings.apiTokenCopy')}
             </Button>
           </div>
@@ -959,6 +1023,7 @@ function ArrPanel({
             mono
             placeholder="/media/downloads"
             value={form.arrCompleteDir}
+            issue={issue('arrCompleteDir')}
             onChange={(v) => set('arrCompleteDir', v)}
           />
           <ListSetting
@@ -967,6 +1032,7 @@ function ArrPanel({
             rows={2}
             placeholder="/data => /mnt/media"
             value={form.arrRoots}
+            issue={issue('arrRoots')}
             onChange={(v) => set('arrRoots', v)}
           />
           <SettingsField label={t('settings.arrSetup')} hint={t('settings.arrSetupHint')}>
@@ -976,7 +1042,12 @@ function ArrPanel({
                   <dt>{label}</dt>
                   <dd>
                     <code>{value}</code>
-                    <Button size="sm" className="shrink-0" onClick={() => copy(id, value)}>
+                    <Button
+                      size="sm"
+                      className="shrink-0"
+                      aria-label={`${t('settings.apiTokenCopy')}: ${label}`}
+                      onClick={() => copy(id, value)}
+                    >
                       {t('settings.apiTokenCopy')}
                     </Button>
                   </dd>
@@ -1089,7 +1160,17 @@ function AnimescheduleAccount() {
 // The model field: a dropdown of what the saved endpoint serves, with the
 // stored value kept as an option when the list no longer has it; a plain
 // input while no list is available (endpoint not saved yet, or failing).
-function AiModelField({ value, locked, onChange }: { value: string; locked: boolean; onChange: (m: string) => void }) {
+function AiModelField({
+  value,
+  locked,
+  issue,
+  onChange,
+}: {
+  value: string
+  locked: boolean
+  issue?: string
+  onChange: (m: string) => void
+}) {
   const { t } = useTranslation()
   const { data, isFetching, refetch } = useAiModels()
   const models = data?.models ?? []
@@ -1109,6 +1190,8 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
             wrapperClassName="min-w-0 flex-1"
             value={value}
             disabled={locked}
+            aria-invalid={issue ? true : undefined}
+            aria-describedby={issue ? 'ai-model-i' : undefined}
             onChange={(e) => onChange(e.target.value)}
           >
             {options.map((m) => (
@@ -1125,6 +1208,8 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
             placeholder="gpt-4o-mini"
             value={value}
             readOnly={locked}
+            aria-invalid={issue ? true : undefined}
+            aria-describedby={issue ? 'ai-model-i' : undefined}
             onChange={(e) => onChange(e.target.value)}
           />
         )}
@@ -1134,6 +1219,7 @@ function AiModelField({ value, locked, onChange }: { value: string; locked: bool
           </Button>
         )}
       </div>
+      <FieldIssue id="ai-model-i" msg={issue} />
       {data?.error && (
         <p className="sf-issue" role="alert">
           {data.error}

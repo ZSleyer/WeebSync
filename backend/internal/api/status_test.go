@@ -41,3 +41,33 @@ func TestStatusCarriesAttentionAndJobs(t *testing.T) {
 		t.Errorf("nextReleases missing, want an empty list, not null")
 	}
 }
+
+// A row the status cannot read must fail the poll: a sensor that silently
+// drops rows or reports "nothing needs attention" hides the fault.
+func TestStatusReadFailuresAreErrors(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+	s.DownloadRoot = t.TempDir()
+
+	s.DB.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+	s.DB.Exec(`INSERT INTO watches (user_id, server_id, remote_path, local_path, mode, template, title_override, last_result)
+		VALUES (1, 1, '/x/Show', 'Show', 'template', 'Show - E{episode:02}', 'Show', 'connect refused')`)
+	if rec := doReq(mux, "GET", "/api/status", "", adminC); rec.Code != 200 {
+		t.Fatalf("baseline status: got %d: %s", rec.Code, rec.Body)
+	}
+
+	// only the attention aggregate (watchesFor) reads check_attempts
+	s.DB.Exec(`UPDATE watches SET check_attempts = 'abc'`)
+	if rec := doReq(mux, "GET", "/api/status", "", adminC); rec.Code != 500 {
+		t.Errorf("unreadable watch for the attention aggregate: got %d %s, want 500", rec.Code, rec.Body)
+	}
+	s.DB.Exec(`UPDATE watches SET check_attempts = 0`)
+
+	// a download row that does not scan must not just vanish from the list
+	s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, size)
+		VALUES (1, 1, '/x/a.mkv', 'a.mkv', 'queued', 'abc')`)
+	if rec := doReq(mux, "GET", "/api/status", "", adminC); rec.Code != 500 {
+		t.Errorf("unreadable download row: got %d %s, want 500", rec.Code, rec.Body)
+	}
+}

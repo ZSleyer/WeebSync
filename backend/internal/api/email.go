@@ -244,7 +244,7 @@ func (s *Server) reissueVerify(userID int64, email string) {
 	if n, _ := res.RowsAffected(); n == 1 {
 		var locale string
 		_ = s.DB.QueryRow(`SELECT locale FROM users WHERE id = ?`, userID).Scan(&locale) // empty = default language
-		go s.sendVerifyEmail(email, token, locale)
+		s.spawn(func() { s.sendVerifyEmail(email, token, locale) })
 	}
 }
 
@@ -376,11 +376,11 @@ func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody str
 	if err != nil || verified == 0 || email == "" || !slices.Contains(splitPrefs(prefs), category) {
 		return
 	}
-	go func() {
+	s.spawn(func() {
 		if err := s.Mail.Send(email, "WeebSync – "+subject, body, htmlBody); err != nil {
 			slog.Warn("notify email", "to", email, "err", err)
 		}
-	}()
+	})
 }
 
 // digestQuiet: how long nothing new may arrive before the collected downloads
@@ -389,6 +389,20 @@ func (s *Server) EmailNotify(userID int64, category, subject, body, htmlBody str
 // once when it is done, not in instalments while it is still working.
 // A var so tests do not have to wait a minute.
 var digestQuiet = 1 * time.Minute
+
+// digestMaxWait caps how long a digest can be held back from its first item:
+// the quiet period restarts with every download and the flush waits for the
+// queue, so a daily auto-sync or a long sweep would otherwise never report. A
+// user on a slower frequency keeps their own (longer) period. A var so tests
+// do not have to wait.
+var digestMaxWait = time.Hour
+
+// digestDelay is how long to wait before the next flush attempt: the quiet
+// period, but never past the cap counted from the first collected item.
+func digestDelay(first time.Time, quiet time.Duration) time.Duration {
+	deadline := first.Add(max(digestMaxWait, quiet))
+	return max(min(quiet, time.Until(deadline)), 0)
+}
 
 // digestItem is one finished/failed download waiting for the digest flush.
 type digestItem struct {
@@ -401,6 +415,8 @@ type digestItem struct {
 	// itself is raw Go text in the language of the kernel; a code the catalog
 	// knows becomes a sentence in the reader's language instead.
 	code string
+	// at is when the item was collected; the first one bounds the wait
+	at time.Time
 }
 
 // reason is what a failed item says about itself, in the reader's language
@@ -427,19 +443,21 @@ func (s *Server) NotifyDownload(userID int64, category string, it digestItem) {
 		s.digest = map[string][]digestItem{}
 		s.digestTimer = map[string]*time.Timer{}
 	}
+	it.at = time.Now()
 	s.digest[key] = append(s.digest[key], it)
 	// every new item pushes the flush back, so a running sync keeps the
-	// notification held until it goes quiet
+	// notification held until it goes quiet - up to digestMaxWait
 	if t := s.digestTimer[key]; t != nil {
 		t.Stop()
 	}
-	s.digestTimer[key] = time.AfterFunc(s.notifyQuiet(userID), func() { s.flushDigest(key, userID, category) })
+	delay := digestDelay(s.digest[key][0].at, s.notifyQuiet(userID))
+	s.digestTimer[key] = time.AfterFunc(delay, func() { s.flushDigest(key, userID, category) })
 	s.digestMu.Unlock()
 }
 
 // flushDigest sends what the collector holds for one user+category, but only
 // once the download queue has run dry; while anything is still queued or
-// running it waits another round instead.
+// running it waits another round instead, until digestMaxWait is reached.
 func (s *Server) flushDigest(key string, userID int64, category string) {
 	s.digestMu.Lock()
 	items := s.digest[key]
@@ -449,9 +467,12 @@ func (s *Server) flushDigest(key string, userID int64, category string) {
 		s.digestMu.Unlock()
 		return
 	case s.downloadsPending():
-		s.digestTimer[key] = time.AfterFunc(s.notifyQuiet(userID), func() { s.flushDigest(key, userID, category) })
-		s.digestMu.Unlock()
-		return
+		// past the cap the digest goes out even while the queue works
+		if delay := digestDelay(items[0].at, s.notifyQuiet(userID)); delay > 0 {
+			s.digestTimer[key] = time.AfterFunc(delay, func() { s.flushDigest(key, userID, category) })
+			s.digestMu.Unlock()
+			return
+		}
 	}
 	delete(s.digest, key)
 	delete(s.digestTimer, key)
@@ -600,8 +621,8 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 		slog.Warn("admin notify email: read recipients", "err", err)
 		return // a partial list would silently skip admins
 	}
-	for _, to := range recipients {
-		go func(rc recipient) {
+	for _, rc := range recipients {
+		s.spawn(func() {
 			if rc.locale != "de" {
 				rc.locale = "en"
 			}
@@ -611,7 +632,7 @@ func (s *Server) EmailNotifyAdmins(category, subjectKey, bodyKey string, args ..
 			if err := s.Mail.Send(rc.email, "WeebSync – "+subject, body, htmlBody); err != nil {
 				slog.Warn("admin notify email", "to", rc.email, "err", err)
 			}
-		}(to)
+		})
 	}
 }
 
@@ -761,7 +782,7 @@ func (s *Server) mailApproved(userID int64) {
 	if s.DB.QueryRow(`SELECT email, locale FROM users WHERE id = ?`, userID).Scan(&to, &locale) != nil {
 		return
 	}
-	go func() {
+	s.spawn(func() {
 		subject := tr(locale, "email.approvedSubject")
 		body := tr(locale, "email.approvedBody")
 		if base := s.baseURL(); base != "" {
@@ -770,5 +791,5 @@ func (s *Server) mailApproved(userID int64) {
 		if err := s.Mail.Send(to, "WeebSync – "+subject, body, emailHTML(locale, body, subject, emailLines([]string{body}), "", "")); err != nil {
 			slog.Warn("approval mail", "err", err)
 		}
-	}()
+	})
 }

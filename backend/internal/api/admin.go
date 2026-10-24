@@ -124,6 +124,13 @@ type adminTTLInfo struct {
 	PlexH    int `json:"plexH"`
 }
 
+// adminTTLRequest is a partial TTL update: a key left out keeps its value.
+type adminTTLRequest struct {
+	AnilistH *int `json:"anilistH,omitempty"`
+	TmdbH    *int `json:"tmdbH,omitempty"`
+	PlexH    *int `json:"plexH,omitempty"`
+}
+
 type adminPlexInfo struct {
 	Configured    bool   `json:"configured"`
 	SuggestionsAt string `json:"suggestionsAt"`
@@ -357,10 +364,20 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "serverId required")
 			return
 		}
-		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: s.rematchServer(in.ServerID, in.All)})
+		n, err := s.rematchServer(in.ServerID, in.All)
+		if err != nil {
+			dbErrDetail(w, "rematch", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: n})
 
 	case "rematch-all":
-		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: s.rematchAll(in.All)})
+		n, err := s.rematchAll(in.All)
+		if err != nil {
+			dbErrDetail(w, "rematch", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, jobQueuedResponse{Queued: n})
 
 	default:
 		writeErr(w, http.StatusNotFound, "unknown job")
@@ -370,8 +387,9 @@ func (s *Server) handleAdminJobRun(w http.ResponseWriter, r *http.Request) {
 // rematchAll is the sledgehammer: re-queue automatic matches on every server
 // plus the local filesystem (id 0). Used to force old matches onto the new
 // series structure when the self-healing sweep is too slow, and by the data
-// reset to refill what it just emptied. Returns the total queued.
-func (s *Server) rematchAll(all bool) int {
+// reset to refill what it just emptied. Returns the total queued; a failing
+// server stops the run with the error (what was queued so far stays queued).
+func (s *Server) rematchAll(all bool) (int, error) {
 	// a failed read leaves only the local filesystem to re-queue
 	ids, err := s.serverIDs()
 	if err != nil {
@@ -380,30 +398,46 @@ func (s *Server) rematchAll(all bool) int {
 	ids = append(ids, localServerID)
 	total := 0
 	for _, id := range ids {
-		total += s.rematchServer(id, all)
+		n, err := s.rematchServer(id, all)
+		total += n
+		if err != nil {
+			return total, err
+		}
 	}
-	return total
+	return total, nil
 }
 
 // rematchServer re-queues a server's automatic matches with a forced (cache-
 // bypassing) search - by default only "no match" rows, with all=true every
 // automatic match. Manual rows (manual=1) are left alone. Returns the count.
 // Dropping the row makes the catalog show these as pending while the forced
-// search runs, same as handleCatalogRematch.
-func (s *Server) rematchServer(serverID int64, all bool) int {
+// search runs, same as handleCatalogRematch. The rows go in one transaction
+// BEFORE the searches are queued, so a result the worker writes quickly can
+// never be deleted again; a read or delete failure queues nothing.
+func (s *Server) rematchServer(serverID int64, all bool) (int, error) {
 	cond := "AND media_id = 0"
 	if all {
 		cond = ""
 	}
 	// deletes only the rows it read, so a short list does no harm
-	matches, _ := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
-	s.queueMatches(matches)
-	for _, m := range matches {
-		// a row that stays is replaced by the queued search's result anyway
-		_, _ = s.DB.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
-			m.serverID, m.folder)
+	matches, err := s.automaticMatches(`server_id = ? AND manual = 0 `+cond, serverID)
+	if err != nil {
+		return 0, err
 	}
-	return len(matches)
+	err = db.Tx(s.DB, func(tx *sql.Tx) error {
+		for _, m := range matches {
+			if _, err := tx.Exec(`DELETE FROM catalog_matches WHERE server_id = ? AND folder = ? AND manual = 0`,
+				m.serverID, m.folder); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	s.queueMatches(matches)
+	return len(matches), nil
 }
 
 // catalogMatch is one folder waiting to be searched again.
@@ -688,14 +722,14 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAdminTTL sets the cache TTL overrides in hours (0 = default).
-// PUT /api/admin/ttl {"anilistH":24,"tmdbH":24,"plexH":6}
+// PUT /api/admin/ttl {"tmdbH":24} (only the keys present are written)
 //
 // @Summary      Set cache TTL overrides
-// @Description  Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only.
+// @Description  Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only. Only the keys present in the body are written; absent keys keep their stored value.
 // @Tags         Admin
 // @Accept       json
 // @Produce      json
-// @Param        request  body      adminTTLInfo  true  "TTL overrides in hours"
+// @Param        request  body      adminTTLRequest  true  "TTL overrides in hours; keys left out keep their value"
 // @Success      200  {object}  OkResponse
 // @Failure      400  {object}  ErrorResponse
 // @Failure      401  {object}  ErrorResponse
@@ -705,22 +739,24 @@ func (s *Server) handleAdminMatches(w http.ResponseWriter, r *http.Request) {
 // @Security     CookieAuth
 // @Router       /api/admin/ttl [put]
 func (s *Server) handleAdminTTL(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		AnilistH int `json:"anilistH"`
-		TmdbH    int `json:"tmdbH"`
-		PlexH    int `json:"plexH"`
-	}
+	// only the keys the body names are written, so a client changing one
+	// cache does not pin the other defaults as explicit overrides
+	var in adminTTLRequest
 	if !readJSON(w, r, &in) {
 		return
 	}
-	for _, v := range []int{in.AnilistH, in.TmdbH, in.PlexH} {
-		if v < 0 || v > 720 {
+	keys := map[string]*int{"ttl_anilist_h": in.AnilistH, "ttl_tmdb_h": in.TmdbH, "ttl_plex_h": in.PlexH}
+	for _, v := range keys {
+		if v != nil && (*v < 0 || *v > 720) {
 			writeErr(w, http.StatusBadRequest, "hours must be 0..720 (0 = default)")
 			return
 		}
 	}
-	for k, v := range map[string]int{"ttl_anilist_h": in.AnilistH, "ttl_tmdb_h": in.TmdbH, "ttl_plex_h": in.PlexH} {
-		if err := db.SetSetting(s.DB, k, strconv.Itoa(v)); err != nil {
+	for k, v := range keys {
+		if v == nil {
+			continue
+		}
+		if err := db.SetSetting(s.DB, k, strconv.Itoa(*v)); err != nil {
 			dbErrDetail(w, "save "+k, err)
 			return
 		}

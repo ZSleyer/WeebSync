@@ -136,10 +136,13 @@ func (c *Client) UserList(ctx context.Context, token string, anilistUserID int) 
 	return list, nil
 }
 
-// InvalidateUserList drops the cached list (after progress mutations).
+// InvalidateUserList ages the cached list past its lifetime (after progress
+// mutations): UserList refetches it, while the readers that never fetch
+// (CachedUserList) keep the previous list instead of seeing an empty one until
+// the rebuild lands.
 func (c *Client) InvalidateUserList(anilistUserID int) {
-	// a failed drop leaves the list to age out on its TTL
-	_, _ = c.DB.Exec(`DELETE FROM anilist_cache WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID))
+	// a failed aging leaves the list to expire on its TTL
+	_, _ = c.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key = ?`, fmt.Sprintf("alist2:%d", anilistUserID))
 }
 
 // CachedUserList returns the cached list without fetching (may be stale).

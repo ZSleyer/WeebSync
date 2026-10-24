@@ -20,6 +20,23 @@ import (
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
+// writeAnilistErr answers a failed AniList call: a rate limit is the caller's
+// to retry (503 with the wait), a record AniList lacks is a 404, anything else
+// a bad gateway.
+func writeAnilistErr(w http.ResponseWriter, err error) {
+	var rl *anilist.RateLimitError
+	if errors.As(err, &rl) {
+		w.Header().Set("Retry-After", strconv.Itoa(int(rl.RetryAfter.Seconds())+1))
+		writeErr(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
+	if errors.Is(err, anilist.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeErr(w, http.StatusBadGateway, err.Error())
+}
+
 // handleAnilistSearch searches AniList by title for the match dialog.
 //
 //	@Summary		Search AniList
@@ -32,6 +49,7 @@ import (
 //	@Failure		400	{object}	ErrorResponse
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
+//	@Failure		503		{object}	ErrorResponse
 //	@Router			/api/anilist/search [get]
 func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
@@ -42,7 +60,7 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Query().Get("type") == "manga" {
 		res, err := s.Anilist.SearchBatch(r.Context(), []anilist.SearchReq{{Query: q, Manga: true}})
 		if err != nil {
-			writeErr(w, http.StatusBadGateway, err.Error())
+			writeAnilistErr(w, err)
 			return
 		}
 		writeJSON(w, http.StatusOK, append([]anilist.Media{}, res[0]...))
@@ -50,7 +68,7 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	list, err := s.Anilist.Search(r.Context(), q)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, list)
@@ -64,14 +82,21 @@ func (s *Server) handleAnilistSearch(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Param			id	path		int	true	"AniList media id"
 //	@Success		200	{object}	anilist.Media
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		404	{object}	ErrorResponse
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
+//	@Failure		503	{object}	ErrorResponse
 //	@Router			/api/anilist/media/{id} [get]
 func (s *Server) handleAnilistMedia(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.Atoi(r.PathValue("id"))
+	if id <= 0 {
+		writeErr(w, http.StatusBadRequest, "id required")
+		return
+	}
 	m, err := s.Anilist.Media(r.Context(), id)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, m)
@@ -369,7 +394,7 @@ func (s *Server) matchBatch(batch []matchJob) {
 				"candidates", len(results[i]), "reason", "no confident candidate")
 		}
 	}
-	s.fixSequelPicks(ctx, infos, picked, rescue)
+	unjudged := s.fixSequelPicks(ctx, infos, picked, rescue)
 	gateAutoPicks(batch, infos, picked)
 	var unmatched []int
 	for i, b := range batch {
@@ -382,6 +407,11 @@ func (s *Server) matchBatch(batch []matchJob) {
 		// the cache) says nothing: the stored match stays, the next poll asks
 		if picked[i] == nil && searchFailed(trace[i]) {
 			slog.Debug("match skipped", "folder", logSafe(b.folder), "reason", "a search failed")
+			continue
+		}
+		// likewise a relations lookup that failed on the pick it was to confirm
+		if picked[i] == nil && unjudged[i] {
+			slog.Debug("match skipped", "folder", logSafe(b.folder), "reason", "the relations lookup failed")
 			continue
 		}
 		mediaID := 0
@@ -587,7 +617,12 @@ func (s *Server) searchChain(ctx context.Context, batch []matchJob) ([][]anilist
 // Confident picks are never dropped (never worse than today's first hit);
 // rescue picks (below the confidence threshold) survive only when the
 // relations confirm them.
-func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked []*anilist.Media, rescue []bool) {
+//
+// The returned slice marks the rescue picks dropped because a relations call
+// failed (rate limit, AniList down): that says nothing about the folder, so
+// the caller must not store it as "no match".
+func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked []*anilist.Media, rescue []bool) []bool {
+	unjudged := make([]bool, len(picked))
 	var fix []int
 	frontier := map[int]bool{}
 	for i, m := range picked {
@@ -597,8 +632,9 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		}
 	}
 	if len(fix) == 0 {
-		return
+		return unjudged
 	}
+	relErr := false
 	rels := map[int][]anilist.Relation{}
 	for range [3]int{} {
 		var ids []int
@@ -622,6 +658,7 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 			}
 		}
 		if err != nil {
+			relErr = true
 			break // judge with what we have
 		}
 	}
@@ -630,6 +667,7 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 		if !known {
 			if rescue[i] {
 				picked[i] = nil // unconfirmed low-score pick
+				unjudged[i] = relErr
 			}
 			continue
 		}
@@ -643,10 +681,12 @@ func (s *Server) fixSequelPicks(ctx context.Context, infos []match.Info, picked 
 				"season", infos[i].Season, "base", base)
 		} else if rescue[i] {
 			picked[i] = nil
+			unjudged[i] = relErr
 			slog.Debug("sequel chain unresolved", "base", base, "season", infos[i].Season,
 				"reason", "no season entry in chain, rescue dropped")
 		}
 	}
+	return unjudged
 }
 
 // seasonTarget scans a SEQUEL chain (base first) for the entry representing
@@ -1286,6 +1326,11 @@ func (s *Server) handleCatalogMatch(w http.ResponseWriter, r *http.Request) {
 	}
 	if in.Folder == "" || path.Clean(in.Folder) != in.Folder {
 		writeErr(w, http.StatusBadRequest, "invalid folder")
+		return
+	}
+	// 0 clears the match; a negative id would count as matched and never resolve
+	if in.MediaID < 0 {
+		writeErr(w, http.StatusBadRequest, "invalid mediaId")
 		return
 	}
 	// ownership check: the server must belong to the user. The local pseudo

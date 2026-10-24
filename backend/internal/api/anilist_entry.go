@@ -94,12 +94,12 @@ func (s *Server) anilistEntryOf(w http.ResponseWriter, ctx context.Context, user
 	out := anilistEntryResponse{Linked: true, CanEdit: s.anilistPerms(userID).List}
 	format, err := s.Anilist.ScoreFormat(ctx, token, alID)
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return out, false
 	}
 	out.ScoreFormat = format
 	if out.Entry, err = s.Anilist.ListEntry(ctx, token, alID, mediaID); err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return out, false
 	}
 	out.Episodes = s.mediaEpisodes(ctx, mediaID)
@@ -156,7 +156,7 @@ func (s *Server) handleAnilistEntrySave(w http.ResponseWriter, r *http.Request) 
 		Status: in.Status, Progress: in.Progress, ScoreRaw: in.ScoreRaw,
 	})
 	if err != nil {
-		writeErr(w, http.StatusBadGateway, err.Error())
+		writeAnilistErr(w, err)
 		return
 	}
 	s.Anilist.InvalidateUserList(alID)
@@ -198,7 +198,7 @@ func (s *Server) handleAnilistEntryDelete(w http.ResponseWriter, r *http.Request
 	}
 	if out.Entry != nil {
 		if err := s.Anilist.DeleteListEntry(r.Context(), token, out.Entry.ID); err != nil {
-			writeErr(w, http.StatusBadGateway, err.Error())
+			writeAnilistErr(w, err)
 			return
 		}
 		s.Anilist.InvalidateUserList(alID)
@@ -212,7 +212,10 @@ func (s *Server) handleAnilistEntryDelete(w http.ResponseWriter, r *http.Request
 // page keeps showing it and rebuilds it in the background, now without the
 // title that left the list or changed its status.
 func (s *Server) staleUserSuggestions(userID int64) {
+	// the mark first, like staleSuggestions: a build already running must see it
+	// came too early
+	s.markSuggestionsAged()
 	// a cache touch: when it fails the blob simply ages out on its own
-	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key = ?`,
-		"suggestions:"+strconv.FormatInt(userID, 10))
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`,
+		suggestStaleAt, "suggestions:"+strconv.FormatInt(userID, 10))
 }

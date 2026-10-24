@@ -1666,7 +1666,6 @@
                 "type": "object"
             },
             "api.LibraryRoots": {
-                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
                 "properties": {
                     "roots": {
                         "items": {
@@ -2862,7 +2861,7 @@
                         "type": "string"
                     },
                     "replace": {
-                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace).",
+                        "description": "Replace: the copy this sync improves on is trashed once the new file is\nin place (upgrades only; a missing episode has nothing to replace). Sent\nwhen false too: the upgrade card reads a missing value as true.",
                         "type": "boolean"
                     },
                     "separator": {
@@ -2884,7 +2883,8 @@
                 },
                 "required": [
                     "localPath",
-                    "subfolder"
+                    "subfolder",
+                    "replace"
                 ],
                 "type": "object"
             },
@@ -4193,6 +4193,20 @@
                     "tmdbH",
                     "plexH"
                 ],
+                "type": "object"
+            },
+            "api.adminTTLRequest": {
+                "properties": {
+                    "anilistH": {
+                        "type": "integer"
+                    },
+                    "plexH": {
+                        "type": "integer"
+                    },
+                    "tmdbH": {
+                        "type": "integer"
+                    }
+                },
                 "type": "object"
             },
             "api.adminWatchInfo": {
@@ -7739,12 +7753,20 @@
                         "type": "array",
                         "uniqueItems": false
                     },
+                    "trendingError": {
+                        "description": "TrendingError: \"unavailable\" when the trending list could not be read",
+                        "type": "string"
+                    },
                     "watchlist": {
                         "items": {
                             "$ref": "#/components/schemas/api.tmdbSuggestion"
                         },
                         "type": "array",
                         "uniqueItems": false
+                    },
+                    "watchlistError": {
+                        "description": "WatchlistError: \"unauthorized\" when TMDB no longer accepts the linked\nsession (link again), \"unavailable\" when the list could not be read",
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -9697,6 +9719,16 @@
                             }
                         },
                         "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
                     }
                 },
                 "security": [
@@ -9712,7 +9744,7 @@
         },
         "/api/admin/ttl": {
             "put": {
-                "description": "Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only.",
+                "description": "Sets the cache TTL overrides in hours, 0..720 (0 = default), admin only. Only the keys present in the body are written; absent keys keep their stored value.",
                 "requestBody": {
                     "content": {
                         "application/json": {
@@ -9722,15 +9754,15 @@
                                         "type": "object"
                                     },
                                     {
-                                        "$ref": "#/components/schemas/api.adminTTLInfo",
-                                        "description": "TTL overrides in hours",
+                                        "$ref": "#/components/schemas/api.adminTTLRequest",
+                                        "description": "TTL overrides in hours; keys left out keep their value",
                                         "summary": "request"
                                     }
                                 ]
                             }
                         }
                     },
-                    "description": "TTL overrides in hours",
+                    "description": "TTL overrides in hours; keys left out keep their value",
                     "required": true
                 },
                 "responses": {
@@ -10815,6 +10847,26 @@
                         },
                         "description": "OK"
                     },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
@@ -10824,6 +10876,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -11044,6 +11106,16 @@
                             }
                         },
                         "description": "Bad Gateway"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Service Unavailable"
                     }
                 },
                 "security": [
@@ -11135,6 +11207,16 @@
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
                     },
                     "502": {
                         "content": {
@@ -11803,7 +11885,7 @@
         },
         "/api/auth/logout": {
             "post": {
-                "description": "Destroys the current session and clears the session cookie.",
+                "description": "Destroys the current session, removes the push subscription made in it and clears the session cookie.",
                 "responses": {
                     "200": {
                         "content": {
@@ -13795,7 +13877,7 @@
                         }
                     },
                     {
-                        "description": "display name for the credential",
+                        "description": "display name for the credential, percent-encoded (UTF-8)",
                         "in": "header",
                         "name": "X-WA-Name",
                         "schema": {
@@ -16138,6 +16220,16 @@
                             }
                         },
                         "description": "Bad Request"
+                    },
+                    "502": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Gateway"
                     }
                 },
                 "security": [
@@ -17686,6 +17778,16 @@
                             }
                         },
                         "description": "Unsupported Media Type"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
                     }
                 },
                 "security": [
@@ -19738,6 +19840,50 @@
             }
         },
         "/api/settings": {
+            "get": {
+                "description": "Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.settingsPayload"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Get settings",
+                "tags": [
+                    "Settings"
+                ]
+            },
             "put": {
                 "description": "Updates the instance settings (admin only). Fields left out keep their value, and only values that differ from the stored ones are checked; a refused save writes nothing. Write-only secrets: an empty string keeps the stored value, \"-\" clears it. Env-locked keys are ignored. Returns the effective settings, including any OIDC reload error.",
                 "requestBody": {
@@ -21295,7 +21441,7 @@
         },
         "/api/upgrades": {
             "get": {
-                "description": "Better-quality copies (resolution / more sub or dub) of series already present.",
+                "description": "Better-quality copies (resolution / more sub or dub) of series already present, from the cached suggestions; empty until the first build has finished.",
                 "responses": {
                     "200": {
                         "content": {

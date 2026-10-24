@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -16,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // The download client half: just enough of the SABnzbd API for Sonarr and
@@ -216,7 +219,8 @@ type sabJob struct {
 // marks failed, blocklists and grabs again.
 func (s *Server) sabJobs() ([]sabJob, error) {
 	rows, err := s.DB.Query(`SELECT j.nzo_id, j.title, j.category, j.job_dir, j.download_id, j.size, j.created_at,
-			COALESCE(d.status, ''), COALESCE(d.error, ''), COALESCE(d.transferred, 0), COALESCE(d.user_id, 0), COALESCE(d.updated_at, j.created_at)
+			COALESCE(d.status, ''), COALESCE(d.error, ''), COALESCE(d.transferred, 0), COALESCE(d.user_id, 0), COALESCE(d.updated_at, j.created_at),
+			COALESCE(d.local_path, '')
 		FROM arr_jobs j LEFT JOIN downloads d ON d.id = j.download_id ORDER BY j.created_at`)
 	if err != nil {
 		return nil, err
@@ -225,18 +229,47 @@ func (s *Server) sabJobs() ([]sabJob, error) {
 	var out []sabJob
 	for rows.Next() {
 		var j sabJob
+		var localPath string
 		if err := rows.Scan(&j.nzo, &j.title, &j.cat, &j.jobDir, &j.downloadID, &j.size, &j.createdAt,
-			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt); err != nil {
+			&j.status, &j.errMsg, &j.transferred, &j.userID, &j.updatedAt, &localPath); err != nil {
 			return nil, err
 		}
-		if j.downloadID == 0 {
+		if j.downloadID != 0 && !arrJobOwns(j.jobDir, localPath) {
+			// the download was removed, and its id may since belong to another
+			// download: this job no longer has one
+			j.downloadID, j.userID, j.transferred = 0, 0, 0
+			if hasFiles(j.jobDir) {
+				j.status = "done" // the file made it, only the record is gone
+			} else {
+				j.status, j.errMsg = "error", "the download was removed from WeebSync"
+			}
+		} else if j.downloadID == 0 {
 			j.status = "done"
-		} else if j.status == "" {
-			j.status, j.errMsg = "error", "the download was removed from WeebSync"
 		}
 		out = append(out, j)
 	}
 	return out, rows.Err()
+}
+
+// sabInQueue reports whether a job with this status is listed in the queue
+// (not in the history).
+func sabInQueue(status string) bool {
+	return status == "queued" || status == "running" || status == "paused"
+}
+
+// hasFiles reports whether dir holds a finished video: a regular file with a
+// video extension. A leftover ".part" of a failed transfer is not one.
+func hasFiles(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Type().IsRegular() && transfer.VideoExt[strings.ToLower(path.Ext(e.Name()))] {
+			return true
+		}
+	}
+	return false
 }
 
 // sabValues reads the comma list of nzo ids a delete/pause names.
@@ -260,7 +293,8 @@ func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
 	case "delete":
 		want := sabValues(r)
 		for _, j := range jobs {
-			if want[j.nzo] || want["all"] {
+			// "all" empties the queue only, as in SABnzbd
+			if want[j.nzo] || (want["all"] && sabInQueue(j.status)) {
 				if j.downloadID > 0 && j.status != "done" {
 					s.Transfers.Cancel(j.userID, j.downloadID)
 				}
@@ -320,7 +354,8 @@ func (s *Server) sabHistory(w http.ResponseWriter, r *http.Request) {
 		// the app forgets a job it imported; the files are its business now
 		want := sabValues(r)
 		for _, j := range jobs {
-			if want[j.nzo] || want["all"] {
+			// "all" empties the history only, as in SABnzbd
+			if want[j.nzo] || (want["all"] && !sabInQueue(j.status)) {
 				if _, err := s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo); err != nil {
 					slog.Warn("sab history delete: job not removed", "nzo", j.nzo, "err", err)
 					writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job not removed"})

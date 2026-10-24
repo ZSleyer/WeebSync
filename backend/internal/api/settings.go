@@ -389,17 +389,6 @@ func smtpSecurity(d *sql.DB) string {
 	return "starttls"
 }
 
-// handleSettingsGet returns the current instance settings.
-//
-// @Summary      Get settings
-// @Description  Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
-// @Tags         Settings
-// @Produce      json
-// @Success      200  {object}  settingsPayload
-// @Failure      401  {object}  ErrorResponse
-// @Failure      403  {object}  ErrorResponse
-// @Security     CookieAuth
-// @Router       /api/settings [get]
 // LibraryRoots is a Plex library and the local mounts detected for it.
 type LibraryRoots struct {
 	Title string   `json:"title"`
@@ -441,6 +430,17 @@ func plexLibraries(mapSetting string) []LibraryRoots {
 	return out
 }
 
+// handleSettingsGet returns the current instance settings.
+//
+// @Summary      Get settings
+// @Description  Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
+// @Tags         Settings
+// @Produce      json
+// @Success      200  {object}  settingsPayload
+// @Failure      401  {object}  ErrorResponse
+// @Failure      403  {object}  ErrorResponse
+// @Security     CookieAuth
+// @Router       /api/settings [get]
 func (s *Server) handleSettingsGet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.settingsState())
 }
@@ -510,6 +510,13 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// the allowlist names values of the claim: without one it gates nobody,
+	// yet still turns on provisioning of every identity the provider vouches for
+	if (in.OidcUserValues != cur.OidcUserValues || in.OidcClaim != cur.OidcClaim) &&
+		strings.TrimSpace(in.OidcClaim) == "" && strings.TrimSpace(strings.ReplaceAll(in.OidcUserValues, ",", "")) != "" {
+		bad("oidcClaim", "required when allowed values are set")
+		return
+	}
 
 	// instance URL: empty or an absolute http(s) origin
 	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")
@@ -540,11 +547,11 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 		field, value, stored string
 		check                func(string) error
 	}{
-		{"aiBaseUrl", aiURL, cur.AiBaseURL, checkSecretURL},
-		{"aiSearchUrl", searchURL, cur.AiSearchURL, checkOutboundURL},
+		{"aiBaseUrl", aiURL, strings.TrimRight(cur.AiBaseURL, "/"), checkSecretURL},
+		{"aiSearchUrl", searchURL, strings.TrimRight(cur.AiSearchURL, "/"), checkOutboundURL},
 		{"haWebhookUrl", haURL, cur.HaWebhookURL, checkSecretURL},
-		{"plexUrl", plexURL, cur.PlexURL, checkSecretURL},
-		{"jellyfinUrl", jellyfinURL, cur.JellyfinURL, checkSecretURL},
+		{"plexUrl", plexURL, strings.TrimRight(cur.PlexURL, "/"), checkSecretURL},
+		{"jellyfinUrl", jellyfinURL, strings.TrimRight(cur.JellyfinURL, "/"), checkSecretURL},
 		// the issuer signs the ID tokens that carry the admin group: a
 		// forged one over plain HTTP would hand out the instance
 		{"oidcIssuer", in.OidcIssuer, cur.OidcIssuer, checkSecretURL},
@@ -650,7 +657,7 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 	writes.set("oidc_claim", in.OidcClaim)
 	writes.set("oidc_admin_values", in.OidcAdminValues)
 	writes.set("oidc_user_values", in.OidcUserValues)
-	writes.set("plex_url", strings.TrimSpace(in.PlexURL))
+	writes.set("plex_url", plexURL)
 	writes.set("jellyfin_url", jellyfinURL)
 	writes.set("media_server", in.MediaServer)
 	writes.set("plex_sections", in.PlexSections)

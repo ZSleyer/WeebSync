@@ -728,9 +728,6 @@ export interface Schemas {
     titleOverride: string
     warnings: string[]
   }
-  /**
-   * Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
-   */
   'api.LibraryRoots': {
     roots: string[]
     title: string
@@ -1194,9 +1191,10 @@ export interface Schemas {
     missing?: "unmapped" | "not_found" | "no_folder" | "no_sibling"
     /**
      * Replace: the copy this sync improves on is trashed once the new file is
-     * in place (upgrades only; a missing episode has nothing to replace).
+     * in place (upgrades only; a missing episode has nothing to replace). Sent
+     * when false too: the upgrade card reads a missing value as true.
      */
-    replace?: boolean
+    replace: boolean
     /**
      * Separator replaces spaces in the rendered name; "" keeps them. Part of
      * the plan because it belongs to the template it was configured with.
@@ -1875,6 +1873,11 @@ export interface Schemas {
     anilistH: number
     plexH: number
     tmdbH: number
+  }
+  'api.adminTTLRequest': {
+    anilistH?: number
+    plexH?: number
+    tmdbH?: number
   }
   'api.adminWatchInfo': {
     count: number
@@ -3392,7 +3395,16 @@ export interface Schemas {
      */
     connected: boolean
     trending: Schemas['api.tmdbSuggestion'][]
+    /**
+     * TrendingError: "unavailable" when the trending list could not be read
+     */
+    trendingError?: string
     watchlist: Schemas['api.tmdbSuggestion'][]
+    /**
+     * WatchlistError: "unauthorized" when TMDB no longer accepts the linked
+     * session (link again), "unavailable" when the list could not be read
+     */
+    watchlistError?: string
   }
   'api.todayBanner': {
     /**

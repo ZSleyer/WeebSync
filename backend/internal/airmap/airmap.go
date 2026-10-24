@@ -229,7 +229,6 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 	}
 	source := want
 	if len(m) == 0 {
-		source = "none"
 		// A series that had a map yesterday and answers with nothing today has
 		// a provider problem, not zero episodes. Keep what we have: replacing
 		// it with nothing would unfile every following episode, and it is also
@@ -251,7 +250,7 @@ func (r *Resolver) rebuild(ctx context.Context, s Series, provider, ordering, wa
 				s.ServerID, s.Folder, source)
 			return
 		}
-		// definitive empty: stamp source=none and back off API calls for one TTL
+		// definitive empty: stamp the wanted source (no season_maps rows = empty) and back off API calls for one TTL
 		slog.Debug("airmap empty", "folder", folder, "provider", logProvider,
 			"ordering", logOrdering, "reason", "no mapping from provider, backing off one TTL")
 	} else {

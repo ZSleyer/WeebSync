@@ -90,3 +90,49 @@ func TestSettingsPutPartial(t *testing.T) {
 		t.Errorf("smtp port 70000: got %d %s, want 400", rec.Code, rec.Body)
 	}
 }
+
+// An OIDC allowlist names values of a claim: without the claim it filters
+// nobody, and the admin who set it would rely on a gate that is not there.
+func TestSettingsPutRefusesAllowlistWithoutClaim(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.OIDC = auth.NewManager(context.Background(), s.DB)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+
+	rec := doReq(mux, "PUT", "/api/settings", `{"oidcUserValues":"family","oidcClaim":""}`, adminC)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "oidcClaim:") {
+		t.Fatalf("allowlist without claim: %d %s", rec.Code, rec.Body)
+	}
+	if v := db.Setting(s.DB, "oidc_user_values"); v != "" {
+		t.Errorf("refused allowlist stored: %q", v)
+	}
+	if rec := doReq(mux, "PUT", "/api/settings", `{"oidcUserValues":"family","oidcClaim":"groups"}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("allowlist with claim: %d %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "PUT", "/api/settings", `{"oidcClaim":" "}`, adminC); rec.Code != http.StatusBadRequest {
+		t.Errorf("claim cleared under a stored allowlist: %d %s", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "PUT", "/api/settings", `{"oidcUserValues":"","oidcClaim":""}`, adminC); rec.Code != http.StatusOK {
+		t.Errorf("both cleared: %d %s", rec.Code, rec.Body)
+	}
+}
+
+// A stored plex_url with a trailing slash (typed, or written by the Plex link
+// flow) that fails the guard now must not block an unrelated save, and the
+// value is stored trimmed like the other URLs.
+func TestSettingsPutTrailingSlashPlexURL(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.OIDC = auth.NewManager(context.Background(), s.DB)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+	db.SetSetting(s.DB, "plex_url", "http://169.254.169.254:32400/")
+
+	if rec := doReq(mux, "PUT", "/api/settings", `{"maxConcurrent":5}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("unrelated save blocked by the stored plex_url: %d %s", rec.Code, rec.Body)
+	}
+	if v := db.Setting(s.DB, "plex_url"); v != "http://169.254.169.254:32400" {
+		t.Errorf("plex_url = %q, want the trimmed value", v)
+	}
+	rec := doReq(mux, "PUT", "/api/settings", `{"plexUrl":"http://169.254.169.254:32401/"}`, adminC)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "plexUrl:") {
+		t.Errorf("changed blocked plexUrl: got %d %s, want 400", rec.Code, rec.Body)
+	}
+}

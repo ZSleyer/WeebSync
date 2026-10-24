@@ -148,3 +148,18 @@ func TestSecurityCheckOIDCStaysStrict(t *testing.T) {
 		t.Errorf("oidc_http %v (want true), plex_http %v (want false)", ids["oidc_http"], ids["plex_http"])
 	}
 }
+
+// A count that cannot be read is an error, not a passed check: the admin
+// must not see "ok" for something nobody looked at.
+func TestSecurityCheckFailedCountIsNoPass(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.DB.Exec(`UPDATE users SET password_hash = 'x' WHERE is_admin = 1`)
+	// only the count of admins without a second factor reads this table
+	if _, err := s.DB.Exec(`DROP TABLE user_totp`); err != nil {
+		t.Fatal(err)
+	}
+	rec := doReq(mux, "GET", "/api/admin/security-check", "", adminC)
+	if rec.Code != http.StatusInternalServerError || strings.Contains(rec.Body.String(), "admin_single_factor") {
+		t.Fatalf("failed count: %d %s", rec.Code, rec.Body)
+	}
+}

@@ -93,7 +93,7 @@ func (l readerLook) css() string {
 // the chapter has none.
 func injectLook(doc []byte, l readerLook) []byte {
 	style := []byte(`<style id="weebsync-reader">` + l.css() + `</style>`)
-	lower := bytes.ToLower(doc)
+	lower := asciiLower(doc)
 	if i := bytes.Index(lower, []byte("</head")); i >= 0 {
 		return splice(doc, i, style)
 	}
@@ -101,6 +101,20 @@ func injectLook(doc []byte, l readerLook) []byte {
 		return splice(doc, i, append(append([]byte("<head>"), style...), "</head>"...))
 	}
 	return append(style, doc...)
+}
+
+// asciiLower lower-cases A-Z only, byte for byte: its offsets are the
+// document's. bytes.ToLower maps whole code points, some of which change
+// length (KELVIN SIGN, an invalid byte becoming U+FFFD).
+func asciiLower(b []byte) []byte {
+	out := make([]byte, len(b))
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		out[i] = c
+	}
+	return out
 }
 
 // tagEnd is the position after the ">" closing the first tag named open

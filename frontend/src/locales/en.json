@@ -137,7 +137,8 @@
       "delete": "Del",
       "forget": "remove from recently opened"
     },
-    "searching": "Searching the server indexes …"
+    "searching": "Searching the server indexes …",
+    "searchFailed": "The file search failed. Try again."
   },
   "nav": {
     "dashboard": "Today",
@@ -156,6 +157,7 @@
     "files": "Files"
   },
   "assistant": {
+    "codeBlock": "Code block",
     "allUpgrades": "All upgrades are under Discover",
     "stepsDone_other": "{{count}} steps",
     "stepsDone_one": "{{count}} step",
@@ -1432,6 +1434,8 @@
     "checkLoading": "Downloading {{k}} of {{n}}",
     "checkDone_one": "Episode downloaded",
     "checkDone_other": "{{count}} episodes downloaded",
+    "checkFailedDl_one": "Download failed",
+    "checkFailedDl_other": "{{count}} downloads failed",
     "search": "Search auto-sync",
     "searchHint": "Title or folder",
     "searchNone": "Nothing found for “{{query}}”.",
@@ -2245,6 +2249,8 @@
     "plexSignInOther": "Connect another server",
     "plexPickServer": "Which server should WeebSync use?",
     "plexNoServers": "This Plex account has no server.",
+    "plexOtherAccount": "Use another Plex account",
+    "plexOpenTab": "Open plex.tv",
     "plexConnecting": "Connecting…",
     "plexShared": "shared",
     "plexConnected": "Connected to <b>{{server}}</b> via {{url}}",
@@ -2264,6 +2270,7 @@
     "plexWatchlistLink": "Link Plex watchlist",
     "plexWatchlistUnlink": "Unlink",
     "plexWatchlistLinked": "Watchlist linked as {{user}}",
+    "plexWatchlistOpen": "Open plex.tv",
     "plexWatchlistPending": "Confirm in the plex.tv tab (code {{code}})…",
     "plexWatchlistExpired": "The plex.tv code has expired. Link again for a new one.",
     "emailCat_suggestion": "Suggestions",
@@ -2423,6 +2430,7 @@
   },
   "audio": {
     "title": "Playback",
+    "error": "This track could not be played.",
     "open": "Open the audio player",
     "back15": "Back 15 seconds",
     "fwd30": "Forward 30 seconds",
@@ -3024,6 +3032,7 @@
     "comments": "Comments",
     "noComments": "No comments yet.",
     "like": "Like",
+    "posted": "Reply posted.",
     "reply": "Reply",
     "replyTo": "Reply to {{name}}",
     "replyThread": "Reply to the post",

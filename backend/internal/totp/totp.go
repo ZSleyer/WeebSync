@@ -44,16 +44,28 @@ func Code(secret string, t time.Time) (string, error) {
 // Valid reports whether code matches at now or one step either side: phone
 // clocks drift, and a code typed at the end of its step arrives in the next.
 func Valid(code, secret string, now time.Time) bool {
+	_, ok := Match(code, secret, now)
+	return ok
+}
+
+// Match is Valid that also returns the time step (counter) the code belongs
+// to. RFC 6238 §5.2: a verifier must not accept a code a second time, and
+// with three steps in the window only "a later step than the last accepted
+// one" rules that out; remembering the last code alone does not.
+func Match(code, secret string, now time.Time) (uint64, bool) {
 	if len(code) != 6 {
-		return false
+		return 0, false
 	}
+	var matched uint64
 	ok := 0
 	for _, d := range []time.Duration{-step * time.Second, 0, step * time.Second} {
-		if c, err := Code(secret, now.Add(d)); err == nil {
-			ok |= subtle.ConstantTimeCompare([]byte(c), []byte(code))
+		t := now.Add(d)
+		if c, err := Code(secret, t); err == nil && subtle.ConstantTimeCompare([]byte(c), []byte(code)) == 1 {
+			// the latest step wins should two steps share a code
+			ok, matched = 1, uint64(t.Unix())/step
 		}
 	}
-	return ok == 1
+	return matched, ok == 1
 }
 
 // New makes a 160-bit secret and the otpauth:// URL an authenticator app

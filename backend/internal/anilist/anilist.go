@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/db"
@@ -242,6 +244,13 @@ type Client struct {
 	// account's token, or an operator-provided one). Nil/empty = anonymous.
 	TokenSource func() string
 	limiter     *rate.Limiter
+
+	mu sync.Mutex
+	// blockedUntil is the shared cooldown after a 429: every caller sees it,
+	// none sleeps through it
+	blockedUntil time.Time
+	// missing remembers ids AniList reported as not found, until the time given
+	missing map[string]time.Time
 }
 
 func New(d *sql.DB) *Client {
@@ -298,14 +307,35 @@ func (c *Client) store(key, payload string) {
 }
 
 func (c *Client) query(ctx context.Context, query string, variables map[string]any, out any) error {
-	return c.queryAs(ctx, c.token(), query, variables, out)
+	token := c.token()
+	err := c.queryAs(ctx, token, query, variables, out)
+	// The shared bearer only improves these lookups (rate budget, adult
+	// content); an expired or revoked one must not take them down, so repeat
+	// once without it. How AniList words the rejection is not documented where
+	// we could read it (docs.anilist.co answered 403 on 2026-10-24): a 401 or
+	// an "invalid token" message, either status.
+	if token != "" && tokenRejected(err) {
+		return c.queryAs(ctx, "", query, variables, out)
+	}
+	return err
+}
+
+func tokenRejected(err error) bool {
+	var ge *GraphQLError
+	if !errors.As(err, &ge) {
+		return false
+	}
+	return ge.Status == http.StatusUnauthorized || strings.Contains(strings.ToLower(ge.Message), "invalid token")
 }
 
 // queryAs runs a GraphQL request with an explicit bearer token (linked
 // account calls: lists, mutations). Empty token = anonymous.
 func (c *Client) queryAs(ctx context.Context, token, query string, variables map[string]any, out any) error {
 	body, _ := json.Marshal(map[string]any{"query": query, "variables": variables})
-	for attempt := 0; ; attempt++ {
+	{
+		if d := c.cooldown(); d > 0 {
+			return &RateLimitError{RetryAfter: d}
+		}
 		if err := c.limiter.Wait(ctx); err != nil {
 			return err
 		}
@@ -322,19 +352,18 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		if err != nil {
 			return err
 		}
-		// hard limit hit: honor Retry-After once, then give up
-		if resp.StatusCode == http.StatusTooManyRequests && attempt == 0 {
+		// hard limit hit: every caller backs off for the Retry-After, and this
+		// one is told at once instead of sleeping in a request path
+		if resp.StatusCode == http.StatusTooManyRequests {
 			resp.Body.Close()
 			wait := 60 * time.Second
 			if ra, perr := strconv.Atoi(resp.Header.Get("Retry-After")); perr == nil && ra > 0 {
 				wait = time.Duration(ra) * time.Second
 			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(wait):
-				continue
-			}
+			c.mu.Lock()
+			c.blockedUntil = time.Now().Add(wait)
+			c.mu.Unlock()
+			return &RateLimitError{RetryAfter: wait}
 		}
 		// nearly out of budget: slow the next request down
 		if rem, perr := strconv.Atoi(resp.Header.Get("X-RateLimit-Remaining")); perr == nil && rem < 5 {
@@ -366,6 +395,55 @@ func (c *Client) queryAs(ctx context.Context, token, query string, variables map
 		}
 		return json.Unmarshal(raw, out)
 	}
+}
+
+// ErrNotFound is a record AniList does not have (a deleted or never-issued id).
+var ErrNotFound = errors.New("anilist: not found")
+
+// missTTL is how long an id AniList reported as not found is not asked for
+// again: long enough that a page or job looping over a dead id costs one
+// limiter slot, short enough that a record created later turns up.
+const missTTL = 10 * time.Minute
+
+func isNotFound(err error) bool {
+	var ge *GraphQLError
+	return errors.As(err, &ge) && ge.Status == http.StatusNotFound
+}
+
+func (c *Client) knownMissing(key string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Now().Before(c.missing[key])
+}
+
+func (c *Client) remember404(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.missing == nil {
+		c.missing = map[string]time.Time{}
+	}
+	now := time.Now()
+	for k, until := range c.missing { // keep the map from growing with every dead id
+		if now.After(until) {
+			delete(c.missing, k)
+		}
+	}
+	c.missing[key] = now.Add(missTTL)
+}
+
+// RateLimitError is AniList's 429 (or the cooldown it started): nothing was
+// sent, and RetryAfter is how long until sending is worth trying again.
+type RateLimitError struct{ RetryAfter time.Duration }
+
+func (e *RateLimitError) Error() string {
+	return "anilist: rate limited, retry in " + e.RetryAfter.Round(time.Second).String()
+}
+
+// cooldown is how long a 429 still blocks requests, 0 when none does.
+func (c *Client) cooldown() time.Duration {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return time.Until(c.blockedUntil)
 }
 
 // GraphQLError is an error AniList reported in its answer's body. Status
@@ -897,14 +975,22 @@ func (c *Client) Media(ctx context.Context, id int) (*Media, error) {
 			Media *Media `json:"Media"`
 		} `json:"data"`
 	}
+	if c.knownMissing(key) {
+		return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
+	}
 	// no type filter: ids are unique across anime and manga, and a manga
 	// watch resolves its work through here as well
 	gql := fmt.Sprintf(`query ($id: Int) { Media(id: $id) { %s } }`, mediaFields)
 	if err := c.query(ctx, gql, map[string]any{"id": id}, &resp); err != nil {
+		if isNotFound(err) {
+			c.remember404(key)
+			return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
+		}
 		return nil, err
 	}
 	if resp.Data.Media == nil {
-		return nil, fmt.Errorf("anilist: media %d not found", id)
+		c.remember404(key)
+		return nil, fmt.Errorf("%w: media %d", ErrNotFound, id)
 	}
 	resp.Data.Media.Schema = MediaSchema
 	payload, _ := json.Marshal(resp.Data.Media)
