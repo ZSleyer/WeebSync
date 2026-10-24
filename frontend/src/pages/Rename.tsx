@@ -49,7 +49,14 @@ export default function Rename() {
   // and opens the picker on demand, so the page has one scroller
   const wide = useMediaQuery(WIDE_MQ)
   const [browse, setBrowse] = useState(false)
-  const [draft, setDraft] = useState('')
+  // what is typed in the phone's path field, null while it shows the folder
+  const [draft, setDraft] = useState<string | null>(null)
+  const [draftPath, setDraftPath] = useState(path)
+  if (draftPath !== path) {
+    // a folder picked another way (picker, back gesture) outdates the draft
+    setDraftPath(path)
+    setDraft(null)
+  }
 
   const caps = useProviders()
 
@@ -109,6 +116,7 @@ export default function Rename() {
       setPreview(null)
       // the file listings still show the old names
       qc.invalidateQueries({ queryKey: ['local'] })
+      qc.invalidateQueries({ queryKey: ['catalog', 0] })
     },
   })
 
@@ -143,11 +151,11 @@ export default function Rename() {
           <Panel as="section" className="flex min-w-0 flex-col" aria-label={t('rename.folderSection')}>
             <div className="flex items-stretch gap-2 p-2">
               <PathInput
-                value={browse ? path : draft || path}
+                value={draft ?? path}
                 onChange={setDraft}
                 onCommit={(p) => {
                   setPath(p.replace(/^\//, ''))
-                  setDraft('')
+                  setDraft(null)
                 }}
                 fetchPath={(p) => `/api/browse/local?path=${encodeURIComponent(p)}`}
                 queryKey={['local']}
