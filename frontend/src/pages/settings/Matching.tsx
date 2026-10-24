@@ -383,9 +383,15 @@ function MatchesView({ stat }: { stat: MatchStat }) {
           ? `/api/tmdb/search?kind=${kind}&q=${encodeURIComponent(searchQ)}`
           : `/api/anilist/search?q=${encodeURIComponent(searchQ)}`,
       )
-      if (mySeq === seq.current) setResults(next)
-    } catch {
-      if (mySeq === seq.current) setResults([])
+      if (mySeq === seq.current) {
+        setResults(next)
+        setError('')
+      }
+    } catch (err) {
+      if (mySeq === seq.current) {
+        setResults([])
+        setError(err instanceof Error ? err.message : t('app.error'))
+      }
     }
   }
   // live search: results update as you type (debounced) while correcting a match
