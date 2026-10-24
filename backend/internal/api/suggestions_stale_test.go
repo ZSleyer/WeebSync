@@ -48,6 +48,24 @@ func TestSuggestionsInvalidatedDuringABuildStayStale(t *testing.T) {
 	}
 }
 
+// staleSuggestions is two statements, and a running build can store between
+// them. The mark comes first, so that build is caught either by its own check
+// or by the aging after it - never stored fresh.
+func TestSuggestionsStoredBetweenMarkAndAgingStayStale(t *testing.T) {
+	s, _ := sizeTestServer(t)
+	start := time.Now().Add(-time.Minute)
+	s.markSuggestionsAged()
+	s.storeSuggestions(context.Background(), 1, start, SuggestionsResponse{BuiltAt: 1})
+	s.ageSuggestionBlobs()
+	var at string
+	if err := s.DB.QueryRow(`SELECT fetched_at FROM anilist_cache WHERE key = 'suggestions:1'`).Scan(&at); err != nil {
+		t.Fatal(err)
+	}
+	if at != suggestStaleAt {
+		t.Errorf("a build stored mid-invalidation stayed fresh (%s)", at)
+	}
+}
+
 // A build cut short - the time budget ran out, or the job was stopped - has
 // empty provider buckets where the calls failed. They must not replace the
 // last build's lists for the next half hour; the library buckets, computed

@@ -398,17 +398,29 @@ func categorize(providers []string, m anilist.Media, source, kind string) string
 // page empty for as long as the rebuild took - minutes, when the remote copies
 // are probed - which read as "all suggestions gone".
 func (s *Server) staleSuggestions() {
-	// a failed aging only means the blobs keep their TTL
-	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key LIKE 'suggestions:%'`, suggestStaleAt)
-	// A build already running read its inputs before this and would store
-	// its result as fresh, while the rebuild asked for now is dropped as a
-	// duplicate of it. The time of the aging lets that build see it came too
-	// early (storeSuggestions). Kept outside the suggestions: prefix so the
-	// aging above never ages it.
-	// Millisecond precision: the callers start the answering rebuild right
-	// after this, and within the same second it must still count as after.
+	s.markSuggestionsAged()
+	s.ageSuggestionBlobs()
+}
+
+// markSuggestionsAged records when the blobs were aged. A build already
+// running read its inputs before this and would store its result as fresh,
+// while the rebuild asked for now is dropped as a duplicate of it; the mark
+// lets that build see it came too early (storeSuggestions). Written BEFORE the
+// blobs are aged: a build storing in between then already sees the mark, and
+// one that stored before it is aged by the update that follows. Millisecond
+// precision, because the callers start the answering rebuild right after and
+// within the same second it must still count as after. Kept outside the
+// suggestions: prefix so the aging never ages it.
+func (s *Server) markSuggestionsAged() {
+	// a mark that did not land only lets a running build pass as fresh
 	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, '', strftime('%Y-%m-%d %H:%M:%f', 'now'))
 		ON CONFLICT(key) DO UPDATE SET fetched_at = excluded.fetched_at`, suggestAgedKey)
+}
+
+// ageSuggestionBlobs sets every blob past its lifetime.
+func (s *Server) ageSuggestionBlobs() {
+	// a failed aging only means the blobs keep their TTL
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key LIKE 'suggestions:%'`, suggestStaleAt)
 }
 
 // suggestStaleAt is the fetched_at an aged blob carries: served, rebuilt
@@ -627,9 +639,10 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 // suggestions were aged during (staleSuggestions) is stored aged as well: it
 // still beats the older blob, but the next read has to rebuild it, since the
 // rebuild asked for at the aging was dropped while this one ran. Checked after
-// the write, so an aging landing between the check and the write cannot slip
-// through. A build started after the aging (the rebuild it asked for) is its
-// answer and stays fresh.
+// the write, and staleSuggestions marks before it ages: whichever way a store
+// and an aging interleave, either this check sees the mark or the aging's
+// update reaches the stored blob. A build started after the mark (the rebuild
+// the aging asked for) is its answer and stays fresh.
 func (s *Server) storeSuggestions(ctx context.Context, userID int64, start time.Time, resp SuggestionsResponse) {
 	key := fmt.Sprintf("suggestions:%d", userID)
 	if ctx.Err() != nil {
