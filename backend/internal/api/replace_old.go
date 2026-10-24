@@ -342,8 +342,15 @@ func (s *Server) deleteTrash(paths []string) (n int) {
 		}
 		if _, err := local.Root.Lstat(local.Name); err != nil {
 			// not there: done with only when the folder the trash sits in is
-			// there to say so - an empty mount point lacks that folder too
-			_, perr := local.Root.Stat(filepath.Dir(filepath.Dir(local.Name)))
+			// there to say so - an empty mount point lacks that folder too.
+			// A trash folder right in the root has no such folder: the root
+			// of an empty mount point opens fine, so only the trash folder
+			// itself can say the disk is there.
+			witness := filepath.Dir(filepath.Dir(local.Name))
+			if witness == "." {
+				witness = filepath.Dir(local.Name)
+			}
+			_, perr := local.Root.Stat(witness)
 			if !errors.Is(err, fs.ErrNotExist) || perr != nil {
 				slog.Debug("trash row kept: copy not reachable", "file", logSafe(p), "err", err)
 				local.Close()
