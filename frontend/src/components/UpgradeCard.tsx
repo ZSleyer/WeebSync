@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link } from 'react-router'
 import { useAuth, useMediaServer } from '../hooks'
 import { useTranslation } from 'react-i18next'
@@ -81,7 +81,7 @@ export default function UpgradeCard({
   /** the sync dialog, to adjust target and naming first */
   onSync: (req: SyncRequest) => void
   /** load straight away with the plan as it stands; without it the main button opens the dialog */
-  onLoad?: (req: SyncRequest, replaceOld: boolean) => void
+  onLoad?: (req: SyncRequest, replaceOld: boolean) => void | Promise<void>
   onDismiss?: (u: UpgradeSuggestion, from: Element | null) => void
   onOpenRemote?: (v: UpgradeVariant) => void
   onDetails?: (u: UpgradeSuggestion) => void
@@ -92,6 +92,20 @@ export default function UpgradeCard({
   const { data: me } = useAuth()
   const [replaceOld, setReplaceOld] = useState(u.sync?.replace ?? true)
   const replace = !!me?.isAdmin && replaceOld
+  // a load on its way: a second click would queue the same folder twice
+  const [loading, setLoading] = useState(false)
+  const loadingRef = useRef(false)
+  const load = async () => {
+    if (loadingRef.current || !onLoad) return
+    loadingRef.current = true
+    setLoading(true)
+    try {
+      await onLoad(req(), replace)
+    } finally {
+      loadingRef.current = false
+      setLoading(false)
+    }
+  }
   const isChosen = (v: UpgradeVariant) => v.serverId === chosen.serverId && v.folder === chosen.folder
   const options: UpgradeVariant[] = u.options ?? []
   const others = options.filter((o) => !isChosen(o))
@@ -213,7 +227,13 @@ export default function UpgradeCard({
           </Button>
         )}
         {canLoad && (
-          <Button size="sm" variant="primary" onClick={() => (onLoad ? onLoad(req(), replace) : onSync(req()))}>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={loading}
+            aria-busy={loading || undefined}
+            onClick={() => (onLoad ? void load() : onSync(req()))}
+          >
             {t('discover.upgradeLoad')}
           </Button>
         )}

@@ -27,6 +27,20 @@ describe('incoming', () => {
     )
     expect(Object.fromEntries(got)).toEqual({ '1-2': 0.25, '1-3': 0 })
   })
+  it('does not take a download of a sibling folder that merely starts with the watch path', () => {
+    const got = incoming(
+      [
+        d('/lib/Show 2nd Season/S01E03.mkv', { remotePath: '/x/Show 2nd Season/c.mkv' }),
+        d('/lib/Show/Show - S01E04.mkv'),
+      ] as Parameters<typeof incoming>[0],
+      w,
+    )
+    expect(Object.fromEntries(got)).toEqual({ '1-4': 0.25 })
+    // a trailing slash on the watch path still matches its own folder
+    expect(
+      incoming([d('/lib/Show/S01E02.mkv')] as Parameters<typeof incoming>[0], { ...w, remotePath: '/x/Show/' }).size,
+    ).toBe(1)
+  })
 })
 
 const ep = (season: number, episode: number, more: Partial<WatchEpisode> = {}): WatchEpisode => ({

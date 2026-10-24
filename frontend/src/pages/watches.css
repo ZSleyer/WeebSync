@@ -287,7 +287,8 @@
   grid-template-areas: 'c n' 'c s';
   column-gap: 0.75rem;
   align-items: center;
-  padding: 0.5rem 0;
+  /* room for the actions button at the row's end */
+  padding: 0.5rem calc(var(--ctl-h) + 0.5rem) 0.5rem 0;
   border-radius: 0;
 }
 .w-grid.as-list .w-cover {
@@ -499,9 +500,31 @@
 .w-week .w-day .t-sec-title {
   font-size: 0.9375rem;
 }
-.w-week .w-day[data-past] {
+/* A past day is dimmed on its covers only: opacity on the whole column took
+   the text under 4.5:1 (--fg-3 at .55: 2.9:1 dark, 2.4:1 light). The text
+   keeps its tokens: --fg-2 for the title, --fg-3 stays at 7.2:1 / 6.0:1. */
+.w-week .w-day[data-past] .w-ag-cov {
   opacity: 0.55;
+}
+.w-week .w-day[data-past] .w-ag-t > strong {
+  color: var(--fg-2);
 }
 .w-week .w-day[aria-current='date'] .t-sec-title {
   color: var(--accent-2);
+}
+
+/* the always-reachable actions button of a tile: over the cover's corner in
+   the grid, at the row's end in the list */
+.w-grid > li {
+  position: relative;
+}
+.w-more {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: color-mix(in srgb, var(--card) 80%, transparent);
+}
+.w-grid.as-list .w-more {
+  top: 50%;
+  transform: translateY(-50%);
 }
