@@ -115,6 +115,40 @@ func TestWatchMoveRefusedForASharedFolder(t *testing.T) {
 	}
 }
 
+// A watch on the show folder and another on a season folder inside it: moving
+// the first took the season folder whole, and the second watch fetched it all
+// again. A watch below the folder blocks the move like one on it; a sibling
+// whose name only starts the same, or differs in case, does not.
+func TestWatchMoveRefusedForAWatchBelow(t *testing.T) {
+	s, mux, cookie, root := moveTestServer(t)
+	writeFiles(t, filepath.Join(root, "Anime", "Show"), map[string]int64{"Show - E01.mkv": 1})
+	writeFiles(t, filepath.Join(root, "Anime", "Show", "Season 02"), map[string]int64{"Show - S02E01.mkv": 1})
+	for _, q := range []string{
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Show', 'Anime/Show')`,
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Show S2', 'Anime/Show/Season 02')`,
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Other', 'Anime/Show 2')`,
+		`INSERT INTO watches (user_id, server_id, remote_path, local_path) VALUES (1, 1, '/x/Upper', 'Anime/SHOW/x')`,
+	} {
+		if _, err := s.DB.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"Library/Show","moveFiles":true}`, cookie)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "/x/Show S2") {
+		t.Errorf("move over a watch below: %d %s, want 409 naming it", rec.Code, rec.Body)
+	}
+	if n := names(t, filepath.Join(root, "Anime", "Show")); !n["Show - E01.mkv"] || !n["Season 02"] {
+		t.Errorf("files left the folder: %v", n)
+	}
+	// without the season watch the siblings do not block it
+	if _, err := s.DB.Exec(`DELETE FROM watches WHERE id = 2`); err != nil {
+		t.Fatal(err)
+	}
+	if rec := doReq(mux, "PUT", "/api/watches/1", `{"remotePath":"/x/Show","localPath":"Library/Show","moveFiles":true}`, cookie); rec.Code != http.StatusOK {
+		t.Errorf("move beside unrelated watches: %d %s", rec.Code, rec.Body)
+	}
+}
+
 // The update that follows the move can fail - here the new target is already
 // another watch of the same remote folder. The files used to be in the new
 // folder by then, the watch still on the old, now empty one, and its next

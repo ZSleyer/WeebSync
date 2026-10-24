@@ -40,8 +40,9 @@ func moveBack(src, dst *transfer.LocalPath, done []string, created bool) (stuck 
 }
 
 // sharedWatchFolder names another watch whose files land in the same folder
-// as this one's, "" when none does. Its files cannot be told apart from this
-// watch's, so moving the folder's contents would take them along. Watches of
+// as this one's or in a folder below it, "" when none does. Its files cannot
+// be told apart from this watch's (or sit in a subfolder the move takes
+// along whole), so moving the folder's contents would take them along. Watches of
 // every user count: the library is shared.
 func (s *Server) sharedWatchFolder(id int64, folder string) (string, error) {
 	same := func(p string) string {
@@ -62,7 +63,8 @@ func (s *Server) sharedWatchFolder(id int64, folder string) (string, error) {
 		if err := rows.Scan(&remote, &local, &sub); err != nil {
 			return "", err
 		}
-		if same(watchFolder(local, remote, sub)) == want {
+		// the same folder or one inside it, by path segments and case
+		if other := same(watchFolder(local, remote, sub)); other == want || strings.HasPrefix(other, want+string(filepath.Separator)) {
 			return remote, nil
 		}
 	}
