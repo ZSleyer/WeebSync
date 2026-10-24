@@ -48,6 +48,26 @@ func TestValidWindow(t *testing.T) {
 	}
 }
 
+// Match names the step a code was made for, whichever side of the window it
+// arrives on: the replay check compares those steps.
+func TestMatchStep(t *testing.T) {
+	sec, _, err := New("WeebSync", "chisato@da.jp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(1_800_000_015, 0)
+	want := uint64(1_800_000_015 / 30)
+	code, _ := Code(sec, now)
+	for _, d := range []time.Duration{-30 * time.Second, 0, 30 * time.Second} {
+		if got, ok := Match(code, sec, now.Add(d)); !ok || got != want {
+			t.Errorf("offset %v: step %d ok %v, want %d", d, got, ok, want)
+		}
+	}
+	if _, ok := Match(code, sec, now.Add(61*time.Second)); ok {
+		t.Error("code outside the window matched")
+	}
+}
+
 // Secrets stored by earlier releases are unpadded base32 of 20 bytes; some
 // apps hand them back lower-case or with padding.
 func TestSecretSpellings(t *testing.T) {
