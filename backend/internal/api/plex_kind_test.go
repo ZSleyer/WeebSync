@@ -118,6 +118,9 @@ func TestReconcilePlexPicksTheEntryOfTheFoldersKind(t *testing.T) {
 		}
 		rows[k] = id
 	}
+	if err := r.Err(); err != nil {
+		t.Fatal(err)
+	}
 	if rows["plex:10"] != 1 || rows["tvdb:269613"] != 1 {
 		t.Errorf("the series did not get the Plex series' identity: %v", rows)
 	}
