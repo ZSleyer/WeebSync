@@ -144,6 +144,9 @@ func (s *Server) handleJellyfinServerLinkStart(w http.ResponseWriter, r *http.Re
 	if !readJSON(w, r, &in) {
 		return
 	}
+	if jellyfinEnvLocked(w) {
+		return
+	}
 	base := strings.TrimRight(strings.TrimSpace(in.URL), "/")
 	if base == "" {
 		writeErr(w, http.StatusBadRequest, "url required")
@@ -157,6 +160,17 @@ func (s *Server) handleJellyfinServerLinkStart(w http.ResponseWriter, r *http.Re
 	s.startJellyfinLink(w, r, jellyfinServerFlow, base)
 }
 
+// jellyfinEnvLocked answers 409 when JELLYFIN_URL or JELLYFIN_TOKEN set the
+// connection: a server stored in the database would be shadowed by the env
+// value, and the sign-in would claim a connection the instance does not use.
+func jellyfinEnvLocked(w http.ResponseWriter) bool {
+	if envLocked("jellyfin_url") || envLocked("jellyfin_token") {
+		writeErr(w, http.StatusConflict, "the Jellyfin connection is set by JELLYFIN_URL/JELLYFIN_TOKEN in the environment")
+		return true
+	}
+	return false
+}
+
 // handleJellyfinServerLinkPoll stores the server once the code was entered by
 // an administrator: listing the libraries needs one.
 //
@@ -167,10 +181,14 @@ func (s *Server) handleJellyfinServerLinkStart(w http.ResponseWriter, r *http.Re
 //	@Success		200	{object}	jellyfinPollResponse
 //	@Failure		403	{object}	ErrorResponse
 //	@Failure		404	{object}	ErrorResponse
+//	@Failure		409	{object}	ErrorResponse	"connection set by environment"
 //	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/jellyfin/server/link/poll [get]
 func (s *Server) handleJellyfinServerLinkPoll(w http.ResponseWriter, r *http.Request) {
+	if jellyfinEnvLocked(w) {
+		return
+	}
 	sg, token, user, ok := s.pollJellyfinLink(w, r, jellyfinServerFlow)
 	if !ok {
 		return
@@ -183,12 +201,16 @@ func (s *Server) handleJellyfinServerLinkPoll(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusForbidden, "that Jellyfin account is no administrator")
 		return
 	}
-	enc, err := secret.EncodeSetting(token)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, "encrypt error")
-		return
+	// the env-lock aware writers, in order, stopping at the first failure; the
+	// lock itself was refused above
+	err := setSetting(s.DB, "jellyfin_url", sg.url)
+	if err == nil {
+		err = setSecretSetting(s.DB, "jellyfin_token", token)
 	}
-	if err := saveSettings(s.DB, "jellyfin_url", sg.url, "jellyfin_token", enc, "jellyfin_auth", "signin"); err != nil {
+	if err == nil {
+		err = saveSettings(s.DB, "jellyfin_auth", "signin")
+	}
+	if err != nil {
 		slog.Error("jellyfin server settings", "err", err)
 		dbErr(w, err)
 		return

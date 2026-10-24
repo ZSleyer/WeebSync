@@ -15963,6 +15963,16 @@
                         },
                         "description": "Not Found"
                     },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "connection set by environment"
+                    },
                     "502": {
                         "content": {
                             "application/json": {
