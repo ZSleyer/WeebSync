@@ -8353,8 +8353,9 @@
                 "type": "apiKey"
             },
             "CookieAuth": {
-                "in": "header",
-                "name": "Authorization",
+                "description": "The session cookie: weebsync_session over plain HTTP, __Host-weebsync_session under HTTPS.",
+                "in": "cookie",
+                "name": "weebsync_session",
                 "type": "apiKey"
             }
         }

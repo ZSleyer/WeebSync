@@ -6,13 +6,20 @@ cd "$(CDPATH= cd "$(dirname "$0")" && pwd)"
 
 go tool swag init -g main.go -o docs --v3.1 --parseInternal >/dev/null
 
-# swag v2.0.0-rc5 emits only the first apikey securityDefinition; the machine
-# BearerAuth scheme (used by /api/status and the watch check) is added back here.
+# swag v2.0.0-rc5 emits only the first apikey securityDefinition, and that one
+# with the wrong place: CookieAuth comes out as {in: header, name:
+# Authorization}. Both schemes are written here as main.go declares them: the
+# session cookie, and the machine BearerAuth scheme (used by /api/status and
+# the watch check).
 python3 - <<'PY'
 import json
 p = "docs/swagger.json"
 with open(p, encoding="utf-8") as f:
     spec = json.load(f)
+spec["components"]["securitySchemes"]["CookieAuth"] = {
+    "type": "apiKey", "in": "cookie", "name": "weebsync_session",
+    "description": "The session cookie: weebsync_session over plain HTTP, __Host-weebsync_session under HTTPS.",
+}
 spec["components"]["securitySchemes"]["BearerAuth"] = {
     "type": "apiKey", "in": "header", "name": "Authorization",
 }
