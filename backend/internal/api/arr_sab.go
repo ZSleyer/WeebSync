@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // The download client half: just enough of the SABnzbd API for Sonarr and
@@ -255,10 +257,19 @@ func sabInQueue(status string) bool {
 	return status == "queued" || status == "running" || status == "paused"
 }
 
-// hasFiles reports whether dir holds anything.
+// hasFiles reports whether dir holds a finished video: a regular file with a
+// video extension. A leftover ".part" of a failed transfer is not one.
 func hasFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
-	return err == nil && len(entries) > 0
+	if err != nil {
+		return false
+	}
+	for _, e := range entries {
+		if e.Type().IsRegular() && transfer.VideoExt[strings.ToLower(path.Ext(e.Name()))] {
+			return true
+		}
+	}
+	return false
 }
 
 // sabValues reads the comma list of nzo ids a delete/pause names.

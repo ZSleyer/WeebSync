@@ -41,6 +41,15 @@ func TestArrJobSurvivesDownloadIDReuse(t *testing.T) {
 		t.Errorf("no file and no download: status = %q, want error", jobs[0].status)
 	}
 
+	// a leftover .part of a failed transfer is nothing to import
+	if err := os.WriteFile(own+".part", []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.DB.Exec(`DELETE FROM downloads WHERE id = 500`)
+	if jobs, _ = s.sabJobs(); jobs[0].status != "error" {
+		t.Errorf("only a .part left: status = %q, want error", jobs[0].status)
+	}
+
 	// the file is there: only the record is gone, the job is done
 	if err := os.WriteFile(own, []byte("x"), 0o644); err != nil {
 		t.Fatal(err)
