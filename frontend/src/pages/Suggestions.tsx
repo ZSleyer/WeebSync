@@ -53,6 +53,10 @@ import './discover.css'
 // Unvollständig, Duplikate), and the questions (Assistent, Ausgeblendet).
 // One blob from GET /api/suggestions feeds every list. Each section has its
 // own address under /discover (discoverRoutes.ts).
+
+// where TMDB is linked again after it stopped accepting the session
+const TMDB_SETTINGS = '/settings/integrations#tmdb'
+
 // the head of each list section: title and the quiet line under it
 const HEADS: Record<Exclude<DiscoverSection, 'assistant'>, string> = {
   watchlist: 'suggestions.tabWatchlist',
@@ -241,6 +245,15 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
   // progress stays read-only and one line says where to allow it
   const { data: me } = useAnilistMe()
   const stepOff = !!me?.connected && !me.allow?.list && items.some((it) => it.status)
+  // a TMDB list the last build could not read: an empty or short list says why
+  const tmdbNote =
+    bucket === 'watchlist' && data?.watchlistError === 'unauthorized'
+      ? 'suggestions.tmdbUnauthorized'
+      : bucket === 'watchlist' && data?.watchlistError === 'unavailable'
+        ? 'suggestions.tmdbWatchlistUnavailable'
+        : bucket === 'trending' && data?.trendingError === 'unavailable'
+          ? 'suggestions.tmdbTrendingUnavailable'
+          : null
 
   // the series card, with "Auto-Sync anlegen" when a server holds it
   const open = (it: SuggestionItem) =>
@@ -364,6 +377,19 @@ export function BucketSection({ bucket }: { bucket: 'trending' | 'watchlist' | '
         </p>
       )}
       {isError && data && <LoadFailed stale onRetry={() => void refetch()} />}
+      {tmdbNote && (
+        <p className="sg-stepoff" role="status">
+          {t(tmdbNote)}
+          {tmdbNote === 'suggestions.tmdbUnauthorized' && (
+            <>
+              {' '}
+              <Link className="t-link t-link--2" to={TMDB_SETTINGS}>
+                {t('suggestions.tmdbRelink')}
+              </Link>
+            </>
+          )}
+        </p>
+      )}
       {body}
       {watch &&
         (watch.inCard ? (
