@@ -381,6 +381,14 @@ func (s *Server) newznabFeed(w http.ResponseWriter, r *http.Request, movie bool)
 		}
 		byTitle := func(words []string) []arrFile {
 			like := "%" + strings.Join(words, "%") + "%"
+			// LIKE folds case for ASCII only: a cased letter beyond it matches
+			// any single character instead, so "ōoku" finds "Ōoku"
+			like = strings.Map(func(r rune) rune {
+				if r > unicode.MaxASCII && (unicode.ToUpper(r) != r || unicode.ToLower(r) != r) {
+					return '_'
+				}
+				return r
+			}, like)
 			return fetch(kind+`(cv.folder LIKE ? OR (cv.series_id > 0 AND (
 				cv.series_id IN (SELECT id FROM series WHERE title LIKE ?) OR
 				cv.series_id IN (SELECT series_id FROM series_titles WHERE title LIKE ?))))`, 2000+offset, like, like, like)
