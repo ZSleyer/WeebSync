@@ -92,9 +92,10 @@ func TestWebFontListOutlivesCaller(t *testing.T) {
 	webFontMetaURL = google.URL
 
 	var l webFontList
+	s := testServer(t, &Server{})
 	ctx, cancel := context.WithCancel(t.Context())
 	first := make(chan map[string]webFamily, 1)
-	go func() { first <- l.get(ctx) }()
+	go func() { first <- l.get(ctx, s) }()
 	for fetches.Load() == 0 {
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -102,7 +103,7 @@ func TestWebFontListOutlivesCaller(t *testing.T) {
 	short, cancelShort := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer cancelShort()
 	began := time.Now()
-	l.get(short)
+	l.get(short, s)
 	if d := time.Since(began); d > 2*time.Second {
 		t.Fatalf("the second caller waited %v", d)
 	}
@@ -115,7 +116,7 @@ func TestWebFontListOutlivesCaller(t *testing.T) {
 	release <- struct{}{} // the fetch finishes for whoever asks next
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		if _, ok := l.get(t.Context())["carlito"]; ok {
+		if _, ok := l.get(t.Context(), s)["carlito"]; ok {
 			break
 		}
 		if time.Now().After(deadline) {
@@ -125,5 +126,31 @@ func TestWebFontListOutlivesCaller(t *testing.T) {
 	}
 	if n := fetches.Load(); n != 1 {
 		t.Fatalf("%d fetches, want 1", n)
+	}
+}
+
+// The fetch is the server's background work: Shutdown cancels it and waits
+// for it.
+func TestWebFontListFetchEndsWithServer(t *testing.T) {
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // never answers
+	}))
+	defer google.Close()
+	defer google.CloseClientConnections()
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	var l webFontList
+	s := &Server{}
+	short, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	l.get(short, s)
+	ctx, cancelShutdown := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelShutdown()
+	s.Shutdown(ctx)
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.fetching != nil {
+		t.Fatal("the fetch outlived the server")
 	}
 }

@@ -57,9 +57,9 @@ type webFontList struct {
 }
 
 // get is the list, read first when it is due. The read is one for all
-// callers and runs on its own: a caller that goes away stops waiting, the
-// read goes on for the next one.
-func (l *webFontList) get(ctx context.Context) map[string]webFamily {
+// callers and runs as the server's background work: a caller that goes away
+// stops waiting, the read goes on for the next one.
+func (l *webFontList) get(ctx context.Context, s *Server) map[string]webFamily {
 	l.mu.Lock()
 	if time.Now().Before(l.next) {
 		defer l.mu.Unlock()
@@ -69,7 +69,7 @@ func (l *webFontList) get(ctx context.Context) map[string]webFamily {
 	if done == nil {
 		done = make(chan struct{})
 		l.fetching = done
-		go l.fetch(context.WithoutCancel(ctx), done)
+		s.spawn(func() { l.fetch(s.lifetimeCtx(), done) })
 	}
 	l.mu.Unlock()
 	select {
@@ -81,8 +81,8 @@ func (l *webFontList) get(ctx context.Context) map[string]webFamily {
 	return l.byName
 }
 
-// fetch reads the list for everyone waiting on done; ctx carries no
-// cancellation of the caller that started it, only a time limit.
+// fetch reads the list for everyone waiting on done, within a minute and
+// the server's lifetime, never a caller's.
 func (l *webFontList) fetch(ctx context.Context, done chan struct{}) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
@@ -177,7 +177,7 @@ func (s *Server) handlePlayWebFonts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		if list == nil {
-			list = s.webFonts.get(r.Context())
+			list = s.webFonts.get(r.Context(), s)
 		}
 		name := f
 		if a, ok := webFontAlias[f]; ok {
@@ -210,7 +210,7 @@ var cssFontURL = regexp.MustCompile(`src:\s*url\(([^)]+)\)`)
 // @Security CookieAuth
 // @Router   /api/play/webfont [get]
 func (s *Server) handlePlayWebFont(w http.ResponseWriter, r *http.Request) {
-	fam, ok := s.webFonts.get(r.Context())[strings.ToLower(r.URL.Query().Get("family"))]
+	fam, ok := s.webFonts.get(r.Context(), s)[strings.ToLower(r.URL.Query().Get("family"))]
 	weight, err := strconv.Atoi(r.URL.Query().Get("weight"))
 	if !ok || err != nil || !slices.Contains(fam.weights, weight) {
 		writeErr(w, http.StatusNotFound, "no such web font")
