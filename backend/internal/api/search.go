@@ -85,12 +85,13 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 
 	// the local library has no file index; the catalog's folders are what
 	// is known of it without walking the disks. SQL narrows on the whole
-	// path, the folder's own name decides: "anime" must not return every
+	// path, the folder's own name decides (no SQL LIMIT: it would cut before
+	// that decision): "anime" must not return every
 	// folder below an anime root.
 	// ponytail: folder names only, a local file index if titles inside matter
 	cond, args = like("folder")
 	rows, err = s.DB.Query(`SELECT folder FROM catalog_matches WHERE server_id = ?`+cond+`
-		ORDER BY folder COLLATE NOCASE LIMIT 500`,
+		ORDER BY folder COLLATE NOCASE`,
 		append([]any{localServerID}, args...)...)
 	if err != nil {
 		dbErr(w, err)
