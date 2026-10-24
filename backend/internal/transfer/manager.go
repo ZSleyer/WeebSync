@@ -1367,11 +1367,26 @@ func (m *Manager) publish(d *Download) {
 		return
 	}
 	msg := string(payload)
+	final := d.Status == "done" || d.Status == "error" || d.Status == "canceled"
 	m.mu.Lock()
 	for ch := range m.subs {
 		select {
 		case ch <- msg:
 		default: // slow subscriber: drop rather than block transfers
+			if !final {
+				continue
+			}
+			// a download's end is not followed by anything that would correct
+			// it: make room by dropping the oldest event. Only publish sends,
+			// under mu, so the slot freed here stays free for this send.
+			select {
+			case <-ch:
+			default:
+			}
+			select {
+			case ch <- msg:
+			default:
+			}
 		}
 	}
 	m.mu.Unlock()

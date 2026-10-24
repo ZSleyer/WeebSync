@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
@@ -572,6 +573,11 @@ func (s *Server) handleDownloadDelete(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
 }
 
+// sseHeartbeat is how often the event stream sends a comment line while no
+// event is due. Reverse proxies cut a response that stays silent for their
+// read timeout (nginx and Traefik default to 60 s). A var so tests can shorten it.
+var sseHeartbeat = 20 * time.Second
+
 // handleEvents streams download progress as SSE.
 // @Summary  Stream download events
 // @Description Streams download progress for the authenticated user as Server-Sent Events.
@@ -590,14 +596,20 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("X-Accel-Buffering", "no") // nginx would hold small events back
 	ch, unsubscribe := s.Transfers.Subscribe()
 	defer unsubscribe()
 	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
+	beat := time.NewTicker(sseHeartbeat)
+	defer beat.Stop()
 	for {
 		select {
 		case <-r.Context().Done():
 			return
+		case <-beat.C:
+			fmt.Fprint(w, ": ping\n\n")
+			flusher.Flush()
 		case msg := <-ch:
 			// events carry userId; only forward the user's own
 			if !ownsEvent(msg, u.ID) {
