@@ -58,13 +58,20 @@ describe('logout', () => {
     expect(calls).toEqual(['post /api/auth/logout'])
     expect(localStorage.length).toBe(0)
 
+  })
+
+  it('sends the logout POST at once even when the push cleanup never settles', async () => {
     unsubscribe.mockReturnValue(new Promise(() => {}))
     localStorage.setItem('weebsync.cache.7.watches', '[1]')
     vi.useFakeTimers()
-    const done = logout()
-    await vi.advanceTimersByTimeAsync(5000)
-    await done
-    vi.useRealTimers()
+    try {
+      // no timer is advanced: the sign-out must not wait for the cleanup
+      await logout()
+    } finally {
+      vi.useRealTimers()
+    }
+    expect(calls).toEqual(['post /api/auth/logout'])
     expect(localStorage.length).toBe(0)
+    expect(window.location.href).toBe('/?loggedout=1')
   })
 })

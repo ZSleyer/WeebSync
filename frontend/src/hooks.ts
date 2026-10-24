@@ -15,15 +15,10 @@ let localeSynced = false
  * again.
  */
 export async function logout() {
-  try {
-    // while the session is still good: the push subscription belongs to this
-    // account, and the next one to sign in here must not inherit it. The
-    // service worker may be missing (ready never settles), so it gets a
-    // few seconds at most.
-    await Promise.race([unsubscribePush(), new Promise((resolve) => setTimeout(resolve, 3000))])
-  } catch {
-    // the server drops the subscription of this session on logout as well
-  }
+  // best effort, not awaited: the server drops the push subscription of the
+  // session itself when it ends, and the service worker may be missing (ready
+  // never settles), which must not hold the sign-out back
+  unsubscribePush().catch(() => {})
   try {
     await api.post('/api/auth/logout')
   } catch {
