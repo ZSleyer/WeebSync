@@ -202,17 +202,22 @@ func (s *Server) plexShowList(c plex.Server) []PlexShowRef {
 	if err != nil {
 		return nil
 	}
+	failed := false
 	for _, sec := range secs {
 		if sec.Type != "show" {
 			continue
 		}
 		shows, err := c.Shows(sec.Key)
 		if err != nil {
+			failed = true
 			continue
 		}
 		for _, sh := range shows {
 			out = append(out, PlexShowRef{RatingKey: sh.RatingKey, Title: sh.Title, Year: sh.Year, Library: sec.Title})
 		}
+	}
+	if failed {
+		return out // what could be read, but not cached as the whole list
 	}
 	if p, err := json.Marshal(out); err == nil {
 		s.cacheSet("plex:showlist:v1", string(p))

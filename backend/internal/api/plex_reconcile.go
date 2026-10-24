@@ -97,8 +97,10 @@ func (s *Server) buildPlexGuidIndex() (map[string]plexGuid, bool) {
 			}
 		}
 	}
-	// every library unreadable is a failure, not an empty server
-	return idx, !failed || len(idx) > 0
+	// one library unreadable is a failure too: cached as complete, the shows it
+	// holds would read as "not in Plex" for an hour and the reconcile pass would
+	// mark their folders as done for good
+	return idx, !failed
 }
 
 // tvdbKey files a Plex show under its TVDB id in plexGuidIndex. A folded title

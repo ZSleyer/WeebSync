@@ -792,7 +792,8 @@ func buildPlexTitleIndex(c plex.Server) (map[string]string, bool) {
 			}
 		}
 	}
-	return idx, !failed || len(idx) > 0
+	// a partial index is not stored: the last complete one serves meanwhile
+	return idx, !failed
 }
 
 // plexOwned answers "does the library already hold this?" for a whole round of
