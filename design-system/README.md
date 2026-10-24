@@ -38,6 +38,7 @@ React 18 or newer is a peer dependency. Contracts the stylesheet relies on:
 | `data-scheme="recoil"` | swap the two halves of the colour code (see below); absent means Lycoris |
 | `data-motion="off"` | an in-app "reduce motion" switch, on top of `prefers-reduced-motion` |
 | class `kbd` | set once keyboard navigation starts; focus rings only show then |
+| `data-input="pointer"` / `"keys"` | set by the host on a pointer press / navigation keys; `pointer` switches the focus ring off, otherwise `:focus-visible` shows it |
 
 Inside this repository the app resolves `fluid-lycoris` to `src/` through an
 alias (vite, vitest and tsconfig), so there is no build step. `./build.sh`

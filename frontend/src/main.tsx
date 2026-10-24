@@ -24,10 +24,13 @@ applyScheme(readScheme())
 applyTheme(readThemePref())
 if (safeGet('local', 'weebsync.motion') === 'off') root.dataset.motion = 'off'
 
-// focus rings only for keyboard / assistive input (see fluid-lycoris.css):
-// navigation keys set the flag - not printable ones, so typing into a field
-// that was clicked stays ring-free - any pointer press clears it. Users who
-// asked for forced colours or more contrast always get the rings.
+// focus rings (see fluid-lycoris.css): the browser's :focus-visible decides,
+// so assistive input that sends no keys (voice control, switch access) gets
+// its ring too. Only a pointer press switches rings off (data-input=pointer),
+// so a click on a field or button stays ring-free; navigation keys - not
+// printable ones, so typing into a clicked field stays ring-free - switch
+// them back on (data-input=keys, which also carries the custom box-shadow
+// rings). Users who asked for forced colours or more contrast always get them.
 const NAV_KEYS = new Set([
   'Tab',
   'ArrowUp',
@@ -44,22 +47,23 @@ const NAV_KEYS = new Set([
   'F6',
 ])
 const always = matchMedia('(forced-colors: active), (prefers-contrast: more)')
-const setInput = (keys: boolean) => {
-  if (keys || always.matches) root.dataset.input = 'keys'
+const setInput = (mode?: 'keys' | 'pointer') => {
+  if (always.matches || mode === 'keys') root.dataset.input = 'keys'
+  else if (mode) root.dataset.input = mode
   else delete root.dataset.input
 }
-setInput(false)
-always.addEventListener('change', () => setInput(false))
+setInput()
+always.addEventListener('change', () => setInput())
 // a space typed into a text field is text, not navigation
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
   t.matches('input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, [contenteditable]')
 window.addEventListener(
   'keydown',
-  (e) => NAV_KEYS.has(e.key) && !(e.key === ' ' && typing(e.target)) && setInput(true),
+  (e) => NAV_KEYS.has(e.key) && !(e.key === ' ' && typing(e.target)) && setInput('keys'),
   { capture: true, passive: true },
 )
-window.addEventListener('pointerdown', () => setInput(false), { capture: true, passive: true })
+window.addEventListener('pointerdown', () => setInput('pointer'), { capture: true, passive: true })
 
 // the design system's icon-only close buttons speak the UI language
 function CloseLabel({ children }: { children: ReactNode }) {

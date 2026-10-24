@@ -891,16 +891,17 @@ option { background-color: var(--bg-2); color: var(--fg); }
 /* Accent surfaces carry dark text (WCAG 1.4.3) */
 .bg-accent { color: var(--on-accent) !important; }
 
-/* Focus rings are for keyboard and assistive input only: main.tsx sets
-   html[data-input='keys'] on navigation keys and clears it on any pointer
-   press (and keeps it set under forced-colors / prefers-contrast). Outline
-   rings are switched off here without it; box-shadow rings carry the
-   attribute in their own selector. */
+/* Focus rings follow the browser's :focus-visible (WCAG 2.4.7), so keyboard,
+   voice and switch input all get one. main.tsx sets html[data-input='pointer']
+   on a pointer press, which keeps a click from leaving a ring (a clicked text
+   field matches :focus-visible), and html[data-input='keys'] on navigation
+   keys (and under forced-colors / prefers-contrast), which the box-shadow
+   rings below carry in their own selector. */
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-:root:not([data-input='keys']) :is(:focus-visible, :focus-within) {
+:root[data-input='pointer'] :is(:focus-visible, :focus-within) {
   outline: none !important;
 }
 /* menu rows sit in a clipped surface: ring inside */
