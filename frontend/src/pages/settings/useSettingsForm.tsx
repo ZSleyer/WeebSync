@@ -94,21 +94,23 @@ const BLANK_SECRETS = {
 // Shared admin form: each settings sub-page seeds from GET /api/settings and
 // saves only the fields that differ from it. The backend keeps what a save
 // leaves out and checks only what changed, so a stale tab no longer reverts
-// another tab's save, and a value on another page that went bad since does
+// another tab's save (edits are kept as a patch, never as a snapshot), and a value on another page that went bad since does
 // not block this one.
 export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) {
   const qc = useQueryClient()
   // `enabled: false` for a page that also opens for non-admins: GET
   // /api/settings is admin-only
-  const { data } = useQuery<SettingsState>({
+  const { data, isError, refetch } = useQuery<SettingsState>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
     enabled,
   })
   // what the form shows until the first edit: the fetched state, secrets blanked
   const seeded = data ? { ...data, ...BLANK_SECRETS, oidcClaim: data.oidcClaim || 'groups' } : null
-  const [edited, setForm] = useState<SettingsState | null>(null)
-  const form = edited ?? seeded
+  // only the touched fields: the rest follows the fetched state, so a refetch
+  // (another tab's save) is never overwritten by a stale snapshot
+  const [edits, setEdits] = useState<Partial<SettingsState>>({})
+  const form = seeded ? { ...seeded, ...edits } : null
   const [saved, setSaved] = useState(false)
 
   const refresh = (fresh: SettingsState) => {
@@ -145,11 +147,14 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
           Object.entries(s).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(data?.[k as keyof SettingsState])),
         ),
       ),
-    onSuccess: (fresh) => {
+    onSuccess: (fresh, sent) => {
       refresh(fresh)
-      // back to the seeded form: a copy of `fresh` would read as dirty as soon
-      // as a refetch changed anything in `data` (a false unsaved warning)
-      setForm(null)
+      // drop the edits that were sent; what was typed while the save ran stays
+      setEdits((e) =>
+        Object.fromEntries(
+          Object.entries(e).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(sent[k as keyof SettingsState])),
+        ),
+      )
       setSaved(true)
       setTimeout(() => setSaved(false), 1200)
     },
@@ -161,25 +166,29 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
     mutationFn: (k: keyof SettingsState) => api.put<SettingsState>('/api/settings', { [k]: '-' }),
     onSuccess: (fresh, k) => {
       refresh(fresh)
-      setForm((f) =>
-        f ? { ...f, ...Object.fromEntries(Object.entries(fresh).filter(([n]) => n.endsWith('Set'))), [k]: '' } : f,
-      )
+      setEdits((e) => {
+        // the *Set flags follow the fetched state; the cleared secret reads blank again
+        const { [k]: _gone, ...rest } = e
+        return Object.fromEntries(Object.entries(rest).filter(([n]) => !n.endsWith('Set')))
+      })
     },
   })
   const clearSecret = (k: keyof SettingsState) => clear.mutate(k)
 
-  const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) =>
-    setForm((f) => {
-      const base = f ?? seeded
-      return base ? { ...base, [k]: v } : base
-    })
+  const set = <K extends keyof SettingsState>(k: K, v: SettingsState[K]) => {
+    // a refusal of this field is stale once it is edited
+    if (save.error?.message.startsWith(`${k}:`)) save.reset()
+    setEdits((e) => ({ ...e, [k]: v }))
+  }
 
   // field value comes from an env var: input is disabled, EnvBadge shown
   const locked = (k: keyof SettingsState) => form?.envLocked?.includes(k) ?? false
 
   // unsaved changes: the edits differ from the fetched state, compared with
   // the same blanked secrets
-  const dirty = !!edited && !!seeded && JSON.stringify(edited) !== JSON.stringify(seeded)
+  const dirty =
+    !!seeded &&
+    Object.entries(edits).some(([k, v]) => JSON.stringify(v) !== JSON.stringify(seeded[k as keyof SettingsState]))
 
   // what is wrong with one field: the save just refused it (the backend
   // prefixes the field name), or its stored value broke since it was saved
@@ -192,9 +201,9 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
   }
 
   // drop the edits: back to the fetched state
-  const reset = () => setForm(null)
+  const reset = () => setEdits({})
 
-  return { form, set, save, saved, locked, dirty, issue, reset, clearSecret }
+  return { form, set, save, saved, locked, dirty, issue, reset, clearSecret, isError, refetch }
 }
 
 // Error line under a field, wired to its input via aria-describedby.

@@ -3393,7 +3393,16 @@ export interface Schemas {
      */
     connected: boolean
     trending: Schemas['api.tmdbSuggestion'][]
+    /**
+     * TrendingError: "unavailable" when the trending list could not be read
+     */
+    trendingError?: string
     watchlist: Schemas['api.tmdbSuggestion'][]
+    /**
+     * WatchlistError: "unauthorized" when TMDB no longer accepts the linked
+     * session (link again), "unavailable" when the list could not be read
+     */
+    watchlistError?: string
   }
   'api.todayBanner': {
     /**

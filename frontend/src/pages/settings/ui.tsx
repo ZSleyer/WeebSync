@@ -2,6 +2,7 @@ import { useId, type InputHTMLAttributes, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Button, Input, SettingsField, Switch, Textarea } from 'fluid-lycoris'
 import { useConfirm } from '../../components/confirm'
+import Loading from '../../components/Loading'
 import './settings.css'
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(' ')
@@ -286,5 +287,21 @@ export function SwitchSetting({ label, hint, env, issue, className, checked, onC
       />
       <Issue id={id + 'i'} msg={issue} />
     </SettingsField>
+  )
+}
+
+/** What a settings page shows while its data is missing: the wait, or why it failed with a retry. */
+export function LoadGate({ error, onRetry }: { error: boolean; onRetry: () => void }) {
+  const { t } = useTranslation()
+  if (!error) return <Loading page />
+  return (
+    <div className="sf-acts">
+      <p className="sf-issue" role="alert">
+        {t('settings.loadFailed')}
+      </p>
+      <Button size="sm" onClick={onRetry}>
+        {t('settings.loadRetry')}
+      </Button>
+    </div>
   )
 }

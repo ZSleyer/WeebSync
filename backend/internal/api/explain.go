@@ -123,11 +123,22 @@ func (s *Server) handleCatalogExplain(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	out, err := s.explainFolder(ctx, serverID, folder)
 	if err != nil {
+		var dbe explainDBError
+		if errors.As(err, &dbe) {
+			dbErr(w, err)
+			return
+		}
 		writeErr(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, out)
 }
+
+// explainDBError marks a failure of our own database inside explainFolder, so
+// the handler does not report it as an upstream (502) error.
+type explainDBError struct{ error }
+
+func (e explainDBError) Unwrap() error { return e.error }
 
 func (s *Server) explainFolder(ctx context.Context, serverID int64, folder string) (catalogExplainResponse, error) {
 	name := path.Base(folder)
@@ -153,7 +164,7 @@ func (s *Server) explainFolder(ctx context.Context, serverID int64, folder strin
 		out.Chosen = &c
 		out.Bundle = s.bundleOf(serverID, folder, c)
 	case !errors.Is(err, sql.ErrNoRows):
-		return out, err
+		return out, explainDBError{err}
 	}
 	src := s.folderSource(serverID, folder)
 	out.Source = src

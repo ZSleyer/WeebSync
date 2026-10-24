@@ -1,4 +1,4 @@
-import { Folder, Save, X } from 'lucide-react'
+import { Folder, Save, Trash2, X } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth, useMediaServer, useProviders } from '../hooks'
@@ -76,6 +76,9 @@ export interface WatchFormProps {
   /** leaves the form: after a save, or a cancel the guard let through */
   onClose: () => void
   saveLabel?: string // footer button text; defaults to the watch "save" label
+  /** editing only: adds a delete button to the footer (the caller removes the
+   *  watch, with its undo, and closes the form) */
+  onDelete?: () => void
   info?: string[] // context lines under the header (e.g. chosen upgrade source vs local quality)
 }
 
@@ -108,6 +111,7 @@ export function WatchForm({
   onSave,
   onClose,
   saveLabel,
+  onDelete,
   info,
   onGuard,
   inPage,
@@ -622,6 +626,12 @@ export function WatchForm({
           <p className="mr-auto min-w-0 flex-1 text-ctl-sm text-warn" role="status">
             {notice}
           </p>
+        )}
+        {onDelete && (
+          <Button variant="danger" className="mr-auto" onClick={onDelete}>
+            <Trash2 aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />
+            {t('servers.delete')}
+          </Button>
         )}
         <Button onClick={cancel}>
           <X aria-hidden size="1em" className="mr-1 inline align-[-0.125em]" />

@@ -1,5 +1,6 @@
 import { downloadLabel, netErrorText, type Download, type DownloadMeta, type Watch } from '../../api'
 import { attentionInfo } from '../../attention'
+import { safeGet } from '../../hooks/useStored'
 import { isFsErrorCode } from '../../components/FsErrorNote'
 
 type T = (key: string, opts?: Record<string, unknown>) => string
@@ -269,14 +270,11 @@ const HIDDEN_KEY = 'weebsync.today.hidden'
 /** The rows the user swiped away on this browser, by fingerprint. */
 export function hiddenNeeds(): Set<string> {
   const out = new Set<string>()
-  for (const [store, key] of [
-    [localStorage, HIDDEN_KEY],
-    [sessionStorage, HIDDEN_KEY],
-  ] as const) {
+  for (const store of ['local', 'session'] as const) {
     try {
-      for (const p of JSON.parse(store.getItem(key) ?? '[]') as string[]) out.add(p)
+      for (const p of JSON.parse(safeGet(store, HIDDEN_KEY) ?? '[]') as string[]) out.add(p)
     } catch {
-      /* unreadable or blocked: nothing hidden from this store */
+      /* unparsable: nothing hidden from this store */
     }
   }
   return out

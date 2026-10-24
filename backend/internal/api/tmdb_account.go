@@ -1,8 +1,11 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"time"
@@ -10,17 +13,25 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/secret"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // TMDB account linking (v3 request-token flow) plus the TMDB suggestions
 // endpoint (watchlist ∩ remote index, and trending ∩ remote index).
+
+// errNoTmdbAccount: the user has not linked a TMDB account (as opposed to a
+// database or decryption failure).
+var errNoTmdbAccount = errors.New("no linked TMDB account")
 
 // tmdbAccount returns the linked TMDB account of a weebsync user.
 func (s *Server) tmdbAccount(userID int64) (accountID int, session string, err error) {
 	var enc []byte
 	if err := s.DB.QueryRow(`SELECT tmdb_account_id, session_enc FROM tmdb_accounts WHERE user_id = ?`, userID).
 		Scan(&accountID, &enc); err != nil {
-		return 0, "", fmt.Errorf("no linked TMDB account")
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, "", errNoTmdbAccount
+		}
+		return 0, "", err
 	}
 	session, err = secret.Decrypt(enc)
 	if err != nil {
@@ -210,6 +221,11 @@ type tmdbSuggestionsResponse struct {
 	Connected  bool             `json:"connected"`  // a TMDB account is linked
 	Watchlist  []tmdbSuggestion `json:"watchlist"`
 	Trending   []tmdbSuggestion `json:"trending"`
+	// WatchlistError: "unauthorized" when TMDB no longer accepts the linked
+	// session (link again), "unavailable" when the list could not be read
+	WatchlistError string `json:"watchlistError,omitempty"`
+	// TrendingError: "unavailable" when the trending list could not be read
+	TrendingError string `json:"trendingError,omitempty"`
 }
 
 // handleTmdbSuggestions lists TMDB watchlist and trending titles that exist
@@ -240,18 +256,45 @@ func (s *Server) handleTmdbSuggestions(w http.ResponseWriter, r *http.Request) {
 	watchlist := []tmdbSuggestion{}
 	trending := []tmdbSuggestion{}
 	for _, kind := range []string{"tv", "movie"} {
-		if list, err := s.Tmdb.Trending(r.Context(), kind); err == nil {
-			trending = append(trending, s.tmdbSuggestList(u.ID, kind, list, true)...)
+		list, err := s.Tmdb.Trending(r.Context(), kind)
+		if err != nil {
+			out.TrendingError = "unavailable"
+			continue
 		}
+		trending = append(trending, s.tmdbSuggestList(u.ID, kind, list, true)...)
 	}
-	if accountID, session, err := s.tmdbAccount(u.ID); err == nil {
+	accountID, session, err := s.tmdbAccount(u.ID)
+	switch {
+	case errors.Is(err, errNoTmdbAccount):
+		// not linked: the quiet case
+	case err != nil:
+		// a linked account whose row or session cannot be read
+		slog.Warn("tmdb account unreadable", "user", u.ID, "err", err)
+		out.Connected = true
+		out.WatchlistError = "unavailable"
+	default:
 		out.Connected = true
 		for _, kind := range []string{"tv", "movie"} {
 			key := fmt.Sprintf("tmdb:watchlist:%d:%s", accountID, kind)
 			var medias []anilist.Media
+			hit := false
 			if payload, ok := s.cacheGet(key, time.Hour); ok && !force {
-				json.Unmarshal([]byte(payload), &medias)
-			} else if medias, err = s.Tmdb.Watchlist(r.Context(), session, accountID, kind); err == nil {
+				// an entry that no longer parses is a miss, not an empty list
+				hit = json.Unmarshal([]byte(payload), &medias) == nil
+			}
+			if !hit {
+				var ferr error
+				if medias, ferr = s.Tmdb.Watchlist(r.Context(), session, accountID, kind); ferr != nil {
+					var se *tmdb.StatusError
+					if errors.As(ferr, &se) && se.Code == http.StatusUnauthorized {
+						// the app authorisation was revoked on themoviedb.org
+						out.Connected = false
+						out.WatchlistError = "unauthorized"
+						break
+					}
+					out.WatchlistError = "unavailable"
+					continue
+				}
 				payload, _ := json.Marshal(medias)
 				s.cacheSet(key, string(payload))
 			}

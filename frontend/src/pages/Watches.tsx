@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpen,
+  Ellipsis,
   CalendarDays,
   CalendarRange,
   Check,
@@ -34,7 +35,6 @@ import {
   Rows,
   SectionHeading,
   Segmented,
-  SHEET_MQ,
   Slot,
   SwipeDeck,
   TextLink,
@@ -111,7 +111,13 @@ interface RowAction {
 // the same data. The list polls, so check results appear live.
 export default function Watches() {
   const { t } = useTranslation()
-  const { data: watches = [], isLoading } = useQuery<Watch[]>({
+  const {
+    data: watches = [],
+    isLoading,
+    isError,
+    refetch,
+    data: loaded,
+  } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
     refetchInterval: 10_000,
@@ -119,18 +125,14 @@ export default function Watches() {
   const [edit, setEdit] = useState<Watch | null>(null)
   // a long press on a tile opens every action of it in a sheet
   const [more, setMore] = useState<Watch | null>(null)
-  const narrow = useMediaQuery(SHEET_MQ)
   const wide = useMediaQuery(WIDE_MQ)
-  const { applyPlexStreams, del, save, error, notice } = useWatchActions()
+  const { applyPlexStreams, del, save, error } = useWatchActions()
   const toast = useToast()
   const fail = useFailToast()
   // what the actions report goes to the toast, as everywhere else
   useEffect(() => {
     if (error) toast({ message: error, error: true })
   }, [error, toast])
-  useEffect(() => {
-    if (notice) toast({ message: notice })
-  }, [notice, toast])
 
   // one page, three ways to look at it; the grid of covers first
   const [mode, setMode] = usePersistedView(
@@ -652,6 +654,15 @@ export default function Watches() {
         </div>
       )}
 
+      {isError && loaded && (
+        <p className="mb-3 flex flex-wrap items-center gap-2 text-ctl-sm text-t-muted" role="status">
+          {t('discover.loadStale')}{' '}
+          <Button size="sm" onClick={() => void refetch()}>
+            {t('app.tryAgain')}
+          </Button>
+        </p>
+      )}
+
       {isLoading ? (
         // the tiles' real heights, so nothing below jumps when they arrive
         <ul className="w-grid w-skel" aria-busy="true" aria-label={t('watch.title')}>
@@ -663,6 +674,14 @@ export default function Watches() {
             </li>
           ))}
         </ul>
+      ) : isError && !loaded ? (
+        // a failed load is not "no watches": that text invites to create them again
+        <EmptyState>
+          <span role="alert">{t('watch.loadFailed')}</span>{' '}
+          <Button size="sm" onClick={() => void refetch()}>
+            {t('app.tryAgain')}
+          </Button>
+        </EmptyState>
       ) : watches.length === 0 ? (
         <EmptyState>
           <Trans i18nKey="watch.empty" components={{ go: <Link to="/files" className="t-link t-link--2" /> }} />
@@ -794,7 +813,7 @@ export default function Watches() {
                       eager={gi === 0 && i < 12}
                       now={now}
                       onOpen={() => openTile(w)}
-                      onMore={narrow ? () => setMore(w) : undefined}
+                      onMore={() => setMore(w)}
                     />
                   ))}
                 </ul>
@@ -812,6 +831,16 @@ export default function Watches() {
           watchId={edit.id}
           initial={watchFields(edit)}
           onSave={(f) => save(edit.id, f)}
+          // a watch without a record has no series page, whose menu holds the
+          // delete: the dialog is its only place for it (no touch long press)
+          onDelete={
+            edit.media
+              ? undefined
+              : () => {
+                  void del(edit)
+                  setEdit(null)
+                }
+          }
           onClose={() => setEdit(null)}
         />
       )}
@@ -868,7 +897,7 @@ function WatchTile({
   eager: boolean
   now: number
   onOpen: () => void
-  onMore?: () => void
+  onMore: () => void
 }) {
   const { t } = useTranslation()
   const name = watchName(w)
@@ -902,6 +931,18 @@ function WatchTile({
           </>
         )}
       </button>
+      {/* every action of the watch for mouse and keyboard too: the long press
+          is a touch gesture, and a manga or unmatched watch opens the reader
+          or the editor on click */}
+      <IconButton
+        className="w-more"
+        aria-label={t('watch.moreActions', { title: name })}
+        title={t('watch.moreActions', { title: name })}
+        aria-haspopup="dialog"
+        onClick={onMore}
+      >
+        <Ellipsis aria-hidden size="1.2em" />
+      </IconButton>
     </Press>
   )
 }

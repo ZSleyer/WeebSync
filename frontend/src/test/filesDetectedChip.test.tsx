@@ -16,10 +16,10 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function mount(detected: boolean) {
+function mount(detected: boolean, phone = false) {
   // a wide screen: the source chip opens a menu, not a sheet
   vi.stubGlobal('matchMedia', (q: string) => ({
-    matches: !/max-width|pointer: coarse|hover: none/.test(q),
+    matches: phone ? /max-width|pointer: coarse|hover: none/.test(q) : !/max-width|pointer: coarse|hover: none/.test(q),
     media: q,
     addEventListener() {},
     removeEventListener() {},
@@ -70,5 +70,14 @@ describe('a folder WeebSync marked itself', () => {
     mount(false)
     await screen.findByRole('button', { name: /remote\.scopeAs/ })
     expect(screen.queryByText('remote.detected')).toBeNull()
+  })
+
+  it('offers the kinds in the phone sheet as plain toggle buttons, not a radiogroup without arrow keys', async () => {
+    mount(true, true)
+    fireEvent.click(await screen.findByRole('button', { name: /remote\.scopeAs/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.querySelector('[role="radiogroup"], [role="radio"]')).toBeNull()
+    const pressed = Array.from(dialog.querySelectorAll('button[aria-pressed]'))
+    expect(pressed.length).toBeGreaterThan(1)
   })
 })

@@ -49,7 +49,7 @@ func (c *Client) post(ctx context.Context, path string, body, out any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return fmt.Errorf("tmdb: HTTP %d", resp.StatusCode)
+		return &StatusError{Code: resp.StatusCode}
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(out)
 }

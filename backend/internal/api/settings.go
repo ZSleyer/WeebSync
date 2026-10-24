@@ -510,6 +510,13 @@ func (s *Server) handleSettingsPut(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// the allowlist names values of the claim: without one it gates nobody,
+	// yet still turns on provisioning of every identity the provider vouches for
+	if (in.OidcUserValues != cur.OidcUserValues || in.OidcClaim != cur.OidcClaim) &&
+		strings.TrimSpace(in.OidcClaim) == "" && strings.TrimSpace(strings.ReplaceAll(in.OidcUserValues, ",", "")) != "" {
+		bad("oidcClaim", "required when allowed values are set")
+		return
+	}
 
 	// instance URL: empty or an absolute http(s) origin
 	baseURL := strings.TrimRight(strings.TrimSpace(in.BaseURL), "/")

@@ -11,8 +11,8 @@ export interface Renaming {
 /**
  * A name turned into its own input where it stands, instead of a dialog with
  * one field. The part before the extension is selected, so typing replaces
- * the name and keeps the type. Enter or leaving the field saves, Escape
- * abandons - without closing a dialog the row may sit in.
+ * the name and keeps the type. Enter or a click on empty space saves, Escape or focus moving to
+ * another control abandons - without closing a dialog the row may sit in.
  */
 export function InlineRename({
   name,
@@ -59,7 +59,13 @@ export function InlineRename({
           done(null)
         }
       }}
-      onBlur={(e) => done(e.currentTarget.value)}
+      onBlur={(e) => {
+        // switching windows blurs the field too: keep the half-typed name
+        if (!document.hasFocus()) return
+        // focus went to another control (Delete, another row): abandon the
+        // edit rather than commit a half-typed name; empty space commits
+        done(e.relatedTarget ? null : e.currentTarget.value)
+      }}
     />
   )
 }

@@ -50,6 +50,51 @@ describe('CheckButton', () => {
   })
 })
 
+describe('CheckButton failures and vanishing rows', () => {
+  it('does not call failed downloads downloaded', async () => {
+    const { qc } = setup({ status: 'checked', queued: [7, 8] })
+    await act(async () => fireEvent.click(screen.getByRole('button')))
+    await act(async () => qc.setQueryData(['downloads'], [dl(7, 'done', 100), dl(8, 'error', 10)]))
+    await waitFor(() => expect(screen.getByRole('button').textContent).toContain('watch.checkFailedDl:1'))
+    expect(screen.getByRole('button').textContent).not.toContain('watch.checkDone')
+  })
+
+  it('shows failure on the sync button instead of all here', async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })
+    qc.setQueryData(['downloads'], [dl(7, 'queued'), dl(8, 'queued')])
+    const check = vi.fn(async () => ({ status: 'checked', queued: [7, 8] }) as WatchCheck)
+    render(
+      <QueryClientProvider client={qc}>
+        <CheckButton watchId={1} act={{ check } as unknown as ReturnType<typeof useWatchActions>} variant="sync" />
+      </QueryClientProvider>,
+    )
+    const b = screen.getByRole('button')
+    await act(async () => fireEvent.click(b))
+    await act(async () => qc.setQueryData(['downloads'], [dl(7, 'done', 100), dl(8, 'canceled', 0)]))
+    await waitFor(() => expect(b).toHaveAttribute('data-state', 'error'))
+    expect(b.textContent).not.toContain('series.sync.allHere')
+    expect(b.textContent).toContain('watch.checkFailedDl:1')
+  })
+
+  it('becomes a button again when the followed rows are removed', async () => {
+    const { qc, check } = setup({ status: 'checked', queued: [7, 8] })
+    await act(async () => fireEvent.click(screen.getByRole('button')))
+    await act(async () => qc.setQueryData(['downloads'], []))
+    await waitFor(() => expect(screen.getByRole('button')).not.toHaveAttribute('aria-busy', 'true'))
+    await act(async () => fireEvent.click(screen.getByRole('button')))
+    expect(check).toHaveBeenCalledTimes(2)
+  })
+
+  it('announces progress from a live region beside the button, not inside it', async () => {
+    setup({ status: 'checked' })
+    const b = screen.getByRole('button')
+    expect(b.querySelector('[role="status"]')).toBeNull()
+    await act(async () => fireEvent.click(b))
+    expect(screen.getByRole('status').textContent).toBe('watch.checkNothing')
+    expect(b.contains(screen.getByRole('status'))).toBe(false)
+  })
+})
+
 describe('CheckButton as the sync button', () => {
   it('fills while the missing episodes load and settles on all here', async () => {
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity } } })

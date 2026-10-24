@@ -102,6 +102,7 @@ export function NewShelf({
                     : t('today.ep', { e: item.episode })
                   : ''
                 const chips = [resChip(item?.res), ...(item?.dub ?? []).map(langChip)].filter(Boolean)
+                const when = fresh ? t('today.justNow') : t('dash.landed', { day: day(at) })
                 const go = () => {
                   if (watch?.media) {
                     // the card opens at this episode: its facts open and the
@@ -121,7 +122,15 @@ export function NewShelf({
                   }
                 }
                 return (
-                  <button key={d.id} type="button" className="td-tile" data-fresh={fresh || undefined} onClick={go}>
+                  <button
+                    key={d.id}
+                    type="button"
+                    className="td-tile"
+                    data-fresh={fresh || undefined}
+                    // the caption and chips are decorative: the name carries what the tile shows
+                    aria-label={[title, ep || label.name, item?.title, when].filter(Boolean).join(', ')}
+                    onClick={go}
+                  >
                     <span className="td-cv">
                       <CoverImg
                         set={coverSet({ large: group?.cover, extraLarge: group?.coverLarge })}
@@ -142,7 +151,7 @@ export function NewShelf({
                       <b>{title}</b>
                       <span>{ep || label.name}</span>
                       <span>{item?.title || '\u00a0'}</span>
-                      <span className="td-when">{fresh ? t('today.justNow') : t('dash.landed', { day: day(at) })}</span>
+                      <span className="td-when">{when}</span>
                     </span>
                   </button>
                 )

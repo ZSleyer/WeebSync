@@ -21,16 +21,35 @@ interface AuthConfig {
   passwordReset: boolean
 }
 
-// what the address brings, read once: the token of a password reset link, a
-// sign-in the provider refused, and a fresh logout. The reset token comes in
-// the fragment (never sent to a server, so never in an access log); links
-// mailed before that carried it in the query.
-const landing = new URLSearchParams(window.location.search)
-const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? landing.get('reset') ?? ''
-const oidcError = landing.get('oidc_error') ?? ''
-const loggedOut = landing.has('loggedout')
-// a refused sign-in or a logout must not bounce back to the provider
-const holdRedirect = landing.has('noredirect') || !!oidcError || loggedOut
+// what the address brings, read when the login mounts (not once per page load:
+// the screen mounts again, without a reload, whenever a session expires): the
+// token of a password reset link, a sign-in the provider refused, and a fresh
+// logout. The reset token comes in the fragment (never sent to a server, so
+// never in an access log); links mailed before that carried it in the query.
+// A reload of the same history entry (F5, tab restore, PWA resume) must keep
+// holding the provider redirect that ?loggedout or a refused sign-in asked for,
+// although the message was said once and its parameters are gone from the
+// address: the hold rides in history.state, which survives a reload. Only the
+// first read of a page load honours it; a login that mounts again inside the
+// running app (session expiry) starts clean.
+const HOLD_STATE = 'wsHoldRedirect'
+let landingRead = false
+export function readLanding() {
+  const held = !landingRead && !!(window.history.state as Record<string, unknown> | null)?.[HOLD_STATE]
+  landingRead = true
+  const q = new URLSearchParams(window.location.search)
+  const resetToken = new URLSearchParams(window.location.hash.slice(1)).get('reset') ?? q.get('reset') ?? ''
+  const oidcError = q.get('oidc_error') ?? ''
+  const loggedOut = q.has('loggedout')
+  return {
+    resetToken,
+    oidcError,
+    loggedOut,
+    noRedirect: q.has('noredirect'),
+    // a refused sign-in or a logout must not bounce back to the provider
+    holdRedirect: q.has('noredirect') || !!oidcError || loggedOut || held,
+  }
+}
 const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window
 
 // "stay signed in" is remembered per browser and ticked until someone unticks
@@ -84,6 +103,8 @@ export default function Login() {
     queryKey: ['authConfig'],
     queryFn: () => api.get('/api/auth/config'),
   })
+  const [landing] = useState(readLanding)
+  const { resetToken, oidcError, loggedOut, noRedirect, holdRedirect } = landing
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -107,6 +128,8 @@ export default function Login() {
   const [waiting, setWaiting] = useState<'passkey' | 'sso' | null>(null)
   // counts refusals, so the same message shakes again
   const [errorTick, setErrorTick] = useState(0)
+  // bumped to arm the passkey autofill again
+  const [autofillTick, setAutofillTick] = useState(0)
   // which fields the shown error belongs to: only a refused password or code
   // does, a refused passkey or provider is about no field
   const [errAt, setErrAt] = useState<'' | 'form' | 'totp'>('')
@@ -124,22 +147,48 @@ export default function Login() {
     else if (v === 'invalid') setError(t('login.verifyInvalid'))
     if (oidcError) setError(t(`login.oidcError.${oidcError}`, { defaultValue: t('login.oidcError.generic') }))
     if (loggedOut) setNotice(t('login.loggedOut'))
-  }, [t])
+  }, [t, oidcError, loggedOut])
+  // said once: a login that mounts again later must not repeat it
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    if (!q.has('oidc_error') && !q.has('loggedout')) return
+    q.delete('oidc_error')
+    q.delete('loggedout')
+    const rest = q.toString()
+    history.replaceState(
+      { ...(history.state as object | null), [HOLD_STATE]: true },
+      '',
+      window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash,
+    )
+  }, [])
 
   // oidc-auto: straight to the provider; ?noredirect=1 is the escape hatch
   // (e.g. admin needs the password form while the provider is down)
-  const noRedirect = landing.has('noredirect')
   useEffect(() => {
     // not while setting up: the wizard sends the first sign-in itself, with the setup code
     if (cfg?.authMode === 'oidc-auto' && cfg.oidc && !holdRedirect && !cfg.setupNeeded) {
       rememberReturn()
       window.location.href = oidcHref(readRemember())
     }
-  }, [cfg])
+  }, [cfg, holdRedirect])
 
   useEffect(() => {
     document.title = `${t('login.login')} - WeebSync`
   }, [t])
+
+  // A stage change replaces the subtree the focus was in (the pressed button is
+  // gone), which leaves it on <body>: put it on the new stage's heading, or on
+  // the email field of the sign-in form. Stages whose first field autofocuses
+  // already hold it.
+  const stageRef = useRef<HTMLDivElement>(null)
+  const stageSeen = useRef({ detour, twoFA: !!twoFA })
+  useEffect(() => {
+    const prev = stageSeen.current
+    stageSeen.current = { detour, twoFA: !!twoFA }
+    const root = stageRef.current
+    if (!root || (prev.detour === detour && prev.twoFA === !!twoFA) || root.contains(document.activeElement)) return
+    ;(root.querySelector<HTMLElement>('.ws-login-h') ?? root.querySelector<HTMLElement>('#email'))?.focus()
+  }, [detour, twoFA])
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -213,7 +262,12 @@ export default function Login() {
   // user) and refetch the identity. Not qc.clear(): that drops the 'me' query
   // out from under App's observer, the invalidate then finds nothing and the
   // login screen stays until a reload.
-  const afterAuth = () => qc.resetQueries()
+  const afterAuth = () => {
+    // signed in: the hold of a logout or refusal is spent, a later reload of this entry must not keep it
+    const { [HOLD_STATE]: _spent, ...rest } = (history.state ?? {}) as Record<string, unknown>
+    if (_spent) history.replaceState(rest, '')
+    return qc.resetQueries()
+  }
   // arm passkey autofill (conditional UI) once, when password login is available:
   // the browser surfaces passkeys in the email field, no explicit button needed
   useEffect(() => {
@@ -221,18 +275,29 @@ export default function Login() {
     let active = true
     supportsPasskeyAutofill().then((ok) => {
       if (!active) return
-      if (ok)
-        conditionalPasskeyLogin(() => rememberRef.current)
+      if (ok) {
+        // the remember flag is read once a passkey has been picked, right before
+        // the server is asked to finish: from then on a refusal is about the user's action
+        let picked = false
+        conditionalPasskeyLogin(() => {
+          picked = true
+          return rememberRef.current
+        })
           .then(() => {
             if (active) afterAuth()
           })
-          .catch(() => {})
+          .catch((err) => {
+            // an aborted or ignored ceremony stays quiet, and so does the page-load
+            // start failing (e.g. rate limited); the server refusing a picked passkey does not
+            if (active && picked && err instanceof ApiError) fail(err.message)
+          })
+      }
     })
     return () => {
       active = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg?.authMode])
+  }, [cfg?.authMode, autofillTick])
   const passkeyLogin = async () => {
     setBusy(true)
     setWaiting('passkey')
@@ -242,6 +307,8 @@ export default function Login() {
       await afterAuth()
     } catch (err) {
       fail(err instanceof Error ? err.message : t('login.passkeyFailed'))
+      // the button's ceremony replaced the pending autofill one: arm it again
+      setAutofillTick((n) => n + 1)
     } finally {
       setBusy(false)
       setWaiting(null)
@@ -309,7 +376,7 @@ export default function Login() {
         </h1>
       </div>
       <div className="ws-login-side">
-        <div key={stage} className="ws-login-form ws-stage">
+        <div key={stage} ref={stageRef} className="ws-login-form ws-stage">
           {insecure && (
             <p className="ws-login-err" role="alert">
               {t('login.insecure')}
@@ -341,6 +408,7 @@ export default function Login() {
           ) : detour ? (
             <PasswordDetour
               kind={detour}
+              resetToken={resetToken}
               email={email}
               onDone={(msg) => {
                 setDetour(null)
@@ -350,7 +418,9 @@ export default function Login() {
             />
           ) : twoFA ? (
             <form className="grid" onSubmit={submitTotp}>
-              <h2 className="ws-login-h">{t('login.totpTitle')}</h2>
+              <h2 className="ws-login-h" tabIndex={-1}>
+                {t('login.totpTitle')}
+              </h2>
               {/* with only a security key there is no code field to point at */}
               <p className="ws-quiet">{twoFA.totp ? t('login.totpHint') : t('login.securityKeyHint')}</p>
               {twoFA.totp && (
@@ -540,10 +610,12 @@ export default function Login() {
 // where the link lands: a new password, twice, and back to the login.
 function PasswordDetour({
   kind,
+  resetToken,
   email: initialEmail,
   onDone,
 }: {
   kind: 'forgot' | 'reset'
+  resetToken: string
   email: string
   onDone: (notice: string) => void
 }) {
@@ -555,6 +627,11 @@ function PasswordDetour({
   const [busy, setBusy] = useState(false)
   // the link is asked for: the screen says where to look next
   const [sent, setSent] = useState(false)
+  const sentHeading = useRef<HTMLHeadingElement>(null)
+  // the form with the pressed button is gone: the new heading takes the focus
+  useEffect(() => {
+    if (sent) sentHeading.current?.focus()
+  }, [sent])
 
   // the refused address, or the passwords that did not match or were refused
   const bad = error ? { 'aria-invalid': true, 'aria-describedby': 'detour-error' } : {}
@@ -586,7 +663,9 @@ function PasswordDetour({
   if (sent)
     return (
       <div key="sent" className="grid ws-stage">
-        <h2 className="ws-login-h">{t('login.sentTitle')}</h2>
+        <h2 ref={sentHeading} tabIndex={-1} className="ws-login-h">
+          {t('login.sentTitle')}
+        </h2>
         <p className="ws-quiet" role="status">
           {t('login.forgotSent')}
         </p>

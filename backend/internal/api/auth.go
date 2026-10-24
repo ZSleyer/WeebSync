@@ -84,10 +84,14 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Email = strings.TrimSpace(strings.ToLower(c.Email))
-	if _, err := mail.ParseAddress(c.Email); err != nil {
+	parsed, err := mail.ParseAddress(c.Email)
+	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid email")
 		return
 	}
+	// the bare address: "Name <a@b>" stored as typed was another account for
+	// the same mailbox, and never matched the address typed at sign-in
+	c.Email = strings.ToLower(parsed.Address)
 	if err := auth.ValidatePassword(c.Password, c.Email); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -150,7 +154,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if needVerify {
-		go s.sendVerifyEmail(c.Email, token, s.userLocale(id))
+		s.spawn(func() { s.sendVerifyEmail(c.Email, token, s.userLocale(id)) })
 	}
 	if needVerify || !approved {
 		writeJSON(w, http.StatusOK, RegisterResponse{NeedsVerification: needVerify, NeedsApproval: !approved, Email: c.Email})

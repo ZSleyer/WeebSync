@@ -30,6 +30,7 @@ type backdropResponse struct {
 //	@Param			id		query		int		true	"Media id"
 //	@Success		200		{object}	backdropResponse
 //	@Failure		400		{object}	ErrorResponse
+//	@Failure		502		{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/media/backdrop [get]
 func (s *Server) handleMediaBackdrop(w http.ResponseWriter, r *http.Request) {
@@ -52,10 +53,15 @@ func (s *Server) handleMediaBackdrop(w http.ResponseWriter, r *http.Request) {
 	if kind != "movie" {
 		kind = "tv"
 	}
+	path, width, err := s.Tmdb.Backdrop(r.Context(), kind, ids.tmdbID)
+	if err != nil {
+		// not "no picture": the client caches an empty answer for a day
+		writeErr(w, http.StatusBadGateway, err.Error())
+		return
+	}
 	// no picture, or only a small one, is an answer too: the card keeps
 	// AniList's banner, which is wider than a small backdrop
-	path, width, err := s.Tmdb.Backdrop(r.Context(), kind, ids.tmdbID)
-	if err == nil && path != "" && width >= minBackdropWidth {
+	if path != "" && width >= minBackdropWidth {
 		out.URL = s.Tmdb.Images + "/w1280" + path
 		out.Large = s.Tmdb.Images + "/original" + path
 	}

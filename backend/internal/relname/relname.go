@@ -40,6 +40,9 @@ type Release struct {
 	Resolution string
 	// Ext is the media file extension without the dot, as written.
 	Ext string
+	// Sidecar is the full tail of a subtitle sidecar without the leading dot,
+	// language and flag tags included ("ger.forced.srt"); "" for other files.
+	Sidecar string
 
 	bracketEp []string
 }
@@ -55,6 +58,44 @@ func (r Release) Episode() string {
 var mediaExt = map[string]bool{
 	"mkv": true, "mp4": true, "avi": true, "m4v": true, "webm": true, "ts": true,
 	"wmv": true, "ogm": true, "flv": true, "mov": true, "mpg": true, "mpeg": true,
+}
+
+// subExt are the subtitle sidecar extensions Read splits off.
+var subExt = map[string]bool{"ass": true, "srt": true, "ssa": true, "vtt": true, "sub": true}
+
+// sidecarTag is a language or flag tag that may sit between the name and the
+// subtitle extension: "Show - 05.ger.forced.srt".
+var sidecarTag = map[string]bool{
+	"ger": true, "deu": true, "de": true, "eng": true, "en": true, "jpn": true, "jap": true,
+	"ja": true, "jp": true, "fre": true, "fra": true, "fr": true, "spa": true, "es": true,
+	"ita": true, "it": true, "por": true, "pt": true, "rus": true, "ru": true, "kor": true,
+	"ko": true, "chi": true, "zho": true, "zh": true, "forced": true, "sdh": true, "cc": true,
+	"default": true, "signs": true, "songs": true, "full": true,
+}
+
+// splitSidecar returns the index of the dot that starts a subtitle sidecar
+// tail (language/flag tags plus extension), -1 when name is no sidecar.
+func splitSidecar(name string) int {
+	end := strings.LastIndexByte(name, '.')
+	if end <= 0 || !subExt[strings.ToLower(name[end+1:])] {
+		return -1
+	}
+	start := end
+	for start > 0 {
+		i := strings.LastIndexByte(name[:start], '.')
+		if i <= 0 {
+			break
+		}
+		tag := strings.ToLower(name[i+1 : start])
+		if base, _, ok := strings.Cut(tag, "-"); ok && len(base) == 2 { // pt-br
+			tag = base
+		}
+		if !sidecarTag[tag] {
+			break
+		}
+		start = i
+	}
+	return start
 }
 
 var (
@@ -105,7 +146,10 @@ type token struct {
 func Read(name string) Release {
 	var r Release
 	base := name
-	if i := strings.LastIndexByte(name, '.'); i > 0 && mediaExt[strings.ToLower(name[i+1:])] {
+	if i := splitSidecar(name); i > 0 {
+		r.Sidecar, base = name[i+1:], name[:i]
+		r.Ext = name[strings.LastIndexByte(name, '.')+1:]
+	} else if i := strings.LastIndexByte(name, '.'); i > 0 && mediaExt[strings.ToLower(name[i+1:])] {
 		r.Ext, base = name[i+1:], name[:i]
 	}
 	toks := tokenize(strings.TrimSpace(base))

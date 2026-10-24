@@ -38,7 +38,7 @@ import {
   type MatchStat,
 } from './maintenance'
 import { DetectedMarks } from './DetectedMarks'
-import { SettingsPanel } from './ui'
+import { LoadGate, SettingsPanel } from './ui'
 import MatchRouting from './MatchRouting'
 import './maintenance.css'
 
@@ -61,7 +61,7 @@ export default function Matching() {
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { data } = useAdminJobs()
+  const { data, isError, refetch } = useAdminJobs()
 
   const opts = {
     onSuccess: () => {
@@ -86,7 +86,7 @@ export default function Matching() {
   })
   const confirm = useConfirm()
 
-  if (!data) return null
+  if (!data) return <LoadGate error={isError} onRetry={() => refetch()} />
 
   // the index lists the servers, the match stats come per server and source;
   // a server with matches but no index (the local library) still gets a card
@@ -383,9 +383,15 @@ function MatchesView({ stat }: { stat: MatchStat }) {
           ? `/api/tmdb/search?kind=${kind}&q=${encodeURIComponent(searchQ)}`
           : `/api/anilist/search?q=${encodeURIComponent(searchQ)}`,
       )
-      if (mySeq === seq.current) setResults(next)
-    } catch {
-      if (mySeq === seq.current) setResults([])
+      if (mySeq === seq.current) {
+        setResults(next)
+        setError('')
+      }
+    } catch (err) {
+      if (mySeq === seq.current) {
+        setResults([])
+        setError(err instanceof Error ? err.message : t('app.error'))
+      }
     }
   }
   // live search: results update as you type (debounced) while correcting a match

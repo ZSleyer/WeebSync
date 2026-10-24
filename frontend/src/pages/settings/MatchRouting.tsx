@@ -1,11 +1,12 @@
-import { useRef, useState } from 'react'
+import { useRef } from 'react'
 import { ArrowDown, ArrowUp, GripVertical } from 'lucide-react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconButton, Switch } from 'fluid-lycoris'
 import { api } from '../../api'
 import type { Schemas } from '../../api.gen'
 import { useDragReorder } from '../../hooks/useDragReorder'
+import { useWholeSave } from '../../hooks'
 import { SettingsPanel } from './ui'
 import './matchRouting.css'
 
@@ -31,24 +32,20 @@ interface Settings {
 export default function MatchRouting() {
   const { t } = useTranslation()
   const qc = useQueryClient()
-  const [error, setError] = useState('')
   const { data } = useQuery<Settings>({ queryKey: ['settings'], queryFn: () => api.get('/api/settings') })
-  const save = useMutation({
-    meta: { silent: true },
-    mutationFn: (matchRouting: Routing) => api.put<Settings>('/api/settings', { matchRouting }),
-    onSuccess: (fresh) => {
-      setError('')
-      qc.setQueryData(['settings'], (old: Settings | undefined) => (old ? { ...old, ...fresh } : fresh))
-      qc.invalidateQueries({ queryKey: ['catalog'] })
-    },
-    onError: (e: Error) => setError(e.message),
-  })
+  // every change applies to the latest cached routing at once and the PUTs run
+  // one after another (a held arrow key or a drag during a save loses nothing)
+  const update = useWholeSave<Settings>(
+    'settings',
+    (s) => api.put('/api/settings', { matchRouting: s.matchRouting }),
+    () => void qc.invalidateQueries({ queryKey: ['catalog'] }),
+  )
   if (!data?.matchRouting) return null
   const r = data.matchRouting
   const hasKey = (p: Provider) => (p === 'tvdb' ? data.tvdbApiKeySet : p === 'tmdb' ? data.tmdbApiKeySet : true)
   const usable = (p: Provider) => r.providers[p] && hasKey(p)
   const off = !usable('anilist') && !usable('tvdb') && !usable('tmdb')
-  const change = (next: Routing) => save.mutate(next)
+  const change = (edit: (r: Routing) => Routing) => update((cur) => ({ ...cur, matchRouting: edit(cur.matchRouting) }))
 
   return (
     <SettingsPanel title={t('settings.routing.title')} desc={t('settings.routing.desc')}>
@@ -63,8 +60,8 @@ export default function MatchRouting() {
                 </span>
               }
               checked={r.providers[p] && hasKey(p)}
-              disabled={!hasKey(p) || save.isPending}
-              onChange={(e) => change({ ...r, providers: { ...r.providers, [p]: e.target.checked } })}
+              disabled={!hasKey(p)}
+              onChange={(e) => change((r) => ({ ...r, providers: { ...r.providers, [p]: e.target.checked } }))}
             />
           </div>
         ))}
@@ -83,16 +80,10 @@ export default function MatchRouting() {
             list={r[k]}
             hasKey={hasKey}
             switches={r.providers}
-            busy={save.isPending}
-            onChange={(list) => change({ ...r, [k]: list })}
+            onChange={(list) => change((r) => ({ ...r, [k]: list }))}
           />
         ))}
       </div>
-      {error && (
-        <p className="sf-issue" role="alert">
-          {error}
-        </p>
-      )}
     </SettingsPanel>
   )
 }
@@ -102,14 +93,12 @@ function RouteList({
   list,
   hasKey,
   switches,
-  busy,
   onChange,
 }: {
   kind: ListKey
   list: Entry[]
   hasKey: (p: Provider) => boolean
   switches: Routing['providers']
-  busy: boolean
   onChange: (list: Entry[]) => void
 }) {
   const { t } = useTranslation()
@@ -149,7 +138,7 @@ function RouteList({
               <IconButton
                 size="sm"
                 aria-label={t('settings.routing.up', { name })}
-                disabled={busy || i === 0}
+                disabled={i === 0}
                 onClick={() => move(id, i - 1)}
               >
                 <ArrowUp aria-hidden />
@@ -157,7 +146,7 @@ function RouteList({
               <IconButton
                 size="sm"
                 aria-label={t('settings.routing.down', { name })}
-                disabled={busy || i === list.length - 1}
+                disabled={i === list.length - 1}
                 onClick={() => move(id, i + 1)}
               >
                 <ArrowDown aria-hidden />
@@ -165,7 +154,6 @@ function RouteList({
               <Switch
                 aria-label={t('settings.routing.use', { name, list: title })}
                 checked={e.enabled}
-                disabled={busy}
                 onChange={(ev) => onChange(list.map((x) => (x === e ? { ...x, enabled: ev.target.checked } : x)))}
               />
             </li>

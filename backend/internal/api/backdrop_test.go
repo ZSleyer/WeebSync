@@ -53,3 +53,23 @@ func TestMediaBackdropFromTheMappedTMDBEntry(t *testing.T) {
 		t.Errorf("other source: %d, want 400", rec.Code)
 	}
 }
+
+// A TMDB failure is not "no better picture": answering an empty 200 lets the
+// page keep that for a day. It has to be an error the client can retry.
+func TestMediaBackdropProviderFailureIsAnError(t *testing.T) {
+	mux, s, _, userC, _, _ := setupUsersTest(t)
+	fake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "down", http.StatusInternalServerError)
+	}))
+	defer fake.Close()
+	t.Setenv("TMDB_API_KEY", "k")
+	s.Tmdb = tmdb.New(s.DB)
+	s.Tmdb.BaseURL = fake.URL
+	s.Tmdb.HTTP = fake.Client()
+	s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tvdb_id, tvdb_season, tmdb_id, tmdb_kind, tmdb_season, imdb_id)
+		VALUES (31, 0, 0, 4242, 'tv', 0, '')`)
+	rec := doReq(mux, "GET", "/api/media/backdrop?id=31", "", userC)
+	if rec.Code != http.StatusBadGateway {
+		t.Fatalf("provider failure: %d %s, want 502", rec.Code, rec.Body)
+	}
+}

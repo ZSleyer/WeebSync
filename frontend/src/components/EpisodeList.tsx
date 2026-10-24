@@ -87,9 +87,10 @@ export function incoming(
   w: Pick<Watch, 'serverId' | 'remotePath'>,
 ) {
   const m = new Map<string, number>()
+  const root = w.remotePath.replace(/\/$/, '')
   for (const d of downloads) {
     if (d.status !== 'running' && d.status !== 'queued') continue
-    if (d.serverId !== w.serverId || !d.remotePath.startsWith(w.remotePath)) continue
+    if (d.serverId !== w.serverId || (d.remotePath !== root && !d.remotePath.startsWith(root + '/'))) continue
     const se = /S(\d+)E(\d+)/i.exec(d.localPath.slice(d.localPath.lastIndexOf('/') + 1))
     if (se) m.set(`${Number(se[1])}-${Number(se[2])}`, d.size > 0 ? d.transferred / d.size : 0)
   }

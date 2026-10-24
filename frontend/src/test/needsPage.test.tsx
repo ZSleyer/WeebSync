@@ -77,19 +77,20 @@ describe('grouping the needs', () => {
   })
 })
 
+const qcOf = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+const wrap = (ui: React.ReactNode) => (
+  <QueryClientProvider client={qcOf}>
+    <MemoryRouter initialEntries={['/']}>
+      <Routes>
+        <Route path="*" element={ui} />
+      </Routes>
+    </MemoryRouter>
+  </QueryClientProvider>
+)
 function view(ui: React.ReactNode) {
   vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }))
   vi.spyOn(api, 'get').mockResolvedValue([] as never)
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(
-    <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/']}>
-        <Routes>
-          <Route path="*" element={ui} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
+  return render(wrap(ui))
 }
 
 const base = {
@@ -162,5 +163,63 @@ describe('Today', () => {
     // folders detected since: the row is back, with the new count
     view(<Needs {...props} detected={24} loading={false} />)
     expect(await screen.findByText('today.needDetected:24')).toBeTruthy()
+  })
+
+  it('brings a hidden row back in the same visit once its reason changes', async () => {
+    data = { ...base, ...props }
+    const page = view(<NeedsPage />)
+    const row = (await screen.findAllByRole('listitem')).find((r) => r.textContent?.includes('today.needDetected'))!
+    fireEvent.click(within(row).getByRole('button', { name: /today\.hide/ }))
+    await waitFor(() => expect(screen.queryByText('today.needDetected:23')).toBeNull())
+    // the poll finds more folders: no remount, the page just renders again
+    data = { ...base, ...props, detected: 25 }
+    page.rerender(wrap(<NeedsPage />))
+    expect(await screen.findByText('today.needDetected:25')).toBeTruthy()
+  })
+})
+
+describe('the hidden set', () => {
+  it('reads both stores', () => {
+    localStorage.setItem('weebsync.today.hidden', '["a"]')
+    sessionStorage.setItem('weebsync.today.hidden', '["b"]')
+    expect([...hiddenNeeds()].sort()).toEqual(['a', 'b'])
+  })
+
+  it('stands empty when the storage property itself throws (blocked site data)', () => {
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    vi.spyOn(window, 'sessionStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect(hiddenNeeds().size).toBe(0)
+  })
+
+  it('keeps one store when the other is unreadable', () => {
+    sessionStorage.setItem('weebsync.today.hidden', '["b"]')
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect([...hiddenNeeds()]).toEqual(['b'])
+  })
+})
+
+describe('a failed read', () => {
+  const retry = vi.fn(async () => true)
+  const failed = { ...base, downloads: [], watches: [], detected: 0, failed: true, retry }
+
+  it('is an error with a retry on the needs page, not "all done"', async () => {
+    data = failed
+    view(<NeedsPage />)
+    expect(await screen.findByText('today.loadFailed')).toBeTruthy()
+    expect(screen.queryByText('needs.empty')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'today.loadRetry' }))
+    expect(retry).toHaveBeenCalled()
+  })
+
+  it('is an error with a retry on Today, not "nothing open"', async () => {
+    view(<Needs downloads={[]} watches={[]} detected={0} loading={false} failed onRetry={retry} />)
+    expect(await screen.findByText('today.loadFailed')).toBeTruthy()
+    expect(screen.queryByText('today.nothingOpen')).toBeNull()
   })
 })
