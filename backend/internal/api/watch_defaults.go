@@ -375,6 +375,8 @@ func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title st
 
 // handleWatchDefaultsGet returns the caller's defaults; with serverId and
 // path it also resolves the folder's kind and the prefilled dialog fields.
+// The folder lookup reads that server's catalog and index, so the server has
+// to be the caller's; 0 (or none) is the shared local library.
 //
 //	@Summary		Get auto-sync defaults
 //	@Tags			Watches
@@ -382,13 +384,35 @@ func (s *Server) matchedKindTitle(serverID int64, folder string) (kind, title st
 //	@Param			serverId	query		int		false	"resolve the kind and fields for this folder"
 //	@Param			path		query		string	false	"remote folder path"
 //	@Success		200			{object}	WatchDefaultsResponse
+//	@Failure		400			{object}	ErrorResponse
+//	@Failure		404			{object}	ErrorResponse
+//	@Failure		500			{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/auth/watch-defaults [get]
 func (s *Server) handleWatchDefaultsGet(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	out := WatchDefaultsResponse{WatchDefaults: s.watchDefaultsFor(u.ID)}
 	if p := r.URL.Query().Get("path"); p != "" {
-		serverID, _ := strconv.ParseInt(r.URL.Query().Get("serverId"), 10, 64)
+		var serverID int64
+		if raw := r.URL.Query().Get("serverId"); raw != "" {
+			id, err := strconv.ParseInt(raw, 10, 64)
+			if err != nil || id < 0 {
+				writeErr(w, http.StatusBadRequest, "invalid serverId")
+				return
+			}
+			serverID = id
+		}
+		if serverID > 0 {
+			var owned int
+			if err := s.DB.QueryRow(`SELECT COUNT(*) FROM servers WHERE id = ? AND user_id = ?`, serverID, u.ID).Scan(&owned); err != nil {
+				dbErr(w, err)
+				return
+			}
+			if owned == 0 {
+				writeErr(w, http.StatusNotFound, "server not found")
+				return
+			}
+		}
 		t := s.folderTarget(serverID, p)
 		out.Kind, out.Title, out.Season, out.SeasonFolder, out.LibraryDir = t.Kind, t.Title, t.Season, t.SeasonFolder, t.LibraryDir
 		f := &aiWatchFields{RemotePath: p, Mode: "template", MediaSource: "anilist"}

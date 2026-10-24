@@ -45,6 +45,30 @@ func TestWatchDefaultsRoundTripAndValidation(t *testing.T) {
 	}
 }
 
+// The folder lookup reads the catalog and the remote index of the server it
+// is handed; another user's server is not the caller's to ask about.
+func TestWatchDefaultsFolderNeedsOwnServer(t *testing.T) {
+	mux, s, owner := setupAiTest(t, nil)
+	if _, err := s.DB.Exec(`INSERT INTO users (email, is_admin) VALUES ('b@example.com', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	other := cookieForUser(t, s.DB, 2)
+	rec := doReq(mux, "GET", "/api/auth/watch-defaults?serverId=1&path=/anime/Frieren", "", other)
+	if rec.Code != 404 || strings.Contains(rec.Body.String(), `"fields"`) {
+		t.Errorf("another user's server: %d %s, want 404 without fields", rec.Code, rec.Body)
+	}
+	if rec := doReq(mux, "GET", "/api/auth/watch-defaults?serverId=x&path=/anime/Frieren", "", owner); rec.Code != 400 {
+		t.Errorf("unparseable serverId: %d, want 400", rec.Code)
+	}
+	if rec := doReq(mux, "GET", "/api/auth/watch-defaults?serverId=1&path=/anime/Frieren", "", owner); rec.Code != 200 || !strings.Contains(rec.Body.String(), `"fields"`) {
+		t.Errorf("own server: %d %s", rec.Code, rec.Body)
+	}
+	// the local library (server 0) is shared and stays open to everyone
+	if rec := doReq(mux, "GET", "/api/auth/watch-defaults?serverId=0&path=/anime/Frieren", "", other); rec.Code != 200 {
+		t.Errorf("local library: %d %s", rec.Code, rec.Body)
+	}
+}
+
 func TestAiProposeCarriesTheUsersDefaults(t *testing.T) {
 	mux, s, c := setupAiTest(t, nil)
 	p, reason := s.aiPropose(context.Background(), 1, "watch", s.aiRefFor(1, 1, "/anime/Frieren"), "Frieren", "", "")
