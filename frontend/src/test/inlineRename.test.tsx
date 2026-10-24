@@ -23,7 +23,7 @@ describe('InlineRename', () => {
     expect(abandon).toHaveBeenLastCalledWith(null)
   })
 
-  it('keeps a half-typed name when the window loses focus, but saves when focus moves within the page', () => {
+  it('keeps a half-typed name when the window loses focus', () => {
     const done = vi.fn()
     render(<InlineRename name="a.mkv" onDone={done} />)
     const input = screen.getByRole('textbox')
@@ -31,9 +31,33 @@ describe('InlineRename', () => {
     const has = vi.spyOn(document, 'hasFocus').mockReturnValue(false)
     fireEvent.blur(input) // alt-tab: the document is no longer focused
     expect(done).not.toHaveBeenCalled()
-    has.mockReturnValue(true)
-    fireEvent.blur(input)
-    expect(done).toHaveBeenCalledWith('Show S01E0')
     has.mockRestore()
+  })
+
+  it.each(['button', 'a', 'input'])('abandons the edit when focus moves to a %s', (tag) => {
+    const done = vi.fn()
+    render(
+      <>
+        <InlineRename name="a.mkv" onDone={done} />
+        {tag === 'a' ? <a href="#x">x</a> : tag === 'input' ? <input aria-label="other" /> : <button>x</button>}
+      </>,
+    )
+    const input = screen.getByRole('textbox', { name: 'local.renameField' })
+    fireEvent.change(input, { target: { value: 'Show S01E0' } })
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const other = document.querySelector(tag === 'input' ? 'input[aria-label=other]' : tag) as HTMLElement
+    fireEvent.blur(input, { relatedTarget: other })
+    expect(done).toHaveBeenCalledTimes(1)
+    expect(done).toHaveBeenCalledWith(null)
+  })
+
+  it('saves when the click lands on empty space', () => {
+    const done = vi.fn()
+    render(<InlineRename name="a.mkv" onDone={done} />)
+    const input = screen.getByRole('textbox')
+    fireEvent.change(input, { target: { value: 'Show S01E0' } })
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    fireEvent.blur(input, { relatedTarget: null })
+    expect(done).toHaveBeenCalledWith('Show S01E0')
   })
 })
