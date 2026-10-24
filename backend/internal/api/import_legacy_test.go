@@ -5,12 +5,16 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/db"
 	"github.com/ch4d1/weebsync/internal/dbtest"
 	"github.com/ch4d1/weebsync/internal/remote"
+	"github.com/ch4d1/weebsync/internal/rename"
 	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
@@ -103,5 +107,49 @@ func TestLegacyImportNeedsServer(t *testing.T) {
 	mux.ServeHTTP(w, r)
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("anonymous: got %d", w.Code)
+	}
+}
+
+// The commit applies the checks the normal create path has: an overlong
+// pattern and a target the container cannot write are refused per row, not
+// saved to fail minutes later and out of sight.
+func TestLegacyImportChecksLikeWatchCreate(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: mode bits do not deny access")
+	}
+	d := dbtest.Open(t)
+	root := t.TempDir()
+	locked := filepath.Join(root, "locked")
+	if err := os.Mkdir(locked, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chmod(locked, 0o700) })
+	s := testServer(t, &Server{DB: d, DownloadRoot: root, Anilist: anilist.New(d)})
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (email, is_admin) VALUES ('a@example.com', 1)`)
+	d.Exec(`INSERT INTO servers (user_id, name, protocol, host, port, username, secret_enc, root_path)
+		VALUES (1, 'srv', 'sftp', 'localhost', 22, 'u', X'00', '/')`)
+
+	commit, _ := json.Marshal(LegacyImportRequest{ServerID: 1, Watches: []LegacyWatchPlan{
+		{ID: "long", RemotePath: "/a", LocalPath: "ok/a", Mode: "regex", Pattern: strings.Repeat("a", rename.MaxPattern+1)},
+		{ID: "locked", RemotePath: "/b", LocalPath: "locked/b", Mode: "template"},
+		{ID: "fine", RemotePath: "/c", LocalPath: "ok/c", Mode: "template"},
+	}})
+	rec := doReq(mux, "POST", "/api/import/legacy", string(commit), cookieForUser(t, d, 1))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("commit: %d %s", rec.Code, rec.Body)
+	}
+	var res LegacyImportResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil {
+		t.Fatal(err)
+	}
+	if res.Imported != 1 || res.Skipped != 2 {
+		t.Errorf("result = %+v, want 1 imported and 2 skipped (%v)", res, res.Errors)
+	}
+	var n int
+	d.QueryRow(`SELECT COUNT(*) FROM watches WHERE remote_path IN ('/a', '/b')`).Scan(&n)
+	if n != 0 {
+		t.Errorf("%d refused rows were stored", n)
 	}
 }

@@ -155,3 +155,27 @@ func TestFolderProbeNamesItsDemuxers(t *testing.T) {
 		t.Fatalf("a demuxer outside the whitelist opened: %+v", streams)
 	}
 }
+
+// A sidecar belongs to the video whose whole stem it starts with: episode 1
+// does not take the subtitles of episodes 10 to 12.
+func TestSidecarTracksWholeStem(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "d")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"Show - 1.mkv", "Show - 1.ass", "Show - 1.ger.srt", "Show - 10.mkv", "Show - 10.ass", "Show - 11.eng.srt", "Show - 1v2.ass"} {
+		if err := os.WriteFile(filepath.Join(dir, n), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s := &Server{LocalRoots: []string{root}}
+	var got []string
+	for _, tr := range s.sidecarTracks(playSource{path: "d/Show - 1.mkv"}) {
+		got = append(got, tr.Title)
+	}
+	slices.Sort(got)
+	if want := []string{"Show - 1.ass", "Show - 1.ger.srt"}; !slices.Equal(got, want) {
+		t.Fatalf("sidecars %q, want %q", got, want)
+	}
+}

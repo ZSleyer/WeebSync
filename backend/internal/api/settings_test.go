@@ -115,3 +115,24 @@ func TestSettingsPutRefusesAllowlistWithoutClaim(t *testing.T) {
 		t.Errorf("both cleared: %d %s", rec.Code, rec.Body)
 	}
 }
+
+// A stored plex_url with a trailing slash (typed, or written by the Plex link
+// flow) that fails the guard now must not block an unrelated save, and the
+// value is stored trimmed like the other URLs.
+func TestSettingsPutTrailingSlashPlexURL(t *testing.T) {
+	mux, s, adminC, _, _, _ := setupUsersTest(t)
+	s.OIDC = auth.NewManager(context.Background(), s.DB)
+	s.Transfers = transfer.NewManager(s.DB, nil, t.TempDir())
+	db.SetSetting(s.DB, "plex_url", "http://169.254.169.254:32400/")
+
+	if rec := doReq(mux, "PUT", "/api/settings", `{"maxConcurrent":5}`, adminC); rec.Code != http.StatusOK {
+		t.Fatalf("unrelated save blocked by the stored plex_url: %d %s", rec.Code, rec.Body)
+	}
+	if v := db.Setting(s.DB, "plex_url"); v != "http://169.254.169.254:32400" {
+		t.Errorf("plex_url = %q, want the trimmed value", v)
+	}
+	rec := doReq(mux, "PUT", "/api/settings", `{"plexUrl":"http://169.254.169.254:32401/"}`, adminC)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "plexUrl:") {
+		t.Errorf("changed blocked plexUrl: got %d %s, want 400", rec.Code, rec.Body)
+	}
+}

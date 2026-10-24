@@ -72,6 +72,23 @@ func TestResolveRebuildsOnMiss(t *testing.T) {
 	}
 }
 
+// A series the provider has no map for must back off for a TTL: the empty
+// result is stamped with the wanted source, or fresh() never accepts it and
+// every renamed file repeats the provider lookups (a new Resolver per call, as
+// the callers build them, shares no in-memory state).
+func TestEmptyMapBacksOff(t *testing.T) {
+	d := dbtest.Open(t)
+	s := Series{ServerID: 1, Folder: "Nothing", Provider: "tvdb", Ordering: "official"}
+	r := &Resolver{DB: d} // no TVDB client: buildMap answers an empty map
+	if _, _, ok := r.Resolve(context.Background(), s, "5"); ok {
+		t.Fatal("empty map must not resolve")
+	}
+	want := sourceTag("tvdb", "official", 0)
+	if !(&Resolver{DB: d}).fresh(s, want) {
+		t.Error("an empty result must be stamped fresh for the wanted source, or every file re-queries the providers")
+	}
+}
+
 // The provider is typically a few hours behind a fresh episode. Counting on
 // from the newest one it knows gives the file a name worth showing, while the
 // caller keeps it quarantined until the provider confirms it.

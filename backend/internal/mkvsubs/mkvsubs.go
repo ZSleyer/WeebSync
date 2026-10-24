@@ -304,6 +304,12 @@ func Read(r io.ReaderAt, size int64, parallel int) (*Subtitles, error) {
 			if !text[tp.CueTrack] {
 				continue
 			}
+			// a position past the end of the file is not followed: near 2^63
+			// it wraps negative in int64, and the distance between two such
+			// sizes a read buffer below zero
+			if seg >= size || tp.CueClusterPosition >= uint64(size-seg) || tp.CueRelativePosition >= uint64(size) {
+				continue
+			}
 			spots = append(spots, spot{track: tp.CueTrack, start: time.Duration(p.CueTime) * scale,
 				dur: time.Duration(tp.CueDuration) * scale, cluster: seg + int64(tp.CueClusterPosition),
 				rel: int64(tp.CueRelativePosition), haveRelative: tp.CueRelativePosition > 0})

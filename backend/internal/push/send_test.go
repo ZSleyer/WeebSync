@@ -2,6 +2,7 @@ package push
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
@@ -158,7 +159,7 @@ func TestSendHeaders(t *testing.T) {
 		w.WriteHeader(http.StatusCreated)
 	}))
 	defer srv.Close()
-	resp, err := send(srv.Client(), srv.URL+"/push/1", b64.EncodeToString(ua.PublicKey().Bytes()),
+	resp, err := send(context.Background(), srv.Client(), srv.URL+"/push/1", b64.EncodeToString(ua.PublicKey().Bytes()),
 		// a padded standard-alphabet secret, as some stores hand it out
 		"AQEBAQEBAQEBAQEBAQEBAQ==", []byte("hi"), "mailto:ops@example.com", pub, priv, 60, "low")
 	if err != nil {

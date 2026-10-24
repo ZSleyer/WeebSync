@@ -18,6 +18,10 @@ func TestLangCode(t *testing.T) {
 		"enm": "Eng", "ang": "Eng",
 		"gmh": "Ger", "goh": "Ger",
 		"frm": "Fre", "fro": "Fre",
+		// BCP-47 tags read by their language, never as "Pt-" or "En-"
+		"pt-BR": "Por", "en-us": "Eng", "ja_JP": "Jap", "und-Latn": "", "xy-ZZ": "Xy",
+		// cut by letters: a multi-byte one stays whole
+		"abéd": "Abé",
 	}
 	for in, want := range cases {
 		if got := langCode(in); got != want {

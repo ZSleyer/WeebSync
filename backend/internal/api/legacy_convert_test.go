@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/rename"
@@ -270,5 +271,32 @@ func TestConvertLegacyServerAndInterval(t *testing.T) {
 	}
 	if got := convertLegacy(legacyConfig{AutoSyncIntervalInMinutes: ptr(99999)}, "").IntervalMin; got != 1440 {
 		t.Errorf("intervalMin = %d", got)
+	}
+}
+
+// A renumber the template mode cannot express (fractional offset, two calls)
+// falls into the regex branch, where the expression used to vanish without a
+// word: every episode then got the same name.
+func TestConvertSyncMapRegexBranchWarnsOnDroppedExpression(t *testing.T) {
+	for name, tmpl := range map[string]string{
+		"fractional": `{{$syncName}} - S00E{{renumber $1 13.5}}.mkv`,
+		"two calls":  `{{$syncName}} - S{{renumber $1 1}}E{{renumber $2 2}}.mkv`,
+	} {
+		w := convertSyncMap(legacySyncMap{
+			ID: "Show", FileRegex: `E([0-9]+) ([0-9]+)`, FileRenameTemplate: tmpl, Rename: ptr(true),
+		})
+		if w.Mode != "regex" {
+			t.Fatalf("%s: mode = %q, want regex", name, w.Mode)
+		}
+		if !slices.Contains(w.Warnings, "legacyWarnDroppedGroups") {
+			t.Errorf("%s: warnings = %v, want legacyWarnDroppedGroups", name, w.Warnings)
+		}
+	}
+	// a plain capture reference is not a dropped expression
+	w := convertSyncMap(legacySyncMap{
+		ID: "Show", FileRegex: `E([0-9]+)`, FileRenameTemplate: `{{$syncName}} E{{$1}}.mkv`, Rename: ptr(true),
+	})
+	if slices.Contains(w.Warnings, "legacyWarnDroppedGroups") {
+		t.Errorf("clean regex rule warned: %v", w.Warnings)
 	}
 }

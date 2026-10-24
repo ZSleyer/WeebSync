@@ -47,9 +47,7 @@ func (b *aiChatBody) valid(w http.ResponseWriter) bool {
 		return false
 	}
 	b.Title = strings.TrimSpace(b.Title)
-	if len(b.Title) > aiChatTitleMax {
-		b.Title = b.Title[:aiChatTitleMax]
-	}
+	b.Title, _ = cutRunes(b.Title, aiChatTitleMax)
 	return true
 }
 
@@ -84,17 +82,19 @@ func (s *Server) handleAiChatsList(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// maxAIChats is how many saved chats an account keeps; older ones go.
+// maxAIChats is how many saved chats an account keeps; the least recently
+// changed go, the order the history list shows them in.
 const maxAIChats = 200
 
-// maxAIChatBytes bounds an account's saved chats together; the oldest go
-// first, so one account cannot fill the disk 12 MiB at a time.
-const maxAIChatBytes = 256 << 20
+// maxAIChatBytes bounds an account's saved chats together; the least recently
+// changed go first, so one account cannot fill the disk 12 MiB at a time. A
+// var so tests do not have to write 256 MiB.
+var maxAIChatBytes = 256 << 20
 
 func (s *Server) trimAIChats(userID int64) {
 	// a failed trim is retried by the next save
 	_, _ = s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id IN (
-		SELECT id FROM (SELECT id, SUM(length(CAST(turns AS BLOB))) OVER (ORDER BY id DESC) AS running
+		SELECT id FROM (SELECT id, SUM(length(CAST(turns AS BLOB))) OVER (ORDER BY updated_at DESC, id DESC) AS running
 			FROM ai_chats WHERE user_id = ?) WHERE running > ?)`, userID, userID, maxAIChatBytes)
 }
 
@@ -128,7 +128,7 @@ func (s *Server) handleAiChatCreate(w http.ResponseWriter, r *http.Request) {
 	// else bounds how many one account keeps; a failed trim is retried by the
 	// next save
 	_, _ = s.DB.Exec(`DELETE FROM ai_chats WHERE user_id = ? AND id NOT IN
-		(SELECT id FROM ai_chats WHERE user_id = ? ORDER BY id DESC LIMIT ?)`, u.ID, u.ID, maxAIChats)
+		(SELECT id FROM ai_chats WHERE user_id = ? ORDER BY updated_at DESC, id DESC LIMIT ?)`, u.ID, u.ID, maxAIChats)
 	s.trimAIChats(u.ID)
 	writeJSON(w, http.StatusOK, aiChatCreated{ID: id})
 }

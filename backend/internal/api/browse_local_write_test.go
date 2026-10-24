@@ -134,3 +134,34 @@ func TestBrowseLocalHidesTrash(t *testing.T) {
 		t.Errorf("stat counts the trash: %+v", st)
 	}
 }
+
+// Creating new things under the roots is open to every signed-in user (the
+// target picker's "new folder", like downloads and watches); renaming and
+// deleting existing files is the admin's.
+func TestLocalMkdirOpenRenameDeleteAdminOnly(t *testing.T) {
+	mux, s, adminC, userC, _, _ := setupUsersTest(t)
+	root := t.TempDir()
+	s.DownloadRoot = root
+	if err := os.WriteFile(filepath.Join(root, "a.mkv"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if rec := doReq(mux, "POST", "/api/browse/local/mkdir", `{"path":"New/Sub"}`, userC); rec.Code != http.StatusCreated {
+		t.Errorf("non-admin mkdir: got %d %s, want 201", rec.Code, rec.Body)
+	}
+	if fi, err := os.Stat(filepath.Join(root, "New", "Sub")); err != nil || !fi.IsDir() {
+		t.Errorf("mkdir did not create the folder: %v", err)
+	}
+	if rec := doReq(mux, "POST", "/api/browse/local/rename", `{"path":"a.mkv","name":"b.mkv"}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("non-admin rename: got %d, want 403", rec.Code)
+	}
+	if rec := doReq(mux, "DELETE", "/api/browse/local", `{"path":"a.mkv"}`, userC); rec.Code != http.StatusForbidden {
+		t.Errorf("non-admin delete: got %d, want 403", rec.Code)
+	}
+	if _, err := os.Stat(filepath.Join(root, "a.mkv")); err != nil {
+		t.Errorf("a refused rename/delete touched the file: %v", err)
+	}
+	if rec := doReq(mux, "POST", "/api/browse/local/rename", `{"path":"a.mkv","name":"b.mkv"}`, adminC); rec.Code != http.StatusOK {
+		t.Errorf("admin rename: got %d %s, want 200", rec.Code, rec.Body)
+	}
+}

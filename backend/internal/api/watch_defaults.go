@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -19,11 +20,20 @@ import (
 // validPattern answers 400 for a rename pattern over rename.MaxPattern bytes:
 // the regex is compiled on every check, and no real rule comes near 4 KiB.
 func validPattern(w http.ResponseWriter, pattern string) bool {
-	if len(pattern) > rename.MaxPattern {
-		writeErr(w, http.StatusBadRequest, "pattern: must be at most 4096 bytes")
+	if err := checkPatternLen(pattern); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return false
 	}
 	return true
+}
+
+// checkPatternLen is the size limit of a watch's rename pattern, shared by
+// every path that stores one.
+func checkPatternLen(pattern string) error {
+	if len(pattern) > rename.MaxPattern {
+		return errors.New("pattern: must be at most 4096 bytes")
+	}
+	return nil
 }
 
 // watchKinds are the media kinds a default can be set for; the same names

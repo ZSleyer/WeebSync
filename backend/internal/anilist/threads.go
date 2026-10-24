@@ -212,12 +212,21 @@ func (c *Client) ThreadAs(ctx context.Context, token string, viewer, id, page in
 		Thread(id: $id) { id title body(asHtml: false) replyCount viewCount createdAt siteUrl likeCount isLiked user { name avatar { medium } } }
 		Page(page: $page, perPage: ` + fmt.Sprint(threadPerPage) + `) { pageInfo { hasNextPage } threadComments(threadId: $id) { id comment(asHtml: false) likeCount isLiked createdAt user { name avatar { medium } } childComments } }
 	}`
+	missKey := fmt.Sprintf("thread-miss:%d", id)
+	if c.knownMissing(missKey) {
+		return nil, fmt.Errorf("%w: thread %d", ErrNotFound, id)
+	}
 	if err := c.queryAs(ctx, token, gql, map[string]any{"id": id, "page": page}, &resp); err != nil {
+		if isNotFound(err) {
+			c.remember404(missKey)
+			return nil, fmt.Errorf("%w: thread %d", ErrNotFound, id)
+		}
 		return nil, err
 	}
 	th := resp.Data.Thread
 	if th == nil {
-		return nil, fmt.Errorf("anilist: thread %d not found", id)
+		c.remember404(missKey)
+		return nil, fmt.Errorf("%w: thread %d", ErrNotFound, id)
 	}
 	out := ThreadPage{
 		Thread: ThreadPost{

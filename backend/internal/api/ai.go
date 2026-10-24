@@ -18,6 +18,7 @@ import (
 	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/match"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // The assistant is a chat over the user's own data: lists, suggestions,
@@ -428,10 +429,22 @@ func toolStats(name string, result []byte) map[string]any {
 // excerpt trims a tool payload to what a transcript can show.
 func excerpt(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
-	if len(s) > n {
-		return s[:n] + "…"
+	if s, cut := cutRunes(s, n); cut {
+		return s + "…"
 	}
 	return s
+}
+
+// cutRunes keeps the first n characters of s, never splitting one; cut
+// reports whether anything was dropped.
+func cutRunes(s string, n int) (string, bool) {
+	if len(s) <= n {
+		return s, false // n bytes hold at most n characters
+	}
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]), true
+	}
+	return s, false
 }
 
 // aiProposal is a vetted action the user can confirm. Fields is the watch
@@ -493,6 +506,10 @@ const (
 	// research mode searches, reads and searches again before it reports
 	aiResearchRounds = 30
 )
+
+// aiKeepalive is how often a silent chat stream gets a comment line, so
+// proxies do not drop it. A var so tests can tick fast.
+var aiKeepalive = 15 * time.Second
 
 // handleAiChat streams one assistant answer for the given conversation.
 //
@@ -595,9 +612,13 @@ func (s *Server) handleAiChat(w http.ResponseWriter, r *http.Request) {
 	// a model thinking or a tool waiting on a provider can leave the line
 	// silent for a while; proxies drop idle responses, so keep it warm
 	ctx, stop := context.WithCancel(r.Context())
-	defer stop()
+	keepaliveDone := make(chan struct{})
+	// the writer is off limits once the handler returns: wait for the
+	// goroutine, which may be mid-write on a tick that just fired
+	defer func() { stop(); <-keepaliveDone }()
 	go func() {
-		t := time.NewTicker(15 * time.Second)
+		defer close(keepaliveDone)
+		t := time.NewTicker(aiKeepalive)
 		defer t.Stop()
 		for {
 			select {
@@ -979,7 +1000,10 @@ func (s *Server) aiMedia(ctx context.Context, source string, id int) *anilist.Me
 	switch {
 	case source == "anilist":
 		m, err = s.Anilist.Media(ctx, id)
-	case strings.HasPrefix(source, "tmdb:") && s.Tmdb != nil && s.Tmdb.Enabled():
+	// the model names the kind; it becomes TMDB's request path and the shared
+	// cache key, so only the two real kinds pass
+	case strings.HasPrefix(source, "tmdb:") && tmdb.ValidKind(strings.TrimPrefix(source, "tmdb:")) &&
+		s.Tmdb != nil && s.Tmdb.Enabled():
 		m, err = s.Tmdb.Media(ctx, strings.TrimPrefix(source, "tmdb:"), id)
 	case source == "tvdb" && s.Tvdb != nil && s.Tvdb.Enabled():
 		m, err = s.Tvdb.Media(ctx, id)
@@ -1360,8 +1384,12 @@ func (s *Server) aiSuggestionBlob(ctx context.Context, userID int64) (resp Sugge
 	key := fmt.Sprintf("suggestions:%d", userID)
 	payload, fresh := s.cacheGet(key, suggestTTL)
 	if !fresh {
+		// whatever is there beats nothing, however old: an aged blob
+		// (staleSuggestions dates it to suggestStaleAt) is served while the
+		// rebuild runs. No row or an unreadable one: no blob, the rebuild
+		// makes one.
+		_ = s.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`, key).Scan(&payload)
 		s.rebuildSuggestions(userID)
-		payload, _ = s.cacheGet(key, 365*24*time.Hour) // whatever is there beats nothing
 		building = true
 	}
 	json.Unmarshal([]byte(payload), &resp)

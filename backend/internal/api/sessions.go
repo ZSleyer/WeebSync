@@ -118,8 +118,9 @@ type sessionsEndedResponse struct {
 //	@Router			/api/auth/sessions/others [delete]
 func (s *Server) handleSessionsEndOthers(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
+	cur := auth.TokenHash(auth.SessionToken(r))
 	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`,
-		u.ID, auth.TokenHash(auth.SessionToken(r)))
+		u.ID, cur)
 	if err != nil {
 		dbErr(w, err)
 		return
