@@ -209,6 +209,7 @@ func convertSyncMap(m legacySyncMap) LegacyWatchPlan {
 	// No renumber: keep the regex, translate the capture references.
 	w.Mode = "regex"
 	w.Pattern = m.FileRegex
+	dropped := false
 	w.Replacement = hbRe.ReplaceAllStringFunc(tmpl, func(s string) string {
 		expr := hbRe.FindStringSubmatch(s)[1]
 		switch {
@@ -217,10 +218,15 @@ func convertSyncMap(m legacySyncMap) LegacyWatchPlan {
 		case groupRe.MatchString(expr):
 			return "${" + groupRe.FindStringSubmatch(expr)[1] + "}"
 		default:
+			// e.g. a renumber the template mode could not express
+			dropped = true
 			return ""
 		}
 	})
 	w.Replacement = tidyTemplate(w.Replacement, false)
+	if dropped {
+		w.Warnings = append(w.Warnings, "legacyWarnDroppedGroups")
+	}
 	if hadBlock {
 		w.Warnings = append(w.Warnings, "legacyWarnConditional")
 	}

@@ -1913,17 +1913,27 @@ type WriteCheckError struct {
 // unresolvable root or a plain I/O error says nothing the user could act on, and
 // blocking the save on it would trade a clear problem for a mysterious one.
 func (s *Server) rejectUnwritable(w http.ResponseWriter, localPath string) bool {
+	if werr := s.unwritableTarget(localPath); werr != nil {
+		writeJSON(w, http.StatusBadRequest, *werr)
+		return true
+	}
+	return false
+}
+
+// unwritableTarget is the probe behind rejectUnwritable, usable without a
+// response writer (the legacy import reports it per row): nil when the target
+// is writable or the failure is not one the user could act on.
+func (s *Server) unwritableTarget(localPath string) *WriteCheckError {
 	local, err := s.openLocal(localPath)
 	if err != nil {
-		return false // already validated by the caller
+		return nil // already validated by the caller
 	}
 	defer local.Close()
 	code, cerr := transfer.CheckWritableAt(local)
 	if code == "" {
-		return false
+		return nil
 	}
-	writeJSON(w, http.StatusBadRequest, WriteCheckError{Error: cerr.Error(), ErrorCode: code, Path: local.Abs})
-	return true
+	return &WriteCheckError{Error: cerr.Error(), ErrorCode: code, Path: local.Abs}
 }
 
 // handleWatchCreate registers a new watch and triggers a first sync.

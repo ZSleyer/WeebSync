@@ -96,13 +96,16 @@ describe('TTL editor', () => {
     await waitFor(() => expect((document.getElementById('ttl-anilist') as HTMLInputElement).value).toBe('24'))
   })
 
-  it('does not send a stale rest when two fields are committed before the refetch', async () => {
+  it('sends only the changed key and keeps both edits shown before the refetch', async () => {
     setup()
     const put = vi.spyOn(api, 'put').mockImplementation(() => new Promise(() => {}))
     type(await field('ttl-anilist'), '10')
     await waitFor(() => expect(put).toHaveBeenCalledTimes(1))
     type(await field('ttl-tmdb'), '11')
     await waitFor(() => expect(put).toHaveBeenCalledTimes(2))
-    expect(put.mock.calls[1][1]).toEqual({ anilistH: 10, tmdbH: 11, plexH: 6 })
+    expect(put.mock.calls[0][1]).toEqual({ anilistH: 10 })
+    expect(put.mock.calls[1][1]).toEqual({ tmdbH: 11 })
+    expect((document.getElementById('ttl-anilist') as HTMLInputElement).value).toBe('10')
+    expect((document.getElementById('ttl-plex') as HTMLInputElement).value).toBe('6')
   })
 })

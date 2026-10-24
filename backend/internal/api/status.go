@@ -265,8 +265,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var d statusRunning
 		var remote string
-		if rows.Scan(&d.ID, &remote, &d.Status, &d.Size, &d.Transferred) != nil {
-			continue
+		if err = rows.Scan(&d.ID, &remote, &d.Status, &d.Size, &d.Transferred); err != nil {
+			dbErrDetail(w, "status: read downloads", err)
+			return
 		}
 		d.Name = path.Base(remote)
 		d.BytesPerSec = rates[d.ID]
@@ -305,8 +306,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var f statusFinished
 		var remote string
-		if rows.Scan(&f.ID, &remote, &f.Status, &f.Error, &f.ErrorCode, &f.FinishedAt) != nil {
-			continue
+		if err = rows.Scan(&f.ID, &remote, &f.Status, &f.Error, &f.ErrorCode, &f.FinishedAt); err != nil {
+			dbErrDetail(w, "status: read finished downloads", err)
+			return
 		}
 		f.Name = path.Base(remote)
 		out.LastFinished = append(out.LastFinished, f)
@@ -326,8 +328,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		var wch statusWatch
 		var title, remote string
 		var queued, uploading int
-		if rows.Scan(&wch.ID, &title, &remote, &wch.LastCheck, &wch.LastResult, &queued, &uploading) != nil {
-			continue
+		if err = rows.Scan(&wch.ID, &title, &remote, &wch.LastCheck, &wch.LastResult, &queued, &uploading); err != nil {
+			dbErrDetail(w, "status: read watches", err)
+			return
 		}
 		// external consumers (Home Assistant) have no i18n: compose an
 		// English summary; errors keep the raw last_result text
@@ -348,7 +351,12 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	out.Attention.Reasons, out.Attention.Watches, out.NextReleases = s.statusAttention()
+	out.Attention.Reasons, out.Attention.Watches, out.NextReleases, err = s.statusAttention()
+	if err != nil {
+		// a failed read must not show up as "nothing needs attention"
+		dbErrDetail(w, "status: attention", err)
+		return
+	}
 	out.Attention.Count = len(out.Attention.Watches)
 	out.Jobs = s.jobsStatus()
 
@@ -373,30 +381,31 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 // across every user's calendar.
 // ponytail: a full watchesFor per user per poll (disk walks); cache with a
 // short TTL if HA ends up polling faster than every 30s.
-func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusRelease) {
+func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusRelease, error) {
 	reasons := map[string]int{}
 	needy := []statusAttention{}
 	releases := []statusRelease{}
 	rows, err := s.DB.Query(`SELECT DISTINCT user_id FROM watches ORDER BY user_id`)
 	if err != nil {
-		return reasons, needy, releases
+		return nil, nil, nil, err
 	}
 	defer rows.Close()
 	var users []int64
 	for rows.Next() {
 		var id int64
-		if rows.Scan(&id) == nil {
-			users = append(users, id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, nil, nil, err
 		}
+		users = append(users, id)
 	}
-	if rows.Err() != nil {
-		return reasons, needy, releases
+	if err := rows.Err(); err != nil {
+		return nil, nil, nil, err
 	}
 	now := time.Now().Unix()
 	for _, uid := range users {
 		list, err := s.watchesFor(uid)
 		if err != nil {
-			continue
+			return nil, nil, nil, err
 		}
 		for _, w := range list {
 			name := w.TitleOverride
@@ -423,5 +432,5 @@ func (s *Server) statusAttention() (map[string]int, []statusAttention, []statusR
 	if len(releases) > 5 {
 		releases = releases[:5]
 	}
-	return reasons, needy, releases
+	return reasons, needy, releases, nil
 }

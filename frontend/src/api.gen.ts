@@ -728,9 +728,6 @@ export interface Schemas {
     titleOverride: string
     warnings: string[]
   }
-  /**
-   * Returns the instance settings (admin only). Secrets are reported as set/unset flags only, never their values.
-   */
   'api.LibraryRoots': {
     roots: string[]
     title: string
@@ -1876,6 +1873,11 @@ export interface Schemas {
     anilistH: number
     plexH: number
     tmdbH: number
+  }
+  'api.adminTTLRequest': {
+    anilistH?: number
+    plexH?: number
+    tmdbH?: number
   }
   'api.adminWatchInfo': {
     count: number

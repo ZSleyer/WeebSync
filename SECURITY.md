@@ -91,9 +91,12 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
   for older browsers that send only `Origin`; behind a proxy that rewrites the
   `Host` header over plain HTTP, set it.
 - Least privilege: what reaches the shared library, the admin's Plex account
-  or instance-wide settings (renaming or moving files in the media roots,
-  replacing old copies, the local library's matches and rules, Plex track
-  choices) is an admin's, enforced by the server whatever the UI shows.
+  or instance-wide settings (renaming, moving, deleting, replacing or
+  restoring existing files in the media roots, replacing old copies, the
+  local library's matches and rules, Plex track choices) is an admin's,
+  enforced by the server whatever the UI shows. Creating new things under the
+  roots (folders, new downloads that do not replace an existing file, watch
+  targets) is allowed for every signed-in user. Creating a folder never overwrites or removes anything.
 
 ## Outgoing connections
 

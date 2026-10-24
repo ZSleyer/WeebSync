@@ -65,16 +65,16 @@ export default function Data() {
     mutationFn: ({ name, body }: { name: string; body?: unknown }) => api.post(`/api/admin/jobs/${name}/run`, body),
     ...opts,
   })
-  // the sent hours show at once, so a second edit before the refetch builds on
-  // them; a refusal refetches and remounts the editors, which puts the typed
-  // text back to the stored value
+  // only the changed key is sent, so the other caches keep following their
+  // defaults; the sent hours show at once, a refusal refetches and remounts
+  // the editors, which puts the typed text back to the stored value
   const setTtl = useMutation({
-    mutationFn: (body: TtlConfig) => api.put('/api/admin/ttl', body),
+    mutationFn: (body: Partial<TtlConfig>) => api.put('/api/admin/ttl', body),
     onMutate: async (body) => {
       // a poll in flight must not overwrite the shown hours
       await qc.cancelQueries({ queryKey: ['adminJobs'] })
       const prev = qc.getQueryData<AdminJobs>(['adminJobs'])
-      qc.setQueryData<AdminJobs>(['adminJobs'], (d) => d && { ...d, ttl: body })
+      qc.setQueryData<AdminJobs>(['adminJobs'], (d) => d && { ...d, ttl: { ...(d.ttl ?? TTL_DEFAULTS), ...body } })
       return { prev }
     },
     ...opts,
@@ -89,7 +89,7 @@ export default function Data() {
   if (!data) return null
 
   const ttl = data.ttl ?? TTL_DEFAULTS
-  const commitTtl = (patch: Partial<TtlConfig>) => setTtl.mutate({ ...ttl, ...patch })
+  const commitTtl = (patch: Partial<TtlConfig>) => setTtl.mutate(patch)
   const ttlEdit = (key: keyof TtlConfig, id: string) => (
     <span className={NUMEDIT_GRID}>
       <NumEdit
