@@ -2,14 +2,17 @@ package auth
 
 import (
 	"bufio"
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"golang.org/x/crypto/argon2"
@@ -25,10 +28,59 @@ var (
 // path costs the same time whether or not the account exists - closing the
 // timing side channel that would otherwise reveal which emails are registered.
 func DummyVerify(password string) {
+	_ = DummyVerifyContext(context.Background(), password)
+}
+
+// DummyVerifyContext is DummyVerify that gives up like VerifyPasswordContext
+// does when no hashing slot frees up, so an unknown address answers "busy"
+// exactly when a known one would.
+func DummyVerifyContext(ctx context.Context, password string) error {
 	dummyOnce.Do(func() { dummyHash, _ = HashPassword("weebsync-nonexistent-account") })
-	if dummyHash != "" {
-		_ = VerifyPassword(password, dummyHash)
+	if dummyHash == "" {
+		return nil
 	}
+	_, err := VerifyPasswordContext(ctx, password, dummyHash)
+	return err
+}
+
+// Every argon2id run holds argonMemory (64 MiB) until it returns. Without a
+// bound, parallel sign-ins from enough addresses add up to more memory than a
+// small host has, and the OOM killer takes the whole process. The gate caps
+// how many run at once; a caller that cannot get a slot within hashWaitMax (or
+// before its request ends) gets ErrHashBusy instead of queueing on.
+var (
+	hashGate    = make(chan struct{}, min(max(runtime.GOMAXPROCS(0), 1), 4))
+	hashWaitMax = 5 * time.Second
+	// argonIDKey is argon2.IDKey; tests swap it to watch the gate
+	argonIDKey = argon2.IDKey
+)
+
+// ErrHashBusy means every password hashing slot stayed taken: the server is
+// overloaded, the caller should try again shortly.
+var ErrHashBusy = errors.New("password hashing is busy, try again")
+
+// idKey runs argon2id once a slot of the gate is free.
+func idKey(ctx context.Context, password, salt []byte, iter, memory uint32, threads uint8, keyLen uint32) ([]byte, error) {
+	// a request that is already gone must not take a free slot: select
+	// would pick between the two at random
+	if ctx.Err() != nil {
+		return nil, ErrHashBusy
+	}
+	select {
+	case hashGate <- struct{}{}:
+	default:
+		t := time.NewTimer(hashWaitMax)
+		defer t.Stop()
+		select {
+		case hashGate <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ErrHashBusy
+		case <-t.C:
+			return nil, ErrHashBusy
+		}
+	}
+	defer func() { <-hashGate }()
+	return argonIDKey(password, salt, iter, memory, threads, keyLen), nil
 }
 
 // argon2id parameters per OWASP recommendation (m=64MiB, t=3, p=4).
@@ -44,12 +96,21 @@ const (
 // on another keyboard (a precomposed "ä" or "a" plus a combining mark) still
 // match.
 func HashPassword(password string) (string, error) {
+	return HashPasswordContext(context.Background(), password)
+}
+
+// HashPasswordContext is HashPassword for a request: ErrHashBusy when no
+// hashing slot frees up in time.
+func HashPasswordContext(ctx context.Context, password string) (string, error) {
 	password = norm.NFC.String(password)
 	salt := make([]byte, argonSaltLen)
 	if _, err := rand.Read(salt); err != nil {
 		return "", err
 	}
-	key := argon2.IDKey([]byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	key, err := idKey(ctx, []byte(password), salt, argonTime, argonMemory, argonThreads, argonKeyLen)
+	if err != nil {
+		return "", err
+	}
 	return fmt.Sprintf("$argon2id$v=%d$m=%d,t=%d,p=%d$%s$%s",
 		argon2.Version, argonMemory, argonTime, argonThreads,
 		base64.RawStdEncoding.EncodeToString(salt),
@@ -60,51 +121,69 @@ func HashPassword(password string) (string, error) {
 // NFC normalisation were taken over the bytes as typed, so a miss on the NFC
 // form tries those once more.
 func VerifyPassword(password, encoded string) bool {
-	ok, _ := verifyPassword(password, encoded)
+	ok, _, _ := verifyPassword(context.Background(), password, encoded)
 	return ok
+}
+
+// VerifyPasswordContext is VerifyPassword for a request: ErrHashBusy when no
+// hashing slot frees up in time, which says nothing about the password.
+func VerifyPasswordContext(ctx context.Context, password, encoded string) (bool, error) {
+	ok, _, err := verifyPassword(ctx, password, encoded)
+	return ok, err
 }
 
 // VerifyPasswordLegacy is VerifyPassword that also reports whether only the
 // unnormalised form matched, in which case the stored hash should be renewed.
 func VerifyPasswordLegacy(password, encoded string) (ok, legacy bool) {
-	return verifyPassword(password, encoded)
+	ok, legacy, _ = verifyPassword(context.Background(), password, encoded)
+	return ok, legacy
 }
 
-func verifyPassword(password, encoded string) (ok, legacy bool) {
+// VerifyPasswordLegacyContext is VerifyPasswordLegacy for a request, see
+// VerifyPasswordContext.
+func VerifyPasswordLegacyContext(ctx context.Context, password, encoded string) (ok, legacy bool, err error) {
+	return verifyPassword(ctx, password, encoded)
+}
+
+func verifyPassword(ctx context.Context, password, encoded string) (ok, legacy bool, err error) {
 	nfc := norm.NFC.String(password)
-	if verifyEncoded(nfc, encoded) {
-		return true, false
+	if ok, err := verifyEncoded(ctx, nfc, encoded); ok || err != nil {
+		return ok, false, err
 	}
-	if nfc != password && verifyEncoded(password, encoded) {
-		return true, true
+	if nfc != password {
+		ok, err := verifyEncoded(ctx, password, encoded)
+		return ok, ok, err
 	}
-	return false, false
+	return false, false, nil
 }
 
-func verifyEncoded(password, encoded string) bool {
+func verifyEncoded(ctx context.Context, password, encoded string) (bool, error) {
 	parts := strings.Split(encoded, "$")
 	if len(parts) != 6 || parts[1] != "argon2id" || parts[2] != fmt.Sprintf("v=%d", argon2.Version) {
-		return false
+		return false, nil
 	}
-	var mem, time uint32
+	var mem, iter uint32
 	var threads uint8
-	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &mem, &time, &threads); err != nil {
-		return false
+	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &mem, &iter, &threads); err != nil {
+		return false, nil
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return false
+		return false, nil
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return false
+		return false, nil
 	}
-	if mem < 8*1024 || mem > 256*1024 || time < 1 || time > 10 || threads < 1 || threads > 16 ||
+	if mem < 8*1024 || mem > 256*1024 || iter < 1 || iter > 10 || threads < 1 || threads > 16 ||
 		len(salt) < 8 || len(salt) > 64 || len(want) < 16 || len(want) > 64 {
-		return false
+		return false, nil
 	}
-	got := argon2.IDKey([]byte(password), salt, time, mem, threads, uint32(len(want)))
-	return subtle.ConstantTimeCompare(got, want) == 1
+	got, err := idKey(ctx, []byte(password), salt, iter, mem, threads, uint32(len(want)))
+	if err != nil {
+		return false, err
+	}
+	return subtle.ConstantTimeCompare(got, want) == 1, nil
 }
 
 var (

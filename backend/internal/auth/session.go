@@ -254,6 +254,12 @@ func SessionToken(r *http.Request) string {
 // mail's link, or the signed-in account itself). sql.ErrNoRows when the
 // account does not exist.
 func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
+	return SetPasswordContext(context.Background(), d, userID, password, keepToken)
+}
+
+// SetPasswordContext is SetPassword for a request: ErrHashBusy when no
+// password hashing slot frees up in time.
+func SetPasswordContext(ctx context.Context, d *sql.DB, userID int64, password, keepToken string) error {
 	var email string
 	if err := d.QueryRow(`SELECT email FROM users WHERE id = ?`, userID).Scan(&email); err != nil {
 		return err
@@ -261,7 +267,7 @@ func SetPassword(d *sql.DB, userID int64, password, keepToken string) error {
 	if err := ValidatePassword(password, email); err != nil {
 		return err
 	}
-	hash, err := HashPassword(password)
+	hash, err := HashPasswordContext(ctx, password)
 	if err != nil {
 		return err
 	}

@@ -106,6 +106,7 @@ type TotpSetupResponse struct {
 // @Failure  401 {object} ErrorResponse
 // @Failure  409 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Param    body body reauthRequest true "the account's password"
 // @Failure  403 {object} ErrorResponse
@@ -201,6 +202,7 @@ func (s *Server) handleTotpConfirm(w http.ResponseWriter, r *http.Request) {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/totp [delete]
 func (s *Server) handleTotpDisable(w http.ResponseWriter, r *http.Request) {

@@ -1,13 +1,95 @@
 package auth
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/argon2"
 )
+
+// swapHashGate gives a test its own gate and key derivation, so it can hold
+// slots and count runs without paying for argon2.
+func swapHashGate(t *testing.T, slots int, fn func([]byte, []byte, uint32, uint32, uint8, uint32) []byte) {
+	t.Helper()
+	gate, idk, wait := hashGate, argonIDKey, hashWaitMax
+	hashGate, argonIDKey, hashWaitMax = make(chan struct{}, slots), fn, time.Hour
+	t.Cleanup(func() { hashGate, argonIDKey, hashWaitMax = gate, idk, wait })
+}
+
+// Every argon2id run holds 64 MiB; parallel sign-ins must not run more of
+// them at once than the gate allows, however many arrive.
+func TestHashGateCapsConcurrentRuns(t *testing.T) {
+	hash := legacyHash(t, "correct horse battery")
+	DummyVerify("warm up") // builds the dummy hash outside the fake
+	const slots, callers = 2, 8
+	var mu sync.Mutex
+	active, peak, runs := 0, 0, 0
+	entered := make(chan struct{}, callers)
+	release := make(chan struct{})
+	swapHashGate(t, slots, func(_, _ []byte, _, _ uint32, _ uint8, keyLen uint32) []byte {
+		mu.Lock()
+		active++
+		runs++
+		peak = max(peak, active)
+		mu.Unlock()
+		entered <- struct{}{}
+		<-release
+		mu.Lock()
+		active--
+		mu.Unlock()
+		return make([]byte, keyLen)
+	})
+	var wg sync.WaitGroup
+	for range callers {
+		wg.Go(func() {
+			if _, err := HashPasswordContext(context.Background(), "correct horse battery"); err != nil {
+				t.Error(err)
+			}
+		})
+	}
+	for range slots {
+		<-entered
+	}
+	// every slot is held: a request that has already ended gives up at once
+	// instead of queueing, and burns nothing
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := VerifyPasswordContext(ctx, "correct horse battery", hash); !errors.Is(err, ErrHashBusy) {
+		t.Fatalf("verify with the gate full and the request gone: %v, want ErrHashBusy", err)
+	}
+	if err := DummyVerifyContext(ctx, "anything at all"); !errors.Is(err, ErrHashBusy) {
+		t.Fatalf("dummy verify with the gate full: %v, want ErrHashBusy", err)
+	}
+	close(release)
+	wg.Wait()
+	if peak != slots || runs != callers {
+		t.Fatalf("peak %d runs %d, want peak %d runs %d", peak, runs, slots, callers)
+	}
+}
+
+// A caller that never gets a slot gives up after hashWaitMax rather than
+// queueing for as long as the flood lasts.
+func TestHashGateGivesUpWhenFull(t *testing.T) {
+	runs := 0
+	swapHashGate(t, 1, func(_, _ []byte, _, _ uint32, _ uint8, keyLen uint32) []byte {
+		runs++
+		return make([]byte, keyLen)
+	})
+	hashWaitMax = time.Nanosecond
+	hashGate <- struct{}{}
+	if _, err := HashPasswordContext(context.Background(), "correct horse battery"); !errors.Is(err, ErrHashBusy) {
+		t.Fatalf("hash with the gate full: %v, want ErrHashBusy", err)
+	}
+	<-hashGate
+	if _, err := HashPasswordContext(context.Background(), "correct horse battery"); err != nil || runs != 1 {
+		t.Fatalf("hash with a free slot: err %v runs %d", err, runs)
+	}
+}
 
 func TestHashVerify(t *testing.T) {
 	h, err := HashPassword("correct horse battery")

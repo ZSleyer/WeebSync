@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -82,6 +83,7 @@ func (s *Server) handleUsersList(w http.ResponseWriter, r *http.Request) {
 // @Failure      409  {object}  ErrorResponse
 // @Failure      415  {object}  ErrorResponse
 // @Failure      500  {object}  ErrorResponse
+// @Failure      503  {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/users [post]
 func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
@@ -114,7 +116,11 @@ func (s *Server) handleUserCreate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	hash, err := auth.HashPassword(c.Password)
+	hash, err := auth.HashPasswordContext(r.Context(), c.Password)
+	if errors.Is(err, auth.ErrHashBusy) {
+		hashBusy(w)
+		return
+	}
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "hash error")
 		return

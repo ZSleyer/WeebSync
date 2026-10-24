@@ -29,9 +29,18 @@ func writePasswordErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, sql.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "user not found")
+	case errors.Is(err, auth.ErrHashBusy):
+		hashBusy(w)
 	default:
 		dbErr(w, err)
 	}
+}
+
+// hashBusy answers a request that found every password hashing slot taken
+// (see auth.ErrHashBusy): the server is overloaded, not the input wrong.
+func hashBusy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "1")
+	writeErr(w, http.StatusServiceUnavailable, auth.ErrHashBusy.Error())
 }
 
 // handlePasswordChange lets an account change its own password.
@@ -48,6 +57,7 @@ func writePasswordErr(w http.ResponseWriter, err error) {
 // @Failure      403   {object}  ErrorResponse
 // @Failure      429   {object}  ErrorResponse
 // @Failure      500   {object}  ErrorResponse
+// @Failure      503   {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/auth/password [put]
 func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +81,7 @@ func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 	if !s.checkPassword(w, r, u.Email, in.Current, hash, "current password is wrong") {
 		return
 	}
-	if err := auth.SetPassword(s.DB, u.ID, in.New, auth.SessionToken(r)); err != nil {
+	if err := auth.SetPasswordContext(r.Context(), s.DB, u.ID, in.New, auth.SessionToken(r)); err != nil {
 		writePasswordErr(w, err)
 		return
 	}
@@ -94,6 +104,7 @@ func (s *Server) handlePasswordChange(w http.ResponseWriter, r *http.Request) {
 // @Failure      403   {object}  ErrorResponse
 // @Failure      404   {object}  ErrorResponse
 // @Failure      500   {object}  ErrorResponse
+// @Failure      503   {object}  ErrorResponse
 // @Security     CookieAuth
 // @Router       /api/users/{id}/password [put]
 func (s *Server) handleUserPassword(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +112,7 @@ func (s *Server) handleUserPassword(w http.ResponseWriter, r *http.Request) {
 	if !readJSON(w, r, &in) {
 		return
 	}
-	if err := auth.SetPassword(s.DB, pathID(r), in.Password, auth.SessionToken(r)); err != nil {
+	if err := auth.SetPasswordContext(r.Context(), s.DB, pathID(r), in.Password, auth.SessionToken(r)); err != nil {
 		writePasswordErr(w, err)
 		return
 	}
@@ -186,6 +197,7 @@ func (s *Server) handlePasswordForgot(w http.ResponseWriter, r *http.Request) {
 // @Failure      403   {object}  ErrorResponse
 // @Failure      429   {object}  ErrorResponse
 // @Failure      500   {object}  ErrorResponse
+// @Failure      503   {object}  ErrorResponse
 // @Router       /api/auth/reset [post]
 func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 	if s.passwordAuthBlocked() {
@@ -208,7 +220,7 @@ func (s *Server) handlePasswordReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// clears the token with the old password, in one go
-	if err := auth.SetPassword(s.DB, id, in.Password, ""); err != nil {
+	if err := auth.SetPasswordContext(r.Context(), s.DB, id, in.Password, ""); err != nil {
 		writePasswordErr(w, err)
 		return
 	}

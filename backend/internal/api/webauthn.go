@@ -221,7 +221,12 @@ func (s *Server) checkPassword(w http.ResponseWriter, r *http.Request, email, pa
 			return false
 		}
 	}
-	if !auth.VerifyPassword(password, hash) {
+	ok, err := auth.VerifyPasswordContext(r.Context(), password, hash)
+	if err != nil {
+		hashBusy(w)
+		return false
+	}
+	if !ok {
 		if !trusted {
 			s.accountLimiter.take(accountKey(email))
 		}
@@ -279,6 +284,7 @@ type WebAuthnBeginResponse struct {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/register/begin [post]
 func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Request) {
@@ -726,6 +732,7 @@ func (s *Server) handleWebAuthnList(w http.ResponseWriter, r *http.Request) {
 // @Failure  401 {object} ErrorResponse
 // @Failure  403 {object} ErrorResponse
 // @Failure  500 {object} ErrorResponse
+// @Failure  503 {object} ErrorResponse
 // @Security CookieAuth
 // @Router   /api/auth/webauthn/credentials/{id} [delete]
 func (s *Server) handleWebAuthnDelete(w http.ResponseWriter, r *http.Request) {
