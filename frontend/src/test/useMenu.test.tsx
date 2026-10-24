@@ -140,3 +140,67 @@ describe('useMenu', () => {
     expect(seenFocus).toBe(trigger)
   })
 })
+
+function PickHarness() {
+  const { open, setOpen, ref } = useMenu()
+  return (
+    <div ref={ref}>
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}>
+        Mehr
+      </button>
+      {open && (
+        <Menu kind="menu" aria-label="Mehr">
+          <MenuItem onClick={() => {}}>Umschalten</MenuItem>
+          <MenuItem aria-disabled onClick={() => {}}>
+            Gesperrt
+          </MenuItem>
+          <MenuItem role="menuitemcheckbox" aria-checked={false} onClick={() => setOpen(false)}>
+            Anpinnen
+          </MenuItem>
+          <MenuItem onClick={() => setOpen(false)}>Schließen</MenuItem>
+        </Menu>
+      )}
+    </div>
+  )
+}
+
+describe('useMenu focus after a pick', () => {
+  const start = () => {
+    render(<PickHarness />)
+    fireEvent.click(screen.getByRole('button', { name: 'Mehr' }))
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 10))
+
+  it('keeps the focus on an item that leaves the menu open', async () => {
+    start()
+    for (const name of ['Umschalten', 'Gesperrt']) {
+      const item = screen.getByRole('menuitem', { name })
+      item.focus()
+      fireEvent.click(item)
+      await settle()
+      expect(item).toHaveFocus()
+    }
+    expect(screen.getByRole('menu')).toBeInTheDocument()
+  })
+
+  it('returns the focus to the trigger when the pick closes the menu, also for the Enter key', async () => {
+    start()
+    const item = screen.getByRole('menuitem', { name: 'Schließen' })
+    item.focus()
+    // Enter on a button is a click
+    fireEvent.keyDown(item, { key: 'Enter' })
+    fireEvent.click(item)
+    await settle()
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Mehr' })).toHaveFocus()
+  })
+
+  it('treats menuitemcheckbox as an item too', async () => {
+    start()
+    const item = screen.getByRole('menuitemcheckbox', { name: 'Anpinnen' })
+    item.focus()
+    fireEvent.click(item)
+    await settle()
+    expect(screen.getByRole('button', { name: 'Mehr' })).toHaveFocus()
+  })
+})
