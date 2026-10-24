@@ -89,15 +89,40 @@ func (s *Server) trashGroup(path string) ([]string, error) {
 	if !videoExt[strings.ToLower(filepath.Ext(name))] {
 		return []string{path}, nil
 	}
-	stem := strings.TrimSuffix(name, filepath.Ext(name)) + "."
+	var videos []string
+	for _, p := range paths {
+		if d, n := filepath.Split(p); d == dir && videoExt[strings.ToLower(filepath.Ext(n))] {
+			videos = append(videos, n)
+		}
+	}
 	group := []string{path}
 	for _, p := range paths {
 		d, n := filepath.Split(p)
-		if p != path && d == dir && strings.HasPrefix(n, stem) && !videoExt[strings.ToLower(filepath.Ext(n))] {
+		if p != path && d == dir && sidecarOf(name, n, videos) {
 			group = append(group, p)
 		}
 	}
 	return group, nil
+}
+
+// sidecarOf reports whether name is a sidecar of the video: no video itself,
+// and starting with the video's stem and a dot - "Show - 1." does not start
+// "Show - 10.ass". Among the videos beside it the longest stem wins, so
+// "Show - 1.5.ass" belongs to "Show - 1.5.mkv", not to "Show - 1.mkv".
+func sidecarOf(video, name string, videos []string) bool {
+	if videoExt[strings.ToLower(filepath.Ext(name))] {
+		return false
+	}
+	stem := strings.TrimSuffix(video, filepath.Ext(video)) + "."
+	if !strings.HasPrefix(name, stem) {
+		return false
+	}
+	for _, v := range videos {
+		if other := strings.TrimSuffix(v, filepath.Ext(v)) + "."; len(other) > len(stem) && strings.HasPrefix(name, other) {
+			return false
+		}
+	}
+	return true
 }
 
 // handleTrashList lists what waits in the trash folders, grouped like the

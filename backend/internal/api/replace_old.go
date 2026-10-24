@@ -156,14 +156,19 @@ func (s *Server) trashFile(local *transfer.LocalPath, name string, entries []fs.
 		local.Root.WriteFile(filepath.Join(td, ".plexignore"), []byte("*\n"), 0o644)
 	}
 	bare := strings.TrimSuffix(name, filepath.Ext(name))
-	stem := bare + "."
+	var videos []string
+	for _, e := range entries {
+		if e.Type().IsRegular() && videoExt[strings.ToLower(filepath.Ext(e.Name()))] {
+			videos = append(videos, e.Name())
+		}
+	}
 	var group []string
 	for _, e := range entries {
 		n := e.Name()
 		if !e.Type().IsRegular() {
 			continue
 		}
-		if n != name && (!strings.HasPrefix(n, stem) || videoExt[strings.ToLower(filepath.Ext(n))]) {
+		if n != name && !sidecarOf(name, n, videos) {
 			continue
 		}
 		group = append(group, n)
