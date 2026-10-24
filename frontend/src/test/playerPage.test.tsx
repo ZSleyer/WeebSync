@@ -152,4 +152,27 @@ describe('Player page', () => {
     expect(screen.queryByRole('button', { name: 'Sound on' })).toBeNull()
     expect(video).toHaveFocus()
   })
+
+  it('F01a-5: the resume offer is announced and waits while the focus is on it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      localStorage.setItem('weebsync.player.pos', JSON.stringify({ '0:/a/ep1.mp4': { at: 300, t: 1 } }))
+      mount()
+      const go = await screen.findByRole('button', { name: 'Resume' })
+      // a live region that was there before its text: the one the skip card uses
+      expect(screen.getAllByRole('status').some((r) => r.classList.contains('sr-only') && /5:00/.test(r.textContent ?? ''))).toBe(true)
+      act(() => go.focus())
+      await act(async () => {
+        vi.advanceTimersByTime(40_000)
+      })
+      expect(screen.getByRole('button', { name: 'Resume' })).toBeTruthy()
+      act(() => go.blur())
+      await act(async () => {
+        vi.advanceTimersByTime(16_000)
+      })
+      expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

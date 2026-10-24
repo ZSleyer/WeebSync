@@ -297,12 +297,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
     if (v && offer !== null) v.currentTime = offer
     setResumeOffer(null)
   }
-  // the offer steps aside after a while: no answer is "from the start"
+  // the offer steps aside after a while: no answer is "from the start". Not
+  // while the focus or the pointer is on the card (WCAG 2.2.1): the time starts
+  // again once they leave
+  const [offerHeld, setOfferHeld] = useState(false)
   useEffect(() => {
-    if (!offerOpen) return
+    if (!offerOpen || offerHeld) return
     const id = window.setTimeout(() => setResumeOffer(null), 15_000)
     return () => clearTimeout(id)
-  }, [offerOpen])
+  }, [offerOpen, offerHeld])
   // the position is kept once the offer is answered (or there was none): the
   // first seconds from the start would overwrite the place to go on from.
   // Declared before the source effect, so on leaving it reads the position
@@ -1229,7 +1232,15 @@ function PlayerView({ server, path }: { server: number; path: string }) {
             </div>
           ) : (
             offer !== null && (
-              <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
+              <div
+                className="t-player-card"
+                ref={keepFocusInPlayer}
+                onFocus={() => setOfferHeld(true)}
+                onBlur={() => setOfferHeld(false)}
+                onPointerEnter={() => setOfferHeld(true)}
+                onPointerLeave={() => setOfferHeld(false)}
+                {...{ noautohide: '' }}
+              >
                 <span>{t('player.resumeAt', { time: clock(offer) })}</span>
                 <button type="button" className="t-player-card-btn t-player-card-btn--go" onClick={resume}>
                   {t('player.resume')}
@@ -1243,7 +1254,9 @@ function PlayerView({ server, path }: { server: number; path: string }) {
           {/* always there, only its words change: a live region added together
               with its text is often not read out */}
           <span className="sr-only" role="status">
-            {skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
+            {offer !== null && nextIn === null
+              ? t('player.resumeAt', { time: clock(offer) })
+              : skipOffered && t(skipOffered.kind === 'op' ? 'player.playingOp' : 'player.playingEd')}
           </span>
           {skipOffered && (
             <div className="t-player-card" ref={keepFocusInPlayer} {...{ noautohide: '' }}>
