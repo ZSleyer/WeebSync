@@ -101,6 +101,22 @@ describe('undoable removal', () => {
     expect(screen.getByText(/item 2/)).toBeInTheDocument()
   })
 
+  it('undoes with Ctrl+Z from anywhere, but leaves a text field its own undo', async () => {
+    const remove = vi.fn(async () => {})
+    app(remove)
+    await act(() => vi.runOnlyPendingTimersAsync())
+    fireEvent.click(screen.getByText('del 1'))
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    const field = document.body.appendChild(document.createElement('input'))
+    fireEvent.keyDown(field, { key: 'z', ctrlKey: true })
+    expect(screen.queryByText(/item 1/)).toBeNull()
+    field.remove()
+    fireEvent.keyDown(document.body, { key: 'z', ctrlKey: true })
+    await act(() => vi.advanceTimersByTimeAsync(10_000))
+    expect(remove).not.toHaveBeenCalled()
+    expect(screen.getByText(/item 1/)).toBeInTheDocument()
+  })
+
   it('sends the first removal at once when a second one replaces its line', async () => {
     const remove = vi.fn(async () => {})
     app(remove)

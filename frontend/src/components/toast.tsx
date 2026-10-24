@@ -98,6 +98,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     setLive(null)
   }
 
+  // The line is the only way back and sits at the end of the document; a
+  // keyboard user cannot tab there within its 8-10 s. Ctrl/Cmd+Z undoes it,
+  // except in a text field, which keeps its own undo (WCAG 2.2.1, 2.4.3).
+  useEffect(() => {
+    if (!live?.undo) return
+    const undoNow = () => {
+      pending.current = null
+      live.undo?.()
+      setLive(null)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'z' || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return
+      const el = e.target
+      if (el instanceof HTMLElement && el.closest('input:not([type=checkbox],[type=radio],[type=button],[type=submit]), textarea, select, [contenteditable]'))
+        return
+      e.preventDefault()
+      undoNow()
+    }
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  }, [live])
+
   // run out or closed: a held-back removal goes through now
   const closeLive = useCallback(() => {
     flush()
