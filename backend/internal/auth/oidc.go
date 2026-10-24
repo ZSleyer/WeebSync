@@ -256,6 +256,14 @@ func (m *Manager) CallbackHandler(w http.ResponseWriter, r *http.Request) {
 		callbackFail(w, r, "not_configured")
 		return
 	}
+	// an allowlist without the claim to check it against gates nobody, yet
+	// would provision every identity the provider vouches for (the settings
+	// refuse the combination; the environment can still set it)
+	if len(o.userValues) > 0 && o.claim == "" {
+		slog.Warn("oidc allowed values are set but no claim to check them against")
+		callbackFail(w, r, "not_allowed")
+		return
+	}
 	stateCookie, err := r.Cookie("weebsync_oidc_state")
 	if err != nil || r.URL.Query().Get("state") != stateCookie.Value {
 		callbackFail(w, r, "invalid_state")
