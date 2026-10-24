@@ -107,6 +107,8 @@ export default function Login() {
   const [waiting, setWaiting] = useState<'passkey' | 'sso' | null>(null)
   // counts refusals, so the same message shakes again
   const [errorTick, setErrorTick] = useState(0)
+  // bumped to arm the passkey autofill again
+  const [autofillTick, setAutofillTick] = useState(0)
   // which fields the shown error belongs to: only a refused password or code
   // does, a refused passkey or provider is about no field
   const [errAt, setErrAt] = useState<'' | 'form' | 'totp'>('')
@@ -226,13 +228,16 @@ export default function Login() {
           .then(() => {
             if (active) afterAuth()
           })
-          .catch(() => {})
+          .catch((err) => {
+            // an aborted or ignored ceremony stays quiet; the server refusing a picked passkey does not
+            if (active && err instanceof ApiError) fail(err.message)
+          })
     })
     return () => {
       active = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cfg?.authMode])
+  }, [cfg?.authMode, autofillTick])
   const passkeyLogin = async () => {
     setBusy(true)
     setWaiting('passkey')
@@ -242,6 +247,8 @@ export default function Login() {
       await afterAuth()
     } catch (err) {
       fail(err instanceof Error ? err.message : t('login.passkeyFailed'))
+      // the button's ceremony replaced the pending autofill one: arm it again
+      setAutofillTick((n) => n + 1)
     } finally {
       setBusy(false)
       setWaiting(null)
