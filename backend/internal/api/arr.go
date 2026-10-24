@@ -147,6 +147,7 @@ func (s *Server) isArrJob(downloadID int64) bool {
 			return true
 		}
 	}
+	_ = rows.Err() // a cut-off read counts as "not an arr job" too
 	return false
 }
 

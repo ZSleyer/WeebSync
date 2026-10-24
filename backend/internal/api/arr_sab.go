@@ -249,6 +249,12 @@ func (s *Server) sabJobs() ([]sabJob, error) {
 	return out, rows.Err()
 }
 
+// sabInQueue reports whether a job with this status is listed in the queue
+// (not in the history).
+func sabInQueue(status string) bool {
+	return status == "queued" || status == "running" || status == "paused"
+}
+
 // hasFiles reports whether dir holds anything.
 func hasFiles(dir string) bool {
 	entries, err := os.ReadDir(dir)
@@ -276,7 +282,8 @@ func (s *Server) sabQueue(w http.ResponseWriter, r *http.Request) {
 	case "delete":
 		want := sabValues(r)
 		for _, j := range jobs {
-			if want[j.nzo] || want["all"] {
+			// "all" empties the queue only, as in SABnzbd
+			if want[j.nzo] || (want["all"] && sabInQueue(j.status)) {
 				if j.downloadID > 0 && j.status != "done" {
 					s.Transfers.Cancel(j.userID, j.downloadID)
 				}
@@ -336,7 +343,8 @@ func (s *Server) sabHistory(w http.ResponseWriter, r *http.Request) {
 		// the app forgets a job it imported; the files are its business now
 		want := sabValues(r)
 		for _, j := range jobs {
-			if want[j.nzo] || want["all"] {
+			// "all" empties the history only, as in SABnzbd
+			if want[j.nzo] || (want["all"] && !sabInQueue(j.status)) {
 				if _, err := s.DB.Exec(`DELETE FROM arr_jobs WHERE nzo_id = ?`, j.nzo); err != nil {
 					slog.Warn("sab history delete: job not removed", "nzo", j.nzo, "err", err)
 					writeJSON(w, http.StatusInternalServerError, map[string]any{"status": false, "error": "job not removed"})
