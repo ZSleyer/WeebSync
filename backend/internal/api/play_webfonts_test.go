@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -152,5 +153,46 @@ func TestWebFontListFetchEndsWithServer(t *testing.T) {
 	defer l.mu.Unlock()
 	if l.fetching != nil {
 		t.Fatal("the fetch outlived the server")
+	}
+}
+
+// A due refresh does not hold anybody up while the old list is there: it is
+// served as it is, and the new one arrives in the background.
+func TestWebFontListRefreshServesOldList(t *testing.T) {
+	release := make(chan struct{})
+	google := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-release
+		fmt.Fprint(w, `{"familyMetadataList":[{"family":"Carlito","fonts":{"400":{}}}]}`)
+	}))
+	defer google.Close()
+	defer google.CloseClientConnections()
+	var once sync.Once
+	answer := func() { once.Do(func() { close(release) }) }
+	defer answer()
+	defer func(u string) { webFontMetaURL = u }(webFontMetaURL)
+	webFontMetaURL = google.URL
+
+	s := testServer(t, &Server{})
+	l := webFontList{byName: map[string]webFamily{"old": {"Old", []int{400}}}} // next: due
+	patient, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	began := time.Now()
+	got := l.get(patient, s)
+	if d := time.Since(began); d > time.Second {
+		t.Fatalf("the caller waited %v for the refresh", d)
+	}
+	if _, ok := got["old"]; !ok {
+		t.Fatalf("got %v, want the old list", got)
+	}
+	answer()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, ok := l.get(t.Context(), s)["carlito"]; ok {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the refresh never arrived")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }

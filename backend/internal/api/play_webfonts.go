@@ -71,6 +71,10 @@ func (l *webFontList) get(ctx context.Context, s *Server) map[string]webFamily {
 		l.fetching = done
 		s.spawn(func() { l.fetch(s.lifetimeCtx(), done) })
 	}
+	if l.byName != nil { // served as it is while the refresh runs
+		defer l.mu.Unlock()
+		return l.byName
+	}
 	l.mu.Unlock()
 	select {
 	case <-done:
