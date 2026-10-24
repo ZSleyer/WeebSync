@@ -38,7 +38,7 @@ import {
   type MatchStat,
 } from './maintenance'
 import { DetectedMarks } from './DetectedMarks'
-import { SettingsPanel } from './ui'
+import { LoadGate, SettingsPanel } from './ui'
 import MatchRouting from './MatchRouting'
 import './maintenance.css'
 
@@ -61,7 +61,7 @@ export default function Matching() {
   const qc = useQueryClient()
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { data } = useAdminJobs()
+  const { data, isError, refetch } = useAdminJobs()
 
   const opts = {
     onSuccess: () => {
@@ -86,7 +86,7 @@ export default function Matching() {
   })
   const confirm = useConfirm()
 
-  if (!data) return null
+  if (!data) return <LoadGate error={isError} onRetry={() => refetch()} />
 
   // the index lists the servers, the match stats come per server and source;
   // a server with matches but no index (the local library) still gets a card

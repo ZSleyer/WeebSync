@@ -2207,6 +2207,8 @@
     "apiTokenRegenerate": "Neu generieren",
     "apiTokenRevoke": "Widerrufen",
     "apiTokenConfirmRevoke": "API-Token widerrufen? Integrationen, die ihn nutzen, funktionieren dann nicht mehr.",
+    "loadFailed": "Die Einstellungen konnten nicht geladen werden.",
+    "loadRetry": "Erneut versuchen",
     "apiTokenConfirmRegenerate": "Neuen API-Token erzeugen? Der aktuelle funktioniert sofort nicht mehr, der neue wird nur einmal angezeigt.",
     "apiTokenShowOnce": "Token (wird nur einmal angezeigt - jetzt kopieren)",
     "apiTokenCopy": "Kopieren",

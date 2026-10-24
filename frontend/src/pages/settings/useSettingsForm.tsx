@@ -100,7 +100,7 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
   const qc = useQueryClient()
   // `enabled: false` for a page that also opens for non-admins: GET
   // /api/settings is admin-only
-  const { data } = useQuery<SettingsState>({
+  const { data, isError, refetch } = useQuery<SettingsState>({
     queryKey: ['settings'],
     queryFn: () => api.get('/api/settings'),
     enabled,
@@ -203,7 +203,7 @@ export function useSettingsForm({ enabled = true }: { enabled?: boolean } = {}) 
   // drop the edits: back to the fetched state
   const reset = () => setEdits({})
 
-  return { form, set, save, saved, locked, dirty, issue, reset, clearSecret }
+  return { form, set, save, saved, locked, dirty, issue, reset, clearSecret, isError, refetch }
 }
 
 // Error line under a field, wired to its input via aria-describedby.

@@ -6,7 +6,7 @@ import { api } from '../../api'
 import { useConfirm } from '../../components/confirm'
 import { UnsavedGuard } from '../../hooks/useUnsavedGuard'
 import { SaveBar, useSettingsForm, type SettingsState } from './useSettingsForm'
-import { EnvChip, ListSetting, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
+import { EnvChip, ListSetting, LoadGate, SecretSetting, SettingsPanel, SwitchSetting, TextSetting } from './ui'
 import Users from './Users'
 import { copyText } from '../../clipboard'
 import './security.css'
@@ -23,7 +23,7 @@ export const linesToCsv = (lines: string) => lines.split('\n').join(',')
 
 export default function Security() {
   const { t } = useTranslation()
-  const { form, set, save, saved, locked, dirty, reset, clearSecret } = useSettingsForm()
+  const { form, set, save, saved, locked, dirty, reset, clearSecret, isError, refetch } = useSettingsForm()
   const modeId = useId()
   const issuerId = useId()
 
@@ -40,7 +40,7 @@ export default function Security() {
     }
   }
 
-  if (!form) return null
+  if (!form) return <LoadGate error={isError} onRetry={() => refetch()} />
 
   return (
     <>
