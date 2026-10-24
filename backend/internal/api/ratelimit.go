@@ -95,6 +95,7 @@ func (s *Server) accountKeyNames() map[string]string {
 func (l *ipLimiter) resetAll() {
 	l.mu.Lock()
 	l.ips = map[string]*ipEntry{}
+	l.nextSweep = 0 // an empty map sweeps again from sweepAt
 	l.mu.Unlock()
 }
 

@@ -29,6 +29,11 @@ func TestIPLimiterSweepAmortised(t *testing.T) {
 	if ok, _ := l.take("10.0.0.0"); ok {
 		t.Error("a drained bucket was swept away")
 	}
+	// an admin reset starts the threshold over too
+	l.resetAll()
+	if l.nextSweep != 0 {
+		t.Errorf("after a reset the next sweep waits for %d buckets", l.nextSweep)
+	}
 }
 
 // Buckets back at full tokens still go once the map passes the threshold.
