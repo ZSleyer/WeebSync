@@ -103,6 +103,10 @@ func (s *Server) startPlexPin(w http.ResponseWriter, r *http.Request, kind strin
 // plexTVBase is the plex.tv origin of the PIN poll; a variable so tests can point it at a fake.
 var plexTVBase = "https://plex.tv"
 
+// plexDiscoverBase is the origin of the plex.tv watchlist, a variable for the
+// same reason.
+var plexDiscoverBase = "https://discover.provider.plex.tv"
+
 // plexPinToken asks plex.tv whether a PIN was claimed: the account token, ""
 // while the user has not signed in yet. Plex asks for at most one poll a second.
 func (s *Server) plexPinToken(id string) (string, error) {
@@ -172,11 +176,14 @@ func (s *Server) handlePlexLinkPoll(w http.ResponseWriter, r *http.Request) {
 
 // plexTVUser reads the account's display name (best-effort, for the status line).
 func (s *Server) plexTVUser(token string) string {
-	resp, err := s.plexTVReq(http.MethodGet, "https://plex.tv/api/v2/user", token)
+	resp, err := s.plexTVReq(http.MethodGet, plexTVBase+"/api/v2/user", token)
 	if err != nil {
 		return ""
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "" // an error body carries no name
+	}
 	var acc struct {
 		Username string `json:"username"`
 		Title    string `json:"title"`
@@ -262,7 +269,9 @@ type PlexWatchItem struct {
 //	@Summary		plex.tv watchlist
 //	@Tags			Suggestions
 //	@Produce		json
-//	@Success		200	{array}	PlexWatchItem
+//	@Success		200	{array}		PlexWatchItem
+//	@Failure		403	{object}	ErrorResponse	"plex.tv link expired"
+//	@Failure		502	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/watchlist [get]
 func (s *Server) handlePlexWatchlist(w http.ResponseWriter, r *http.Request) {
@@ -289,12 +298,23 @@ func (s *Server) handlePlexWatchlist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp, err := s.plexTVReq(http.MethodGet,
-		"https://discover.provider.plex.tv/library/sections/watchlist/all?includeGuids=1", token)
+		plexDiscoverBase+"/library/sections/watchlist/all?includeGuids=1", token)
 	if err != nil {
 		writeErr(w, http.StatusBadGateway, "plex.tv unreachable")
 		return
 	}
 	defer resp.Body.Close()
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusUnauthorized, http.StatusForbidden:
+		// the token was revoked or expired: not an empty watchlist. 403, not
+		// 401, which the UI reads as its own session having ended
+		writeErr(w, http.StatusForbidden, "plex.tv link expired, link the account again")
+		return
+	default:
+		writeErr(w, http.StatusBadGateway, "plex.tv watchlist failed")
+		return
+	}
 	var body struct {
 		MediaContainer struct {
 			Metadata []struct {
