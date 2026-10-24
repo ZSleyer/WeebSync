@@ -1008,7 +1008,7 @@ function BookView({ server, path }: { server: number; path: string }) {
   if (book.isPending) return <ReaderState loading label={t('viewer.unpacking')} />
   if (book.error) return <ReaderState error={book.error} />
   const b = book.data
-  if (b.kind === 'epub') return <EpubView base={b.base} server={server} path={path} onDead={revive} />
+  if (b.kind === 'epub') return <EpubView base={b.base} server={server} path={path} onDead={revive} onAlive={alive} />
   if (b.kind === 'sheet') return <SheetView base={b.base} path={path} />
   const pages = b.pages ?? []
   return (
@@ -1068,7 +1068,19 @@ async function loadEpub(base: string): Promise<EpubData> {
  * itself, the bar turns chapters. A position inside a chapter cannot be read
  * from a frame without scripts, so progress counts in chapters.
  */
-function EpubView({ base, server, path, onDead }: { base: string; server: number; path: string; onDead: () => void }) {
+function EpubView({
+  base,
+  server,
+  path,
+  onDead,
+  onAlive,
+}: {
+  base: string
+  server: number
+  path: string
+  onDead: () => void
+  onAlive: () => void
+}) {
   const { t } = useTranslation()
   const frame = useFrame()
   const data = useQuery({ queryKey: ['epub', base], queryFn: () => loadEpub(base), staleTime: Infinity })
@@ -1094,6 +1106,7 @@ function EpubView({ base, server, path, onDead }: { base: string; server: number
   // a frame shows no status of its own: ask the server whether the chapter is
   // still there, a 404/410 means the book was unpacked away
   const dead = useEffectEvent(onDead)
+  const alive = useEffectEvent(onAlive)
   const failed = !!data.error
   useEffect(() => {
     if (failed) dead()
@@ -1104,7 +1117,8 @@ function EpubView({ base, server, path, onDead }: { base: string; server: number
     const ctl = new AbortController()
     fetch(bookUrl(base, href), { method: 'HEAD', signal: ctl.signal })
       .then((res) => {
-        if (res.status === 404 || res.status === 410) dead()
+        if (res.ok) alive()
+        else if (res.status === 404 || res.status === 410) dead()
       })
       .catch(() => {})
     return () => ctl.abort()
