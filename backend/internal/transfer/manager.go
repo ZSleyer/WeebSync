@@ -79,7 +79,9 @@ type Manager struct {
 	Dial         Dialer
 	DownloadRoot string
 	// Roots is the allowlist of local roots a target path may live under
-	// (arbitrary media mounts). Empty falls back to [DownloadRoot].
+	// (arbitrary media mounts). Empty falls back to [DownloadRoot]. Set it
+	// directly only before the manager is in use; afterwards SetRoots, since
+	// workers and Enqueue read it concurrently.
 	Roots []string
 	// OnFinished is called when a download reaches done/error (for push
 	// notifications); may be nil.
@@ -109,10 +111,21 @@ func ResolveLocal(roots []string, p string) (string, error) {
 }
 
 func (m *Manager) roots() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if len(m.Roots) > 0 {
 		return m.Roots
 	}
 	return []string{m.DownloadRoot}
+}
+
+// SetRoots replaces the root allowlist while downloads may be resolving
+// targets against it. The slice is never modified after this, so readers may
+// keep using the one they got.
+func (m *Manager) SetRoots(roots []string) {
+	m.mu.Lock()
+	m.Roots = roots
+	m.mu.Unlock()
 }
 
 func NewManager(db *sql.DB, dial Dialer, downloadRoot string) *Manager {
