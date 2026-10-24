@@ -323,13 +323,30 @@ func (s *Server) handleWebAuthnRegisterBegin(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, WebAuthnBeginResponse{SessionID: waPut(session), PublicKey: creation.Response})
 }
 
+// waName is the credential's display name from the X-WA-Name header. A header
+// carries only bytes, so the client percent-encodes the name; a value that is
+// no valid encoding (an older client) is kept as sent, and whatever is not
+// UTF-8 is dropped rather than stored.
+func waName(r *http.Request) string {
+	raw := r.Header.Get("X-WA-Name")
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		name = raw
+	}
+	name = strings.ToValidUTF8(name, "")
+	if name == "" {
+		return "Passkey"
+	}
+	return name
+}
+
 // handleWebAuthnRegisterFinish stores a freshly registered credential.
 // @Summary  Finish passkey/security-key registration
 // @Description Completes a WebAuthn registration ceremony and stores the new credential. The ceremony id and metadata travel in headers; the request body is the credential attestation.
 // @Tags     TwoFactor
 // @Produce  json
 // @Param    X-WA-Session header string true "ceremony id from register/begin"
-// @Param    X-WA-Name header string false "display name for the credential"
+// @Param    X-WA-Name header string false "display name for the credential, percent-encoded (UTF-8)"
 // @Param    body body object true "WebAuthn attestation"
 // @Success  200 {object} OkResponse
 // @Failure  400 {object} ErrorResponse
@@ -368,10 +385,7 @@ func (s *Server) handleWebAuthnRegisterFinish(w http.ResponseWriter, r *http.Req
 		writeErr(w, http.StatusBadRequest, "invalid credential public key: "+err.Error())
 		return
 	}
-	name := r.Header.Get("X-WA-Name")
-	if name == "" {
-		name = "Passkey"
-	}
+	name := waName(r)
 	// what kind of credential this is was decided at begin, behind the
 	// password check, and travels in the ceremony; a header on this request
 	// could turn a security key (no user verification) into a passkey

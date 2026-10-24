@@ -13804,7 +13804,7 @@
                         }
                     },
                     {
-                        "description": "display name for the credential",
+                        "description": "display name for the credential, percent-encoded (UTF-8)",
                         "in": "header",
                         "name": "X-WA-Name",
                         "schema": {

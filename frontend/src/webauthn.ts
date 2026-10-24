@@ -69,7 +69,9 @@ export async function registerCredential(kind: 'passkey' | 'key', name: string, 
   await api.post('/api/auth/webauthn/register/finish', att, {
     'X-WA-Session': begin.sessionId,
     'X-WA-Type': kind,
-    'X-WA-Name': name,
+    // percent-encoded: a header value must be bytes, and a name like
+    // "Handy – privat" made fetch throw after the device made the passkey
+    'X-WA-Name': encodeURIComponent(name),
   })
 }
 
