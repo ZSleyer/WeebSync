@@ -585,11 +585,6 @@ func (c *Client) Search(ctx context.Context, kind, query string, year int) ([]an
 	}
 	payload, _ := json.Marshal(list)
 	c.store(cacheKey, string(payload))
-	// a year-narrowed hit also answers the plain search for the same title
-	// ("Show (2020)" vs "Show" folders); empty results don't poison it
-	if year > 0 && len(list) > 0 {
-		c.store(SearchCacheKey(kind, query, 0), string(payload))
-	}
 	return list, nil
 }
 
