@@ -283,8 +283,12 @@ func (s *Server) Register(mux *http.ServeMux) {
 
 	// browse
 	mux.Handle("GET /api/browse/local", authed(http.HandlerFunc(s.handleBrowseLocal)))
+	// mkdir is deliberately not adminOnly: every user needs "new folder" in
+	// the download/watch target picker, and downloads and watches create the
+	// same folders anyway. It only adds, never overwrites or removes anything.
 	mux.Handle("POST /api/browse/local/mkdir", authed(http.HandlerFunc(s.handleMkdirLocal)))
-	// writing to the media roots is admin-only; listing stays open to everyone
+	// renaming, moving and deleting existing files in the media roots is
+	// admin-only; listing stays open to everyone
 	mux.Handle("POST /api/browse/local/rename", authed(adminOnly(http.HandlerFunc(s.handleRenameLocal))))
 	mux.Handle("DELETE /api/browse/local", authed(adminOnly(http.HandlerFunc(s.handleDeleteLocal))))
 	mux.Handle("GET /api/servers/{id}/browse", authed(http.HandlerFunc(s.handleBrowseRemote)))
