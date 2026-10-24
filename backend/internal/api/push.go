@@ -74,7 +74,7 @@ func (s *Server) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := s.Push.Subscribe(u.ID, in.Endpoint, in.Keys.P256dh, in.Keys.Auth); err != nil {
+	if err := s.Push.Subscribe(u.ID, in.Endpoint, in.Keys.P256dh, in.Keys.Auth, auth.TokenHash(auth.SessionToken(r))); err != nil {
 		if errors.Is(err, push.ErrEndpointOwned) {
 			writeErr(w, http.StatusConflict, "endpoint already registered")
 			return

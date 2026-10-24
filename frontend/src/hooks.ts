@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, ApiError, type AiModels, type AiStatus, type Download, type PlexAccount, type User } from './api'
 import i18n, { setMediaServerName, syncLocale } from './locales'
+import { unsubscribePush } from './push'
 
 let localeSynced = false
 
@@ -15,11 +16,47 @@ let localeSynced = false
  */
 export async function logout() {
   try {
+    // while the session is still good: the push subscription belongs to this
+    // account, and the next one to sign in here must not inherit it. The
+    // service worker may be missing (ready never settles), so it gets a
+    // few seconds at most.
+    await Promise.race([unsubscribePush(), new Promise((resolve) => setTimeout(resolve, 3000))])
+  } catch {
+    // the server drops the subscription of this session on logout as well
+  }
+  try {
     await api.post('/api/auth/logout')
   } catch {
     // drop to the login screen either way: the user wants out
   }
+  clearAccountData()
   window.location.href = '/?loggedout=1'
+}
+
+// Browser data of the account that signs out: cached lists, the assistant
+// chat, searches, bookmarks and reading positions. Look and feel (theme,
+// scheme, tips) is the device's and stays.
+const ACCOUNT_KEYS = [
+  'weebsync.cache.',
+  'weebsync.ai.',
+  'weebsync.search.',
+  'weebsync.files.bookmarks',
+  'weebsync.player.pos',
+  'weebsync.palette.recent',
+  'weebsync.today.hidden',
+  'viewer.pos:',
+  'viewer.done:',
+]
+
+function clearAccountData() {
+  try {
+    sessionStorage.clear()
+    for (const k of Object.keys(localStorage)) {
+      if (ACCOUNT_KEYS.some((p) => k.startsWith(p))) localStorage.removeItem(k)
+    }
+  } catch {
+    // storage blocked: nothing was stored either
+  }
 }
 
 export function useAuth() {

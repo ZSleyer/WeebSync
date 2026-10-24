@@ -377,12 +377,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 // handleLogout ends the current session.
 // @Summary  Log out
-// @Description Destroys the current session and clears the session cookie.
+// @Description Destroys the current session, removes the push subscription made in it and clears the session cookie.
 // @Tags     Auth
 // @Produce  json
 // @Success  200 {object} OkResponse
 // @Router   /api/auth/logout [post]
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	// the push subscription made in this session goes with it (trigger
+	// sessions_drop_push)
 	if err := auth.DestroySession(s.DB, w, r); err != nil {
 		// the cookie is cleared, but the session is still good on the server
 		slog.Error("logout: session not destroyed", "err", err)

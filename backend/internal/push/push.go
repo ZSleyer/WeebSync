@@ -100,11 +100,13 @@ func (s *Service) subscriber() string {
 	return "mailto:weebsync@localhost"
 }
 
-func (s *Service) Subscribe(userID int64, endpoint, p256dh, auth string) error {
-	res, err := s.DB.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth)
-		VALUES (?, ?, ?, ?)
-		ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth
-		WHERE push_subscriptions.user_id = excluded.user_id`, endpoint, userID, p256dh, auth)
+// Subscribe stores a browser's subscription for the user. sessionHash is the
+// hash of the session cookie it was made in; that session's end removes it.
+func (s *Service) Subscribe(userID int64, endpoint, p256dh, auth, sessionHash string) error {
+	res, err := s.DB.Exec(`INSERT INTO push_subscriptions (endpoint, user_id, p256dh, auth, session_hash)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth, session_hash = excluded.session_hash
+		WHERE push_subscriptions.user_id = excluded.user_id`, endpoint, userID, p256dh, auth, sessionHash)
 	if err != nil {
 		return err
 	}
