@@ -2,8 +2,10 @@ package api
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -210,12 +212,18 @@ type plexAccountResponse struct {
 //	@Tags			Suggestions
 //	@Produce		json
 //	@Success		200	{object}	plexAccountResponse
+//	@Failure		500	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/plex/account [get]
 func (s *Server) handlePlexAccount(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	var name string
 	err := s.DB.QueryRow(`SELECT plex_user FROM plex_accounts WHERE user_id = ?`, u.ID).Scan(&name)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		// not "unlinked": the user would link again over a working account
+		dbErr(w, err)
+		return
+	}
 	out := plexAccountResponse{Linked: err == nil, User: name}
 	if c := s.plexClient(); c != nil {
 		out.Server = c.Kind()

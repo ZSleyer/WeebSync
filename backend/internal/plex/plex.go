@@ -109,6 +109,10 @@ type errStatus int
 
 func (e errStatus) Error() string { return fmt.Sprintf("plex: HTTP %d", int(e)) }
 
+// ErrNotFound is a library item the server does not have, as opposed to a
+// server that could not answer.
+var ErrNotFound = errors.New("plex: not found")
+
 // get fetches path and decodes the MediaContainer payload.
 func (c *Client) get(path string, out any) error {
 	resp, err := c.do(http.MethodGet, path)
@@ -880,10 +884,14 @@ func (c *Client) ShowDetail(ratingKey string) (*Show, error) {
 		} `json:"MediaContainer"`
 	}
 	if err := c.get("/library/metadata/"+url.PathEscape(ratingKey), &resp); err != nil {
+		var st errStatus
+		if errors.As(err, &st) && st == http.StatusNotFound {
+			return nil, fmt.Errorf("show %s: %w", ratingKey, ErrNotFound)
+		}
 		return nil, err
 	}
 	if len(resp.MediaContainer.Metadata) == 0 {
-		return nil, fmt.Errorf("plex: show %s not found", ratingKey)
+		return nil, fmt.Errorf("show %s: %w", ratingKey, ErrNotFound)
 	}
 	s := resp.MediaContainer.Metadata[0].toShow()
 	return &s, nil

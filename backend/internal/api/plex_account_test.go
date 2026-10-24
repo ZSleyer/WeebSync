@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/dbtest"
@@ -67,6 +68,33 @@ func TestPlexWatchlistReportsAnExpiredLink(t *testing.T) {
 	status, body = http.StatusOK, `{"MediaContainer":{"Metadata":[{"title":"Frieren","year":2023,"type":"show"}]}}`
 	if code := get(); code != http.StatusOK {
 		t.Errorf("working link: %d, want 200", code)
+	}
+}
+
+// Only a missing row means "not linked". A database error used to read the
+// same, and the user would link again over a working account.
+func TestPlexAccountStatusDoesNotHideADatabaseError(t *testing.T) {
+	d := dbtest.Open(t)
+	s := testServer(t, &Server{DB: d})
+	mux := http.NewServeMux()
+	s.Register(mux)
+	d.Exec(`INSERT INTO users (id, email) VALUES (1, 'a@example.com')`)
+	ck := cookieForUser(t, d, 1)
+	get := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest("GET", "/api/plex/account", nil)
+		req.AddCookie(ck)
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, req)
+		return rec
+	}
+	if rec := get(); rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"linked":false`) {
+		t.Errorf("no account: %d %s, want 200 not linked", rec.Code, rec.Body.String())
+	}
+	if _, err := d.Exec(`DROP TABLE plex_accounts`); err != nil {
+		t.Fatal(err)
+	}
+	if rec := get(); rec.Code != http.StatusInternalServerError {
+		t.Errorf("unreadable account: %d %s, want 500", rec.Code, rec.Body.String())
 	}
 }
 

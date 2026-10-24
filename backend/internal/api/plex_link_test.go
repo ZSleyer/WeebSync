@@ -24,6 +24,8 @@ func linkFixture(t *testing.T) (*sql.DB, *http.ServeMux, *http.Cookie) {
 		case strings.HasPrefix(r.URL.Path, "/library/metadata/62755"):
 			w.Write([]byte(`{"MediaContainer":{"Metadata":[{"ratingKey":"62755","title":"Re:ZERO",
 				"year":2016,"Guid":[{"id":"tvdb://305089"}]}]}}`))
+		case r.URL.Path == "/library/metadata/500":
+			http.Error(w, "busy", http.StatusInternalServerError) // the server, not the show
 		case r.URL.Path == "/library/sections":
 			w.Write([]byte(`{"MediaContainer":{"Directory":[{"key":"3","type":"show","title":"Animeserien"}]}}`))
 		default:
@@ -133,6 +135,18 @@ func TestWatchPlexShowLinkNeedsASeries(t *testing.T) {
 
 	if code := linkPUT(t, mux, ck, `{"ratingKey":"62755"}`); code != http.StatusNotFound {
 		t.Errorf("PUT = %d, want 404", code)
+	}
+}
+
+// A Plex outage used to answer "no such show in Plex" (400): the kind of
+// failure decides the status, so only a show Plex does not have is not found.
+func TestWatchPlexShowLinkTellsMissingShowFromOutage(t *testing.T) {
+	_, mux, ck := linkFixture(t)
+	if code := linkPUT(t, mux, ck, `{"ratingKey":"12345"}`); code != http.StatusNotFound {
+		t.Errorf("unknown show: %d, want 404", code)
+	}
+	if code := linkPUT(t, mux, ck, `{"ratingKey":"500"}`); code != http.StatusBadGateway {
+		t.Errorf("server error: %d, want 502", code)
 	}
 }
 

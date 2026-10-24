@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"path"
@@ -98,6 +99,7 @@ func (s *Server) handleWatchPlexShow(w http.ResponseWriter, r *http.Request) {
 //	@Failure		404	{object}	ErrorResponse
 //	@Failure		409	{object}	ErrorResponse
 //	@Failure		500	{object}	ErrorResponse
+//	@Failure		502	{object}	ErrorResponse
 //	@Failure		503	{object}	ErrorResponse
 //	@Security		CookieAuth
 //	@Router			/api/watches/{id}/plex-show [put]
@@ -140,8 +142,13 @@ func (s *Server) handleWatchPlexShowLink(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	sh, err := c.ShowDetail(in.RatingKey)
+	if errors.Is(err, plex.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, "no such show in Plex")
+		return
+	}
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "no such show in Plex")
+		slog.Warn("plex show lookup", "ratingKey", rk, "err", err)
+		writeErr(w, http.StatusBadGateway, "media server unreachable")
 		return
 	}
 	// everything is checked, so the binding can change: a rejected request must
