@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { Badge, Button, Input, Row, RowAction, Rows, SettingsField } from 'fluid-lycoris'
@@ -214,6 +214,7 @@ function PasskeySection() {
               trailing={
                 <RowAction
                   className="text-err"
+                  aria-label={`${t('account.remove')}: ${c.name}`}
                   disabled={busy || (!oidcOnly && !password)}
                   title={oidcOnly || password ? undefined : t('account.removeNeedsPassword')}
                   onClick={remove(c)}
@@ -303,6 +304,20 @@ function TotpSection() {
   const [copied, setCopied] = useState<'' | 'ok' | 'select'>('')
   const codesRef = useRef<HTMLUListElement>(null)
   const id = useId()
+  // the element a step change took the focus from is gone; the next one in
+  // line (first id that exists) takes it
+  const [focusIds, setFocusIds] = useState<string[]>([])
+  useEffect(() => {
+    if (!focusIds.length) return
+    for (const f of focusIds) {
+      const el = document.getElementById(f)
+      if (el) {
+        el.focus()
+        break
+      }
+    }
+    setFocusIds([])
+  }, [focusIds])
   // a refused code belongs to the code field while it is up, otherwise a
   // refused password belongs to the password field
   const bad = error ? { 'aria-invalid': true as const, 'aria-describedby': id + 'e' } : {}
@@ -333,11 +348,13 @@ function TotpSection() {
     run(async () => {
       setSetup(await api.post<SetupData>('/api/auth/totp/setup', { password }))
       setPassword('')
+      setFocusIds([id + 'c'])
     })
   const confirm = () =>
     run(async () => {
       const out = await api.post<{ recoveryCodes: string[] }>('/api/auth/totp/confirm', { code: code.trim() })
       setRecovery(out.recoveryCodes)
+      setFocusIds([id + 'r'])
       setSetup(null)
       setCode('')
       qc.invalidateQueries({ queryKey: ['totp'] })
@@ -356,8 +373,10 @@ function TotpSection() {
       desc={t('account.totpHint')}
     >
       {recovery && (
-        <div className="ws-codes">
-          <p className="sf-note mt-0 font-medium text-warn">{t('account.recoveryTitle')}</p>
+        <div className="ws-codes" role="region" aria-labelledby={id + 'r'}>
+          <p id={id + 'r'} tabIndex={-1} className="sf-note mt-0 font-medium text-warn">
+            {t('account.recoveryTitle')}
+          </p>
           <p className="t-sf-h">{t('account.recoveryHint')}</p>
           <ul ref={codesRef}>
             {recovery.map((c) => (
@@ -373,6 +392,7 @@ function TotpSection() {
               onClick={() => {
                 setRecovery(null)
                 setCopied('')
+                setFocusIds([id + 'p', id + 'sp'])
               }}
             >
               {t('remote.close')}
@@ -457,6 +477,7 @@ function TotpSection() {
                 setSetup(null)
                 setCode('')
                 setError('')
+                setFocusIds([id + 'sp'])
               }}
             >
               {t('common.cancel')}
@@ -604,7 +625,17 @@ function SessionsSection() {
               }
               trailing={
                 x.current ? undefined : (
-                  <RowAction disabled={busy} onClick={() => void run(() => api.del(`/api/auth/sessions/${x.id}`))}>
+                  <RowAction
+                    disabled={busy}
+                    aria-label={`${t('account.sessionsEnd')}: ${[
+                      browserOf(x.userAgent) || t('account.sessionsUnknown'),
+                      x.ip,
+                      x.createdAt && when(x.createdAt),
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}`}
+                    onClick={() => void run(() => api.del(`/api/auth/sessions/${x.id}`))}
+                  >
                     {t('account.sessionsEnd')}
                   </RowAction>
                 )
