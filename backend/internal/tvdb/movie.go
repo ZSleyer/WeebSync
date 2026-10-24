@@ -96,8 +96,14 @@ func (c *Client) Movie(ctx context.Context, id int) (*anilist.Media, error) {
 	m := resp.Data.toMedia()
 	// the base name is the original one (Japanese for an anime film): German
 	// first, as for a series, else the English name beside it
-	de, deOverview := c.movieTranslation(ctx, id, "deu")
-	en, enOverview := c.movieTranslation(ctx, id, "eng")
+	de, deOverview, err := c.movieTranslation(ctx, id, "deu")
+	if err != nil {
+		return nil, err // not cached: a record without its translation would stick
+	}
+	en, enOverview, err := c.movieTranslation(ctx, id, "eng")
+	if err != nil {
+		return nil, err
+	}
 	switch {
 	case de != "":
 		m.Title.Romaji = de
@@ -243,9 +249,9 @@ func (c *Client) RemoteID(ctx context.Context, remoteID string) (series, movie i
 	return hit.Series, hit.Movie, nil
 }
 
-// movieTranslation is a film's name and overview in one language, empty when
-// TVDB has none.
-func (c *Client) movieTranslation(ctx context.Context, id int, lang3 string) (name, overview string) {
+// movieTranslation is a film's name and overview in one language, empty (and no
+// error) when TVDB has none; a failed call is an error.
+func (c *Client) movieTranslation(ctx context.Context, id int, lang3 string) (name, overview string, err error) {
 	var resp struct {
 		Data struct {
 			Name     string `json:"name"`
@@ -253,7 +259,7 @@ func (c *Client) movieTranslation(ctx context.Context, id int, lang3 string) (na
 		} `json:"data"`
 	}
 	if err := c.get(ctx, fmt.Sprintf("/movies/%d/translations/%s", id, lang3), &resp); err != nil {
-		return "", ""
+		return "", "", notFoundOK(err)
 	}
-	return resp.Data.Name, resp.Data.Overview
+	return resp.Data.Name, resp.Data.Overview, nil
 }

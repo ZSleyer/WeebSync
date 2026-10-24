@@ -98,6 +98,12 @@ func (c *Client) authToken(ctx context.Context, force bool) (string, error) {
 	return c.token, nil
 }
 
+// statusError is a non-200 answer from a TVDB route, so a caller can tell "not
+// found" (a real, final answer) from a failure worth retrying.
+type statusError struct{ Code int }
+
+func (e *statusError) Error() string { return fmt.Sprintf("tvdb: HTTP %d", e.Code) }
+
 // get fetches path (already query-encoded) and decodes the payload. On a 401
 // it refreshes the token once and retries, so an expired token self-heals.
 func (c *Client) get(ctx context.Context, path string, out any) error {
@@ -122,7 +128,7 @@ func (c *Client) get(ctx context.Context, path string, out any) error {
 		}
 		if resp.StatusCode != http.StatusOK {
 			resp.Body.Close()
-			return fmt.Errorf("tvdb: HTTP %d", resp.StatusCode)
+			return &statusError{Code: resp.StatusCode}
 		}
 		err = json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(out)
 		resp.Body.Close()

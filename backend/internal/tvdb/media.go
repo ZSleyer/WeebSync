@@ -3,7 +3,9 @@ package tvdb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"slices"
 	"strconv"
@@ -261,8 +263,14 @@ func (c *Client) Media(ctx context.Context, id int) (*anilist.Media, error) {
 	// Japanese for an anime, so German first and English after it.
 	// Both languages are kept: the record serves every user, and the page shows
 	// the one its reader speaks (Descriptions).
-	deName, deOverview := c.translation(ctx, id, "deu")
-	enName, enOverview := c.translation(ctx, id, "eng")
+	deName, deOverview, err := c.translation(ctx, id, "deu")
+	if err != nil {
+		return nil, err // not cached: a record without its translation would stick
+	}
+	enName, enOverview, err := c.translation(ctx, id, "eng")
+	if err != nil {
+		return nil, err
+	}
 	if deName != "" {
 		m.Title.Romaji = deName
 	} else if enName != "" {
@@ -306,15 +314,22 @@ func (c *Client) SeriesTitle(ctx context.Context, id int, bcp47 string) (string,
 	if v, ok := c.cached(key); ok {
 		return v, nil
 	}
-	name := c.translatedName(ctx, id, tvdbLang(bcp47))
+	name, _, err := c.translation(ctx, id, tvdbLang(bcp47))
+	if err != nil {
+		return "", err
+	}
 	if name == "" && tvdbLang(bcp47) != "eng" {
-		name = c.translatedName(ctx, id, "eng")
+		if name, _, err = c.translation(ctx, id, "eng"); err != nil {
+			return "", err
+		}
 	}
 	if name == "" {
 		// last resort: the base record's default name
-		if m, err := c.Media(ctx, id); err == nil {
-			name = m.Title.Romaji
+		m, err := c.Media(ctx, id)
+		if err != nil {
+			return "", err
 		}
+		name = m.Title.Romaji
 	}
 	if name != "" {
 		c.store(key, name)
@@ -365,8 +380,10 @@ func (c *Client) NameTranslations(ctx context.Context, id int) (map[string]strin
 	return out, nil
 }
 
-// translation fetches one language's name and overview, "" when absent.
-func (c *Client) translation(ctx context.Context, id int, lang3 string) (name, overview string) {
+// translation fetches one language's name and overview. "" with a nil error is
+// the real "no translation" (404); any other failure is returned, so callers
+// never cache a record built from a call that merely failed.
+func (c *Client) translation(ctx context.Context, id int, lang3 string) (name, overview string, err error) {
 	var resp struct {
 		Data struct {
 			Name     string `json:"name"`
@@ -374,23 +391,28 @@ func (c *Client) translation(ctx context.Context, id int, lang3 string) (name, o
 		} `json:"data"`
 	}
 	if err := c.get(ctx, fmt.Sprintf("/series/%d/translations/%s", id, lang3), &resp); err != nil {
-		return "", ""
+		return "", "", notFoundOK(err)
 	}
-	return resp.Data.Name, resp.Data.Overview
+	return resp.Data.Name, resp.Data.Overview, nil
 }
 
-func (c *Client) translatedName(ctx context.Context, id int, lang3 string) string {
-	name, _ := c.translation(ctx, id, lang3)
-	return name
+// notFoundOK maps a 404 to nil (the item simply is not there) and keeps every
+// other error.
+func notFoundOK(err error) error {
+	var se *statusError
+	if errors.As(err, &se) && se.Code == http.StatusNotFound {
+		return nil
+	}
+	return err
 }
 
 // SeriesOverview returns the series description in the requested language
 // (BCP-47), falling back to English then "".
 func (c *Client) SeriesOverview(ctx context.Context, id int, bcp47 string) string {
-	if _, o := c.translation(ctx, id, tvdbLang(bcp47)); o != "" {
+	if _, o, _ := c.translation(ctx, id, tvdbLang(bcp47)); o != "" {
 		return o
 	}
-	if _, o := c.translation(ctx, id, "eng"); o != "" {
+	if _, o, _ := c.translation(ctx, id, "eng"); o != "" {
 		return o
 	}
 	return ""
