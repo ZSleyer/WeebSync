@@ -399,8 +399,22 @@ func categorize(providers []string, m anilist.Media, source, kind string) string
 // are probed - which read as "all suggestions gone".
 func (s *Server) staleSuggestions() {
 	// a failed aging only means the blobs keep their TTL
-	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = '2000-01-01 00:00:00' WHERE key LIKE 'suggestions:%'`)
+	_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key LIKE 'suggestions:%'`, suggestStaleAt)
+	// A build already running read its inputs before this and would store
+	// its result as fresh, while the rebuild asked for now is dropped as a
+	// duplicate of it. The time of the aging lets that build see it came too
+	// early (storeSuggestions). Kept outside the suggestions: prefix so the
+	// aging above never ages it.
+	_, _ = s.DB.Exec(`INSERT INTO anilist_cache (key, payload, fetched_at) VALUES (?, '', datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET fetched_at = excluded.fetched_at`, suggestAgedKey)
 }
+
+// suggestStaleAt is the fetched_at an aged blob carries: served, rebuilt
+// behind the read. suggestAgedKey holds when the blobs were last aged.
+const (
+	suggestStaleAt = "2000-01-01 00:00:00"
+	suggestAgedKey = "suggestions-aged"
+)
 
 func (s *Server) handleSuggestions(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
@@ -598,15 +612,35 @@ func (s *Server) buildUserSuggestions(ctx context.Context, userID int64) Suggest
 		Duplicates:  s.addDuplicates(locale),
 		BuiltAt:     time.Now().Unix(),
 	}
-	if b, err := json.Marshal(resp); err == nil {
-		s.cacheSet(fmt.Sprintf("suggestions:%d", userID), string(b))
-	}
+	s.storeSuggestions(userID, start, resp)
 	// the duration is what tells whether the budget above still fits
 	slog.Info("suggestions built", "user", userID, "took", time.Since(start).Round(time.Second),
 		"watchlist", len(resp.Watchlist), "recommended", len(resp.Recommended), "trending", len(resp.Trending),
 		"incomplete", len(resp.Incomplete), "upgrades", len(resp.Upgrades), "duplicates", len(resp.Duplicates),
 		"timedOut", ctx.Err() != nil)
 	return resp
+}
+
+// storeSuggestions writes a finished build as the user's blob. A build the
+// suggestions were aged during (staleSuggestions) is stored aged as well: it
+// still beats the older blob, but the next read has to rebuild it, since the
+// rebuild asked for at the aging was dropped while this one ran. Checked after
+// the write, so an aging landing between the check and the write cannot slip
+// through; a start in the same second as the aging counts as after it.
+func (s *Server) storeSuggestions(userID int64, start time.Time, resp SuggestionsResponse) {
+	b, err := json.Marshal(resp)
+	if err != nil {
+		return
+	}
+	key := fmt.Sprintf("suggestions:%d", userID)
+	s.cacheSet(key, string(b))
+	var aged int
+	err = s.DB.QueryRow(`SELECT COUNT(*) FROM anilist_cache WHERE key = ? AND fetched_at >= ?`,
+		suggestAgedKey, start.UTC().Format(sqliteTime)).Scan(&aged)
+	if err != nil || aged > 0 {
+		// unreadable counts as aged: a rebuild too many beats a stale page
+		_, _ = s.DB.Exec(`UPDATE anilist_cache SET fetched_at = ? WHERE key = ?`, suggestStaleAt, key)
+	}
 }
 
 // ownedFilter drops trending items the user already has (present on a server or
