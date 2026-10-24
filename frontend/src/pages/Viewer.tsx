@@ -591,12 +591,15 @@ export function Paged({
   }
 
   const onKey = (e: KeyboardEvent) => {
+    // Alt+arrow is the browser's back/forward, Ctrl/Cmd+key its own shortcuts
+    if (e.altKey || e.ctrlKey || e.metaKey) return
     const k = e.key
     // the strip scrolls by the keys the browser gives it
     if (scroll && k !== 'Home' && k !== 'End') return
     if (k === 'ArrowLeft') left()
     else if (k === 'ArrowRight') right()
-    else if (k === 'PageDown' || k === ' ') next()
+    else if (k === ' ') (e.shiftKey ? prev : next)()
+    else if (k === 'PageDown') next()
     else if (k === 'PageUp') prev()
     else if (k === 'Home') toPage(0)
     else if (k === 'End') toPage(count - 1)
