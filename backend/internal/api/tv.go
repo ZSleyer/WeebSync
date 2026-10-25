@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
+	"github.com/ch4d1/weebsync/internal/transfer"
 )
 
 // The read-only API a paired TV launcher reads with its device token (see
@@ -280,10 +281,43 @@ type tvDone struct {
 	remote, local, at string
 }
 
-// tvDoneDownloads reads the user's finished downloads, newest first.
+// tvEpisodeFile is the test countVideos applies: a video or a book. A
+// download also queues the files beside an episode (.nfo, pictures, fonts,
+// subtitles); those are not an episode arriving. The local name decides,
+// the remote one when the local name carries no extension.
+func tvEpisodeFile(local, remote string) bool {
+	ext := strings.ToLower(path.Ext(local))
+	if ext == "" {
+		ext = strings.ToLower(path.Ext(remote))
+	}
+	return videoExt[ext] || transfer.BookExt[ext]
+}
+
+// tvEpisodeSQL narrows the scan to rows whose local or remote name ends in
+// a video or book extension, so sidecar files do not use up tvRecentScan.
+// A superset of tvEpisodeFile (LIKE folds ASCII case); the extensions are
+// fixed literals without LIKE wildcards. Built once.
+var tvEpisodeSQL = func() string {
+	var exts []string
+	for e := range videoExt {
+		exts = append(exts, e)
+	}
+	for e := range transfer.BookExt {
+		exts = append(exts, e)
+	}
+	sort.Strings(exts)
+	var or []string
+	for _, e := range exts {
+		or = append(or, "local_path LIKE '%"+e+"'", "remote_path LIKE '%"+e+"'")
+	}
+	return "(" + strings.Join(or, " OR ") + ")"
+}()
+
+// tvDoneDownloads reads the user's finished episode files, newest first.
 func (s *Server) tvDoneDownloads(userID int64) ([]tvDone, error) {
 	rows, err := s.DB.Query(`SELECT server_id, remote_path, local_path, updated_at FROM downloads
-		WHERE user_id = ? AND status = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?`, userID, tvRecentScan)
+		WHERE user_id = ? AND status = 'done' AND `+tvEpisodeSQL+`
+		ORDER BY updated_at DESC, id DESC LIMIT ?`, userID, tvRecentScan)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +328,9 @@ func (s *Server) tvDoneDownloads(userID int64) ([]tvDone, error) {
 		if err := rows.Scan(&d.serverID, &d.remote, &d.local, &d.at); err != nil {
 			return nil, err
 		}
-		list = append(list, d)
+		if tvEpisodeFile(d.local, d.remote) {
+			list = append(list, d)
+		}
 	}
 	return list, rows.Err()
 }

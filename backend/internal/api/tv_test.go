@@ -259,3 +259,50 @@ func TestTVRecent(t *testing.T) {
 		}
 	}
 }
+
+// Only videos and books count as arrived episodes: the sidecar files a
+// download queues with them (.nfo, pictures, fonts, subtitles) neither take
+// the episode's place nor fill the list, not even past the rows scanned.
+func TestTVRecentSkipsSidecars(t *testing.T) {
+	dt := newDeviceTest(t)
+	dt.seedTVWatch(1, "AliceShow", 5, nil, nil)
+	at := func(ago time.Duration) string { return time.Now().Add(-ago).UTC().Format("2006-01-02 15:04:05") }
+	add := func(remote, local string, ago time.Duration) {
+		t.Helper()
+		if _, err := dt.s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, updated_at)
+			VALUES (1, 1, ?, ?, 'done', ?)`, remote, local, at(ago)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	add("/AliceShow/Show - S01E05 [1080p].mkv", "AliceShow/Show - S01E05.mkv", 3*time.Hour)
+	// a renamed copy whose local name lost the extension: the remote one decides
+	add("/AliceShow/Show - S01E06 [1080p].mp4", "AliceShow/Show - S01E06", 3*time.Hour)
+	add("/AliceShow/Show - S01E05 [1080p].nfo", "AliceShow/Show - S01E05.nfo", 2*time.Hour)
+	add("/AliceShow/Show - S01E05 [1080p].jpg", "AliceShow/Show - S01E05.jpg", 2*time.Hour)
+	add("/AliceShow/Show - S01E05 [1080p].srt", "AliceShow/Show - S01E05.srt", time.Hour)
+	// more sidecars than one scan reads, all newer than the videos
+	tx, err := dt.s.DB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range tvRecentScan + 10 {
+		if _, err := tx.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, updated_at)
+			VALUES (1, 1, ?, ?, 'done', ?)`, fmt.Sprintf("/AliceShow/fonts/f%d.ttf", i), fmt.Sprintf("AliceShow/fonts/f%d.TTF", i), at(time.Minute)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatal(err)
+	}
+	tok := dt.link(dt.alice, "A")
+	got := dt.recent(tok, "")
+	if len(got) != 2 || got[0].Episode+got[1].Episode != 11 {
+		t.Fatalf("recent = %+v, want only the two videos", got)
+	}
+	want := time.Now().Add(-3 * time.Hour).Unix()
+	for _, it := range got {
+		if it.FinishedAt < want-5 || it.FinishedAt > want+5 {
+			t.Errorf("%+v finished at %d, want the video's own time %d", it, it.FinishedAt, want)
+		}
+	}
+}
