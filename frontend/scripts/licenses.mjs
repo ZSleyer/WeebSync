@@ -150,24 +150,63 @@ export function licenseInventory() {
   }
 }
 
+// Beside the license go-licenses picked, a module directory can hold more
+// notices that bind the binary: NOTICE (Apache-2.0 4(d)), PATENTS, and
+// LICENSE-<part> files for code taken in from elsewhere (musl in
+// modernc.org/libc's LICENSE-3RD-PARTY.md). The rule: all of them go along,
+// unless go-overrides.json skips a file with the package it belongs to and
+// a reason; skipProblems then fails as soon as that package gets linked.
+const GO_EXTRA = /^(notice|patents)([.-].*)?$|^licen[cs]e-.+$/i
+
+const listDir = (dir) => {
+  try {
+    return readdirSync(dir)
+  } catch {
+    return []
+  }
+}
+
 // parseGoReport reads the TSV of tools/licenses/go.tpl:
 // name, version, license, url, path of the license file
-export function parseGoReport(tsv, { read = (p) => readFileSync(p, 'utf8'), overrides = {} } = {}) {
+export function parseGoReport(tsv, { read = (p) => readFileSync(p, 'utf8'), list = listDir, overrides = {} } = {}) {
   const out = []
   for (const line of tsv.split('\n')) {
     if (!line.trim()) continue
     const [name, version, license, url, file] = line.split('\t')
     const o = overrides[name] ?? {}
+    const main = o.licenseFile ? path.join(REPO, o.licenseFile) : file
+    const dir = path.dirname(main)
+    const extra = list(dir)
+      .filter((f) => GO_EXTRA.test(f) && !o.skip?.[f])
+      .sort()
+      .map((f) => path.join(dir, f))
     out.push({
       name,
       version: o.version ?? version,
       license: o.license ?? license,
       url: o.url ?? url,
       source: 'go',
-      text: normText(read(o.licenseFile ? path.join(REPO, o.licenseFile) : file)),
+      text: [main, ...extra]
+        .map((f) => normText(read(f)))
+        .filter(Boolean)
+        .join('\n\n'),
     })
   }
   return out
+}
+
+// skipProblems: a skipped notice whose package is linked after all (deps is
+// `go list -deps` of the binary), or a skip without a reason
+export function skipProblems(overrides, deps) {
+  const linked = new Set(deps)
+  const problems = []
+  for (const [name, o] of Object.entries(overrides))
+    for (const [file, s] of Object.entries(o.skip ?? {})) {
+      if (!s.why) problems.push(`go-overrides: ${name} skips ${file} without a reason`)
+      else if (s.package && linked.has(s.package))
+        problems.push(`go-overrides: ${name} skips ${file}, but ${s.package} is linked`)
+    }
+  return problems
 }
 
 // dataEntries: the static ones, texts named by repo-relative paths
@@ -282,8 +321,13 @@ function main([cmd, ...args]) {
   if (cmd === 'merge') {
     const goFile = opt('go')
     const npmFile = opt('npm')
-    if (!goFile || !npmFile) throw new Error('usage: licenses.mjs merge --go <report.tsv> --npm <npm.json>')
+    const depsFile = opt('deps')
+    if (!goFile || !npmFile || !depsFile)
+      throw new Error('usage: licenses.mjs merge --go <report.tsv> --npm <npm.json> --deps <go-deps.txt>')
     const overrides = readJSON(path.join(TOOLS, 'go-overrides.json'))
+    const skips = skipProblems(overrides, readFileSync(depsFile, 'utf8').split('\n'))
+    for (const p of skips) console.error(`licenses: ${p}`)
+    if (skips.length) return 1
     const entries = [
       ...dataEntries(readJSON(path.join(TOOLS, 'data.json'))),
       ...parseGoReport(readFileSync(goFile, 'utf8'), { overrides }),

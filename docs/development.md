@@ -75,6 +75,13 @@ there, each with its exact license string and the reason. A Go package whose
 license file go-licenses cannot place (the vendored RAR decoder) gets its
 version and URL from `tools/licenses/go-overrides.json`.
 
+Go modules ship more than their main license: every `NOTICE*`, `PATENTS*`
+and `LICENSE-*` file next to it goes along (go-oidc's NOTICE, the musl
+notice in `modernc.org/libc`). A file that belongs to code the binary does
+not link is skipped in `go-overrides.json` with the package it belongs to
+and a reason; the generator fails as soon as that package shows up in
+`go list -deps`.
+
 ## Stack
 
 - **Backend:** Go with the standard `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`; release names are read by `internal/relname`

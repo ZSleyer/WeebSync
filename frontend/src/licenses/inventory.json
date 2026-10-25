@@ -69,7 +69,7 @@
     "license": "Apache-2.0",
     "url": "https://github.com/coreos/go-oidc/blob/v3.21.0/LICENSE",
     "source": "go",
-    "text": "6dc0e068dcf3a5bc"
+    "text": "92dfb10d6bc88efb"
   },
   {
     "name": "github.com/dustin/go-humanize",
@@ -237,7 +237,7 @@
     "license": "BSD-3-Clause",
     "url": "https://cs.opensource.google/go/x/crypto/+/v0.58.0:LICENSE",
     "source": "go",
-    "text": "22975ebe413674bc"
+    "text": "7a8ee946dc79f657"
   },
   {
     "name": "golang.org/x/oauth2",
@@ -253,7 +253,7 @@
     "license": "BSD-3-Clause",
     "url": "https://cs.opensource.google/go/x/sys/+/v0.49.0:LICENSE",
     "source": "go",
-    "text": "22975ebe413674bc"
+    "text": "7a8ee946dc79f657"
   },
   {
     "name": "golang.org/x/text",
@@ -261,7 +261,7 @@
     "license": "BSD-3-Clause",
     "url": "https://cs.opensource.google/go/x/text/+/v0.43.0:LICENSE",
     "source": "go",
-    "text": "22975ebe413674bc"
+    "text": "7a8ee946dc79f657"
   },
   {
     "name": "golang.org/x/time/rate",
@@ -269,7 +269,7 @@
     "license": "BSD-3-Clause",
     "url": "https://cs.opensource.google/go/x/time/+/v0.16.0:LICENSE",
     "source": "go",
-    "text": "22975ebe413674bc"
+    "text": "7a8ee946dc79f657"
   },
   {
     "name": "modernc.org/libc",
@@ -277,7 +277,7 @@
     "license": "BSD-3-Clause",
     "url": "https://gitlab.com/cznic/libc/-/blob/v1.77.1/LICENSE",
     "source": "go",
-    "text": "7d1d14fc62bf1284"
+    "text": "9064aa7619b39836"
   },
   {
     "name": "modernc.org/mathutil",
@@ -293,7 +293,7 @@
     "license": "BSD-3-Clause",
     "url": "https://gitlab.com/cznic/memory/-/blob/v1.12.1/LICENSE",
     "source": "go",
-    "text": "548392101458709a"
+    "text": "4a295af60d729c73"
   },
   {
     "name": "modernc.org/sqlite",
@@ -301,7 +301,7 @@
     "license": "BSD-3-Clause",
     "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.60.1/LICENSE",
     "source": "go",
-    "text": "ed5daf17385452dc"
+    "text": "024b87708fe535ab"
   },
   {
     "name": "@tanstack/query-core",
