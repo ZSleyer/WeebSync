@@ -69,6 +69,7 @@ Running Home Assistant? There is an add-on: [ZSleyer/WeebSync-Addon](https://git
 - [Configuration](docs/configuration.md) - environment variables, reverse proxy, file ownership, hardening
 - [Windows](docs/windows.md) - Docker Desktop or Docker Engine in WSL 2: volumes, media drives, GPU
 - [Home Assistant](docs/home-assistant.md) - sensors, triggers and events
+- [TV devices](docs/tv-devices.md) - pair a TV launcher by code, read-only calendar and recent downloads
 - [Sonarr / Radarr / Prowlarr](docs/sonarr-radarr.md) - optional: WeebSync as indexer and download client
 - [Development](docs/development.md) - local setup, stack, releases
 - [Security policy](SECURITY.md)
