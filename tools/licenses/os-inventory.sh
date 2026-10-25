@@ -7,6 +7,7 @@
 #
 # - finds the package of every file under <rootfs> (dpkg -S),
 # - copies each package's /usr/share/doc/<pkg>/copyright into <rootfs>,
+#   and its dpkg status entry into <rootfs>/var/lib/dpkg/status.d/<pkg>,
 # - writes <out.json>: [{name, version, license, url, source: "os"}], sorted.
 #   license lists the License: fields of a machine-readable copyright file
 #   (Debian's short names, not always SPDX), else points at the file.
@@ -47,6 +48,11 @@ while read -r pkg; do
   name="$(printf '%s' "$line" | cut -f1)"
   version="$(printf '%s' "$line" | cut -f2)"
   src="$(printf '%s' "$line" | cut -f3)"
+  # its dpkg status entry, the way distroless records its own packages: image
+  # scanners (trivy reads var/lib/dpkg/status.d/) then see these libraries
+  # and the security fixes they lack
+  mkdir -p "$root/var/lib/dpkg/status.d"
+  dpkg-query -s "$name" >"$root/var/lib/dpkg/status.d/$name"
   doc="/usr/share/doc/$name/copyright"
   license="no copyright file"
   if [ -r "$doc" ]; then
