@@ -20,8 +20,12 @@ if [ "${1:-}" != --check ]; then
   # Go: every package linked into the binary (linux/amd64, what the image
   # ships), minus the app's own module. The Go toolchain itself is a static
   # entry in data.json, go-licenses does not list the standard library.
+  # The tool is built for the machine it runs on (go run with GOOS/GOARCH
+  # set would cross-compile it and fail on arm64 or macOS); only the report
+  # it makes looks at linux/amd64.
+  GOBIN="$tmp" go install github.com/google/go-licenses/v2@v2.0.1
   (cd "$root/backend" && GOOS=linux GOARCH=amd64 \
-    go run github.com/google/go-licenses/v2@v2.0.1 report ./... \
+    "$tmp/go-licenses" report ./... \
       --ignore github.com/ch4d1/weebsync \
       --template "$root/tools/licenses/go.tpl" >"$tmp/go.tsv" 2>"$tmp/go.log") \
     || { cat "$tmp/go.log" >&2; exit 1; }
