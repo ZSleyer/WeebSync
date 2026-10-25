@@ -7,6 +7,7 @@ import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'
 import { ProviderMark } from '../../components/SourceLine'
 import { SettingsPanel, SwitchSetting } from './ui'
+import ThirdPartyLicenses from './Licenses'
 
 // read once per page load; the year does not change during a session
 const year = new Date().getFullYear()
@@ -99,13 +100,16 @@ export default function About() {
           <span className="sf-note">{t('about.anilistNote')}</span>
         </li>
         <li>
-          {/* the CC BY 4.0 terms of the database prescribe this link text */}
-          <a href="https://db-ip.com" target="_blank" rel="noopener" className="t-link">
-            IP Geolocation by DB-IP
+          {/* the CC BY 4.0 terms of the database prescribe this link text:
+              it is the name of the link around DB-IP's own mark */}
+          <a href="https://db-ip.com" target="_blank" rel="noopener">
+            <ProviderMark name="DB-IP" alt="IP Geolocation by DB-IP" />
           </a>
           <span className="sf-note">{t('about.dbipNote')}</span>
         </li>
       </ul>
+
+      <ThirdPartyLicenses />
 
       {user?.isAdmin && data && (
         <SwitchSetting

@@ -61,6 +61,23 @@
     "tvdbNote": "Metadaten von TheTVDB. Bitte ergänze fehlende Angaben oder erwäge ein Abonnement.",
     "dbipNote": "Ungefähre Orte der Sitzungen, aus der DB-IP-Datenbank (CC BY 4.0).",
     "anilistNote": "Anime-Daten und Bilder von AniList.",
+    "licenses": {
+      "title": "Lizenzen von Drittanbietern",
+      "intro": "Komponenten anderer, die WeebSync mitliefert, mit ihren Lizenzen und vollständigen Lizenztexten.",
+      "loading": "Lizenzen werden geladen",
+      "loadFailed": "Die Lizenzliste konnte nicht geladen werden.",
+      "search": "Name oder Lizenz suchen",
+      "count_one": "{{count}} von {{total}} Komponenten",
+      "count_other": "{{count}} von {{total}} Komponenten",
+      "text": "Lizenztext",
+      "textOf": "Lizenztext: {{name}}",
+      "source": {
+        "data": "Daten, Schriften und eingebettete Dateien",
+        "go": "Go-Module (Server)",
+        "npm": "npm-Pakete (Oberfläche)",
+        "os": "Betriebssystem-Pakete (Image)"
+      }
+    },
     "licenseLine": "Freie Software unter",
     "dev": "Dev-Version",
     "stable": "Stable",
@@ -1776,6 +1793,8 @@
     "motion": "Animationen",
     "todayJump": "Von Heute direkt zur Folge springen",
     "language": "Sprache",
+    "language_system": "System",
+    "languageHint": "„System“ folgt der Spracheinstellung des Browsers. Gibt es für keine der dort gewählten Sprachen eine Übersetzung, gilt Englisch.",
     "notifications": "Push-Benachrichtigungen",
     "pushEnable": "Push auf diesem Gerät",
     "pushHint": "Meldung bei fertigen oder fehlgeschlagenen Downloads. Auf iOS erst nach \"Zum Home-Bildschirm hinzufügen\" verfügbar.",

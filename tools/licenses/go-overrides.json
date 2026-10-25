@@ -1,0 +1,22 @@
+{
+  "github.com/nwaples/rardecode/v2": {
+    "version": "v2.4.5 (vendored with changes in backend/third_party/rardecode)",
+    "url": "https://github.com/nwaples/rardecode",
+    "licenseFile": "backend/third_party/rardecode/LICENSE"
+  },
+  "modernc.org/sqlite": {
+    "skip": {
+      "LICENSE-SQLITE_VEC": {
+        "package": "modernc.org/sqlite/vec",
+        "why": "sqlite-vec is compiled only into the modernc.org/sqlite/vec package, which the backend does not import."
+      }
+    }
+  },
+  "modernc.org/memory": {
+    "skip": {
+      "LICENSE-LOGO": {
+        "why": "The license of the project logo image in the repository; no code, nothing of it is compiled into the binary."
+      }
+    }
+  }
+}

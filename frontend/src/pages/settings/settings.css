@@ -370,6 +370,47 @@
   margin: 0;
 }
 
+/* the third-party licenses: a searchable list per source, texts on demand */
+.set-lic {
+  display: grid;
+  gap: 0.5rem;
+}
+.set-lic-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.set-lic-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.75rem;
+  min-width: 0;
+}
+.set-lic-head > .t-link:first-child {
+  overflow-wrap: anywhere;
+}
+.set-lic-head .sf-note {
+  margin: 0;
+}
+.set-lic-text {
+  max-height: 20rem;
+  overflow: auto;
+  margin: 0.25rem 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-ctl);
+  font-size: 0.75rem;
+}
+.set-lic-text pre {
+  margin: 0;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* a note in prose, the actions under a panel, two fields side by side */
 .sf-note {
   margin: 0.5rem 0 0;

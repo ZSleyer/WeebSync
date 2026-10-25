@@ -2,15 +2,18 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import Look from '../pages/settings/Look'
 
-const changeLanguage = vi.fn()
+const setLocalePref = vi.fn()
+const readLocalePref = vi.fn(() => 'system')
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'de', changeLanguage } }),
+  useTranslation: () => ({ t: (k: string) => k, i18n: { language: 'de' } }),
 }))
 vi.mock('../locales', () => ({
   LOCALES: [
     { code: 'de', label: 'Deutsch' },
     { code: 'en', label: 'English' },
   ],
+  readLocalePref: () => readLocalePref(),
+  setLocalePref: (p: string) => setLocalePref(p),
 }))
 
 describe('Look', () => {
@@ -50,7 +53,19 @@ describe('Look', () => {
     expect(localStorage.getItem('weebsync.theme')).toBe('light')
     expect(document.documentElement.dataset.theme).toBe('light')
     fireEvent.click(screen.getByRole('button', { name: 'English' }))
-    expect(changeLanguage).toHaveBeenCalledWith('en')
+    expect(setLocalePref).toHaveBeenCalledWith('en')
+  })
+
+  it('offers System first and marks the stored choice', () => {
+    readLocalePref.mockReturnValueOnce('de')
+    render(<Look />)
+    const group = screen.getByRole('group', { name: 'settings.language' })
+    const names = [...group.querySelectorAll('button')].map((b) => b.textContent)
+    expect(names).toEqual(['settings.language_system', 'Deutsch', 'English'])
+    expect(screen.getByRole('button', { name: 'Deutsch' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByRole('button', { name: 'settings.language_system' }))
+    expect(setLocalePref).toHaveBeenCalledWith('system')
+    expect(screen.getByRole('button', { name: 'settings.language_system' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('turns motion off through the document flag', () => {

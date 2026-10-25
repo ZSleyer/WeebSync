@@ -54,6 +54,41 @@ cd frontend
 yarn lint && yarn format:check && yarn test && yarn build
 ```
 
+### Third-party licenses
+
+The About page lists every third-party component the app ships, with its
+license text: Go modules linked into the binary (go-licenses v2.0.1), the npm
+packages that end up in the production bundle (a small Vite plugin in
+`frontend/scripts/licenses.mjs` reads the bundle's module ids), and static
+entries in `tools/licenses/data.json` (Go itself, the vendored Swagger UI,
+the password list, the fonts, the DB-IP database). After a dependency
+change, regenerate and commit the result:
+
+```bash
+tools/licenses/generate.sh        # writes frontend/src/licenses/{inventory,texts}.json
+tools/licenses/generate.sh --check   # only the allowlist check
+```
+
+CI regenerates and fails on a diff. The check refuses any license outside
+`tools/licenses/allowlist.json`; copyleft packages are allowed one by one
+there, each with its exact license string and the reason. A Go package whose
+license file go-licenses cannot place (the vendored RAR decoder) gets its
+version and URL from `tools/licenses/go-overrides.json`.
+
+Go modules ship more than their main license: every `NOTICE*`, `PATENTS*`
+and `LICENSE-*` file next to it goes along (go-oidc's NOTICE, the musl
+notice in `modernc.org/libc`). A file that belongs to code the binary does
+not link is skipped in `go-overrides.json` with the package it belongs to
+and a reason; the generator fails as soon as that package shows up in
+`go list -deps`.
+
+An npm package can bundle more than its license file admits: jassub's
+WebAssembly links libass, FreeType, FriBidi, HarfBuzz and Brotli, but the
+package carries only jassub's MIT license. `tools/licenses/npm-overrides.json`
+adds those components (versions from the submodules jassub pins, texts in
+`tools/licenses/texts/jassub/`) for exactly one jassub version; after a
+jassub update the generator fails until the overrides are checked again.
+
 ## Stack
 
 - **Backend:** Go with the standard `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`; release names are read by `internal/relname`

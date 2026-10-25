@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next'
 import anilistMark from '../assets/providers/anilist.svg'
+import dbipMark from '../assets/providers/dbip.svg'
 import tmdbMark from '../assets/providers/tmdb.svg'
 import tvdbMark from '../assets/providers/tvdb.png'
 import './sourceLine.css'
@@ -7,19 +8,24 @@ import './sourceLine.css'
 /** The providers' own marks, as their terms allow; Crunchyroll has none here and shows as text. */
 const MARKS: Record<string, { src: string; wide?: boolean }> = {
   AniList: { src: anilistMark },
+  'DB-IP': { src: dbipMark, wide: true },
   TMDB: { src: tmdbMark, wide: true },
   TVDB: { src: tvdbMark, wide: true },
 }
 
-/** A provider's mark (its name is the alt text) or, without one, its name. The square AniList icon gets its name beside it. */
-export function ProviderMark({ name }: { name: string }) {
+/**
+ * A provider's mark (its name, or `alt` where a provider's terms prescribe the
+ * wording, is the alt text) or, without one, its name. The square AniList icon
+ * gets its name beside it.
+ */
+export function ProviderMark({ name, alt }: { name: string; alt?: string }) {
   const m = MARKS[name]
-  if (!m) return <b>{name}</b>
+  if (!m) return <b>{alt ?? name}</b>
   return (
     <>
       <img
         src={m.src}
-        alt={m.wide ? name : ''}
+        alt={m.wide ? (alt ?? name) : ''}
         loading="lazy"
         decoding="async"
         className="ws-d-pmark"

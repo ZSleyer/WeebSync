@@ -126,6 +126,38 @@ jobs:
       - name: build (tsc + vite)
         run: yarn build
 
+  # The third-party license inventory on the About page: regenerated from the
+  # Go module graph (go-licenses, pinned) and the production bundle, then it
+  # has to match what is committed and stay within tools/licenses/allowlist.json.
+  # After the frontend job, so the install only runs on a lockfile that
+  # passed the source check there.
+  licenses:
+    needs: [frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: yarn
+          cache-dependency-path: frontend/yarn.lock
+      - name: install
+        working-directory: frontend
+        run: |
+          yarn install --immutable
+          ln -sfn "$PWD/node_modules" ../design-system/node_modules
+      - name: license inventory in sync and allowed
+        run: |
+          tools/licenses/generate.sh
+          git diff --exit-code frontend/src/licenses/ \
+            || { echo "License inventory out of date - run tools/licenses/generate.sh and commit frontend/src/licenses/"; exit 1; }
+
   security:
     runs-on: ubuntu-latest
     steps:
@@ -169,7 +201,7 @@ jobs:
   # worked on. The nightly cleanup excludes :dev by name - see nightly.yml.
   dev-image:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, frontend, security]
+    needs: [backend, frontend, licenses, security]
     runs-on: ubuntu-latest
     permissions:
       contents: read

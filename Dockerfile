@@ -97,6 +97,14 @@ RUN set -eu; triple="$(cat /triple)"; cross=""; \
       --enable-gpl --enable-libx264 --enable-libass --enable-libdav1d --enable-vaapi --enable-ffnvcodec --enable-nvenc \
       --extra-ldflags="-Wl,-rpath,/opt/ffmpeg/lib -Wl,-z,relro,-z,now -L/usr/lib/${triple}"; \
     make -j"$(nproc)"; make install; \
+    # the GPL source offer: this exact Debian source and how it was configured
+    mkdir -p /opt/ffmpeg-doc; \
+    { echo "Source: ffmpeg"; echo "Version: $(dpkg-parsechangelog -S Version)"; \
+      echo "Configure: $(sed -n 's/^#define FFMPEG_CONFIGURATION "\(.*\)"$/\1/p' config.h)"; \
+      echo "The complete corresponding source is Debian's ffmpeg source package of this version"; \
+      echo "(https://snapshot.debian.org/package/ffmpeg/), built with the configure flags above."; \
+    } > /opt/ffmpeg-doc/SOURCE; \
+    cp debian/copyright /opt/ffmpeg-doc/copyright; \
     cd /opt/ffmpeg; rm -rf include share lib/pkgconfig lib/*.so; \
     "${triple}-strip" bin/ffmpeg bin/ffprobe lib/*.so.*
 
@@ -121,6 +129,8 @@ RUN apt-get update \
     && if [ "$TARGETARCH" = amd64 ]; then apt-get install -y --no-install-recommends intel-media-va-driver; \
        if [ "$VAAPI_AMD" = 1 ]; then apt-get install -y --no-install-recommends mesa-va-drivers; fi; fi
 COPY --from=ffmpeg /opt/ffmpeg /opt/ffmpeg
+COPY --from=ffmpeg /opt/ffmpeg-doc /rootfs/usr/share/doc/ffmpeg
+COPY tools/licenses/os-inventory.sh /os-inventory.sh
 RUN <<'EOF'
 set -eu
 mkdir -p /rootfs/usr/local/bin /rootfs/usr/sbin
@@ -140,6 +150,9 @@ for d in /etc/fonts /usr/share/fonts /usr/share/fontconfig /usr/share/libdrm /us
   [ -e "$d" ] && cp -a --parents "$d" /rootfs || true
 done
 cp -a /usr/sbin/ldconfig /rootfs/usr/sbin/ldconfig
+# the Debian packages behind those files: their copyright files go along
+# under /usr/share/doc, the list goes to the About page (/licenses/os.json)
+sh /os-inventory.sh /rootfs /os.json /rootfs/usr/share/doc/ffmpeg/SOURCE
 EOF
 
 # ── runtime ──
@@ -161,6 +174,7 @@ COPY --from=build /entrypoint /entrypoint
 COPY --from=build --chown=65532:65532 /data /data
 COPY --from=build --chown=65532:65532 /config /config
 COPY --from=web /src/frontend/dist /web
+COPY --from=rootfs /os.json /web/licenses/os.json
 # WEEBSYNC_DATA is chosen by /entrypoint (see below) unless set
 ENV WEEBSYNC_ADDR=:8080 \
     WEEBSYNC_WEB=/web
