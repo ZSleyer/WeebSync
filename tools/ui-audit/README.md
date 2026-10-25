@@ -196,7 +196,8 @@ is old.
   across in-app page changes and an episode switch, with picture in picture
   open in Chromium; Firefox 153 closes that window whenever its video moves
   in the document, so there only playback is checked.
-- `--only <regex>` runs a subset of steps; it signs in first and picks up the
+- `--only <text>[|<text>...]` runs the steps whose name contains one of the
+  texts (any case, plain text, not a regular expression); it signs in first and picks up the
   server, download and watch an earlier full run left behind. `--browsers
   chromium,firefox` picks the engines (Chromium is the default). The results go
   to `<out>/features-<tag>.json`, with a screenshot per failed step next to

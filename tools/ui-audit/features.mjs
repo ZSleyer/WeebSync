@@ -33,7 +33,10 @@ const arg = (name, dflt) => {
 const BASE = arg('base', 'http://localhost:8099').replace(/\/$/, '')
 const OUT = arg('out', './e2e-shots')
 const TAG = arg('tag', new URL(BASE).port || 'run')
-const ONLY = arg('only', '') ? new RegExp(arg('only', ''), 'i') : null
+// --only a|b: the steps whose name contains one of the parts, any case; plain
+// text, not a regular expression
+const onlyParts = arg('only', '').toLowerCase().split('|').filter(Boolean)
+const ONLY = onlyParts.length ? { test: (name) => onlyParts.some((p) => name.toLowerCase().includes(p)) } : null
 const BROWSERS = arg('browsers', 'chromium').split(',')
 const ENGINES = { chromium, firefox }
 
