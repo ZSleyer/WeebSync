@@ -37,6 +37,8 @@ var userDataTables = map[string]bool{
 	"arr_releases":         true, // the guids Sonarr/Radarr hold; dropping them breaks grabs in flight
 	"arr_jobs":             true, // grabs the apps are still following
 	"user_tips":            true, // hints a person closed; a delete button would bring them all back
+	"device_tokens":        true, // paired devices; dropping them signs every TV out
+	"device_pairings":      true, // pairings a user is typing a code for right now
 	// bookkeeping of the migration runner itself
 	"schema_migrations": true,
 }
