@@ -99,9 +99,10 @@ export default function About() {
           <span className="sf-note">{t('about.anilistNote')}</span>
         </li>
         <li>
-          {/* the CC BY 4.0 terms of the database prescribe this link text */}
-          <a href="https://db-ip.com" target="_blank" rel="noopener" className="t-link">
-            IP Geolocation by DB-IP
+          {/* the CC BY 4.0 terms of the database prescribe this link text:
+              it is the name of the link around DB-IP's own mark */}
+          <a href="https://db-ip.com" target="_blank" rel="noopener">
+            <ProviderMark name="DB-IP" alt="IP Geolocation by DB-IP" />
           </a>
           <span className="sf-note">{t('about.dbipNote')}</span>
         </li>
