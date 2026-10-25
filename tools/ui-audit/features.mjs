@@ -1085,6 +1085,118 @@ async function run(engine) {
     must(await visible(page.locator('video, [role=alert], .text-err').filter({ visible: true }).first()), 'player shows neither a video nor an error')
   })
 
+  // A video that really plays goes on in the mini player off the player page:
+  // the same element (marked here), its time running, picture in picture
+  // open across the pages where the browser grants it. Needs a small real
+  // video in the local library's e2e-pip folder (the sparse dummies of the
+  // other steps cannot play), e.g. from ffmpeg's test source:
+  //   ffmpeg -f lavfi -i testsrc=size=320x180:rate=24 -f lavfi -i sine -t 60 \
+  //     -c:v libx264 -pix_fmt yuv420p -c:a aac <downloads>/e2e-pip/clip.mp4
+  await step('player: keeps playing in the mini player across pages', async () => {
+    const f = (await localList('e2e-pip')).find((e) => !e.isDir && /\.(mp4|webm|mkv)$/.test(e.name))
+    if (!f) skip('no playable video in the local e2e-pip folder')
+    await go(page, `/play?server=0&path=${encodeURIComponent(f.path)}`)
+    const video = page.locator('main media-controller video')
+    await video.waitFor({ state: 'attached', timeout: 15000 })
+    const mark = await video.evaluate((v) => (v.dataset.e2e = String(Math.random())))
+    const time = () => page.locator(`video[data-e2e="${mark}"]`).evaluate((v) => v.currentTime)
+    // the browser may refuse sound before a click: started muted, or here
+    await page.waitForFunction((m) => document.querySelector(`video[data-e2e="${m}"]`)?.readyState >= 2, mark, { timeout: 15000 })
+    if (await video.evaluate((v) => v.paused)) await page.locator('main media-controller .t-player-bigplay').click()
+    const running = async (where) => {
+      const a = await time()
+      await sleep(1500)
+      const b = await time()
+      must(b > a, `${where}: the video stands at ${a.toFixed(1)} s`)
+    }
+    await running('player page')
+    // our own button: a click is the activation the request needs
+    let pip = false
+    const pipBtn = page.locator('main media-controller button.t-player-pip')
+    if (await pipBtn.isVisible().catch(() => false)) {
+      await pipBtn.click()
+      pip = await page.waitForFunction(() => !!document.pictureInPictureElement, null, { timeout: 3000 }).then(() => true, () => false)
+    }
+    // Firefox (153, the first with the API) closes the window as soon as its
+    // video moves in the document, even through moveBefore; the move is how
+    // the player gets from the page into the mini player, so there only the
+    // playback is checked (measured headless 2026-10-25)
+    const pipOpened = pip
+    if (engine === 'firefox') pip = false
+    const inMini = async (where) => {
+      const region = page.getByRole('region', { name: 'Video playing' })
+      must(await visible(region), `${where}: no mini player`)
+      must(await region.locator(`video[data-e2e="${mark}"]`).count(), `${where}: the mini player holds another video element`)
+      await running(where)
+      if (pip)
+        must(
+          await page.evaluate((m) => document.pictureInPictureElement === document.querySelector(`video[data-e2e="${m}"]`), mark),
+          `${where}: picture in picture closed`,
+        )
+      return region
+    }
+    // in-app navigation only: a reload would end any player
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Auto-sync' }).click()
+    await page.waitForURL(/\/watches/)
+    await inMini('/watches')
+    await page.keyboard.press('Control+k')
+    const dlg = page.getByRole('dialog', { name: 'Search' })
+    await dlg.getByRole('combobox', { name: 'Search' }).fill('Download defaults')
+    await dlg.getByRole('option').filter({ hasText: 'Download defaults' }).first().click()
+    await page.waitForURL(/\/settings/)
+    const region = await inMini('/settings')
+    await region.getByRole('button', { name: /^Back to the player: / }).click()
+    await page.waitForURL(/\/play\?/)
+    const gone = () => page.getByRole('region', { name: 'Video playing' }).waitFor({ state: 'hidden', timeout: 5000 }).then(() => true, () => false)
+    must(await gone(), 'mini player shown on the player page')
+    must(await page.locator(`main media-controller video[data-e2e="${mark}"]`).count(), 'the player page holds another video element')
+    await running('back on the player page')
+    // the next episode (a second clip in the folder) loads into the same
+    // element: the floating window stays open through the switch
+    const nextEp = page.locator('main media-controller button.t-player-nextep')
+    let switched = false
+    if (await nextEp.isEnabled().catch(() => false)) {
+      switched = true
+      const was = await page.locator(`video[data-e2e="${mark}"]`).evaluate((v) => v.currentSrc)
+      await nextEp.click()
+      await page.waitForFunction(
+        ([m, was]) => {
+          const v = document.querySelector(`main media-controller video[data-e2e="${m}"]`)
+          return v && v.currentSrc && v.currentSrc !== was && v.readyState >= 2
+        },
+        [mark, was],
+        { timeout: 15000 },
+      )
+      await running('next episode')
+      if (pip)
+        must(
+          await page.evaluate((m) => document.pictureInPictureElement === document.querySelector(`video[data-e2e="${m}"]`), mark),
+          'next episode: picture in picture closed',
+        )
+    }
+    // close: from the mini player, stopped and let go
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Files' }).click()
+    await page.waitForURL(/\/files/)
+    const again = await inMini('/files')
+    await again.getByRole('button', { name: 'Close the video' }).click()
+    must(await gone(), 'mini player still shown after close')
+    await sleep(500)
+    must(await page.evaluate(() => !document.pictureInPictureElement), 'picture in picture still open after close')
+    const left = await page.evaluate((m) => {
+      const v = document.querySelector(`video[data-e2e="${m}"]`)
+      return v ? { paused: v.paused, src: v.getAttribute("src"), ready: v.readyState } : null
+    }, mark)
+    must(!left || (left.paused && !left.src && left.ready === 0), `the video still holds its source after close: ${JSON.stringify(left)}`)
+    return [
+      pip
+        ? 'picture in picture stayed open across the pages'
+        : pipOpened
+          ? 'picture in picture opened, not kept across a move in this engine; playback checked only'
+          : 'picture in picture not granted here, playback checked only',
+      switched ? 'and through an episode switch' : 'no second clip for an episode switch',
+    ].join(', ')
+  })
+
   await step('viewer: route renders for a local file', async () => {
     const f = [...(await localList(DL_DIR)), ...(await localList('e2e-watch'))].find((e) => !e.isDir && !e.name.endsWith('.part'))
     if (!f) skip('no local file')

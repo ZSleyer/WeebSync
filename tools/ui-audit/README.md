@@ -190,6 +190,12 @@ is old.
 - Two 5xx answers are expected and allowed: `/api/watches/{id}/plex-show`
   (503 while no Plex is connected) and `/api/play/*` in the player step (the
   test files are sparse dummies that cannot be probed).
+- The mini player step needs one or two small real clips in an `e2e-pip`
+  folder of the local library (the ffmpeg line is in the step's comment) and
+  is a SKIP without them. It checks that the same video element plays on
+  across in-app page changes and an episode switch, with picture in picture
+  open in Chromium; Firefox 153 closes that window whenever its video moves
+  in the document, so there only playback is checked.
 - `--only <regex>` runs a subset of steps; it signs in first and picks up the
   server, download and watch an earlier full run left behind. `--browsers
   chromium,firefox` picks the engines (Chromium is the default). The results go
