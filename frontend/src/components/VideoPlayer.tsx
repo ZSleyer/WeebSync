@@ -150,6 +150,8 @@ export function VideoProvider({ children }: { children: ReactNode }) {
   // player that holds the box, or into the box itself.
   const [docPip, setDocPip] = useState<{ win: Window; bar: HTMLElement } | null>(null)
   const pipWin = useRef<Window | null>(null)
+  // where the focus was as the window opened, for when it closes
+  const pipFrom = useRef<Element | null>(null)
   const openDocPip = useCallback(async () => {
     const api = docPipApi()
     if (!api) return false
@@ -185,10 +187,8 @@ export function VideoProvider({ children }: { children: ReactNode }) {
         const ctl = host.querySelector('media-controller')
         if (ctl) ctl.prepend(video)
         else host.appendChild(video)
+        pipFrom.current = from
         setDocPip(null)
-        const at = document.activeElement
-        if ((!at || at === document.body) && from instanceof HTMLElement && from.isConnected)
-          from.focus({ preventScroll: true })
       },
       { once: true },
     )
@@ -196,6 +196,18 @@ export function VideoProvider({ children }: { children: ReactNode }) {
     return true
   }, [video, host])
   const closeDocPip = useCallback(() => pipWin.current?.close(), [])
+  // The focus goes back once React has committed the window's end: before
+  // that the dock still stands hidden (player.css, data-elsewhere) and a
+  // focus() on it goes nowhere. A focus left on the page's note about the
+  // window (gone with it) or on nothing counts as lost.
+  useEffect(() => {
+    const from = pipFrom.current
+    if (docPip || !from) return
+    pipFrom.current = null
+    const at = document.activeElement
+    const lost = !at || at === document.body || !at.isConnected || !!at.closest('.t-player-elsewhere')
+    if (lost && from instanceof HTMLElement && from.isConnected) from.focus({ preventScroll: true })
+  }, [docPip])
 
   const close = useCallback(() => {
     // the player saves the position as it goes, then lets go of the source

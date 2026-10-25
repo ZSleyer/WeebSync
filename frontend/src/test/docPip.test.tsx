@@ -258,13 +258,42 @@ describe('Document Picture-in-Picture', () => {
     expect(container.querySelector('media-controller video')).toBe(video)
   })
 
-  it('brings the focus back to the button that opened the window', async () => {
+  // The dock is display:none while the picture is away (player.css): a
+  // focus() on it before React has taken data-elsewhere off goes nowhere in a
+  // browser. jsdom draws no CSS, so the call itself is checked to come after.
+  const watchFocus = (el: HTMLElement) => {
+    const calls: boolean[] = []
+    const real = el.focus.bind(el)
+    el.focus = (o?: FocusOptions) => {
+      calls.push(!!el.closest('[data-elsewhere]'))
+      real(o)
+    }
+    return calls
+  }
+
+  it('brings the focus back to the button that opened the window, once the dock is back', async () => {
     const { getByRole } = await mount(CHROME_LINUX)
     const button = getByRole('button', { name: 'Picture in picture' })
     button.focus()
     await open(getByRole)
     ;(document.activeElement as HTMLElement | null)?.blur()
+    const calls = watchFocus(button)
     await act(async () => dpip.window!.close())
+    expect(calls).toEqual([false])
+    expect(document.activeElement).toBe(button)
+  })
+
+  it('brings the focus back to the opener from the page note that takes the picture back', async () => {
+    const { getByRole } = await mount(CHROME_LINUX)
+    const button = getByRole('button', { name: 'Picture in picture' })
+    button.focus()
+    await open(getByRole)
+    const note = getByRole('button', { name: 'Bring it back' })
+    note.focus()
+    const calls = watchFocus(button)
+    await act(async () => note.click())
+    expect(dpip.window).toBeNull()
+    expect(calls).toEqual([false])
     expect(document.activeElement).toBe(button)
   })
 
