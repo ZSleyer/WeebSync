@@ -32,9 +32,15 @@ export function DevicesSection() {
   const confirm = useConfirm()
   const id = useId()
   const [now] = useState(() => Date.now())
-  const { data: devices } = useQuery<DeviceInfo[]>({ queryKey: ['devices'], queryFn: () => api.get('/api/devices') })
+  const { data: devices, error: loadError } = useQuery<DeviceInfo[]>({
+    queryKey: ['devices'],
+    queryFn: () => api.get('/api/devices'),
+  })
   const [code, setCode] = useState('')
+  // the code field's problem, and apart from it the device list's (a failed
+  // revoke), so neither marks the other's control
   const [error, setError] = useState('')
+  const [listError, setListError] = useState('')
   const [linked, setLinked] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -64,12 +70,12 @@ export function DevicesSection() {
       destructive: true,
     })
     if (!ok) return
-    setError('')
+    setListError('')
     try {
       await api.del(`/api/devices/${d.id}`)
       qc.invalidateQueries({ queryKey: ['devices'] })
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('app.error'))
+      setListError(err instanceof Error ? err.message : t('app.error'))
     }
   }
 
@@ -129,6 +135,11 @@ export function DevicesSection() {
             />
           ))}
         </Rows>
+      )}
+      {(listError || loadError) && (
+        <p className="sf-issue mt-2" role="alert">
+          {listError || (loadError instanceof Error ? loadError.message : t('app.error'))}
+        </p>
       )}
     </SettingsPanel>
   )

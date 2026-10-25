@@ -287,6 +287,8 @@ const ERROR_KEYS: Record<string, string> = {
   'account upgrade required': 'errors.upgradeRequired',
   'email not verified - check your inbox': 'errors.emailUnverified',
   'invalid code': 'errors.invalidCode',
+  // linking a TV: the code it shows is unknown, used up or ran out
+  'unknown or expired code': 'errors.deviceCodeUnknown',
   'invalid or expired login': 'errors.loginExpired',
   'expired login session': 'errors.loginExpired',
   'passkey login failed': 'errors.passkeyFailed',

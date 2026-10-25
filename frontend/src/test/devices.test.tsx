@@ -20,10 +20,13 @@ afterEach(() => {
   confirmFn.mockClear()
 })
 
-function setup(devices: unknown[] = []) {
+function setup(devices: unknown[] | Error = []) {
   let list = devices
   const get = vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
-    if (url === '/api/devices') return list as never
+    if (url === '/api/devices') {
+      if (list instanceof Error) throw list
+      return list as never
+    }
     return {} as never
   })
   const post = vi.spyOn(api, 'post').mockImplementation(async () => {
@@ -79,12 +82,33 @@ describe('Devices panel', () => {
     expect(post).not.toHaveBeenCalled()
   })
 
-  it('shows a refused code as an alert', async () => {
+  it('shows a refused code as an alert on the code field', async () => {
     const { post, panel } = setup()
-    post.mockRejectedValueOnce(new Error('unknown or expired code'))
-    fireEvent.change(panel.getByLabelText('devices.code'), { target: { value: 'BBBBBBBB' } })
+    // api.post hands over the message already in the reader's language
+    post.mockRejectedValueOnce(new Error('errors.deviceCodeUnknown'))
+    const input = panel.getByLabelText('devices.code')
+    fireEvent.change(input, { target: { value: 'BBBBBBBB' } })
     fireEvent.click(panel.getByRole('button', { name: 'devices.link' }))
-    expect(await panel.findByRole('alert')).toHaveTextContent('unknown or expired code')
+    expect(await panel.findByRole('alert')).toHaveTextContent('errors.deviceCodeUnknown')
+    expect(input).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('says when the device list cannot be loaded', async () => {
+    const { panel } = setup(new Error('db error'))
+    expect(await panel.findByRole('alert')).toHaveTextContent('db error')
+    expect(panel.queryByText('devices.none')).toBeNull()
+    expect(panel.getByLabelText('devices.code')).not.toHaveAttribute('aria-invalid')
+  })
+
+  it('marks a failed revoke on its own, not on the code field', async () => {
+    const { del, panel } = setup([{ id: 3, name: 'TV', scope: 'tv:read', createdAt: '2026-10-01T10:00:00Z' }])
+    del.mockRejectedValueOnce(new Error('db error'))
+    fireEvent.click(await panel.findByRole('button', { name: 'devices.revoke: TV' }))
+    const alert = await panel.findByRole('alert')
+    expect(alert).toHaveTextContent('db error')
+    const input = panel.getByLabelText('devices.code')
+    expect(input).not.toHaveAttribute('aria-invalid')
+    expect(input.getAttribute('aria-describedby') ?? '').not.toContain(alert.id || 'none')
   })
 
   it('lists devices with their last use and revokes one after confirming', async () => {
