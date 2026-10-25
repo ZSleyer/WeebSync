@@ -1,15 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { enterPage } from 'fluid-lycoris'
 import type { Watch } from '../../api'
-import { useStored } from '../../hooks/useStored'
-
-export const TODAY_JUMP_KEY = 'weebsync.todayJump'
-
-/** whether a tile on Heute opens its series at the episode (default) or at the top */
-export function useTodayJump() {
-  const [v, set] = useStored<string>(TODAY_JUMP_KEY, 'on')
-  return [v !== 'off', (on: boolean) => set(on ? 'on' : 'off')] as const
-}
 
 /** what a watch hands the title card: its record, and itself as the watch to list first */
 export const seriesTarget = (w: Watch) => ({

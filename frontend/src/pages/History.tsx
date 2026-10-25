@@ -189,11 +189,7 @@ export default function History() {
                             ))}
                         </dl>
                         {watch?.media && (
-                          <button
-                            type="button"
-                            className="t-link"
-                            onClick={() => open({ ...seriesTarget(watch), tab: 'episodes', playPath: d.localPath })}
-                          >
+                          <button type="button" className="t-link" onClick={() => open(seriesTarget(watch))}>
                             {t('dash.openSeries')}
                           </button>
                         )}

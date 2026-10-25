@@ -6,7 +6,6 @@ import { LOCALES, readLocalePref, setLocalePref, type LocalePref } from '../../l
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
 import { applyScheme, SCHEME_KEY, SCHEMES, type Scheme } from '../../scheme'
 import { SettingsPanel, SwitchSetting } from './ui'
-import { useTodayJump } from '../today/shared'
 
 // a blocked storage (private window) keeps the choice for this visit only
 function store(key: string, value: string) {
@@ -26,7 +25,6 @@ export default function Look() {
   const root = document.documentElement
   const [theme, setTheme] = useState<ThemePref>(readThemePref)
   const [scheme, setScheme] = useState<Scheme>(root.dataset.scheme === 'recoil' ? 'recoil' : 'lycoris')
-  const [jump, setJump] = useTodayJump()
   const [motion, setMotion] = useState(root.dataset.motion !== 'off')
   const [lang, setLang] = useState<LocalePref>(readLocalePref)
   const schemeLabel = useId()
@@ -130,12 +128,6 @@ export default function Look() {
         hint={t('settings.motionHint')}
         checked={motion}
         onChange={pickMotion}
-      />
-      <SwitchSetting
-        label={t('settings.todayJump')}
-        hint={t('settings.todayJumpHint')}
-        checked={jump}
-        onChange={setJump}
       />
     </SettingsPanel>
   )

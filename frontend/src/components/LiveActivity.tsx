@@ -78,8 +78,6 @@ export function LiveActivity({ variant }: { variant: 'pill' | 'rail' }) {
             id: watch.media!.id,
             media: watch.media,
             watchId: watch.id,
-            episode: last?.item?.episode,
-            season: last?.item?.season,
           })
       : undefined
 

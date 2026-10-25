@@ -196,8 +196,6 @@ export default function Files() {
           id: it.media.id,
           media: it.media,
           folders: [{ server: active, path: it.dir }],
-          playPath: e.path,
-          tab: 'episodes',
         })
         return
       }

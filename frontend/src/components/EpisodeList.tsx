@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { BookOpen, Clock, Play } from 'lucide-react'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Badge, reducedMotion, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
-import { scrollToSection } from './ScrollMemory'
+import { Badge, IconButton, SectionHeading, TextLink } from 'fluid-lycoris'
 import { dubProgressLabel } from '../attention'
 import { api, fmtBytes, type Download, type Entry, type Watch, type WatchEpisode, type WatchEpisodes } from '../api'
 import type { Schemas } from '../api.gen'
@@ -15,12 +14,6 @@ import { isVideo, listFolder, titleFilesIn } from './playLinks'
 export interface EpisodeFolder {
   server: number
   path: string
-}
-
-/** The episode a caller lands on: scrolled to, opened, marked once. */
-export interface EpisodeLanding {
-  ep: number
-  season?: number
 }
 
 interface Group {
@@ -116,15 +109,6 @@ export function matchFiles<F extends { name: string }>(
   return { hits, rest }
 }
 
-/**
- * The episode a landing points at: the season's when given, else the first
- * episode or absolute number that matches.
- */
-export function landingEpisode(eps: WatchEpisode[], land: EpisodeLanding): WatchEpisode | undefined {
-  if (land.season !== undefined) return eps.find((e) => e.season === land.season && e.episode === land.ep)
-  return eps.find((e) => e.episode === land.ep) ?? eps.find((e) => e.absolute === land.ep)
-}
-
 /** A folder's videos (or volumes) and those of its season folders, one level down. */
 async function episodeGroups(f: EpisodeFolder): Promise<Group[]> {
   const entries = await listFolder(f.server, f.path)
@@ -164,22 +148,18 @@ export function langName(tag: string | undefined, locale: string): string {
  * The series page's "Folgen": per watch its episodes in hairline rows, each
  * with its state and, where a file matched, a play button; a row with a file
  * opens to its facts. Then every file no episode claimed. Without a watch it
- * is the plain file list. A landing (Neu da, ?ep=N) or the file the page was
- * opened for is scrolled to, opened and marked once.
+ * is the plain file list. Every row starts closed: the page opens at its
+ * title, never at an episode.
  */
 export default function EpisodeList({
   folders,
   watches,
-  highlight,
-  land,
   onPlay,
   now,
   headingId,
 }: {
   folders: EpisodeFolder[]
   watches: Watch[]
-  highlight?: string
-  land?: EpisodeLanding
   onPlay: (server: number, path: string) => void
   now: number
   /** the id of the section's first heading, for the section's label */
@@ -223,39 +203,8 @@ export default function EpisodeList({
   }
   const left = new Set(pool.map(fileKey))
 
-  // rows open to their facts; the landing opens one by itself
+  // rows open to their facts on the reader's click
   const [open, setOpen] = useState<Set<string>>(() => new Set())
-  const [hit, setHit] = useState<string | null>(null)
-  const rows = useRef(new Map<string, HTMLLIElement>())
-  const landed = useRef(false)
-  useEffect(() => {
-    if (landed.current || !filesIn || !epsIn) return
-    let key: string | null = null
-    if (land) {
-      for (let i = 0; i < watches.length && !key; i++) {
-        const e = landingEpisode(known[i].data?.episodes ?? [], land)
-        if (e) key = `${watches[i].id}:${e.season}-${e.episode}`
-      }
-    }
-    if (!key && highlight) {
-      for (let i = 0; i < watches.length && !key; i++)
-        for (const [e, f] of hits[i]) if (f.path === highlight) key = `${watches[i].id}:${e.season}-${e.episode}`
-      key ??= [...rows.current.keys()].find((k) => k.endsWith(`|${highlight}`)) ?? null
-    }
-    landed.current = true
-    if (!key) return
-    const k = key
-    setOpen((s) => new Set(s).add(k))
-    setHit(k)
-    const el = rows.current.get(k)
-    const still = reducedMotion()
-    if (el) scrollToSection(el, 'center', still ? 'auto' : 'smooth')
-    const id = setTimeout(() => el?.querySelector<HTMLElement>('.ws-ep-tog')?.focus({ preventScroll: true }), 500)
-    return () => clearTimeout(id)
-    // the landing runs once, when both lists are in
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filesIn, epsIn])
-
   const toggle = (k: string) =>
     setOpen((s) => {
       const n = new Set(s)
@@ -263,10 +212,6 @@ export default function EpisodeList({
       else n.add(k)
       return n
     })
-  const rowRef = (k: string) => (el: HTMLLIElement | null) => {
-    if (el) rows.current.set(k, el)
-    else rows.current.delete(k)
-  }
 
   // one row: number, title and its quiet line, the state, play; with a file
   // the whole row is the toggle of its facts (play stays a button of its own)
@@ -283,7 +228,7 @@ export default function EpisodeList({
     const isOpen = open.has(k)
     const factsId = `ws-epf-${k.replace(/[^\w-]/g, '_')}`
     return (
-      <li key={k} ref={rowRef(k)} className="ws-ep" data-hit={hit === k || undefined}>
+      <li key={k} className="ws-ep">
         <div className="ws-ep-in">
           {file && (
             <button

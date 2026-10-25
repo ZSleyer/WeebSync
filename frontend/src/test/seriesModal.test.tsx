@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import {
   BrowserRouter,
   createMemoryRouter,
@@ -421,7 +421,7 @@ describe('SeriesModalProvider', () => {
     fireEvent.click(screen.getByText('öffnen'))
     const page = screen.getByRole('dialog', { name: 'Frieren' })
     expect(page).toHaveTextContent('Frieren')
-    // the first frame is the head alone (what a morph snapshots), the overview follows
+    // the first frame is the head alone, the overview follows
     expect(page).not.toHaveTextContent('Eine Elfe.')
     await waitFor(() => expect(page).toHaveTextContent('Eine Elfe.'))
     expect(page).toHaveTextContent('Versionen: 2')
@@ -447,7 +447,7 @@ describe('SeriesModalProvider', () => {
     // no modal: no <dialog>, no scrim; the sidebar and tab bar stay usable
     expect(document.querySelector('dialog')).toBeNull()
     expect(page).toHaveAttribute('aria-modal', 'false')
-    // a frame after the commit, not inside the morph's snapshot frame
+    // a frame after the commit, not inside the opening commit
     await waitFor(() => expect(page).toHaveFocus())
     // the shell hides <main> while this is set
     expect(document.documentElement.dataset.overlay).toBe('series')
@@ -468,11 +468,10 @@ describe('SeriesModalProvider', () => {
 
   it('lists the episodes of every watch, the lead first, the others in the aside', async () => {
     serve({ watches: [watch(1), watch(2), { ...watch(3), media: { ...media, id: 99 } }] })
-    target = { id: 7, media, watchId: 2, tab: 'episodes' }
+    target = { id: 7, media, watchId: 2 }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const link = await screen.findByRole('link', { name: /series.tab.episodes/ })
-    await waitFor(() => expect(link).toHaveAttribute('aria-current', 'true'))
     const section = sectionOf('series.tab.episodes')
     // the watch the caller came from leads
     await waitFor(() =>
@@ -483,6 +482,9 @@ describe('SeriesModalProvider', () => {
       ).toEqual(['Frieren2', 'Frieren1']),
     )
     expect(screen.getByRole('region', { name: 'series.moreWatches' })).toHaveTextContent('/x/Frieren1')
+    // the page stays at its title: the episodes are not jumped to
+    expect(link).not.toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('link', { name: /series.tab.overview/ })).toHaveAttribute('aria-current', 'true')
   })
 
   it('says where the auto-sync stands in one sentence and offers the missing episodes', async () => {
@@ -702,9 +704,9 @@ describe('SeriesModalProvider', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('lands on an episode: scrolled to, its facts open, marked once', async () => {
-    const scrolled = vi.fn()
-    Element.prototype.scrollIntoView = scrolled
+  // The page always opens at its title: an old shared link with ?ep= and a
+  // caller still handing a section, an episode or a file land nowhere.
+  const twoEpisodes = () =>
     serve({
       watches: [{ ...watch(1), serverId: 1 } as Watch],
       episodes: [
@@ -717,18 +719,67 @@ describe('SeriesModalProvider', () => {
       ],
       probe: { video: { height: 1080, width: 1920, codec: 'hevc' }, audio: [{ lang: 'ja' }], subs: [{ lang: 'de' }] },
     })
-    app('/title/anilist/7?ep=3')
-    const toggle = await screen.findByRole('button', { name: 'series.ep.facts:Drei' })
-    await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'))
-    expect(toggle.closest('li')).toHaveAttribute('data-hit')
-    expect(scrolled).toHaveBeenCalled()
-    // the facts: the file and, from the probe, the picture
-    const facts = document.getElementById(toggle.getAttribute('aria-controls')!)!
+  // every scroll the page could make: an element into view or a vertical
+  // scrollTo (a section jump); the jump row's sideways centering is no landing
+  const watchScrolls = () => {
+    const into = vi.spyOn(Element.prototype, 'scrollIntoView')
+    const had = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTo')
+    const to = vi.fn()
+    Element.prototype.scrollTo = to as never
+    onTestFinished(() => {
+      if (had) Object.defineProperty(Element.prototype, 'scrollTo', had)
+      else delete (Element.prototype as { scrollTo?: unknown }).scrollTo
+    })
+    return {
+      into: () => into.mock.contexts,
+      down: () => to.mock.calls.filter(([o]) => !!o && typeof o === 'object' && 'top' in o),
+    }
+  }
+  const atTheTitle = async (scrolls: ReturnType<typeof watchScrolls>) => {
+    const three = await screen.findByRole('button', { name: 'series.ep.facts:Drei' })
+    // past the time a landing focused its row
+    await act(async () => new Promise((r) => setTimeout(r, 600)))
+    expect(three).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'series.ep.facts:Zwei' })).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('[data-hit]')).toBeNull()
+    expect(document.activeElement?.matches('.ws-ep-tog')).toBe(false)
+    expect(screen.getByRole('dialog')).toHaveFocus()
+    expect(screen.getByRole('link', { name: /series.tab.overview/ })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('link', { name: /series.tab.episodes/ })).not.toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Frieren')
+    expect(scrolls.into()).toEqual([])
+    expect(scrolls.down()).toEqual([])
+    return three
+  }
+
+  it('opens an old ?ep= link at the title: no scroll, no facts, no focused episode', async () => {
+    const scrolls = watchScrolls()
+    twoEpisodes()
+    app('/title/anilist/7?ep=3&s=1')
+    await waitFor(() => expect(screen.getByRole('dialog')).toHaveTextContent('Eine Elfe.'))
+    const three = await atTheTitle(scrolls)
+    // the facts open on the reader's click: the file and, from the probe, the picture
+    fireEvent.click(three)
+    expect(three).toHaveAttribute('aria-expanded', 'true')
+    const facts = document.getElementById(three.getAttribute('aria-controls')!)!
     expect(facts).toHaveTextContent('Frieren S01E03.mkv')
     await waitFor(() => expect(facts).toHaveTextContent('1080p'))
-    // the other episode stays closed; play stays a button of its own
-    expect(screen.getByRole('button', { name: 'series.ep.facts:Zwei' })).toHaveAttribute('aria-expanded', 'false')
+    // play stays a button of its own
     expect(screen.getByRole('button', { name: 'series.ep.play:Drei' })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['a section', { tab: 'episodes' }],
+    ['an episode', { episode: 3, season: 1 }],
+    ['a played file', { tab: 'episodes', playPath: '/media/Frieren S01E03.mkv' }],
+  ])('opens at the title when a caller still hands %s', async (_n, legacy) => {
+    const scrolls = watchScrolls()
+    twoEpisodes()
+    target = { id: 7, media, ...legacy } as SeriesTarget
+    app()
+    fireEvent.click(screen.getByText('öffnen'))
+    expect(screen.getByRole('dialog', { name: 'Frieren' })).toBeInTheDocument()
+    await atTheTitle(scrolls)
   })
 
   it('notes the dub progress above the episodes and marks local episodes without the dub', async () => {
@@ -744,7 +795,7 @@ describe('SeriesModalProvider', () => {
         { name: 'Frieren S01E03.mkv', path: '/media/Frieren S01E03.mkv', isDir: false, size: 2e9, modTime: '' },
       ],
     })
-    target = { id: 7, media, tab: 'episodes' }
+    target = { id: 7, media }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const three = (await screen.findByRole('button', { name: 'series.ep.facts:Drei' })).closest('li')!
@@ -761,7 +812,7 @@ describe('SeriesModalProvider', () => {
       episodes: [{ season: 1, episode: 3, have: true, title: 'Drei' }],
       files: [{ name: 'Frieren S01E03.mkv', path: '/media/Frieren S01E03.mkv', isDir: false, size: 2e9, modTime: '' }],
     })
-    target = { id: 7, media, tab: 'episodes' }
+    target = { id: 7, media }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     await screen.findByRole('button', { name: 'series.ep.facts:Drei' })
@@ -782,7 +833,7 @@ describe('SeriesModalProvider', () => {
 
   it('swaps the page for the watch editor in place and comes back to it', async () => {
     serve({ watches: [{ ...watch(1), serverId: 1, template: '', pattern: '' } as Watch] })
-    target = { id: 7, media, tab: 'episodes' }
+    target = { id: 7, media }
     app()
     fireEvent.click(screen.getByText('öffnen'))
     const openEditor = async () => {

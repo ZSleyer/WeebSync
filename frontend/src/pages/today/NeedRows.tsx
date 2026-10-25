@@ -13,7 +13,7 @@ import { useSeriesModal } from '../../components/SeriesModal'
 import { useToast } from '../../components/toast'
 import { useAuth, useNow } from '../../hooks'
 import { buildNeeds, detectedLink, hiddenNeeds, hideForSession, saveHidden, sessionOnly, type Need } from './needs'
-import { seriesTarget, useTodayJump } from './shared'
+import { seriesTarget } from './shared'
 
 // The rows of the needs list and what they do, shared by the Today section
 // and the full page: one implementation of the swipe, the detail sheet, the
@@ -307,7 +307,6 @@ export function useNeedList({ downloads, meta, watches, detected, plexToken, med
   const now = useNow()
   const { data: me } = useAuth()
   const { open } = useSeriesModal()
-  const [jump] = useTodayJump()
   const { data: servers = [] } = useQuery<ServerInfo[]>({
     queryKey: ['servers'],
     queryFn: () => api.get('/api/servers'),
@@ -412,7 +411,7 @@ export function useNeedList({ downloads, meta, watches, detected, plexToken, med
     if (n.why && n.watch) {
       const w = n.watch
       if (w.attention?.[0] === 'unsorted' && w.localPath) navigate(filesLink(0, w.localPath))
-      else if (w.media) open(jump ? { ...seriesTarget(w), tab: 'episodes' } : seriesTarget(w))
+      else if (w.media) open(seriesTarget(w))
       else navigate('/watches?filter=attention')
       return
     }

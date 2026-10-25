@@ -27,7 +27,7 @@ import { useAuth, useMediaServer, useNow } from '../hooks'
 import ActionMenu from './ActionMenu'
 import type { SheetAction } from './ActionSheet'
 import MediaDetail, { mediaLink } from './MediaDetail'
-import EpisodeList, { type EpisodeFolder, type EpisodeLanding } from './EpisodeList'
+import EpisodeList, { type EpisodeFolder } from './EpisodeList'
 import Loading from './Loading'
 import { filesLink, isVideo, playHref, viewHref, watchFolder } from './playLinks'
 import { WatchForm } from './WatchDialog'
@@ -55,8 +55,6 @@ export interface SeriesTarget {
   watchId?: number
   /** the heading, where the caller knows a better one than the record's */
   title?: string
-  /** the section to scroll to on open */
-  tab?: SeriesTab
   /** caller-specific rows under the record, e.g. the catalog's folder versions */
   extra?: ReactNode
   /**
@@ -65,11 +63,6 @@ export interface SeriesTarget {
    * folders are added by the page.
    */
   folders?: EpisodeFolder[]
-  /** a file to mark in the episodes section; the page opens there */
-  playPath?: string
-  /** an episode to land on (Neu da): scrolled to, its facts open, marked once */
-  episode?: number
-  season?: number
   /** open straight into the editor of the lead watch */
   edit?: boolean
   /** the title this one was opened from, for the "aus …" line */
@@ -197,31 +190,23 @@ interface TitleEntry {
   /** related titles opened on top of the first one: back is one of them */
   n: number
   k?: number
-  /** the section to scroll to */
-  tab?: SeriesTab
-  /** an episode to land on (?ep=N, &s=S on a link) */
-  ep?: number
-  s?: number
   /** history index of the page under the series page, for closing in one step */
   bg?: number
   /** opened from a link: no page of its own underneath */
   direct?: boolean
 }
 export const TITLE_PATH = '/title/:source/:id'
-const titleUrl = (e: TitleEntry) =>
-  `/title/${e.source}/${e.id}${e.ep ? `?ep=${e.ep}${e.s !== undefined ? `&s=${e.s}` : ''}` : ''}`
+const titleUrl = (e: TitleEntry) => `/title/${e.source}/${e.id}`
 
 function entryOf(loc: Location): TitleEntry | null {
   const e = (loc.state as { wsTitle?: TitleEntry } | null)?.wsTitle
   if (e) return e
-  // a link straight to a page, or a reload of one: the dashboard stands behind
+  // a link straight to a page, or a reload of one: the dashboard stands behind.
+  // The page opens at its title; an older link's ?ep=N&s=S is ignored.
   const m = matchPath(TITLE_PATH, loc.pathname)
   const id = Number(m?.params.id)
   if (!m || !(id > 0)) return null
-  const q = new URLSearchParams(loc.search)
-  const ep = Number(q.get('ep')) || undefined
-  const s = q.get('s') !== null ? Number(q.get('s')) : undefined
-  return { source: m.params.source || 'anilist', id, n: 0, direct: true, ep, s, tab: ep ? 'episodes' : undefined }
+  return { source: m.params.source || 'anilist', id, n: 0, direct: true }
 }
 
 // what open() was handed, by entry; a few dozen at most per session
@@ -315,9 +300,6 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
         id: t.id,
         n: 0,
         k,
-        tab: t.tab ?? (t.episode ? 'episodes' : undefined),
-        ep: t.episode,
-        s: t.season,
         bg: was ? was.bg : history.state?.idx,
         direct: was?.direct,
       }
@@ -466,11 +448,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
 
   const target: SeriesTarget | null = shown
     ? {
-        ...((shown.k && targets.get(shown.k)) || {
-          id: shown.id,
-          // an entry from before the auto-sync section went into the episodes still says 'sync'
-          tab: (shown.tab as string) === 'sync' ? 'episodes' : shown.tab,
-        }),
+        ...((shown.k && targets.get(shown.k)) || { id: shown.id }),
         source: shown.source,
         id: shown.id,
       }
@@ -607,7 +585,7 @@ function SeriesCard({
 
   // the watches behind the title: several are normal (a split season, two
   // servers); the one the caller came from leads
-  const { data: watches = [], isSuccess: watchesIn } = useQuery<Watch[]>({
+  const { data: watches = [] } = useQuery<Watch[]>({
     queryKey: ['watches'],
     queryFn: () => api.get('/api/watches'),
     staleTime: 10_000,
@@ -666,7 +644,7 @@ function SeriesCard({
     setEditing(lead)
   }, [lead])
 
-  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined' || !!cur.tab)
+  const [near, setNear] = useState(() => typeof IntersectionObserver === 'undefined')
   const { data: extras, isError: extrasFailed } = useQuery<MediaExtras>({
     queryKey: ['media-extras', source, cur.id],
     queryFn: () => api.get(`/api/media/extras?source=${source}&id=${cur.id}`),
@@ -895,17 +873,6 @@ function SeriesCard({
     setCurrent(k)
     jumpTo(sec.current[k], smooth)
   }
-  // The caller's section: jumped to once it exists - a watch's episodes
-  // appear with the watch list - and dropped if the list arrives without it.
-  // A landing on an episode scrolls the episode itself (EpisodeList).
-  const pending = useRef<SeriesTab | null>(cur.tab && cur.tab !== 'overview' && !entry.ep ? cur.tab : null)
-  useLayoutEffect(() => {
-    const k = pending.current
-    if (!k || (!sec.current[k] && !watchesIn)) return
-    pending.current = null
-    if (sec.current[k]) jump(k, false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mine.length, watchesIn])
   // into a form shown in the page, focus starts on the bar's way back, the
   // first thing of the form's own header
   useLayoutEffect(() => {
@@ -930,11 +897,6 @@ function SeriesCard({
     else onClose()
   }
 
-  const land: EpisodeLanding | undefined = entry.ep
-    ? { ep: entry.ep, season: entry.s }
-    : cur.episode
-      ? { ep: cur.episode, season: cur.season }
-      : undefined
   const streamSite = (extras?.links ?? media?.externalLinks ?? []).find((l) => l.type === 'STREAMING')?.site
   const english = media?.title.english
   const meta = [
@@ -1184,15 +1146,7 @@ function SeriesCard({
                     {k === 'episodes' &&
                       (stage > 0 ? (
                         <div className="ws-d-late">
-                          <EpisodeList
-                            folders={folders}
-                            watches={mine}
-                            highlight={cur.playPath}
-                            land={land}
-                            onPlay={play}
-                            now={now}
-                            headingId={hid(k)}
-                          />
+                          <EpisodeList folders={folders} watches={mine} onPlay={play} now={now} headingId={hid(k)} />
                         </div>
                       ) : (
                         <>

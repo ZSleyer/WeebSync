@@ -152,9 +152,11 @@ describe('LiveActivity', () => {
     expect(screen.getByText('live.landed')).toBeTruthy()
     expect(screen.getByText('live.tapToWatch')).toBeTruthy()
     fireEvent.click(screen.getByRole('button'))
-    expect(openSeries).toHaveBeenCalledWith(
-      expect.objectContaining({ source: 'anilist', id: 154587, watchId: 7, episode: 7, season: 1 }),
-    )
+    expect(openSeries).toHaveBeenCalledWith(expect.objectContaining({ source: 'anilist', id: 154587, watchId: 7 }))
+    // the series opens at its title, not at the episode that landed
+    const [asked] = openSeries.mock.calls[0]
+    expect(asked).not.toHaveProperty('episode')
+    expect(asked).not.toHaveProperty('season')
   })
 
   it('keeps the finished moment across a change of page', () => {

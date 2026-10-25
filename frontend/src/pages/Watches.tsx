@@ -288,7 +288,7 @@ export default function Watches() {
             key: 'gaps',
             icon: <TriangleAlert aria-hidden size="1em" />,
             label: t('watch.gapsAction'),
-            onClick: () => openSeries({ ...targetOf(w), tab: 'episodes' }),
+            onClick: () => openSeries(targetOf(w)),
           },
         ]
       : []),

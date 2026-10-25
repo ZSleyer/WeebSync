@@ -1,10 +1,11 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter } from 'react-router'
-import type { Download, DownloadMeta } from '../api'
+import type { Download, DownloadMeta, Watch } from '../api'
 import { NewShelf } from '../pages/today/NewShelf'
 
-vi.mock('../components/SeriesModal', () => ({ useSeriesModal: () => ({ open: () => {} }) }))
+const open = vi.fn()
+vi.mock('../components/SeriesModal', () => ({ useSeriesModal: () => ({ open }) }))
 vi.mock(import('react-i18next'), async (importOriginal) => ({
   ...(await importOriginal()),
   useTranslation: () =>
@@ -19,7 +20,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(NOW)
 })
-afterEach(() => vi.useRealTimers())
+afterEach(() => {
+  vi.useRealTimers()
+  open.mockReset()
+})
 
 const dl = (item: Record<string, unknown>): { d: Download; meta: DownloadMeta } => ({
   d: {
@@ -48,5 +52,20 @@ describe('the "new here" tiles', () => {
     expect(name).toContain('Frieren')
     expect(name).toContain('today.epSeason')
     expect(name).toContain('dash.landed')
+  })
+
+  it('opens the series at its title, not at the episode that landed', () => {
+    const { d, meta } = dl({})
+    const media = { id: 154587, title: { romaji: 'Frieren' } }
+    const watch = { id: 7, mediaSource: 'anilist', media } as unknown as Watch
+    meta.groups.g1 = { ...meta.groups.g1, watchId: 7 } as never
+    render(
+      <MemoryRouter>
+        <NewShelf downloads={[d]} meta={meta} watches={[watch]} loading={false} />
+      </MemoryRouter>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Frieren/ }))
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(open.mock.calls[0][0]).toEqual({ source: 'anilist', id: 154587, media, watchId: 7, title: undefined })
   })
 })

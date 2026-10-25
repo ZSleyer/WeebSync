@@ -335,8 +335,6 @@ export default function PlayerInfo({
                   media,
                   watchId: watch?.id,
                   folders: [{ server, path: folder }],
-                  playPath: path,
-                  tab: 'episodes',
                 })
               }
             >

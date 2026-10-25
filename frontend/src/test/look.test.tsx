@@ -75,6 +75,14 @@ describe('Look', () => {
     expect(localStorage.getItem('weebsync.motion')).toBe('off')
   })
 
+  it('offers no switch for landing on the episode from Heute', () => {
+    render(<Look />)
+    // motion is the one switch left on the page
+    const switches = screen.getAllByRole('switch')
+    expect(switches).toHaveLength(1)
+    expect(switches[0]).toHaveAccessibleName(/settings.motion/)
+  })
+
   it('still applies theme, scheme and motion when storage refuses writes', () => {
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new DOMException('blocked', 'SecurityError')

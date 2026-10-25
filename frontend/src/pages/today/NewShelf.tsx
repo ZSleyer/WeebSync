@@ -9,7 +9,7 @@ import { CoverImg } from '../../components/SmartImg'
 import { filesLink } from '../../components/playLinks'
 import { useSeriesModal } from '../../components/SeriesModal'
 import { endedAt, langChip } from './history'
-import { seriesTarget, useRiseOnData, useTodayJump } from './shared'
+import { seriesTarget, useRiseOnData } from './shared'
 
 /** how far back "new here" reaches */
 const NEW_DAYS = 7
@@ -59,7 +59,6 @@ export function NewShelf({
   const now = useNow()
   const navigate = useNavigate()
   const { open } = useSeriesModal()
-  const [jump] = useTodayJump()
   const shelf = newArrivals(downloads, meta, now)
   const body = useRef<HTMLDivElement>(null)
   useRiseOnData(body, !loading)
@@ -104,20 +103,9 @@ export function NewShelf({
                 const chips = [resChip(item?.res), ...(item?.dub ?? []).map(langChip)].filter(Boolean)
                 const when = fresh ? t('today.justNow') : t('dash.landed', { day: day(at) })
                 const go = () => {
-                  if (watch?.media) {
-                    // the card opens at this episode: its facts open and the
-                    // row is marked once (the card reads episode, season and
-                    // the file's path)
-                    const target = {
-                      ...seriesTarget(watch),
-                      tab: 'episodes' as const,
-                      playPath: d.localPath,
-                      episode: ep ? item?.episode : undefined,
-                      season: item?.season || undefined,
-                    }
-                    // the setting off: the series opens at its top instead
-                    open(jump ? target : seriesTarget(watch))
-                  } else {
+                  // the series opens at its title
+                  if (watch?.media) open(seriesTarget(watch))
+                  else {
                     navigate(filesLink(0, d.localPath.slice(0, d.localPath.lastIndexOf('/')) || '/'))
                   }
                 }
