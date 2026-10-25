@@ -242,7 +242,11 @@ export function VideoMini({ variant }: { variant: 'rail' | 'pill' }) {
     <div role="region" aria-label={t('video.nowPlaying')} className="ws-vmini" data-variant={variant}>
       {/* only a picture here: the player in it is inert, its region and
           controls are not for a screen reader to find in the card */}
-      <div ref={slot} className="ws-vmini-pic" aria-hidden />
+      <div ref={slot} className="ws-vmini-pic" aria-hidden data-pip={v.inPip || undefined}>
+        {/* Chrome paints "Playing in picture-in-picture" into the floated
+            video, far too long for this picture: it fades, a mark stands in */}
+        {v.inPip && <PictureInPicture2 className="ws-vmini-pipmark" />}
+      </div>
       <div className="ws-vmini-row">
         {/* the whole card leads back to the player (the button stretches
             over the picture too); the source keeps playing on the way */}

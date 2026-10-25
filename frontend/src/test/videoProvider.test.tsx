@@ -187,6 +187,25 @@ describe('the app-wide video player', () => {
     expect(hls.made).toBe(1)
   })
 
+  it('shows its own mark instead of the browser placeholder while the video floats', async () => {
+    const { router } = mount()
+    const video = await ready()
+    playing(video, true)
+    await go(router, '/watches')
+    const pic = mini()!.querySelector('.ws-vmini-pic')!
+    expect(pic.hasAttribute('data-pip')).toBe(false)
+    Object.defineProperty(document, 'pictureInPictureElement', { value: video, configurable: true })
+    act(() => void video.dispatchEvent(new Event('enterpictureinpicture')))
+    // Chrome paints a clipped "Playing in picture-in-picture" into the tiny
+    // picture: the video is faded out there and a mark stands in
+    expect(pic).toHaveAttribute('data-pip')
+    expect(pic.querySelector('.ws-vmini-pipmark')).toBeTruthy()
+    expect(pic.contains(video)).toBe(true)
+    Object.defineProperty(document, 'pictureInPictureElement', { value: null, configurable: true })
+    act(() => void video.dispatchEvent(new Event('leavepictureinpicture')))
+    expect(pic.hasAttribute('data-pip')).toBe(false)
+  })
+
   it('stands in the sidebar on a desktop and above the tabs on a phone, never in both', async () => {
     wide = true
     const { router } = mount()

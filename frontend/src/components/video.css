@@ -21,6 +21,16 @@
   border-radius: 6px;
   overflow: hidden;
   background: #000;
+  position: relative;
+}
+.ws-vmini-pic[data-pip] > :not(.ws-vmini-pipmark) { opacity: 0; }
+.ws-vmini-pipmark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 24px;
+  height: 24px;
+  color: #fff;
 }
 .ws-vmini-row {
   flex: 1;
