@@ -3,9 +3,21 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('hls.js', () => ({ default: { isSupported: () => false } }))
+// each libass instance made, and a way to make the next ones by hand
+const libass = vi.hoisted(() => ({
+  made: [] as object[],
+  make: null as null | (() => object),
+}))
 vi.mock('jassub', () => ({
   default: function () {
-    return { ready: Promise.resolve(), manualRender: () => {}, destroy: () => {}, resize: () => {} }
+    const r = libass.make?.() ?? {
+      ready: Promise.resolve(),
+      manualRender: () => {},
+      destroy: () => {},
+      resize: () => {},
+    }
+    libass.made.push(r)
+    return r
   },
 }))
 vi.mock('../pages/jassubWorker?worker&url', () => ({ default: 'worker.js' }))
@@ -233,5 +245,72 @@ describe('the subtitles as a text track for the browser window', () => {
     const el = video.querySelector<HTMLTrackElement>('track[kind="subtitles"]')
     expect(el).toBeTruthy()
     expect(el!.track.mode).toBe('hidden')
+  })
+})
+
+// Document Picture-in-Picture opened by the media session as the tab is
+// left: the hidden page runs no rendering steps, so libass's ResizeObserver
+// (of the page's window) never gives the canvas in the window a size
+describe('libass in the Document Picture-in-Picture window', () => {
+  const pipWin = new EventTarget()
+  const dpip = {
+    window: null as null | { document: Document; close: () => void },
+    requestWindow: vi.fn(async () => {
+      const doc = document.implementation.createHTMLDocument('')
+      Object.defineProperty(doc, 'defaultView', { value: pipWin, configurable: true })
+      const win = Object.assign(pipWin, {
+        document: doc,
+        close: () => {
+          dpip.window = null
+          pipWin.dispatchEvent(new Event('pagehide'))
+        },
+      })
+      dpip.window = win
+      return win
+    }),
+  }
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ status: 200, ok: true, text: async () => ASS })),
+    )
+    Object.defineProperty(window, 'documentPictureInPicture', { value: dpip, configurable: true })
+    libass.made.length = 0
+  })
+  afterEach(() => {
+    dpip.window?.close()
+    delete (window as { documentPictureInPicture?: unknown }).documentPictureInPicture
+    libass.make = null
+  })
+
+  it('sizes the canvas once libass is ready, and not before', async () => {
+    const { video, getByRole } = await withSubs(UA.chromeLinux)
+    let ready = () => {}
+    const resize = vi.fn(async () => {})
+    libass.make = () => ({
+      ready: new Promise<void>((ok) => (ready = ok)),
+      manualRender: () => {},
+      destroy: () => {},
+      resize,
+    })
+    await act(async () => getByRole('button', { name: 'Picture in picture' }).click())
+    expect(dpip.window!.document.contains(video)).toBe(true)
+    await waitFor(() => expect(libass.made.length).toBe(2))
+    // a resize of the window before libass is up asks nothing of it
+    pipWin.dispatchEvent(new Event('resize'))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect(resize).not.toHaveBeenCalled()
+    await act(async () => {
+      ready()
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect(resize).toHaveBeenCalledTimes(1)
+    pipWin.dispatchEvent(new Event('resize'))
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 20))
+    })
+    expect(resize).toHaveBeenCalledTimes(2)
   })
 })

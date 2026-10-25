@@ -1231,10 +1231,24 @@ function PlayerView({
         })
         renderer = r
         // libass sizes its canvas by a ResizeObserver of this window, which
-        // does not see a resize of the Document Picture-in-Picture window
+        // does not see a resize of the Document Picture-in-Picture window,
+        // and sees nothing at all while the tab is hidden (the media session
+        // opens the window as the tab is left): the window sizes it once
+        // libass is up, and on each resize. Before it is up, resize() has no
+        // renderer to reach.
         const win = v.ownerDocument.defaultView
         if (win && win !== window) {
-          const resize = () => void r.resize()
+          // resizes that come in before then make one
+          let queued = false
+          const resize = () => {
+            if (queued) return
+            queued = true
+            void r.ready.then(() => {
+              queued = false
+              if (!abort.signal.aborted) void r.resize()
+            })
+          }
+          resize()
           win.addEventListener('resize', resize)
           abort.signal.addEventListener('abort', () => win.removeEventListener('resize', resize))
         }
