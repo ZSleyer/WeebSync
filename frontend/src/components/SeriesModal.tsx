@@ -16,7 +16,7 @@ import { matchPath, useLocation, useNavigate, type Location } from 'react-router
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { ArrowLeft, ExternalLink, FolderOpen, Languages, Pencil, RefreshCw, Share2, Trash2 } from 'lucide-react'
-import { Button, IconButton, TextLink, localTransition, markOverflow, useBackEntry, useMediaQuery } from 'fluid-lycoris'
+import { Button, IconButton, TextLink, markOverflow, useBackEntry, useMediaQuery } from 'fluid-lycoris'
 import { api, mediaTitle, providerName, type Media, type MediaExtras, type Watch } from '../api'
 import type { Schemas } from '../api.gen'
 import { focusPosition, useBannerFocus } from './bannerFocus'
@@ -47,8 +47,8 @@ export interface SeriesTarget {
   /** the record the caller holds; the page fetches what is missing */
   media?: Media
   /**
-   * The banner a Heute panel morphs from, shown before the record has
-   * loaded, and the map of its detail so the page cuts it as the panel did
+   * The banner of the Heute panel the page was opened from, shown before
+   * the record has loaded, and the map of its detail so the page cuts it as the panel did
    */
   banner?: { url: string; focus?: Schemas['api.bannerFocus'] }
   /** the watch the caller came from, listed first among the title's watches */
@@ -237,30 +237,8 @@ const reducedMotion = () =>
   document.documentElement.dataset.motion === 'off' ||
   (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
 
-/** What the page grew out of: a cover (into the page's cover) or a Heute banner panel (into the banner). */
-interface Origin {
-  el: HTMLElement
-  kind: 'hero' | 'band'
-}
-const VT_NAME = { hero: 'ws-hero', band: 'band' } as const
-const VT_TARGET = { hero: '.ws-d-cover', band: '.ws-d-banner' } as const
-
-// Decode the pictures the first frame of the page shows before the morph
-// starts, so its snapshot is not taken half painted; never longer than 180ms.
-function decodeFirst(srcs: (string | undefined)[]) {
-  const all = srcs
-    .filter((s): s is string => !!s)
-    .map((s) => {
-      const img = new Image()
-      img.src = s
-      return img.decode ? img.decode().catch(() => {}) : Promise.resolve()
-    })
-  return Promise.race([Promise.all(all), new Promise((r) => setTimeout(r, 180))])
-}
-
 // Runs `fn` once the next frame is drawn. A requestAnimationFrame alone still
-// lands in the frame being prepared, which, called from a morph's update
-// callback, is the one the morph snapshots. Returns the cancel.
+// lands in the frame being prepared. Returns the cancel.
 function afterFrame(fn: () => void) {
   let t: ReturnType<typeof setTimeout> | undefined
   const id = requestAnimationFrame(() => (t = setTimeout(fn)))
@@ -268,36 +246,6 @@ function afterFrame(fn: () => void) {
     cancelAnimationFrame(id)
     clearTimeout(t)
   }
-}
-
-/**
- * The morph between an origin on the page and its counterpart in the series
- * page: the two share a name for the transition, the rest of the series page
- * fades. No-op without view transitions (Firefox): the state still changes.
- */
-function pairMorph(o: Origin, update: () => void, back = false) {
-  const name = VT_NAME[o.kind]
-  const named: HTMLElement[] = []
-  const nameIt = (el: HTMLElement | null | undefined, n: string) => {
-    if (!el) return
-    el.style.viewTransitionName = n
-    named.push(el)
-  }
-  const detailSide = () => {
-    const d = document.querySelector<HTMLElement>('.ws-detail')
-    nameIt(d, 'ws-detail')
-    nameIt(d?.querySelector<HTMLElement>(VT_TARGET[o.kind]), name)
-    // the head stays above the flying banner (see series.css)
-    if (o.kind === 'band') nameIt(d?.querySelector<HTMLElement>('.ws-d-hero'), 'ws-d-hero')
-  }
-  if (back) detailSide()
-  else nameIt(o.el, name)
-  return localTransition(null, () => {
-    named.splice(0).forEach((el) => (el.style.viewTransitionName = ''))
-    update()
-    if (back) nameIt(o.el.isConnected ? o.el : null, name)
-    else detailSide()
-  }).finally(() => named.forEach((el) => (el.style.viewTransitionName = '')))
 }
 
 /**
@@ -323,22 +271,19 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
     at.current = loc
   })
 
-  // The page grows out of what was clicked: a capture listener notes the
-  // cover or Heute banner panel under the click just before the click
-  // reaches the page's own handler.
-  const lastOrigin = useRef<(Origin & { at: number }) | null>(null)
+  // What was clicked to open the page, for focus to return to: a capture
+  // listener notes the cover or Heute banner panel under the click just
+  // before the click reaches the page's own handler.
+  const lastOrigin = useRef<{ el: HTMLElement; at: number } | null>(null)
   useEffect(() => {
     const note = (e: Event) => {
       const t = e.target as HTMLElement | null
-      const band = t?.closest?.<HTMLElement>('[data-band]')
-      const cover = band ? null : t?.closest?.<HTMLElement>('.t-cover')
-      const el = band ?? cover
-      lastOrigin.current = el ? { el, kind: band ? 'band' : 'hero', at: performance.now() } : null
+      const el = t?.closest?.<HTMLElement>('[data-band]') ?? t?.closest?.<HTMLElement>('.t-cover')
+      lastOrigin.current = el ? { el, at: performance.now() } : null
     }
     document.addEventListener('click', note, true)
     return () => document.removeEventListener('click', note, true)
   }, [])
-  const [origin, setOrigin] = useState<Origin | null>(null)
   const opener = useRef<HTMLElement | null>(null)
 
   // a step in history that keeps the page and changes only the series page
@@ -382,15 +327,7 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       opener.current =
         fresh?.el.closest<HTMLElement>('button, a, [tabindex]') ??
         (active?.closest('.ws-detail') ? opener.current : active)
-      const o = !was ? fresh : null
-      setOrigin(o ? { el: o.el, kind: o.kind } : null)
-      if (o && typeof document.startViewTransition === 'function' && !reducedMotion()) {
-        await decodeFirst([
-          o.kind === 'band' ? (t.media?.bannerImage ?? t.banner?.url) : undefined,
-          t.media?.coverImage?.large,
-        ])
-        void pairMorph(o, () => go(e, false))
-      } else go(e, !!was)
+      go(e, !!was)
     },
     [go],
   )
@@ -430,8 +367,8 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
       return nav('/', { replace: true })
     }
     // The step back waits for the next frame: the page is gone already, and
-    // the router's render of the step would otherwise land in the frame a
-    // closing morph snapshots (one long frame instead of two short ones).
+    // the router's render of the step would otherwise land in the same frame
+    // (one long frame instead of two short ones).
     afterFrame(() => {
       const idx = history.state?.idx
       const delta = typeof idx === 'number' && typeof e.bg === 'number' ? e.bg - idx : null
@@ -549,7 +486,6 @@ export function SeriesModalProvider({ children, panel }: { children: ReactNode; 
               key={`${shown.k}:${shown.source}:${shown.id}`}
               entry={shown}
               target={target}
-              origin={origin}
               onClose={close}
               onRelated={related}
               onBack={() => nav(-1)}
@@ -575,8 +511,6 @@ const ASIDE_MQ = '(width >= 64rem)'
 interface CardProps {
   entry: TitleEntry
   target: SeriesTarget
-  /** what the page grew out of, to shrink back into */
-  origin: Origin | null
   onClose: () => void
   onRelated: (t: SeriesTarget) => void
   /** to the related title before this one */
@@ -594,7 +528,6 @@ interface CardProps {
 function SeriesCard({
   entry,
   target: cur,
-  origin,
   onClose,
   onRelated,
   onBack,
@@ -610,9 +543,10 @@ function SeriesCard({
   const goTo = useNavigate()
   const toast = useToast()
 
-  // Rendered in steps, so the first frame (the one a morph snapshots) is the
-  // head alone: the episodes and the sync explanation follow a frame later
-  // and rise in, cast, similar titles and the community once the morph is over.
+  // Rendered in steps, so the first frame is the head alone and opening is
+  // not one long task: the episodes and the sync explanation follow a frame
+  // later and rise in, cast, similar titles and the community (and their
+  // requests) a moment after that.
   const [stage, setStage] = useState(0)
   useEffect(() => {
     let a = 0
@@ -646,7 +580,7 @@ function SeriesCard({
     retry: false,
   })
   const media = fetched ?? cur.media
-  // The banner: AniList's own (the picture a Heute panel morphs from), else
+  // The banner: AniList's own (the picture a Heute panel shows), else
   // the TMDB backdrop the id mapping knows.
   const { data: backdrop } = useQuery<{ url: string; large: string }>({
     queryKey: ['backdrop', cur.id],
@@ -655,12 +589,11 @@ function SeriesCard({
     staleTime: 24 * 60 * 60_000,
   })
   const art = media?.bannerImage || cur.banner?.url || backdrop?.url
-  // cut like the Heute panel it grew out of, or the two crops cross-fade in
-  // the morph; a banner the page did not come from asks the server for its map
+  // cut like the Heute panel it was opened from; any other banner asks the
+  // server for its map
   const focus = useBannerFocus(art, art === cur.banner?.url ? cur.banner?.focus : undefined, stage > 0)
   // The box is the banner's (the column's width, 15rem tall, 20rem on a
-  // desktop), worked out without a size read: the page commits inside the
-  // morph's update callback
+  // desktop), worked out without a size read in the opening commit
   const artAt = focus
     ? focusPosition(
         focus,
@@ -839,11 +772,10 @@ function SeriesCard({
     })
   }
   useEffect(() => () => cancelAnimationFrame(frame.current), [])
-  // What reads sizes or moves focus waits a frame after the commit: an
-  // opening page commits inside the morph's update callback, where a size
-  // read or focus() forces the whole new page through style and layout
-  // while the view under it is still restyling (twice the work, in the one
-  // frame the morph snapshots).
+  // What reads sizes or moves focus waits a frame after the commit: in the
+  // opening commit a size read or focus() forces the whole new page through
+  // style and layout while the view under it is still restyling (twice the
+  // work in one frame).
   useEffect(() => {
     const root = scroller.current
     const h = title.current
@@ -989,14 +921,13 @@ function SeriesCard({
   }, [viewOn])
 
   // back: out of the editor (past its guard), to the title before, or out
-  const leave = () => (origin?.el.isConnected ? void pairMorph(origin, onClose, true) : onClose())
   const back = async () => {
     if (viewOn) {
       if (await viewGuard()) viewClose()
       return
     }
     if (entry.n > 0) onBack()
-    else leave()
+    else onClose()
   }
 
   const land: EpisodeLanding | undefined = entry.ep
@@ -1222,7 +1153,7 @@ function SeriesCard({
                             />
                           </div>
                         )}
-                        {/* not in the morph's first frame (only the head morphs): it rises in after */}
+                        {/* not in the first frame (the head alone): it rises in after */}
                         {media && stage > 0 && (
                           <div className="ws-d-late">
                             <MediaDetail
