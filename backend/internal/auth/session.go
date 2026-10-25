@@ -341,9 +341,28 @@ func SetPasswordContext(ctx context.Context, d *sql.DB, userID int64, password, 
 		if n, _ := res.RowsAffected(); n == 0 {
 			return sql.ErrNoRows
 		}
-		_, err = tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, userID, hashToken(keepToken))
-		return err
+		if _, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, userID, hashToken(keepToken)); err != nil {
+			return err
+		}
+		return RevokeDevices(tx, userID)
 	})
+}
+
+// Execer is what RevokeDevices writes through: a transaction or the database.
+type Execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
+// RevokeDevices ends a user's paired devices along with their other
+// sessions: every device token, and every pairing they approved that waits
+// for the device's poll. Callers that end "all other sessions" run it in the
+// same transaction, so a device never outlives a sign-out everywhere.
+func RevokeDevices(x Execer, userID int64) error {
+	if _, err := x.Exec(`DELETE FROM device_tokens WHERE user_id = ?`, userID); err != nil {
+		return err
+	}
+	_, err := x.Exec(`DELETE FROM device_pairings WHERE user_id = ?`, userID)
+	return err
 }
 
 // DestroySession deletes the request's session and clears its cookie. The

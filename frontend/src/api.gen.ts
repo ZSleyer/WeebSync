@@ -2323,6 +2323,80 @@ export interface Schemas {
      */
     unseen: number
   }
+  'api.deviceApproveRequest': {
+    /**
+     * Name for the device in the list; optional, the device's own otherwise
+     */
+    name?: string
+    /**
+     * UserCode as shown on the device; case, dashes and spaces do not matter
+     */
+    userCode: string
+  }
+  'api.deviceApproveResponse': {
+    /**
+     * Name the device will be listed under
+     */
+    name: string
+  }
+  'api.deviceInfo': {
+    /**
+     * RFC 3339
+     */
+    createdAt: string
+    id: number
+    /**
+     * the address it was last used from
+     */
+    lastIp?: string
+    /**
+     * RFC 3339, stamped at most once a minute; absent = never used
+     */
+    lastUsedAt?: string
+    name: string
+    scope: string
+  }
+  'api.devicePairRequest': {
+    /**
+     * Name the device calls itself, shown in the device list; optional
+     */
+    name?: string
+  }
+  'api.devicePairResponse': {
+    /**
+     * DeviceCode is the TV's secret for polling the token endpoint
+     */
+    deviceCode: string
+    /**
+     * ExpiresAt is when both codes stop working, unix seconds
+     */
+    expiresAt: number
+    /**
+     * Interval is the seconds to wait between two token requests
+     */
+    interval: number
+    /**
+     * UserCode is shown on the TV and typed in by the user, "XXXX-XXXX"
+     */
+    userCode: string
+  }
+  'api.deviceTokenError': {
+    error: "authorization_pending" | "slow_down" | "access_denied" | "expired_token" | "invalid_grant" | "invalid_request"
+    /**
+     * Interval is the raised polling interval in seconds, with slow_down only
+     */
+    interval?: number
+  }
+  'api.deviceTokenRequest': {
+    deviceCode: string
+  }
+  'api.deviceTokenResponse': {
+    scope: string
+    /**
+     * Token goes into "Authorization: Bearer <token>" on /api/tv/*
+     */
+    token: string
+  }
   'api.dismissRequest': {
     /**
      * Cover is the item's picture and Section the list it was hidden from
@@ -3463,6 +3537,70 @@ export interface Schemas {
   }
   'api.tokenResponse': {
     token: string
+  }
+  'api.tvCalendarItem': {
+    /**
+     * unix seconds
+     */
+    airingAt: number
+    /**
+     * the AniList id, when the watch is matched there
+     */
+    anilistId?: number
+    /**
+     * BackdropURL is a 16:9 picture (TMDB, 1280 px), empty while none is known
+     */
+    backdropUrl?: string
+    /**
+     * the slot of a dub release, not the original
+     */
+    dub: boolean
+    /**
+     * in the watch's own numbering
+     */
+    episode: number
+    /**
+     * the provider's number, when the watch renumbers
+     */
+    episodeAbs?: number
+    /**
+     * projected, not a published date
+     */
+    estimated: boolean
+    /**
+     * the episode is downloaded already
+     */
+    have: boolean
+    /**
+     * the series in Plex, when linked
+     */
+    plexRatingKey?: string
+    posterUrl?: string
+    /**
+     * Title as the web UI shows it: the watch's own title, else the
+     * provider's display title
+     */
+    title: string
+    watchId: number
+  }
+  'api.tvRecentItem': {
+    backdropUrl?: string
+    /**
+     * absent when the name carries none (a film)
+     */
+    episode?: number
+    /**
+     * unix seconds of the newest copy
+     */
+    finishedAt: number
+    plexRatingKey?: string
+    posterUrl?: string
+    season?: number
+    title: string
+    /**
+     * the caller's watch that feeds the folder; absent for a one-off download
+     */
+    watchId?: number
   }
   'api.tvdbMeResponse': {
     configured: boolean

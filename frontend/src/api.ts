@@ -134,6 +134,8 @@ export type NamePiece = Schemas['api.namePiece']
 export type WatchExplain = Schemas['api.watchExplainResponse']
 export type WatchCheck = Schemas['api.WatchCheckResponse']
 export type SessionInfo = Schemas['api.sessionInfo']
+// a paired read-only device (a TV launcher) of the account
+export type DeviceInfo = Schemas['api.deviceInfo']
 
 // What a sync did. The counters answer the question a bare "0 queued" leaves
 // open: nothing to do, or something wrong?
@@ -285,6 +287,8 @@ const ERROR_KEYS: Record<string, string> = {
   'account upgrade required': 'errors.upgradeRequired',
   'email not verified - check your inbox': 'errors.emailUnverified',
   'invalid code': 'errors.invalidCode',
+  // linking a TV: the code it shows is unknown, used up or ran out
+  'unknown or expired code': 'errors.deviceCodeUnknown',
   'invalid or expired login': 'errors.loginExpired',
   'expired login session': 'errors.loginExpired',
   'passkey login failed': 'errors.passkeyFailed',

@@ -2,6 +2,7 @@
   "errors": {
     "net": {"refused": "The server cannot be reached, it refuses the connection.", "timeout": "The server does not answer in time.", "noHost": "The server name cannot be resolved.", "reset": "The connection to the server broke off.", "unreachable": "The server cannot be reached from this network.", "auth": "The server refused the sign-in.", "lost": "The connection to the server was lost.", "tls": "The server's certificate is not trusted."},
     "invalidCredentials": "Email or password is wrong.",
+    "deviceCodeUnknown": "This code is unknown or has expired. Check it on the device, or start pairing there again.",
     "setupToken": "The setup code is missing or wrong. It is in the server log.",
     "awaitingApproval": "Your account is still waiting for an admin to approve it.",
     "upgradeRequired": "Your account has to be secured first.",
@@ -365,6 +366,23 @@
     "attemptsNone": "That was the last attempt, the next one is open in {{s}} seconds.",
     "lengthLeft": "At least {{min}} characters, {{n}} to go.",
     "lengthOk": "Long enough."
+  },
+  "devices": {
+    "title": "Devices",
+    "hint": "Devices such as a TV launcher that read your calendar and recent downloads. Only enter a code that your own device shows right now.",
+    "code": "Code from the device",
+    "codeHint": "Eight letters, e.g. BCDF-GHJK. Case and dash do not matter.",
+    "codeIncomplete": "The code has eight letters.",
+    "link": "Link device",
+    "linked": "Linked: {{name}}",
+    "none": "No device linked yet.",
+    "listLabel": "Linked devices",
+    "lastUsed": "last used {{when}}",
+    "neverUsed": "not used yet",
+    "since": "linked {{when}}",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke device?",
+    "revokeHint": "{{name}} can no longer read your data. To use it again, link it with a new code."
   },
   "account": {
     "oidcNote": "You sign in through {{name}} (OIDC). Password, passkeys and two-factor are managed there.",

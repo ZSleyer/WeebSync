@@ -23,6 +23,10 @@ spec["components"]["securitySchemes"]["CookieAuth"] = {
 spec["components"]["securitySchemes"]["BearerAuth"] = {
     "type": "apiKey", "in": "header", "name": "Authorization",
 }
+spec["components"]["securitySchemes"]["DeviceAuth"] = {
+    "type": "http", "scheme": "bearer",
+    "description": "A paired device's token (POST /api/devices/token); scope tv:read, accepted on /api/tv/* only.",
+}
 with open(p, "w", encoding="utf-8") as f:
     json.dump(spec, f, indent=4, ensure_ascii=False)
     f.write("\n")

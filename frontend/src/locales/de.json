@@ -2,6 +2,7 @@
   "errors": {
     "net": {"refused": "Der Server ist nicht erreichbar, er lehnt die Verbindung ab.", "timeout": "Der Server antwortet nicht rechtzeitig.", "noHost": "Der Servername lässt sich nicht auflösen.", "reset": "Die Verbindung zum Server ist abgebrochen.", "unreachable": "Der Server ist aus diesem Netz nicht erreichbar.", "auth": "Der Server hat die Anmeldung abgelehnt.", "lost": "Die Verbindung zum Server ist verloren gegangen.", "tls": "Das Zertifikat des Servers wird nicht anerkannt."},
     "invalidCredentials": "E-Mail oder Passwort ist falsch.",
+    "deviceCodeUnknown": "Diesen Code gibt es nicht oder er ist abgelaufen. Prüfe ihn am Gerät oder starte das Verbinden dort neu.",
     "setupToken": "Der Setup-Code fehlt oder stimmt nicht. Er steht im Server-Log.",
     "awaitingApproval": "Dein Konto wartet noch auf die Freigabe durch einen Admin.",
     "upgradeRequired": "Dein Konto muss erst abgesichert werden.",
@@ -365,6 +366,23 @@
     "attemptsNone": "Das war der letzte Versuch, weiter geht es in {{s}} Sekunden.",
     "lengthLeft": "Mindestens {{min}} Zeichen, noch {{n}}.",
     "lengthOk": "Lang genug."
+  },
+  "devices": {
+    "title": "Geräte",
+    "hint": "Geräte wie ein TV-Launcher, die deinen Kalender und die letzten Downloads lesen. Gib nur einen Code ein, den dein eigenes Gerät gerade anzeigt.",
+    "code": "Code vom Gerät",
+    "codeHint": "Acht Buchstaben, z. B. BCDF-GHJK. Groß- und Kleinschreibung und Bindestrich sind egal.",
+    "codeIncomplete": "Der Code hat acht Buchstaben.",
+    "link": "Gerät verbinden",
+    "linked": "Verbunden: {{name}}",
+    "none": "Noch kein Gerät verbunden.",
+    "listLabel": "Verbundene Geräte",
+    "lastUsed": "zuletzt genutzt {{when}}",
+    "neverUsed": "noch nicht genutzt",
+    "since": "verbunden am {{when}}",
+    "revoke": "Entfernen",
+    "revokeTitle": "Gerät entfernen?",
+    "revokeHint": "{{name}} kann deine Daten danach nicht mehr lesen. Um es wieder zu nutzen, verbinde es mit einem neuen Code."
   },
   "account": {
     "oidcNote": "Du meldest dich über {{name}} an (OIDC). Passwort, Passkeys und Zwei-Faktor verwaltest du dort.",

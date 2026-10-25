@@ -98,6 +98,45 @@ Measured against NIST SP 800-63B-4 and OWASP ASVS 5.0:
   roots (folders, new downloads that do not replace an existing file, watch
   targets) is allowed for every signed-in user. Creating a folder never overwrites or removes anything.
 
+## Paired devices
+
+Read-only devices (a TV launcher) pair after the OAuth 2.0 device
+authorization grant, RFC 8628 (https://www.rfc-editor.org/rfc/rfc8628, read
+2026-10-25):
+
+- The user code is 8 letters of the RFC's base-20 set
+  `BCDFGHJKLMNPQRSTVWXZ` (about 34.5 bits, section 6.1), drawn by rejection
+  sampling; case, dashes and stray characters are ignored on entry. The
+  device code and the token are 256 random bits. Only sha256 hashes of all
+  three are stored.
+- A pairing lives 10 minutes (section 5.4). The device polls at 5 s; faster
+  polls answer `slow_down` and raise its interval by 5 s (section 3.5).
+- Guessing codes (section 5.1): approving needs a signed-in account and
+  counts against that account (5 tries, then one every 2 minutes, no
+  trusted-network exemption, checked before the code is looked up) and the
+  address (10, then 5 a minute). Starting a pairing and polling are limited
+  per address. At most 5 pairings are open per address (IPv6: per /64) and
+  20 per IPv6 /48, and 500 on the whole instance; at that cap the pairings
+  silent longest past twice their own polling interval plus 5 s make room.
+  Accepted gap: someone with about a hundred IPv4 addresses that keep polling
+  can still hold the instance cap and block new pairings while they do. There is no list of
+  pending pairings: only the code on the device binds it, to the account that
+  types it.
+- A token carries the scope `tv:read`, is accepted on `/api/tv/*` only (no
+  other route reads it, and those routes take no session cookie), and reads
+  only its own account's watches and downloads. It is looked up by its hash.
+  Revoking it, deleting the account (the tokens go with it) or the account
+  not being approved refuses it with 401. A new password (own or set by an
+  admin), "end all other sessions" and an OIDC back-channel logout of the
+  whole user (by subject) revoke the account's devices and approved pairings
+  in the same transaction. A back-channel logout of one provider session (by
+  sid) ends only that browser's login and leaves the devices paired. Last use and address are stamped at
+  most once a minute and shown in the account's device list.
+- The panel tells the user to enter only a code their own device shows
+  (section 5.4, remote phishing). A device that leaks its token exposes the
+  account's titles, schedule and download history, nothing else; revoke it
+  in the device list.
+
 ## Outgoing connections
 
 - TLS everywhere it applies: certificates and host names are verified
