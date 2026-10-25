@@ -42,6 +42,7 @@ interface Audio {
   start: (q: Queue) => void
   go: (at: number) => void
   toggle: () => void
+  pause: () => void
   seek: (s: number) => void
   stop: () => void
   setRate: (r: number) => void
@@ -196,14 +197,23 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     else if (action === 'nexttrack' && queue) go(queue.at + 1)
     else if (action === 'seekto' && el.current && d.seekTime !== undefined) el.current.currentTime = d.seekTime
   })
+  // the video player shares the session: a track playing again takes it back,
+  // a queue ending leaves the video's alone
+  const ours = useRef<MediaMetadata | null>(null)
+  const [claim, setClaim] = useState(0)
+  const onPlay = () => {
+    setPaused(false)
+    if ('mediaSession' in navigator && navigator.mediaSession.metadata !== ours.current) setClaim((n) => n + 1)
+  }
   useEffect(() => {
     if (!('mediaSession' in navigator)) return
     const ms = navigator.mediaSession
     if (!queue || !track) {
-      ms.metadata = null
+      if (ms.metadata === ours.current) ms.metadata = null
+      ours.current = null
       return
     }
-    ms.metadata = new MediaMetadata({
+    ms.metadata = ours.current = new MediaMetadata({
       title: track.name.replace(/\.[^.]+$/, ''),
       album: queue.album,
       artwork: queue.cover ? [{ src: queue.cover }] : [],
@@ -216,7 +226,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         // an action this browser does not know
       }
     }
-  }, [queue, track])
+  }, [queue, track, claim])
 
   const audio: Audio = {
     queue,
@@ -234,6 +244,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     },
     go,
     toggle,
+    pause: () => el.current?.pause(),
     seek: (s) => {
       if (el.current) el.current.currentTime = s
     },
@@ -260,7 +271,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
         hidden
         onLoadedMetadata={onMeta}
         onTimeUpdate={onTime}
-        onPlay={() => setPaused(false)}
+        onPlay={onPlay}
         onPause={() => setPaused(true)}
         onEnded={onEnded}
         onError={onError}
