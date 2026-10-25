@@ -29,11 +29,10 @@ func deviceRows(t *testing.T, d *sql.DB, user int64) int {
 	return n
 }
 
-// A back-channel logout signs the user out of the paired devices too, by sid
-// and by subject; another account's devices stay.
+// A back-channel logout by subject (every login of the user) signs the
+// paired devices out too; another account's devices stay.
 func TestBackchannelLogoutRevokesDevices(t *testing.T) {
 	for _, c := range []struct{ name, sid, sub string }{
-		{"by sid", "sid-1", ""},
 		{"by subject", "", "user-a"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -48,6 +47,30 @@ func TestBackchannelLogoutRevokesDevices(t *testing.T) {
 			}
 			if n := deviceRows(t, d, 2); n != 2 {
 				t.Errorf("user 2 has %d device rows, want both untouched", n)
+			}
+		})
+	}
+}
+
+// A logout by sid ends one browser's login at the provider, not the user
+// everywhere: the paired devices keep working.
+func TestBackchannelLogoutBySidKeepsDevices(t *testing.T) {
+	for _, c := range []struct{ name, sid, sub string }{
+		{"sid only", "sid-1", ""},
+		{"sid with subject", "sid-1", "user-a"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			m, keys, d := backchannelFixture(t)
+			seedSessions(t, d)
+			seedDevices(t, d)
+			if rec := post(m, keys.sign(t, logoutClaims(c.sid, c.sub))); rec.Code != 200 {
+				t.Fatalf("want 200, got %d %s", rec.Code, rec.Body)
+			}
+			if n := count(t, d); n != 2 {
+				t.Errorf("both logins of sid-1 should be gone, %d session rows left", n)
+			}
+			if n := deviceRows(t, d, 1); n != 2 {
+				t.Errorf("user 1 has %d device rows after a single-session logout, want both", n)
 			}
 		})
 	}

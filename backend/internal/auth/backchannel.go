@@ -90,17 +90,22 @@ func (m *Manager) BackchannelLogoutHandler(w http.ResponseWriter, r *http.Reques
 
 	// sid ends one login, sub ends every login of that user at this provider -
 	// which is what a provider means when it sends no sid
-	// The users behind the ended sessions lose their paired devices too, in
-	// the same transaction: the provider signed them out everywhere.
+	// Without a sid the provider signed the user out everywhere: the users
+	// behind those sessions lose their paired devices too, in the same
+	// transaction. A sid ends one browser's login; the devices stay.
 	col, val := "oidc_sid", claims.SID
-	if claims.SID == "" {
+	everywhere := claims.SID == ""
+	if everywhere {
 		col, val = "oidc_sub", tok.Subject
 	}
 	var n int64
 	err = db.Tx(m.DB, func(tx *sql.Tx) error {
-		users, err := sessionUsers(tx, col, val)
-		if err != nil {
-			return err
+		var users []int64
+		if everywhere {
+			var err error
+			if users, err = sessionUsers(tx, col, val); err != nil {
+				return err
+			}
 		}
 		res, err := tx.Exec(`DELETE FROM sessions WHERE `+col+` = ?`, val)
 		if err != nil {
