@@ -68,6 +68,7 @@ import Logo from '../components/Logo'
 import { useToast } from '../components/toast'
 import { useImmersive } from '../components/useImmersive'
 import { useVideo } from '../components/VideoPlayer'
+import { docPipApi, floating } from '../components/docPip'
 import PlayerInfo, {
   CODEC_NAMES,
   bareTitle,
@@ -80,6 +81,8 @@ import PlayerInfo, {
 import { renameFamilies, scaleFonts, scriptFamilies } from './assFonts'
 import { markSeen, resumeFrom, savedPosition, SEEN_AT, storePosition } from './playPosition'
 import { chaptersVtt, useChapterSkip } from './playerChapters'
+import { assToVtt } from './assVtt'
+import { attachPipCues } from './pipCues'
 import './player.css'
 
 // A Bluray picture track inside the file: the browser draws it itself (libpgs),
@@ -151,6 +154,21 @@ const VIDEO_ONLY: SessionAction[] = ['seekbackward', 'seekforward', 'enterpictur
 // the subtitles, the menus or the dock. The player covers the screen itself.
 const OWN_FULLSCREEN = !document.fullscreenEnabled
 const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Android/.test(navigator.userAgent)
+// Whether the browser's own picture-in-picture window draws a showing text
+// track, where the subtitles go as WebVTT cues (pipCues.ts). WebKit does (iOS
+// and macOS Safari, every iPhone browser): it asks for a text track
+// representation as the window opens, setRequiresTextTrackRepresentation in
+// https://github.com/WebKit/WebKit/blob/main/Source/WebCore/platform/ios/VideoPresentationInterfaceIOS.mm
+// and .../platform/mac/VideoPresentationInterfaceMac.mm. Desktop Firefox does,
+// for its own toggle on the video too: setActiveTextTrack in
+// https://github.com/mozilla-firefox/firefox/blob/main/toolkit/actors/PictureInPictureChild.sys.mjs
+// Chrome does not: its window shows the bare picture (only Live Caption,
+// https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/overlay/video_overlay_window_views.cc;
+// on Android a compositor view of the video,
+// https://chromium.googlesource.com/chromium/src/+/main/chrome/android/java/src/org/chromium/chrome/browser/media/PictureInPictureActivity.java),
+// and a showing track there only doubled the subtitles on the page. All read
+// 2026-10-25; Firefox on Android has no picture-in-picture events at all.
+const PIP_CUES = WEBKIT || NO_NATIVE_PIP
 
 // The codec string for a picture: profile and bit depth matter, a phone that
 // decodes HEVC Main may not decode Main 10.
@@ -237,7 +255,7 @@ export default function Player() {
       release()
       // a paused or finished file stops as the page is left; one that plays
       // (or floats in its own window) goes on in the mini player
-      if (video.paused && document.pictureInPictureElement !== video) close()
+      if (video.paused && !floating(video)) close()
     }
   }, [claim, close, video])
   return <div ref={slot} className="contents" />
@@ -592,11 +610,17 @@ function PlayerView({
   // keeps disablePictureInPicture so no toggle of the browser lies over it
   // (NO_NATIVE_PIP); the attribute also blocks the request, so it is lifted for
   // the moment of asking and set again once the window closes.
-  const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
+  // Where the browser has Document Picture-in-Picture the video floats in a
+  // window of our own instead (VideoProvider): the browser's video window
+  // shows the bare picture, without libass's canvas. Its own window stays the
+  // fallback.
+  const pipSupported = typeof document !== 'undefined' && (document.pictureInPictureEnabled || !!docPipApi())
   // the window of the last episode stays open on the same element
-  const [inPip, setInPip] = useState(
+  const [nativePip, setInPip] = useState(
     () => !!document.pictureInPictureElement && document.pictureInPictureElement === shared.video,
   )
+  const { docPip, openDocPip, closeDocPip } = shared
+  const inPip = nativePip || !!docPip
   const [ownFs, setOwnFs] = useState(false)
   // the CSS fullscreen is a layer: back leaves it, not the page
   useBackEntry(() => setOwnFs(false), undefined, ownFs && onPage)
@@ -604,7 +628,9 @@ function PlayerView({
   const togglePip = async () => {
     const v = videoRef.current
     if (!v) return
+    if (docPipApi()?.window) return closeDocPip()
     if (document.pictureInPictureElement) return void document.exitPictureInPicture().catch(() => {})
+    if (docPipApi() && (await openDocPip())) return
     await askPip(v)
   }
   // the mini player's switch is this one
@@ -628,7 +654,9 @@ function PlayerView({
     if (e instanceof KeyboardEvent && (!['Enter', ' '].includes(e.key) || e.ctrlKey || e.altKey || e.metaKey)) return
     const item = e.currentTarget as Element
     void togglePip()
-    queueMicrotask(() => item.setAttribute('aria-checked', document.pictureInPictureElement ? 'true' : 'false'))
+    queueMicrotask(() =>
+      item.setAttribute('aria-checked', videoRef.current && floating(videoRef.current) ? 'true' : 'false'),
+    )
   })
   useEffect(() => {
     const item = settingsRef.current?.querySelector('.t-player-pipitem')
@@ -823,7 +851,12 @@ function PlayerView({
     else if (action === 'previoustrack' && prev) goTo(prev)
     else if (action === 'nexttrack' && next) goTo(next)
     // the browser floats the video as the tab is left; a paused one stays
-    else if (action === 'enterpictureinpicture' && !v.paused && !document.pictureInPictureElement) void askPip(v)
+    // (Document Picture-in-Picture is allowed from here as well, without a
+    // gesture: https://developer.chrome.com/blog/automatic-picture-in-picture)
+    else if (action === 'enterpictureinpicture' && !v.paused && !floating(v))
+      void (docPipApi() ? openDocPip() : Promise.resolve(false)).then((ok) => {
+        if (!ok) void askPip(v)
+      })
   })
   const hasPrev = !!prev
   const hasNext = !!next
@@ -850,7 +883,7 @@ function PlayerView({
       ['seekforward', true],
       ['previoustrack', hasPrev],
       ['nexttrack', hasNext],
-      ['enterpictureinpicture', !!document.pictureInPictureEnabled],
+      ['enterpictureinpicture', !!document.pictureInPictureEnabled || !!docPipApi()],
     ]
     const set = (a: SessionAction, fn: MediaSessionActionHandler | null) => {
       try {
@@ -925,15 +958,20 @@ function PlayerView({
   )
   // the shared element goes into this file's controller (media-chrome finds
   // it by slot="media") and back into the box when the view goes; a move
-  // within the document, so it keeps playing
+  // within the document, so it keeps playing. While it stands in the
+  // Document Picture-in-Picture window it stays there, through an episode
+  // change too; the window hands it back as it closes.
   const { host } = shared
+  const docOpen = !!docPip
   useLayoutEffect(() => {
     const ctl = playerRef.current
     const v = videoRef.current
-    if (!ctl || !v) return
+    if (!ctl || !v || docOpen) return
     ctl.prepend(v)
-    return () => void host.appendChild(v)
-  }, [ready, host])
+    return () => {
+      if (v.parentNode === ctl) host.appendChild(v)
+    }
+  }, [ready, host, docOpen])
   useEffect(() => {
     const v = videoRef.current
     if (!ready || !v || !refocus.take()) return
@@ -1104,6 +1142,7 @@ function PlayerView({
     const pgs = isPgs(subTrack)
     let renderer: { destroy(): void } | null = null
     let canvas: HTMLCanvasElement | null = null
+    let undoCues: (() => void) | null = null
     const abort = new AbortController()
     setSubError('')
     const url = subTrack.file
@@ -1135,7 +1174,9 @@ function PlayerView({
         setSubPending(false)
         // our own canvas: media-chrome fades every overlay out with the
         // controls unless it is marked noautohide, and the subtitles must stay
-        canvas = document.createElement('canvas')
+        // made in the video's own document: in the Document Picture-in-Picture
+        // window the canvas floats along with it
+        canvas = v.ownerDocument.createElement('canvas')
         canvas.className = pgs ? 't-player-subs t-player-subs-pgs' : 't-player-subs'
         canvas.setAttribute('noautohide', '')
         v.after(canvas)
@@ -1164,6 +1205,9 @@ function PlayerView({
               .catch(() => ({}))
           : {}
         if (abort.signal.aborted) return
+        // the words once more as a text track, for the browser's own video
+        // window, which shows no canvas (pipCues.ts), where it draws one
+        if (PIP_CUES) undoCues = attachPipCues(v, assToVtt(content))
         const absolute = (u: string) => new URL(u, location.href).href
         const r = new JASSUB({
           video: v,
@@ -1186,6 +1230,28 @@ function PlayerView({
           ]),
         })
         renderer = r
+        // libass sizes its canvas by a ResizeObserver of this window, which
+        // does not see a resize of the Document Picture-in-Picture window,
+        // and sees nothing at all while the tab is hidden (the media session
+        // opens the window as the tab is left): the window sizes it once
+        // libass is up, and on each resize. Before it is up, resize() has no
+        // renderer to reach.
+        const win = v.ownerDocument.defaultView
+        if (win && win !== window) {
+          // resizes that come in before then make one
+          let queued = false
+          const resize = () => {
+            if (queued) return
+            queued = true
+            void r.ready.then(() => {
+              queued = false
+              if (!abort.signal.aborted) void r.resize()
+            })
+          }
+          resize()
+          win.addEventListener('resize', resize)
+          abort.signal.addEventListener('abort', () => win.removeEventListener('resize', resize))
+        }
         // Firefox hands requestVideoFrameCallback a mediaTime up to half a
         // second ahead of the picture on screen, falling back to it now and
         // then: libass drew the next line, this one, the next again, and every
@@ -1220,8 +1286,10 @@ function PlayerView({
       setSubPending(false)
       renderer?.destroy()
       canvas?.remove()
+      undoCues?.()
     }
-  }, [data, subTrack, burn, server, src, t, subSize])
+    // docOpen: the video changed windows, the renderer starts again there
+  }, [data, subTrack, burn, server, src, t, subSize, docOpen])
 
   // touch: a tap on the picture shows hidden controls and hides shown ones; a
   // double tap on the left or right third seeks 10 s, and taps that keep coming
@@ -1364,6 +1432,7 @@ function PlayerView({
           lang={i18n.language}
           className="t-player"
           data-fs={ownFs || undefined}
+          data-elsewhere={docOpen || undefined}
           // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
           // inside the player, never page-wide (WCAG 2.1.4). j, l and c it knows
           // as well (seek 10 s, subtitles): they are handled in onKey, so they
@@ -1428,6 +1497,16 @@ function PlayerView({
 
           {/* noautohide: a double-tap flash must show while the controls are away;
             the big play button has its own paused-only rule */}
+          {/* the picture floats in a window of its own: what stands in its place */}
+          {docPip && (
+            <div slot="centered-chrome" className="t-player-elsewhere" {...{ noautohide: '' }}>
+              <PictureInPicture2 aria-hidden size={28} />
+              <p role="status">{t('player.pipElsewhere')}</p>
+              <button type="button" className="t-player-pill" onClick={closeDocPip}>
+                {t('player.pipReturn')}
+              </button>
+            </div>
+          )}
           <div slot="centered-chrome" className="t-player-center" {...{ noautohide: '' }}>
             <span className="t-player-hold" data-on={holding || undefined} role="status">
               {holding && rateLabel(HOLD_RATE)}

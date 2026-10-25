@@ -177,6 +177,18 @@
   text-align: center;
   font-size: 0.875rem;
 }
+/* the picture stands in the Document Picture-in-Picture window */
+.t-player-elsewhere {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: auto;
+}
+/* nothing to play here meanwhile: the big button and the dock step aside */
+.t-player[data-elsewhere] :is(.t-player-bigplay, .t-player-dock) { display: none; }
 
 /* ── top band: back, the series and the episode, the file's chips ── */
 .t-player-top {

@@ -73,3 +73,49 @@
 @media (width < 64rem) {
   :is(html.playing, html.reading) .ws-vmini { visibility: hidden; }
 }
+
+/* ═══ The Document Picture-in-Picture window: the picture with libass's
+   canvas over it, and the row of buttons under it. Its own document gets the
+   page's sheets copied in (docPip.ts). ═══ */
+body:has(> .ws-dpip) { margin: 0; background: #000; overflow: hidden; }
+/* the page's reserved scrollbar strip has nothing to scroll here */
+html:has(> body > .ws-dpip) { scrollbar-gutter: auto; }
+.ws-dpip {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  color: #fff;
+}
+.ws-dpip-stage { position: relative; flex: 1; min-height: 0; }
+.ws-dpip-stage > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ws-dpip-bar {
+  flex: none;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+/* 44 px targets, white on black, a ring of its own for the keyboard */
+.ws-dpip-btn {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(255 255 255 / 0.14);
+  cursor: pointer;
+}
+.ws-dpip-btn:hover { background: rgb(255 255 255 / 0.26); }
+.ws-dpip-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.ws-dpip-btn svg { width: 22px; height: 22px; }
