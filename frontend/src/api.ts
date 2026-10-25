@@ -134,6 +134,8 @@ export type NamePiece = Schemas['api.namePiece']
 export type WatchExplain = Schemas['api.watchExplainResponse']
 export type WatchCheck = Schemas['api.WatchCheckResponse']
 export type SessionInfo = Schemas['api.sessionInfo']
+// a paired read-only device (a TV launcher) of the account
+export type DeviceInfo = Schemas['api.deviceInfo']
 
 // What a sync did. The counters answer the question a bare "0 queued" leaves
 // open: nothing to do, or something wrong?

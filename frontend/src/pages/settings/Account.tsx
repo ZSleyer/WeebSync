@@ -9,6 +9,7 @@ import { relTime } from '../../components/threadText'
 import { registerCredential } from '../../webauthn'
 import { useAuth } from '../../hooks'
 import { SettingsPanel } from './ui'
+import { DevicesSection } from './Devices'
 import './security.css'
 
 interface AuthConfig {
@@ -33,6 +34,7 @@ export default function Account() {
         </>
       )}
       <SessionsSection />
+      <DevicesSection />
     </>
   )
 }

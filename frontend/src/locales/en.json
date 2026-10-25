@@ -366,6 +366,23 @@
     "lengthLeft": "At least {{min}} characters, {{n}} to go.",
     "lengthOk": "Long enough."
   },
+  "devices": {
+    "title": "Devices",
+    "hint": "Devices such as a TV launcher that read your calendar and recent downloads. Only enter a code that your own device shows right now.",
+    "code": "Code from the device",
+    "codeHint": "Eight letters, e.g. BCDF-GHJK. Case and dash do not matter.",
+    "codeIncomplete": "The code has eight letters.",
+    "link": "Link device",
+    "linked": "Linked: {{name}}",
+    "none": "No device linked yet.",
+    "listLabel": "Linked devices",
+    "lastUsed": "last used {{when}}",
+    "neverUsed": "not used yet",
+    "since": "linked {{when}}",
+    "revoke": "Revoke",
+    "revokeTitle": "Revoke device?",
+    "revokeHint": "{{name}} can no longer read your data. To use it again, link it with a new code."
+  },
   "account": {
     "oidcNote": "You sign in through {{name}} (OIDC). Password, passkeys and two-factor are managed there.",
     "loginTitle": "Sign-in",

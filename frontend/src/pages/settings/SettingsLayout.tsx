@@ -64,6 +64,7 @@ const ABOUT: SectionItem = { to: 'about', key: 'settings.nav.about', icon: Info,
 // while its section is in the menu, so a user never finds an admin panel.
 export const PANELS = [
   { to: 'security#users', key: 'settings.search.users' },
+  { to: 'account#devices', key: 'devices.title' },
   { to: 'integrations#anilist', label: 'AniList' },
   { to: 'integrations#tmdb', label: 'TMDB' },
   { to: 'integrations#tvdb', label: 'TVDB' },

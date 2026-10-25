@@ -366,6 +366,23 @@
     "lengthLeft": "Mindestens {{min}} Zeichen, noch {{n}}.",
     "lengthOk": "Lang genug."
   },
+  "devices": {
+    "title": "Geräte",
+    "hint": "Geräte wie ein TV-Launcher, die deinen Kalender und die letzten Downloads lesen. Gib nur einen Code ein, den dein eigenes Gerät gerade anzeigt.",
+    "code": "Code vom Gerät",
+    "codeHint": "Acht Buchstaben, z. B. BCDF-GHJK. Groß- und Kleinschreibung und Bindestrich sind egal.",
+    "codeIncomplete": "Der Code hat acht Buchstaben.",
+    "link": "Gerät verbinden",
+    "linked": "Verbunden: {{name}}",
+    "none": "Noch kein Gerät verbunden.",
+    "listLabel": "Verbundene Geräte",
+    "lastUsed": "zuletzt genutzt {{when}}",
+    "neverUsed": "noch nicht genutzt",
+    "since": "verbunden am {{when}}",
+    "revoke": "Entfernen",
+    "revokeTitle": "Gerät entfernen?",
+    "revokeHint": "{{name}} kann deine Daten danach nicht mehr lesen. Um es wieder zu nutzen, verbinde es mit einem neuen Code."
+  },
   "account": {
     "oidcNote": "Du meldest dich über {{name}} an (OIDC). Passwort, Passkeys und Zwei-Faktor verwaltest du dort.",
     "loginTitle": "Anmeldung",
