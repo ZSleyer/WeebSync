@@ -275,6 +275,8 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.Handle("POST /api/devices/deny", authed(s.approveIPLimiter.limit(s.handleDeviceDeny)))
 	mux.Handle("GET /api/devices", authed(http.HandlerFunc(s.handleDevicesList)))
 	mux.Handle("DELETE /api/devices/{id}", authed(http.HandlerFunc(s.handleDeviceDelete)))
+	// read by paired devices with their token, and by nothing else
+	mux.Handle("GET /api/tv/calendar", s.tvAuth(s.handleTVCalendar))
 	mux.Handle("GET /api/auth/sessions", authed(http.HandlerFunc(s.handleSessionsList)))
 	mux.Handle("DELETE /api/auth/sessions/others", authed(http.HandlerFunc(s.handleSessionsEndOthers)))
 	mux.Handle("DELETE /api/auth/sessions/{id}", authed(http.HandlerFunc(s.handleSessionDelete)))

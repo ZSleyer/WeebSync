@@ -817,6 +817,25 @@ func (c *Client) Collection(ctx context.Context, id int) ([]anilist.Media, error
 	return list, nil
 }
 
+// BackdropCached is Backdrop from the cache alone, whatever the entry's age:
+// a picture's path does not go stale the way a schedule does. ok is false
+// when Backdrop has not looked this title up yet; it never asks TMDB.
+func (c *Client) BackdropCached(kind string, id int) (path string, width int, ok bool) {
+	var payload string
+	if err := c.DB.QueryRow(`SELECT payload FROM anilist_cache WHERE key = ?`,
+		fmt.Sprintf("tmdb:backdrop:%s:%d", kind, id)).Scan(&payload); err != nil {
+		return "", 0, false
+	}
+	var best struct {
+		Path  string `json:"file_path"`
+		Width int    `json:"width"`
+	}
+	if json.Unmarshal([]byte(payload), &best) != nil {
+		return "", 0, false
+	}
+	return best.Path, best.Width, true
+}
+
 // Backdrop is a title's widest backdrop (path and width in px), from its
 // image list rather than the one picked for the details: that one is
 // sometimes a small upload while a large one sits beside it. Cached like the

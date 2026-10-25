@@ -11,8 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/anilist"
 	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/dbtest"
+	"github.com/ch4d1/weebsync/internal/tmdb"
 )
 
 // deviceTest is a server with two plain users and an admin, each signed in.
@@ -29,7 +31,7 @@ type deviceTest struct {
 func newDeviceTest(t *testing.T) *deviceTest {
 	t.Helper()
 	d := dbtest.Open(t)
-	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d)})
+	s := testServer(t, &Server{DB: d, OIDC: auth.NewManager(context.Background(), d), Anilist: anilist.New(d), Tmdb: tmdb.New(d)})
 	mux := http.NewServeMux()
 	s.Register(mux)
 	// a route behind the device-token gate alone, whatever /api/tv/* serves
@@ -563,4 +565,4 @@ func TestUserCodeShape(t *testing.T) {
 }
 
 // tvPaths are the routes a device token opens.
-var tvPaths = []string{"/api/tv/probe"}
+var tvPaths = []string{"/api/tv/probe", "/api/tv/calendar"}
