@@ -224,7 +224,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lockfile-lint-api@npm:^5.9.2":
+"lockfile-lint-api@npm:^5.10.0":
   version: 5.10.0
   resolution: "lockfile-lint-api@npm:5.10.0"
   dependencies:
@@ -239,22 +239,22 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "lockfile-lint-tool@workspace:."
   dependencies:
-    lockfile-lint: "npm:5.0.1"
+    lockfile-lint: "npm:5.1.0"
   languageName: unknown
   linkType: soft
 
-"lockfile-lint@npm:5.0.1":
-  version: 5.0.1
-  resolution: "lockfile-lint@npm:5.0.1"
+"lockfile-lint@npm:5.1.0":
+  version: 5.1.0
+  resolution: "lockfile-lint@npm:5.1.0"
   dependencies:
     cosmiconfig: "npm:^9.0.0"
     debug: "npm:^4.3.4"
-    lockfile-lint-api: "npm:^5.9.2"
+    lockfile-lint-api: "npm:^5.10.0"
     tinyglobby: "npm:^0.2.15"
     yargs: "npm:^17.7.2"
   bin:
     lockfile-lint: bin/lockfile-lint.js
-  checksum: 10c0/76aa88b0537353f94248a51cd49b7d2f4e2718191a2766d4a6260b297cee0adccb6af1146bc42594cf79f2f6af78bb2f9dc4b0d50026c502b1fc106306dfd53c
+  checksum: 10c0/4bb7c90c0883f604c66135cdc65314dafdbe49b3e799e8589c816a3183de1303d0c1f99e51704ec25afb7aa644d93569396fbd0ac862115ec68fa94b4c19cd2b
   languageName: node
   linkType: hard
 
