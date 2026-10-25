@@ -246,6 +246,8 @@ span.td-pn { cursor: default; }
    itself a few pixels sideways as it mounted (a scroll, an edge check, a re-render) */
 .td-shelf { margin-inline: -1rem; padding-inline: 1rem; scroll-padding-inline: 1rem; }
 .t-rail:has(> .td-shelf) { --rail-bleed: 1rem; }
+/* the long-press wrapper is the shelf's item now; it keeps the tile's own height */
+.td-cell { align-self: flex-start; }
 .td-tile { display: block; align-self: flex-start; width: 6.5rem; text-align: left; border-radius: var(--r-cover); }
 .td-cv { position: relative; display: block; aspect-ratio: 2 / 3; }
 .td-cv > .t-cover { position: absolute; inset: 0; border-radius: var(--r-cover); }

@@ -1,13 +1,17 @@
-import { useRef } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useNavigate } from 'react-router'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Eye, Trash2 } from 'lucide-react'
 import { Rail, SectionHeading } from 'fluid-lycoris'
-import { downloadLabel, type Download, type DownloadMeta, type Watch } from '../../api'
+import { api, downloadLabel, type Download, type DownloadMeta, type Watch } from '../../api'
 import { useNow } from '../../hooks'
 import { coverSet } from '../../images'
 import { CoverImg } from '../../components/SmartImg'
 import { filesLink } from '../../components/playLinks'
 import { useSeriesModal } from '../../components/SeriesModal'
+import ActionSheet, { type SheetAction } from '../../components/ActionSheet'
+import Press from '../../components/Press'
 import { endedAt, langChip } from './history'
 import { seriesTarget, useRiseOnData } from './shared'
 
@@ -42,7 +46,9 @@ const resChip = (res?: number) => (!res ? '' : res >= 2160 ? '4K' : `${res}p`)
 /**
  * "Neu da": what landed this week, one cover per series with the episode's
  * resolution and languages on it and its title under it. A tile opens the
- * series at that episode; "Ältere" leads to the whole history.
+ * series at its title; "Ältere" leads to the whole history. A right click, the
+ * keyboard's menu key or a long press opens the download's menu - the queue's
+ * own for a finished download: open the series, remove it.
  */
 export function NewShelf({
   downloads,
@@ -62,6 +68,16 @@ export function NewShelf({
   const shelf = newArrivals(downloads, meta, now)
   const body = useRef<HTMLDivElement>(null)
   useRiseOnData(body, !loading)
+  const qc = useQueryClient()
+  // the queue's removal, call and invalidation alike; no onError of its own,
+  // so a failure lands in the app's error toast like every other mutation
+  const remove = useMutation({
+    mutationFn: (id: number) => api.del(`/api/downloads/${id}`),
+    onSettled: () => qc.invalidateQueries({ queryKey: ['downloads'] }),
+  })
+  const [sheet, setSheet] = useState<{ id: number; title: string; actions: SheetAction[] } | null>(null)
+  const tiles = useRef(new Map<number, HTMLButtonElement>())
+  const ico = { size: '1.2em', 'aria-hidden': true } as const
   if (!loading && shelf.length === 0) return null
   const day = (ms: number) => new Date(ms).toLocaleDateString(i18n.language, { weekday: 'short' })
   return (
@@ -109,43 +125,87 @@ export function NewShelf({
                     navigate(filesLink(0, d.localPath.slice(0, d.localPath.lastIndexOf('/')) || '/'))
                   }
                 }
+                const menu = () => {
+                  // Android sends its own contextmenu along with the long press
+                  if (sheet?.id === d.id) return
+                  // the sheet hands focus back to what had it when it opened:
+                  // the tile, also after a right click or a finger that did not focus it
+                  tiles.current.get(d.id)?.focus({ preventScroll: true })
+                  const media = watch?.media ? watch : undefined
+                  setSheet({
+                    id: d.id,
+                    title: [title, ep || label.name].filter(Boolean).join(', '),
+                    actions: [
+                      ...(media
+                        ? [
+                            {
+                              key: 'series',
+                              label: t('dash.openSeries'),
+                              icon: <Eye {...ico} />,
+                              onClick: () => open(seriesTarget(media)),
+                            },
+                          ]
+                        : []),
+                      {
+                        key: 'remove',
+                        label: t('dash.removeSelected'),
+                        icon: <Trash2 {...ico} />,
+                        danger: true,
+                        onClick: () => remove.mutate(d.id),
+                      },
+                    ],
+                  })
+                }
+                // a mouse's right click, and the keyboard's menu key or
+                // Shift+F10, which raise contextmenu on the focused tile
+                const onContextMenu = (e: MouseEvent) => {
+                  e.preventDefault()
+                  menu()
+                }
                 return (
-                  <button
-                    key={d.id}
-                    type="button"
-                    className="td-tile"
-                    data-fresh={fresh || undefined}
-                    // the caption and chips are decorative: the name carries what the tile shows
-                    aria-label={[title, ep || label.name, item?.title, when].filter(Boolean).join(', ')}
-                    onClick={go}
-                  >
-                    <span className="td-cv">
-                      <CoverImg
-                        set={coverSet({ large: group?.cover, extraLarge: group?.coverLarge })}
-                        title={title}
-                        sizes={TILE_SIZES}
-                        eager={i < 4}
-                        priority={false}
-                      />
-                      {chips.length > 0 && (
-                        <span className="td-chips">
-                          {chips.map((c) => (
-                            <i key={c}>{c}</i>
-                          ))}
-                        </span>
-                      )}
-                    </span>
-                    <span className="td-capt" aria-hidden>
-                      <b>{title}</b>
-                      <span>{ep || label.name}</span>
-                      <span>{item?.title || '\u00a0'}</span>
-                      <span className="td-when">{when}</span>
-                    </span>
-                  </button>
+                  <Press key={d.id} className="td-cell" onLongPress={menu}>
+                    <button
+                      ref={(el) => {
+                        if (el) tiles.current.set(d.id, el)
+                        else tiles.current.delete(d.id)
+                      }}
+                      type="button"
+                      className="td-tile"
+                      data-fresh={fresh || undefined}
+                      // the caption and chips are decorative: the name carries what the tile shows
+                      aria-label={[title, ep || label.name, item?.title, when].filter(Boolean).join(', ')}
+                      onClick={go}
+                      onContextMenu={onContextMenu}
+                    >
+                      <span className="td-cv">
+                        <CoverImg
+                          set={coverSet({ large: group?.cover, extraLarge: group?.coverLarge })}
+                          title={title}
+                          sizes={TILE_SIZES}
+                          eager={i < 4}
+                          priority={false}
+                        />
+                        {chips.length > 0 && (
+                          <span className="td-chips">
+                            {chips.map((c) => (
+                              <i key={c}>{c}</i>
+                            ))}
+                          </span>
+                        )}
+                      </span>
+                      <span className="td-capt" aria-hidden>
+                        <b>{title}</b>
+                        <span>{ep || label.name}</span>
+                        <span>{item?.title || '\u00a0'}</span>
+                        <span className="td-when">{when}</span>
+                      </span>
+                    </button>
+                  </Press>
                 )
               })}
         </Rail>
       </div>
+      {sheet && <ActionSheet title={sheet.title} actions={sheet.actions} onClose={() => setSheet(null)} />}
     </section>
   )
 }
