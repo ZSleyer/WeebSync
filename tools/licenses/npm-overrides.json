@@ -1,7 +1,7 @@
 {
   "jassub": {
-    "version": "2.5.20",
-    "source": "Versions and texts from the jassub repository at the commit that set version 2.5.20 (dea3d2d398569a591cf0c767d945d84e9f120484, https://github.com/ThaUnknown/jassub/tree/dea3d2d398569a591cf0c767d945d84e9f120484): the lib/ submodules it pins, their license files at those commits, and jassub's own build/license_fullnotice. Checked 2026-10-25. The npm package carries only jassub's MIT LICENSE, while its WebAssembly links the libraries below (Makefile: libass, FreeType, FriBidi, HarfBuzz, Brotli; fontconfig disabled).",
+    "version": ["2.5.20", "2.5.21"],
+    "source": "Versions and texts from the jassub repository at the commit that set version 2.5.20 (dea3d2d398569a591cf0c767d945d84e9f120484, https://github.com/ThaUnknown/jassub/tree/dea3d2d398569a591cf0c767d945d84e9f120484): the lib/ submodules it pins, their license files at those commits, and jassub's own build/license_fullnotice. Checked 2026-10-25. 2.5.21 (816f1dc536e9bface9bef82f7c214690b81aaee3) pins the same five submodule commits and the same build/license_fullnotice (blob 5ac59e11); it changes only src/worker/worker.ts. Checked 2026-10-25. The npm package carries only jassub's MIT LICENSE, while its WebAssembly links the libraries below (Makefile: libass, FreeType, FriBidi, HarfBuzz, Brotli; fontconfig disabled).",
     "texts": ["tools/licenses/texts/jassub/jassub-license_fullnotice.txt"],
     "components": [
       {

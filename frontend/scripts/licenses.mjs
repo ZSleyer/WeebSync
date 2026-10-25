@@ -137,8 +137,15 @@ const readOverrides = () => JSON.parse(readFileSync(path.join(TOOLS, 'npm-overri
 // (jassub's WebAssembly links libass, FreeType, FriBidi, ...). The overrides
 // in tools/licenses/npm-overrides.json append texts to such a package and add
 // what it bundles as entries of their own. They describe one version: a
-// different one in the bundle fails, so they are looked at again.
-export function applyNpmOverrides(entries, overrides, read = (f) => readFileSync(path.join(REPO, f), 'utf8')) {
+// different one in the bundle fails, so they are looked at again. On a
+// branch (WEEBSYNC_LICENSES_LENIENT=1, set by CI off main) it only warns, so
+// a dependency bump stays mergeable; main keeps failing until it is updated.
+export function applyNpmOverrides(
+  entries,
+  overrides,
+  read = (f) => readFileSync(path.join(REPO, f), 'utf8'),
+  lenient = process.env.WEEBSYNC_LICENSES_LENIENT === '1',
+) {
   const out = []
   for (const e of entries) {
     const o = overrides[e.name]
@@ -146,8 +153,12 @@ export function applyNpmOverrides(entries, overrides, read = (f) => readFileSync
       out.push(e)
       continue
     }
-    if (o.version !== e.version)
-      throw new Error(`npm-overrides.json describes ${e.name} ${o.version}, the bundle has ${e.version}: update it`)
+    // one version, or the list of those checked to bundle the same
+    if (![o.version].flat().includes(e.version)) {
+      const msg = `npm-overrides.json describes ${e.name} ${[o.version].flat().join(', ')}, the bundle has ${e.version}: update it`
+      if (!lenient) throw new Error(msg)
+      console.warn(`::warning::${msg}`)
+    }
     const texts = (fs) => (fs ?? []).map((f) => normText(read(f)))
     out.push({ ...e, text: [e.text, ...texts(o.texts)].filter(Boolean).join('\n\n') })
     for (const { texts: files, ...c } of o.components ?? [])

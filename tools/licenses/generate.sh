@@ -7,7 +7,8 @@
 #
 # Needs Go and the frontend's node_modules (yarn install). The frontend part
 # is a production build into a temporary directory: only packages that end
-# up in the bundle are listed. CI runs this and fails on a diff.
+# up in the bundle are listed. CI runs this on every push; on main it
+# commits a changed result back (commit-inventory.sh).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

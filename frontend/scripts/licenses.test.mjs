@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   allowedBy,
   applyNpmOverrides,
@@ -239,6 +239,23 @@ describe('npm overrides: what a package bundles without saying so', () => {
     )
     // a package that is not in the bundle adds nothing
     expect(applyNpmOverrides([], overrides, read)).toEqual([])
+  })
+
+  it('takes a list of versions checked to bundle the same', () => {
+    const listed = { lib: { ...overrides.lib, version: ['1.0.0', '1.1.0'] } }
+    expect(applyNpmOverrides([{ ...lib, version: '1.1.0' }], listed, read).map((e) => e.name)).toEqual([
+      'lib',
+      'inner (in lib)',
+    ])
+    expect(() => applyNpmOverrides([{ ...lib, version: '1.2.0' }], listed, read)).toThrow(/describes lib 1.0.0, 1.1.0/)
+  })
+
+  it('off main a stale override only warns, so a dependency bump stays mergeable', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = applyNpmOverrides([{ ...lib, version: '1.1.0' }], overrides, read, true)
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^::warning::.*describes lib 1.0.0, the bundle has 1.1.0/))
+    expect(out.map((e) => e.name)).toEqual(['lib', 'inner (in lib)'])
+    warn.mockRestore()
   })
 
   it('the committed inventory credits FreeType and carries the LGPL of FriBidi', () => {
