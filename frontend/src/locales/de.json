@@ -2454,6 +2454,11 @@
     "minutes": "{{n}} min",
     "sleepEnd": "Ende des Titels"
   },
+  "video": {
+    "nowPlaying": "Video läuft",
+    "open": "Zurück zum Player",
+    "close": "Video schließen"
+  },
   "plex": {
     "openBrowser": "Im Browser öffnen",
     "syncOnce": "Syncen",

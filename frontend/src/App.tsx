@@ -46,6 +46,7 @@ import { LiveActivity } from './components/LiveActivity'
 import PhoneHint from './components/PhoneHint'
 import { TransfersProvider } from './components/TransferSheet'
 import { AudioProvider, MiniPlayer } from './components/AudioPlayer'
+import { VideoMini, VideoProvider } from './components/VideoPlayer'
 import { useBack } from './components/playLinks'
 import { browserAnimated, RouteTransition, routeMotion, SectionMotion, topPage } from './components/RouteTransition'
 import { AccountMenu, AccountSheetButton } from './components/AccountMenu'
@@ -766,6 +767,7 @@ function Shell({ email }: { email: string }) {
       {/* settings at the foot, apart from the pages: visited rarely, but
           always in the same place; above them what transfers right now */}
       <div className="ws-side-foot">
+        <VideoMini variant="rail" />
         <MiniPlayer variant="rail" />
         {!onToday && <LiveActivity variant="rail" />}
         <PhoneHint />
@@ -856,61 +858,66 @@ function Shell({ email }: { email: string }) {
                 <SeriesModalProvider panel={aside}>
                   <TransfersProvider panel={aside}>
                     <LiveBridge>
-                      <AppShell
-                        className={immersive ? 'ws-immersive' : undefined}
-                        sidebar={sidebar}
-                        bar={immersive ? null : bar}
-                        tabs={immersive ? null : tabs}
-                        mainKey={topPage(location.pathname)}
-                        notice={
-                          immersive ? null : (
+                      {/* the one video, above the routes: it plays on in the
+                          mini player while the pages change */}
+                      <VideoProvider>
+                        <AppShell
+                          className={immersive ? 'ws-immersive' : undefined}
+                          sidebar={sidebar}
+                          bar={immersive ? null : bar}
+                          tabs={immersive ? null : tabs}
+                          mainKey={topPage(location.pathname)}
+                          notice={
+                            immersive ? null : (
+                              <>
+                                <UpdateToast />
+                                <VideoMini variant="pill" />
+                                <MiniPlayer variant="pill" />
+                              </>
+                            )
+                          }
+                          footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
+                          aside={<div ref={setAside} className="contents" />}
+                          before={
                             <>
-                              <UpdateToast />
-                              <MiniPlayer variant="pill" />
+                              <RouteFocus title={screenTitle} />
+                              <RouteTitle />
+                              <AppBadgeSync />
+                              <ScrollMemory />
+                              <CommandPalette pages={PALETTE_PAGES} open={palette} onOpenChange={setPalette} />
                             </>
-                          )
-                        }
-                        footer={<div ref={setFooter} className="t-shell-footer shrink-0 empty:hidden lg:hidden" />}
-                        aside={<div ref={setAside} className="contents" />}
-                        before={
-                          <>
-                            <RouteFocus title={screenTitle} />
-                            <RouteTitle />
-                            <AppBadgeSync />
-                            <ScrollMemory />
-                            <CommandPalette pages={PALETTE_PAGES} open={palette} onOpenChange={setPalette} />
-                          </>
-                        }
-                      >
-                        {/* the desktop's title row: the screen's h1 over the
+                          }
+                        >
+                          {/* the desktop's title row: the screen's h1 over the
                       content, with a back link on a stacked screen. Only
                       rendered wide: on a phone the pull to refresh moves the
                       first thing in <main> */}
-                        {titleRow && (
-                          <header className="ws-title">
-                            {back && <BackLink to={back} className="-ml-2" />}
-                            <h1>
-                              <span ref={deskTitle}>{screenTitle}</span>
-                            </h1>
-                            <div ref={setTitleActions} className="ws-title-acts" />
-                          </header>
-                        )}
-                        {/* at most one one-time hint, above whatever page is open */}
-                        <Tips />
-                        {/* no transform left on the page under a full-screen view:
+                          {titleRow && (
+                            <header className="ws-title">
+                              {back && <BackLink to={back} className="-ml-2" />}
+                              <h1>
+                                <span ref={deskTitle}>{screenTitle}</span>
+                              </h1>
+                              <div ref={setTitleActions} className="ws-title-acts" />
+                            </header>
+                          )}
+                          {/* at most one one-time hint, above whatever page is open */}
+                          <Tips />
+                          {/* no transform left on the page under a full-screen view:
                       it would be the containing block of its fixed overlay */}
-                        <RouteTransition cls={immersive ? '' : motion.page}>
-                          <Outlet />
-                        </RouteTransition>
-                        <PageScroll stacked={!!back} />
-                        {/* what transfers right now, riding the bottom edge of Today: on
+                          <RouteTransition cls={immersive ? '' : motion.page}>
+                            <Outlet />
+                          </RouteTransition>
+                          <PageScroll stacked={!!back} />
+                          {/* what transfers right now, riding the bottom edge of Today: on
                       the other pages it covered their own controls */}
-                        {!wide && !immersive && location.pathname === '/' && (
-                          <div className="ws-live-wrap">
-                            <LiveActivity variant="pill" />
-                          </div>
-                        )}
-                      </AppShell>
+                          {!wide && !immersive && location.pathname === '/' && (
+                            <div className="ws-live-wrap">
+                              <LiveActivity variant="pill" />
+                            </div>
+                          )}
+                        </AppShell>
+                      </VideoProvider>
                     </LiveBridge>
                   </TransfersProvider>
                 </SeriesModalProvider>

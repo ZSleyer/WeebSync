@@ -67,6 +67,7 @@ import { filesLink, listFolder, playHref, useBack, videosIn } from '../component
 import Logo from '../components/Logo'
 import { useToast } from '../components/toast'
 import { useImmersive } from '../components/useImmersive'
+import { useVideo } from '../components/VideoPlayer'
 import PlayerInfo, {
   CODEC_NAMES,
   bareTitle,
@@ -217,34 +218,52 @@ function Waited({ text, detail }: { text: string; detail?: string }) {
   )
 }
 
-// the route: every file gets a fresh player, so the tracks, the transcode
-// fallback and the subtitles of one episode never leak into the next
+// The route: it tells the app's one player (VideoProvider, above the routes)
+// what to play and gives it the page. The player itself outlives the route:
+// leaving the page while it plays shrinks it into the mini player, coming
+// back takes it in again without reloading anything.
 export default function Player() {
   const [params] = useSearchParams()
   const server = Number(params.get('server') || 0)
   const path = params.get('path') || ''
-  // Whether the focus sat in the player when the last file's view went: the
-  // next one takes it back as soon as its picture is there.
-  const focusCarry = useRef(false)
-  const refocus = useMemo(
-    () => ({
-      keep: (v: boolean) => void (focusCarry.current = v),
-      take: () => {
-        const v = focusCarry.current
-        focusCarry.current = false
-        return v
-      },
-    }),
-    [],
-  )
-  // The page is the element that goes fullscreen (the controller takes it as
-  // its fullscreenElement), and it outlives the key below: the browser leaves
-  // fullscreen when its element is removed, which every episode switch used to do.
-  return (
-    <div className="t-player-page">
-      <PlayerView key={`${server}:${path}`} server={server} path={path} refocus={refocus} />
-    </div>
-  )
+  const { start, close, claim, video } = useVideo()
+  const slot = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => start({ server, path }), [start, server, path])
+  useLayoutEffect(() => {
+    const release = slot.current ? claim(slot.current) : () => {}
+    return () => {
+      release()
+      // a paused or finished file stops as the page is left; one that plays
+      // (or floats in its own window) goes on in the mini player
+      if (video.paused && document.pictureInPictureElement !== video) close()
+    }
+  }, [claim, close, video])
+  return <div ref={slot} className="contents" />
+}
+
+// Whether the focus sat in the player when the last file's view went: the
+// next one takes it back as soon as its picture is there. There is one player
+// in the app, so one mark.
+const focusCarry = { on: false }
+const REFOCUS = {
+  keep: (v: boolean) => void (focusCarry.on = v),
+  take: () => {
+    const v = focusCarry.on
+    focusCarry.on = false
+    return v
+  },
+}
+
+/**
+ * One file in the app's player: VideoProvider renders it into the box that
+ * moves between the page and the mini player, keyed by the file, so the
+ * tracks, the transcode fallback and the subtitles of one episode never leak
+ * into the next. The box is the element that goes fullscreen and the video
+ * element is the provider's, so neither fullscreen nor picture in picture
+ * ends as the episode changes.
+ */
+export function PlayerSession({ server, path }: { server: number; path: string }) {
+  return <PlayerView server={server} path={path} refocus={REFOCUS} />
 }
 
 // seconds from the end of an episode to the start of the next
@@ -262,8 +281,11 @@ function PlayerView({
   const { t, i18n } = useTranslation()
   setLanguage(i18n.language)
   const navigate = useNavigate()
+  const shared = useVideo()
+  const { onPage } = shared
   // a phone gives the player the whole screen: the shell's bars step aside
-  useImmersive('playing')
+  // (on the page only: the mini player is part of the shell)
+  useImmersive('playing', onPage)
   const name = path.split('/').pop() || path
   const src = `server=${server}&path=${encodeURIComponent(path)}`
 
@@ -286,7 +308,8 @@ function PlayerView({
 
   const [audio, setAudio] = useState<number | null>(null)
   const [sub, setSub] = useState<string | null>(null)
-  const [rate, setRate] = useState(1)
+  // the speed set for the last episode holds on the same element
+  const [rate, setRate] = useState(() => shared.video.defaultPlaybackRate || 1)
   const [subSize, setSubSizeState] = useState<SubSize>(readSubSize)
   const setSubSize = (v: SubSize) => {
     setSubSizeState(v)
@@ -354,7 +377,8 @@ function PlayerView({
     !data.video.pixFmt?.includes('10')
   const acopy = ['aac', 'mp3'].includes(data?.audio.find((x) => x.index === audioIdx)?.codec ?? '')
 
-  const videoRef = useRef<HTMLVideoElement>(null)
+  // the app's one video element (see VideoProvider): it outlives this view
+  const videoRef = useRef<HTMLVideoElement>(shared.video)
   const resumeAt = useRef(0)
   // where this file was left last time: offered on a card, never jumped to unasked
   const [resumeOffer, setResumeOffer] = useState<number | null>(() => resumeFrom(savedPosition(server, path), 0))
@@ -443,7 +467,11 @@ function PlayerView({
     if (!v || !mutedStart) return
     const heard = () => !v.muted && setMutedStart(false)
     v.addEventListener('volumechange', heard)
-    return () => v.removeEventListener('volumechange', heard)
+    return () => {
+      v.removeEventListener('volumechange', heard)
+      // the next file on the same element asks for sound again itself
+      if (v.muted) v.muted = false
+    }
   }, [mutedStart])
 
   // on the server's side the wait is opening the file (direct) or cutting
@@ -559,10 +587,13 @@ function PlayerView({
   // (NO_NATIVE_PIP); the attribute also blocks the request, so it is lifted for
   // the moment of asking and set again once the window closes.
   const pipSupported = typeof document !== 'undefined' && document.pictureInPictureEnabled
-  const [inPip, setInPip] = useState(false)
+  // the window of the last episode stays open on the same element
+  const [inPip, setInPip] = useState(
+    () => !!document.pictureInPictureElement && document.pictureInPictureElement === shared.video,
+  )
   const [ownFs, setOwnFs] = useState(false)
   // the CSS fullscreen is a layer: back leaves it, not the page
-  useBackEntry(() => setOwnFs(false), undefined, ownFs)
+  useBackEntry(() => setOwnFs(false), undefined, ownFs && onPage)
   usePlayerMenuBack()
   const togglePip = async () => {
     const v = videoRef.current
@@ -570,6 +601,13 @@ function PlayerView({
     if (document.pictureInPictureElement) return void document.exitPictureInPicture().catch(() => {})
     await askPip(v)
   }
+  // the mini player's switch is this one
+  const { setPip } = shared
+  const pipFromMini = useEffectEvent(() => void togglePip())
+  useEffect(() => {
+    setPip(pipSupported ? () => pipFromMini() : null)
+    return () => setPip(null)
+  }, [setPip, pipSupported])
   // the same switch in the settings menu, which a phone always shows (the
   // bar's button steps out first as the player narrows). The pick is taken
   // from the item itself, on a click and on Enter or Space as media-chrome's
@@ -627,11 +665,21 @@ function PlayerView({
   const at = episodes.findIndex((e) => e.path === path || e.name === name)
   const prev = at > 0 ? episodes[at - 1] : undefined
   const next = at >= 0 && at < episodes.length - 1 ? episodes[at + 1] : undefined
-  const goTo = (e: { path: string }) => navigate(playHref(server, e.path), { replace: true })
+  // on the page the address follows the episode (the route hands it on);
+  // in the mini player the episode changes in place
+  const goTo = (e: { path: string }) =>
+    onPage ? navigate(playHref(server, e.path), { replace: true }) : shared.start({ server, path: e.path })
   // switching episodes replaces the entry, so one step back always leaves the player
   const back = useBack(filesLink(server, parent))
   // the title the file belongs to, for the title row and the panel under the picture
   const title = usePlayTitle(server, path, episodes, at)
+  // the title row: the series, and under it which episode this is; the mini
+  // player names the file the same way
+  const base = bareTitle(name)
+  const heading = title.media ? mediaTitle(title.media) : base
+  const subline = title.cur ? episodeCode(title.cur) : title.media ? base : ''
+  const { setLabel } = shared
+  useEffect(() => setLabel({ title: heading, sub: subline }), [setLabel, heading, subline])
   // at the end of an episode the next one starts after a short count, which
   // the title row shows and lets the user skip or call off
   const [nextIn, setNextIn] = useState<number | null>(null)
@@ -676,6 +724,19 @@ function PlayerView({
     },
     [chaptersText],
   )
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !chaptersText) return
+    const el = document.createElement('track')
+    el.kind = 'chapters'
+    el.default = true
+    v.appendChild(el)
+    const undo = chaptersTrack(el)
+    return () => {
+      undo?.()
+      el.remove()
+    }
+  }, [chaptersText, chaptersTrack])
   const { chapter, skippable, skip: skipChapter, dismiss: dismissSkip } = useChapterSkip(videoRef, chapters)
   // an untitled chapter goes by its number, as in the time bar's preview
   // (none for the moment a new list is in and the chapter still the old one's)
@@ -701,9 +762,11 @@ function PlayerView({
   // over, resume answered, sound on): focus stays in the player, where its keys work, not on the page
   const keepFocusInPlayer = useCallback((el: HTMLElement | null) => {
     if (!el) return
-    const video = el.closest('media-controller')?.querySelector('video')
+    // the shared element, looked up as the card goes: it is moved into the
+    // controller only after the card's ref is set
+    const ctl = el.closest('media-controller')
     return () => {
-      if (el.contains(document.activeElement)) video?.focus({ preventScroll: true })
+      if (el.contains(document.activeElement)) ctl?.querySelector('video')?.focus({ preventScroll: true })
     }
   }, [])
   // 90 % of an episode counts as watched: the AniList list moves on by one,
@@ -773,7 +836,6 @@ function PlayerView({
         ] as const
       ).flatMap(([src, sizes]) => (src ? [{ src, sizes }] : [])),
     })
-    ms.metadata = meta
     const on: [SessionAction, boolean][] = [
       ['play', true],
       ['pause', true],
@@ -791,8 +853,17 @@ function PlayerView({
         // an action this browser does not know
       }
     }
-    for (const [a, ok] of on) set(a, ok ? (d) => sessionAction(a, d) : null)
+    const own = () => {
+      ms.metadata = meta
+      for (const [a, ok] of on) set(a, ok ? (d) => sessionAction(a, d) : null)
+    }
+    own()
+    // the audio player shares the session: the video playing again takes it back
+    const v = videoRef.current
+    const reclaim = () => ms.metadata !== meta && own()
+    v?.addEventListener('play', reclaim)
     return () => {
+      v?.removeEventListener('play', reclaim)
       // the audio player shares the session: leave it alone once it took over
       if (ms.metadata !== meta) return
       ms.metadata = null
@@ -843,6 +914,17 @@ function PlayerView({
     },
     [refocus],
   )
+  // the shared element goes into this file's controller (media-chrome finds
+  // it by slot="media") and back into the box when the view goes; a move
+  // within the document, so it keeps playing
+  const { host } = shared
+  useLayoutEffect(() => {
+    const ctl = playerRef.current
+    const v = videoRef.current
+    if (!ctl || !v) return
+    ctl.prepend(v)
+    return () => void host.appendChild(v)
+  }, [ready, host])
   useEffect(() => {
     const v = videoRef.current
     if (!ready || !v || !refocus.take()) return
@@ -937,6 +1019,23 @@ function PlayerView({
     ro.observe(dock)
     return () => ro.disconnect()
   }, [data])
+
+  // Chrome on Android lays a cast button over every video, and keeps it there:
+  // the player has its own controls and no cast target; desktop Firefox lays
+  // one for picture in picture, ours is in the dock (it lifts this for the
+  // moment it asks, see togglePip). WebKit's autopictureinpicture asks it to
+  // float the video by itself as the page is left (reflected as
+  // autoPictureInPicture, WebKit's HTMLVideoElement+PictureInPicture.idl);
+  // other browsers ignore it. Set on the shared element, which React does
+  // not render.
+  useLayoutEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    v.playsInline = true
+    v.setAttribute('disableremoteplayback', '')
+    if (document.pictureInPictureElement !== v) v.toggleAttribute('disablepictureinpicture', NO_NATIVE_PIP)
+    v.setAttribute('autopictureinpicture', '')
+  }, [])
 
   // a phone in fullscreen turns to landscape, where a wide picture fills the
   // screen; a portrait video stays upright, and browsers without orientation
@@ -1243,10 +1342,6 @@ function PlayerView({
   const serverName = server
     ? (servers.data?.find((x) => x.id === server)?.name ?? t('player.remote'))
     : t('player.local')
-  // the title row: the series, and under it which episode this is
-  const base = bareTitle(name)
-  const heading = title.media ? mediaTitle(title.media) : base
-  const subline = title.cur ? episodeCode(title.cur) : title.media ? base : ''
   const rateLabel = (r: number) =>
     r === 1 ? t('player.rateNormal') : `${new Intl.NumberFormat(i18n.language).format(r)}×`
   const sizeLabel = (k: SubSize) => t(`player.subSize_${k}`)
@@ -1268,27 +1363,9 @@ function PlayerView({
           onPointerDown={noteHidden}
           onPointerUp={tapSeek}
         >
-          {/* captions are libass on a canvas over the picture: a <track> cannot
-            carry ASS styling, positioning or the file's fonts */}
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <video
-            ref={videoRef}
-            slot="media"
-            playsInline
-            // Chrome on Android lays a cast button over every video, and keeps it
-            // there: the player has its own controls and no cast target
-            // and desktop Firefox one for picture in picture; ours is in the dock
-            // (it lifts this for the moment it asks, see togglePip)
-            {...{ disableRemotePlayback: true, disablePictureInPicture: NO_NATIVE_PIP }}
-            // WebKit's request to float the video by itself as the page is left
-            // (reflected as autoPictureInPicture, WebKit's
-            // HTMLVideoElement+PictureInPicture.idl); other browsers ignore it.
-            // A string: React drops `true` on an attribute it does not know.
-            {...{ autopictureinpicture: '' }}
-          >
-            {chaptersText && <track key={chaptersText} kind="chapters" default ref={chaptersTrack} />}
-          </video>
-
+          {/* the shared <video> goes first in here (see VideoProvider); the
+            captions are libass on a canvas over it: a <track> cannot carry
+            ASS styling, positioning or the file's fonts */}
           <div slot="top-chrome" className="t-player-top">
             {/* the only way out on a phone, where the player has the whole screen */}
             <button type="button" className="t-pl-ic t-player-back" aria-label={t('nav.back')} onClick={back}>

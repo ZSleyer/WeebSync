@@ -40,6 +40,8 @@ vi.mock('../api', async (orig) => {
 })
 
 import Player from '../pages/Player'
+import { AudioProvider } from '../components/AudioPlayer'
+import { VideoProvider } from '../components/VideoPlayer'
 import { SeriesModalProvider } from '../components/SeriesModal'
 
 function Where() {
@@ -52,7 +54,11 @@ function mount(client = new QueryClient({ defaultOptions: { queries: { staleTime
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={['/play?server=0&path=%2Fa%2Fep1.mp4']}>
         <SeriesModalProvider>
-          <Player />
+          <AudioProvider>
+            <VideoProvider>
+              <Player />
+            </VideoProvider>
+          </AudioProvider>
         </SeriesModalProvider>
         <Where />
       </MemoryRouter>
@@ -75,7 +81,7 @@ describe('Player page', () => {
 
   it('F01a-1: a window refocus does not refetch play-info', async () => {
     const { container } = mount()
-    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+    await waitFor(() => expect(container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
     expect(infoCalls()).toBe(1)
     await act(async () => {
       focusManager.setFocused(false)
@@ -87,15 +93,15 @@ describe('Player page', () => {
   it('F01a-1: a failed refetch leaves the running player in place', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { staleTime: 0 } } })
     const { container } = mount(client)
-    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
-    const video = container.querySelector('video')
+    await waitFor(() => expect(container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
+    const video = container.querySelector<HTMLVideoElement>('media-controller video')
     infoFor.fail = true
     await act(async () => {
       await client.invalidateQueries({ queryKey: ['play-info'] })
     })
     expect(infoCalls()).toBe(2)
     expect(client.getQueryState(['play-info', 0, '/a/ep1.mp4'])?.status).toBe('error')
-    expect(container.querySelector('video')).toBe(video)
+    expect(container.querySelector<HTMLVideoElement>('media-controller video')).toBe(video)
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -141,9 +147,9 @@ describe('Player page', () => {
   // while the player's own handler is exercised for real.
   it("F01a-2: j, l and c are the player's alone: media-chrome is told to stay out, the player seeks once", async () => {
     const { container } = mount()
-    await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+    await waitFor(() => expect(container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
     const ctl = container.querySelector('media-controller')!
-    const video = container.querySelector('video')!
+    const video = container.querySelector<HTMLVideoElement>('media-controller video')!
     Object.defineProperty(video, 'duration', { value: 1400, configurable: true })
     const tokens = (ctl.getAttribute('hotkeys') ?? '').split(/\s+/)
     for (const key of ['j', 'l', 'c']) expect(tokens).toContain(`no${key}`)
@@ -167,7 +173,7 @@ describe('Player page', () => {
     localStorage.setItem('weebsync.player.pos', JSON.stringify({ '0:/a/ep1.mp4': { at: 300, t: 1 } }))
     const { container } = mount()
     const go = await screen.findByRole('button', { name: 'Resume' })
-    const video = focusable(container.querySelector('video')!)
+    const video = focusable(container.querySelector<HTMLVideoElement>('media-controller video')!)
     go.focus()
     fireEvent.click(go)
     await waitFor(() => expect(screen.queryByRole('button', { name: 'Resume' })).toBeNull())
@@ -177,7 +183,7 @@ describe('Player page', () => {
   it('F01a-4: the unmute pill hands the focus back to the player', async () => {
     const { container } = mount()
     const video = await waitFor(() => {
-      const v = container.querySelector('video')
+      const v = container.querySelector<HTMLVideoElement>('media-controller video')
       expect(v).toBeTruthy()
       return focusable(v!)
     })
@@ -254,7 +260,7 @@ describe('Player page', () => {
     try {
       const { container } = mount()
       const video = await waitFor(() => {
-        const v = container.querySelector('video')
+        const v = container.querySelector<HTMLVideoElement>('media-controller video')
         expect(v).toBeTruthy()
         return v!
       })
@@ -287,7 +293,7 @@ describe('Player page', () => {
     try {
       const { container } = mount()
       const video = await waitFor(() => {
-        const v = container.querySelector('video')
+        const v = container.querySelector<HTMLVideoElement>('media-controller video')
         expect(v).toBeTruthy()
         return v!
       })
@@ -343,7 +349,7 @@ describe('Player page', () => {
     const switchToNext = async () => {
       const view = mount()
       const video = await waitFor(() => {
-        const v = view.container.querySelector('video')
+        const v = view.container.querySelector<HTMLVideoElement>('media-controller video')
         expect(v).toBeTruthy()
         return focusable(v!)
       })
@@ -363,7 +369,7 @@ describe('Player page', () => {
 
     it('keeps the element that goes fullscreen, so the browser has nothing to leave', async () => {
       const { view, page, controller } = await switchToNext()
-      await waitFor(() => expect(view.container.querySelector('video')).toBeTruthy())
+      await waitFor(() => expect(view.container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
       expect(view.container.querySelector('.t-player-page')).toBe(page)
       // the controller of the new file goes fullscreen through that same element
       const next = view.container.querySelector('media-controller') as HTMLElement & { fullscreenElement?: Element }
@@ -374,7 +380,7 @@ describe('Player page', () => {
     it('puts the focus back into the player when it was in it', async () => {
       const { view } = await switchToNext()
       const video = await waitFor(() => {
-        const v = view.container.querySelector('video')
+        const v = view.container.querySelector<HTMLVideoElement>('media-controller video')
         expect(v).toBeTruthy()
         return v!
       })
@@ -394,7 +400,7 @@ describe('Player page', () => {
       Object.assign(new Event(type, { bubbles: true }), { pointerType })
     const setup = async () => {
       const { container } = mount()
-      await waitFor(() => expect(container.querySelector('video')).toBeTruthy())
+      await waitFor(() => expect(container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
       const player = container.querySelector('media-controller')!
       const button = player.querySelector('media-fullscreen-button') ?? player
       return { player, button }

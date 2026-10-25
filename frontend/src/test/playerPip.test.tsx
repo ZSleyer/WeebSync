@@ -45,24 +45,36 @@ const realUA = navigator.userAgent
 async function mount(ua = realUA) {
   Object.defineProperty(navigator, 'userAgent', { value: ua, configurable: true })
   vi.resetModules()
-  const [{ default: Player }, { SeriesModalProvider }, { QueryClient, QueryClientProvider }, { MemoryRouter }] =
-    await Promise.all([
-      import('../pages/Player'),
-      import('../components/SeriesModal'),
-      import('@tanstack/react-query'),
-      import('react-router'),
-    ])
+  const [
+    { default: Player },
+    { SeriesModalProvider },
+    { QueryClient, QueryClientProvider },
+    { MemoryRouter },
+    { AudioProvider },
+    { VideoProvider },
+  ] = await Promise.all([
+    import('../pages/Player'),
+    import('../components/SeriesModal'),
+    import('@tanstack/react-query'),
+    import('react-router'),
+    import('../components/AudioPlayer'),
+    import('../components/VideoPlayer'),
+  ])
   const view = render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={['/play?server=0&path=%2Fa%2Fep1.mp4']}>
         <SeriesModalProvider>
-          <Player />
+          <AudioProvider>
+            <VideoProvider>
+              <Player />
+            </VideoProvider>
+          </AudioProvider>
         </SeriesModalProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   )
-  await waitFor(() => expect(view.container.querySelector('video')).toBeTruthy())
-  return { ...view, video: view.container.querySelector('video')! }
+  await waitFor(() => expect(view.container.querySelector<HTMLVideoElement>('media-controller video')).toBeTruthy())
+  return { ...view, video: view.container.querySelector<HTMLVideoElement>('media-controller video')! }
 }
 
 let pipElement: Element | null = null

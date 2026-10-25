@@ -1,0 +1,65 @@
+/* ═══ Video: the mini player off the player page. The picture with its title
+   and three buttons: a card above the tabs on a phone, the picture over the
+   row in the sidebar's foot on a desktop. Both sit in the flow of the shell,
+   so nothing they hold covers the page. ═══ */
+
+.ws-vmini {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line-strong);
+}
+.ws-vmini-pic {
+  flex: none;
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+}
+.ws-vmini-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ws-vmini-open {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  text-align: left;
+  border-radius: 8px;
+}
+/* the button reaches over the whole card, the picture included; the other
+   buttons stand above it */
+.ws-vmini-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 11px;
+}
+.ws-vmini-row > .t-iconbtn { position: relative; z-index: 1; }
+.ws-vmini .t { display: block; min-width: 0; }
+.ws-vmini .t strong { display: block; font-size: 0.875rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-vmini .t span { display: block; font-size: 0.75rem; color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.ws-vmini[data-variant='pill'] { margin-bottom: 0.5rem; }
+/* the sidebar's foot: the picture spans it, the row under it */
+.ws-vmini[data-variant='rail'] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin: 0 0.25rem 0.5rem;
+}
+.ws-vmini[data-variant='rail'] .ws-vmini-pic { width: 100%; }
+
+/* the full-screen reader covers the phone: the card steps aside */
+@media (width < 64rem) {
+  :is(html.playing, html.reading) .ws-vmini { visibility: hidden; }
+}

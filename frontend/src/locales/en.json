@@ -2454,6 +2454,11 @@
     "minutes": "{{n}} min",
     "sleepEnd": "End of track"
   },
+  "video": {
+    "nowPlaying": "Video playing",
+    "open": "Back to the player",
+    "close": "Close the video"
+  },
   "plex": {
     "openBrowser": "Open in browser",
     "syncOnce": "Sync",

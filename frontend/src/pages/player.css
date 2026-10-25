@@ -130,6 +130,27 @@
   height: 100%;
   padding: 0;
 }
+/* the shared video between two files' players (VideoProvider): out of sight,
+   still in the document, so it plays on and its floating window stays */
+.t-player-page > video { display: none; }
+/* off the player page the same box is the mini player's picture (data-mini,
+   also inert): the picture and its subtitles, none of the controls, cards
+   or what the file is */
+.t-player-page[data-mini] { width: 100%; height: 100%; }
+.t-player-page[data-mini] > :not(.t-player-wrap),
+.t-player-page[data-mini] :is(.t-player-top, .t-player-idle),
+.t-player-page[data-mini] media-controller > :not(video, canvas) { display: none; }
+.t-player-page[data-mini] .t-player-wrap {
+  position: static;
+  height: 100%;
+  padding: 0;
+}
+.t-player-page[data-mini] .t-player {
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
 /* the player's own fullscreen where the browser has none for it (iPhone) */
 .t-player[data-fs] {
   position: fixed;
