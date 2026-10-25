@@ -977,6 +977,8 @@
     "pause": "Pause",
     "seen": "Folge {{n}} bei AniList als gesehen eingetragen",
     "pip": "Bild im Bild",
+    "pipElsewhere": "Läuft im Bild-im-Bild-Fenster",
+    "pipReturn": "Zurückholen",
     "local": "Lokal",
     "remote": "Remote",
     "fromLocal": "Aus der lokalen Bibliothek",
@@ -2457,7 +2459,8 @@
   "video": {
     "nowPlaying": "Video läuft",
     "open": "Zurück zum Player",
-    "close": "Video schließen"
+    "close": "Video schließen",
+    "backToTab": "Zurück zum Tab"
   },
   "plex": {
     "openBrowser": "Im Browser öffnen",

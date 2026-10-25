@@ -15,11 +15,12 @@ import {
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 import { useTranslation } from 'react-i18next'
-import { Pause, PictureInPicture2, Play, X } from 'lucide-react'
+import { ArrowUpLeft, Pause, PictureInPicture2, Play, X } from 'lucide-react'
 import { IconButton, useMediaQuery } from 'fluid-lycoris'
 import { useAudio } from './AudioPlayer'
 import { WIDE_MQ } from './PageActions'
 import { playHref } from './playLinks'
+import { DOC_PIP_BAR, docPipApi, mirrorDocument } from './docPip'
 import './video.css'
 
 /** What plays: a file on a server (0 is the local library). */
@@ -61,6 +62,11 @@ interface Video {
   togglePip: () => void
   /** the player hands its switch in (and null as it goes) */
   setPip: (fn: (() => void) | null) => void
+  /** the Document Picture-in-Picture window the video stands in, if open */
+  docPip: Window | null
+  /** moves the video into a window of its own; false where that fails */
+  openDocPip: () => Promise<boolean>
+  closeDocPip: () => void
 }
 
 const Ctx = createContext<Video | null>(null)
@@ -137,10 +143,65 @@ export function VideoProvider({ children }: { children: ReactNode }) {
       setItem((cur) => (cur && cur.server === next.server && cur.path === next.path ? cur : { ...next })),
     [],
   )
+  // Document Picture-in-Picture: the video (and the subtitle canvas the
+  // player puts after it) stands in a window of its own, with a row of
+  // buttons React renders into it. Closed by us or by the user, the window
+  // fires pagehide before it goes: the video comes back right there, into the
+  // player that holds the box, or into the box itself.
+  const [docPip, setDocPip] = useState<{ win: Window; bar: HTMLElement } | null>(null)
+  const pipWin = useRef<Window | null>(null)
+  const openDocPip = useCallback(async () => {
+    const api = docPipApi()
+    if (!api) return false
+    if (pipWin.current) return true
+    const ratio = video.videoWidth && video.videoHeight ? video.videoHeight / video.videoWidth : 9 / 16
+    const width = 480
+    // the focus the page had, for when the window goes
+    const from = document.activeElement
+    let win: Window
+    try {
+      // first thing in the user's gesture: the request needs it
+      win = await api.requestWindow({ width, height: Math.round(width * ratio) + DOC_PIP_BAR })
+    } catch {
+      return false
+    }
+    const doc = win.document
+    mirrorDocument(document, doc)
+    doc.title = document.title
+    const shell = doc.createElement('div')
+    shell.className = 'ws-dpip'
+    const stage = doc.createElement('div')
+    stage.className = 'ws-dpip-stage'
+    const bar = doc.createElement('div')
+    bar.className = 'ws-dpip-bar'
+    shell.append(stage, bar)
+    doc.body.append(shell)
+    stage.append(video)
+    pipWin.current = win
+    win.addEventListener(
+      'pagehide',
+      () => {
+        pipWin.current = null
+        const ctl = host.querySelector('media-controller')
+        if (ctl) ctl.prepend(video)
+        else host.appendChild(video)
+        setDocPip(null)
+        const at = document.activeElement
+        if ((!at || at === document.body) && from instanceof HTMLElement && from.isConnected)
+          from.focus({ preventScroll: true })
+      },
+      { once: true },
+    )
+    setDocPip({ win, bar })
+    return true
+  }, [video, host])
+  const closeDocPip = useCallback(() => pipWin.current?.close(), [])
+
   const close = useCallback(() => {
     // the player saves the position as it goes, then lets go of the source
     video.pause()
     if (document.pictureInPictureElement === video) document.exitPictureInPicture().catch(() => {})
+    pipWin.current?.close()
     setItem(null)
   }, [video])
 
@@ -188,6 +249,7 @@ export function VideoProvider({ children }: { children: ReactNode }) {
   useEffect(
     () => () => {
       if (document.pictureInPictureElement === video) document.exitPictureInPicture().catch(() => {})
+      pipWin.current?.close()
     },
     [video],
   )
@@ -196,9 +258,43 @@ export function VideoProvider({ children }: { children: ReactNode }) {
   const pip = useRef<(() => void) | null>(null)
   const setPip = useCallback((fn: (() => void) | null) => void (pip.current = fn), [])
   const togglePip = useCallback(() => pip.current?.(), [])
+  const docWin = docPip?.win ?? null
   const value = useMemo<Video>(
-    () => ({ item, start, close, video, host, claim, onPage, paused, inPip, label, setLabel, togglePip, setPip }),
-    [item, start, close, video, host, claim, onPage, paused, inPip, label, togglePip, setPip],
+    () => ({
+      item,
+      start,
+      close,
+      video,
+      host,
+      claim,
+      onPage,
+      paused,
+      inPip: inPip || !!docWin,
+      label,
+      setLabel,
+      togglePip,
+      setPip,
+      docPip: docWin,
+      openDocPip,
+      closeDocPip,
+    }),
+    [
+      item,
+      start,
+      close,
+      video,
+      host,
+      claim,
+      onPage,
+      paused,
+      inPip,
+      docWin,
+      label,
+      togglePip,
+      setPip,
+      openDocPip,
+      closeDocPip,
+    ],
   )
   return (
     <Ctx.Provider value={value}>
@@ -211,7 +307,48 @@ export function VideoProvider({ children }: { children: ReactNode }) {
           </Suspense>,
           host,
         )}
+      {docPip && createPortal(<DocPipBar video={video} paused={paused} close={closeDocPip} />, docPip.bar)}
     </Ctx.Provider>
+  )
+}
+
+/**
+ * The buttons under the picture in the Document Picture-in-Picture window:
+ * play or pause, and back into the tab (the video returns to where the
+ * player stands). Always shown, nothing to find by hovering.
+ */
+function DocPipBar({ video, paused, close }: { video: HTMLVideoElement; paused: boolean; close: () => void }) {
+  const { t } = useTranslation()
+  const toggle = () => {
+    if (video.paused) video.play().catch(() => {})
+    else video.pause()
+  }
+  const back = () => {
+    close()
+    // the tab comes forward too where the browser lets it (a user's click)
+    window.focus()
+  }
+  return (
+    <>
+      <button
+        type="button"
+        className="ws-dpip-btn"
+        aria-label={paused ? t('player.play') : t('player.pause')}
+        title={paused ? t('player.play') : t('player.pause')}
+        onClick={toggle}
+      >
+        {paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
+      </button>
+      <button
+        type="button"
+        className="ws-dpip-btn"
+        aria-label={t('video.backToTab')}
+        title={t('video.backToTab')}
+        onClick={back}
+      >
+        <ArrowUpLeft aria-hidden />
+      </button>
+    </>
   )
 }
 
@@ -269,7 +406,7 @@ export function VideoMini({ variant }: { variant: 'rail' | 'pill' }) {
         >
           {v.paused ? <Play aria-hidden fill="currentColor" /> : <Pause aria-hidden fill="currentColor" />}
         </IconButton>
-        {document.pictureInPictureEnabled && (
+        {(document.pictureInPictureEnabled || !!docPipApi()) && (
           <IconButton
             size="sm"
             aria-pressed={v.inPip}

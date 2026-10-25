@@ -53,9 +53,7 @@ describe('assToVtt', () => {
   })
 
   it('reads the columns from the Format line', () => {
-    const vtt = assToVtt(
-      script('Dialogue: Default,0:00:05.00,0:00:04.00,Moved', 'Style, End, Start, Text'),
-    )
+    const vtt = assToVtt(script('Dialogue: Default,0:00:05.00,0:00:04.00,Moved', 'Style, End, Start, Text'))
     expect(cues(vtt)).toEqual([['00:00:04.000', '00:00:05.000', 'Moved']])
   })
 

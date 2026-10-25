@@ -177,6 +177,16 @@
   text-align: center;
   font-size: 0.875rem;
 }
+/* the picture stands in the Document Picture-in-Picture window */
+.t-player-elsewhere {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  color: #fff;
+  font-size: 0.875rem;
+  text-align: center;
+  pointer-events: auto;
+}
 
 /* ── top band: back, the series and the episode, the file's chips ── */
 .t-player-top {
