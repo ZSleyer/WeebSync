@@ -52,6 +52,39 @@ func TestBackchannelLogoutRevokesDevices(t *testing.T) {
 	}
 }
 
+// A logout by subject reaches the devices a provider login approved even
+// when no session of that login is left (expired or swept): the token
+// carries the subject itself.
+func TestBackchannelLogoutBySubjectWithoutSession(t *testing.T) {
+	m, keys, d := backchannelFixture(t)
+	seedSessions(t, d)
+	now := time.Now().UTC().Format(time.RFC3339)
+	for _, q := range []string{
+		`INSERT INTO device_tokens (user_id, token_hash, created_at, oidc_sub) VALUES (1, 'ta', '` + now + `', 'user-a'), (1, 'tc', '` + now + `', '')`,
+		`INSERT INTO device_pairings (device_code_hash, user_code_hash, status, user_id, created_at, expires_at, oidc_sub)
+			VALUES ('da', 'ua', 'approved', 1, 0, 9999999999, 'user-a')`,
+		`DELETE FROM sessions`,
+	} {
+		if _, err := d.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if rec := post(m, keys.sign(t, logoutClaims("", "user-a"))); rec.Code != 200 {
+		t.Fatalf("want 200, got %d %s", rec.Code, rec.Body)
+	}
+	var left string
+	if err := d.QueryRow(`SELECT COALESCE(group_concat(token_hash), '') FROM device_tokens`).Scan(&left); err != nil {
+		t.Fatal(err)
+	}
+	if left != "tc" {
+		t.Errorf("device tokens left %q, want only the one a password session approved", left)
+	}
+	var pairings int
+	if err := d.QueryRow(`SELECT COUNT(*) FROM device_pairings`).Scan(&pairings); err != nil || pairings != 0 {
+		t.Errorf("approved pairings of user-a left: %d (%v)", pairings, err)
+	}
+}
+
 // A logout by sid ends one browser's login at the provider, not the user
 // everywhere: the paired devices keep working.
 func TestBackchannelLogoutBySidKeepsDevices(t *testing.T) {

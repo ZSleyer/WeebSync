@@ -117,7 +117,16 @@ func (m *Manager) BackchannelLogoutHandler(w http.ResponseWriter, r *http.Reques
 				return err
 			}
 		}
-		return nil
+		if !everywhere {
+			return nil
+		}
+		// and whatever a login of this subject approved, even once no
+		// session of it is left to name the user
+		if _, err := tx.Exec(`DELETE FROM device_tokens WHERE oidc_sub = ?`, val); err != nil {
+			return err
+		}
+		_, err = tx.Exec(`DELETE FROM device_pairings WHERE oidc_sub = ?`, val)
+		return err
 	})
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)

@@ -2,10 +2,39 @@ package api
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/ch4d1/weebsync/internal/auth"
 )
+
+// A device approved from a provider login carries that login's subject, so
+// a back-channel logout of the subject finds it after the browser session
+// is gone; one approved from a password session carries none.
+func TestDeviceTokenRecordsTheApprovingSubject(t *testing.T) {
+	dt := newDeviceTest(t)
+	rec := httptest.NewRecorder()
+	if err := auth.CreateSessionOIDC(dt.s.DB, rec, httptest.NewRequest("POST", "/", nil), 1, "sid-9", "sub-alice", true); err != nil {
+		t.Fatal(err)
+	}
+	oidc := rec.Result().Cookies()[0]
+	tok := dt.link(oidc, "OIDC TV")
+	pw := dt.link(dt.bob, "Password TV")
+	sub := func(token string) string {
+		t.Helper()
+		var s string
+		if err := dt.s.DB.QueryRow(`SELECT oidc_sub FROM device_tokens WHERE token_hash = ?`, auth.TokenHash(token)).Scan(&s); err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	if got := sub(tok); got != "sub-alice" {
+		t.Errorf("token approved from the OIDC session carries subject %q, want sub-alice", got)
+	}
+	if got := sub(pw); got != "" {
+		t.Errorf("token approved from a password session carries subject %q", got)
+	}
+}
 
 // "Sign out everywhere" includes the paired devices: a new password (own or
 // set by an admin) and ending the other sessions revoke the account's device

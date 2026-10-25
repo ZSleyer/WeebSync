@@ -295,12 +295,12 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 	var (
 		id, expires, lastPoll int64
 		interval              int
-		status, name          string
+		status, name, oidcSub string
 		userID                sql.NullInt64
 	)
-	err := s.DB.QueryRow(`SELECT id, status, user_id, name, expires_at, poll_interval, last_poll_ms
+	err := s.DB.QueryRow(`SELECT id, status, user_id, name, expires_at, poll_interval, last_poll_ms, oidc_sub
 		FROM device_pairings WHERE device_code_hash = ?`, hash).
-		Scan(&id, &status, &userID, &name, &expires, &interval, &lastPoll)
+		Scan(&id, &status, &userID, &name, &expires, &interval, &lastPoll, &oidcSub)
 	if errors.Is(err, sql.ErrNoRows) {
 		tokenErr(w, "invalid_grant", 0)
 		return
@@ -375,8 +375,8 @@ func (s *Server) handleDeviceToken(w http.ResponseWriter, r *http.Request) {
 		tokenErr(w, "invalid_grant", 0)
 		return
 	}
-	if _, err := tx.Exec(`INSERT INTO device_tokens (user_id, token_hash, name, scope, created_at) VALUES (?, ?, ?, ?, ?)`,
-		userID.Int64, auth.TokenHash(token), name, tvScope, now.UTC().Format(time.RFC3339)); err != nil {
+	if _, err := tx.Exec(`INSERT INTO device_tokens (user_id, token_hash, name, scope, created_at, oidc_sub) VALUES (?, ?, ?, ?, ?, ?)`,
+		userID.Int64, auth.TokenHash(token), name, tvScope, now.UTC().Format(time.RFC3339), oidcSub); err != nil {
 		dbErr(w, err)
 		return
 	}
@@ -460,7 +460,14 @@ func (s *Server) handleDeviceApprove(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = "TV"
 	}
-	res, err := s.DB.Exec(`UPDATE device_pairings SET status = 'approved', user_id = ?, name = ? WHERE id = ? AND status = 'pending'`, u.ID, name, id)
+	// the provider login that approves, if it is one: its back-channel
+	// logout by subject revokes the device later, session or not
+	var oidcSub string
+	if err := s.DB.QueryRow(`SELECT oidc_sub FROM sessions WHERE token_hash = ?`, auth.TokenHash(auth.SessionToken(r))).Scan(&oidcSub); err != nil {
+		dbErr(w, err)
+		return
+	}
+	res, err := s.DB.Exec(`UPDATE device_pairings SET status = 'approved', user_id = ?, name = ?, oidc_sub = ? WHERE id = ? AND status = 'pending'`, u.ID, name, oidcSub, id)
 	if err != nil {
 		dbErr(w, err)
 		return
