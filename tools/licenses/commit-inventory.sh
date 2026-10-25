@@ -29,15 +29,19 @@ if git diff --quiet -- "${files[@]}"; then
 fi
 git diff --stat -- "${files[@]}"
 
-payload="$(mktemp)"
-trap 'rm -f "$payload" "$payload.err"' EXIT
-additions="$(for f in "${files[@]}"; do
-  jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" '{path: $path, contents: $contents}'
-done | jq -s .)"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+payload="$work/payload.json"
+# the contents go through files: texts.json in base64 is far over the
+# 128 KiB a single command-line argument may hold
+for f in "${files[@]}"; do
+  base64 -w0 "$f" >"$work/b64"
+  jq -n --arg path "$f" --rawfile contents "$work/b64" '{path: $path, contents: $contents}'
+done >"$work/additions"
 jq -n \
   --arg repo "$REPO" \
   --arg head "$HEAD_SHA" \
-  --argjson additions "$additions" \
+  --slurpfile additions "$work/additions" \
   '{
     query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
     variables: {input: {
@@ -51,10 +55,10 @@ jq -n \
     }}
   }' >"$payload"
 
-if ! oid="$(gh api graphql --input "$payload" --jq '.data.createCommitOnBranch.commit.oid' 2>"$payload.err")"; then
+if ! oid="$(gh api graphql --input "$payload" --jq '.data.createCommitOnBranch.commit.oid' 2>"$work/err")"; then
   # expectedHeadOid no longer matches: main moved between the check and now
   [ "$(gh api "repos/$REPO/commits/main" --jq .sha)" != "$HEAD_SHA" ] && superseded
-  cat "$payload.err" >&2
+  cat "$work/err" >&2
   exit 1
 fi
 [ -n "$oid" ] || { echo "createCommitOnBranch returned no commit" >&2; exit 1; }
