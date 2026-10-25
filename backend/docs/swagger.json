@@ -5269,6 +5269,158 @@
                 ],
                 "type": "object"
             },
+            "api.deviceApproveRequest": {
+                "properties": {
+                    "name": {
+                        "description": "Name for the device in the list; optional, the device's own otherwise",
+                        "type": "string"
+                    },
+                    "userCode": {
+                        "description": "UserCode as shown on the device; case, dashes and spaces do not matter",
+                        "example": "WDJB-MJHT",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "userCode"
+                ],
+                "type": "object"
+            },
+            "api.deviceApproveResponse": {
+                "properties": {
+                    "name": {
+                        "description": "Name the device will be listed under",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "type": "object"
+            },
+            "api.deviceInfo": {
+                "properties": {
+                    "createdAt": {
+                        "description": "RFC 3339",
+                        "type": "string"
+                    },
+                    "id": {
+                        "type": "integer"
+                    },
+                    "lastIp": {
+                        "description": "the address it was last used from",
+                        "type": "string"
+                    },
+                    "lastUsedAt": {
+                        "description": "RFC 3339, stamped at most once a minute; absent = never used",
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "example": "tv:read",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "scope",
+                    "createdAt"
+                ],
+                "type": "object"
+            },
+            "api.devicePairRequest": {
+                "properties": {
+                    "name": {
+                        "description": "Name the device calls itself, shown in the device list; optional",
+                        "example": "Kotatsu",
+                        "type": "string"
+                    }
+                },
+                "type": "object"
+            },
+            "api.devicePairResponse": {
+                "properties": {
+                    "deviceCode": {
+                        "description": "DeviceCode is the TV's secret for polling the token endpoint",
+                        "type": "string"
+                    },
+                    "expiresAt": {
+                        "description": "ExpiresAt is when both codes stop working, unix seconds",
+                        "type": "integer"
+                    },
+                    "interval": {
+                        "description": "Interval is the seconds to wait between two token requests",
+                        "example": 5,
+                        "type": "integer"
+                    },
+                    "userCode": {
+                        "description": "UserCode is shown on the TV and typed in by the user, \"XXXX-XXXX\"",
+                        "example": "WDJB-MJHT",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "userCode",
+                    "deviceCode",
+                    "expiresAt",
+                    "interval"
+                ],
+                "type": "object"
+            },
+            "api.deviceTokenError": {
+                "properties": {
+                    "error": {
+                        "enum": [
+                            "authorization_pending",
+                            "slow_down",
+                            "access_denied",
+                            "expired_token",
+                            "invalid_grant",
+                            "invalid_request"
+                        ],
+                        "type": "string"
+                    },
+                    "interval": {
+                        "description": "Interval is the raised polling interval in seconds, with slow_down only",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "error"
+                ],
+                "type": "object"
+            },
+            "api.deviceTokenRequest": {
+                "properties": {
+                    "deviceCode": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "deviceCode"
+                ],
+                "type": "object"
+            },
+            "api.deviceTokenResponse": {
+                "properties": {
+                    "scope": {
+                        "example": "tv:read",
+                        "type": "string"
+                    },
+                    "token": {
+                        "description": "Token goes into \"Authorization: Bearer <token>\" on /api/tv/*",
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "token",
+                    "scope"
+                ],
+                "type": "object"
+            },
             "api.dismissRequest": {
                 "properties": {
                     "cover": {
@@ -7877,6 +8029,102 @@
                 ],
                 "type": "object"
             },
+            "api.tvCalendarItem": {
+                "properties": {
+                    "airingAt": {
+                        "description": "unix seconds",
+                        "type": "integer"
+                    },
+                    "anilistId": {
+                        "description": "the AniList id, when the watch is matched there",
+                        "type": "integer"
+                    },
+                    "backdropUrl": {
+                        "description": "BackdropURL is a 16:9 picture (TMDB, 1280 px), empty while none is known",
+                        "type": "string"
+                    },
+                    "dub": {
+                        "description": "the slot of a dub release, not the original",
+                        "type": "boolean"
+                    },
+                    "episode": {
+                        "description": "in the watch's own numbering",
+                        "type": "integer"
+                    },
+                    "episodeAbs": {
+                        "description": "the provider's number, when the watch renumbers",
+                        "type": "integer"
+                    },
+                    "estimated": {
+                        "description": "projected, not a published date",
+                        "type": "boolean"
+                    },
+                    "have": {
+                        "description": "the episode is downloaded already",
+                        "type": "boolean"
+                    },
+                    "plexRatingKey": {
+                        "description": "the series in Plex, when linked",
+                        "type": "string"
+                    },
+                    "posterUrl": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "Title as the web UI shows it: the watch's own title, else the\nprovider's display title",
+                        "type": "string"
+                    },
+                    "watchId": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "watchId",
+                    "title",
+                    "episode",
+                    "airingAt",
+                    "dub",
+                    "estimated",
+                    "have"
+                ],
+                "type": "object"
+            },
+            "api.tvRecentItem": {
+                "properties": {
+                    "backdropUrl": {
+                        "type": "string"
+                    },
+                    "episode": {
+                        "description": "absent when the name carries none (a film)",
+                        "type": "integer"
+                    },
+                    "finishedAt": {
+                        "description": "unix seconds of the newest copy",
+                        "type": "integer"
+                    },
+                    "plexRatingKey": {
+                        "type": "string"
+                    },
+                    "posterUrl": {
+                        "type": "string"
+                    },
+                    "season": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "watchId": {
+                        "description": "the caller's watch that feeds the folder; absent for a one-off download",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "title",
+                    "finishedAt"
+                ],
+                "type": "object"
+            },
             "api.tvdbMeResponse": {
                 "properties": {
                     "configured": {
@@ -8386,6 +8634,11 @@
                 "in": "cookie",
                 "name": "weebsync_session",
                 "type": "apiKey"
+            },
+            "DeviceAuth": {
+                "description": "A paired device's token (POST /api/devices/token); scope tv:read, accepted on /api/tv/* only.",
+                "scheme": "bearer",
+                "type": "http"
             }
         }
     },
@@ -14688,6 +14941,495 @@
                 "summary": "Delete a catalog scope rule",
                 "tags": [
                     "Catalog"
+                ]
+            }
+        },
+        "/api/devices": {
+            "get": {
+                "description": "The signed-in user's own paired devices, newest first. Admins see only their own as well. Pending pairings are never listed.",
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.deviceInfo"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "List paired devices",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/api/devices/approve": {
+            "post": {
+                "description": "The signed-in user (any role) types the code the device shows. Binds the pairing to that user; the device's next poll receives a read-only tv:read token. Rate-limited per address and per account (fails closed). 404 for a code that is unknown, expired or already used.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.deviceApproveRequest",
+                                        "description": "the code shown on the device",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "the code shown on the device",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.deviceApproveResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Approve a device",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/api/devices/deny": {
+            "post": {
+                "description": "The signed-in user declines the pairing whose code a device shows; its next poll answers access_denied. Counts against the same limits as approving.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.deviceApproveRequest",
+                                        "description": "the code shown on the device",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "the code shown on the device",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Decline a device",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/api/devices/pair": {
+            "post": {
+                "description": "Unauthenticated, rate-limited per address. Starts an RFC 8628 style pairing for a read-only device (a TV): returns the user code to show, the device code to poll POST /api/devices/token with, its expiry (about 10 minutes) and the polling interval. Only hashes of both codes are stored. The body is optional.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.devicePairRequest",
+                                        "description": "optional device name",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "optional device name"
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.devicePairResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Start device pairing",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/api/devices/token": {
+            "post": {
+                "description": "Unauthenticated, rate-limited per address. The device polls with its device code, waiting `interval` seconds between requests. Every refusal is HTTP 400 with an RFC 8628 error code in `error`: authorization_pending (keep polling), slow_down (polled too fast; `interval` is the new interval, keep polling), access_denied (the user declined; stop), expired_token (the pairing ran out; stop, start a new one when the user asks), invalid_grant (unknown or already used device code; stop), invalid_request (no device code). After the approval the token is returned exactly once and the device code is used up.",
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [
+                                    {
+                                        "type": "object"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/api.deviceTokenRequest",
+                                        "description": "the device code from the pairing",
+                                        "summary": "request"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "description": "the device code from the pairing",
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.deviceTokenResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.deviceTokenError"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "415": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unsupported Media Type"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Too Many Requests"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "summary": "Poll for the device token",
+                "tags": [
+                    "Devices"
+                ]
+            }
+        },
+        "/api/devices/{id}": {
+            "delete": {
+                "description": "Revokes one of the signed-in user's own devices; its token is refused from then on. 404 for an id that is not one of the caller's devices.",
+                "parameters": [
+                    {
+                        "description": "device id",
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.OkResponse"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Not Found"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "CookieAuth": []
+                    }
+                ],
+                "summary": "Revoke a device",
+                "tags": [
+                    "Devices"
                 ]
             }
         },
@@ -21647,6 +22389,144 @@
                 "summary": "Restore a trash entry",
                 "tags": [
                     "Files"
+                ]
+            }
+        },
+        "/api/tv/calendar": {
+            "get": {
+                "description": "For a paired device (Authorization: Bearer <device token>, scope tv:read). The caller's own watches' episode slots from 6 hours ago up to `days` days ahead (1..14, default 7), flat and sorted by airingAt. Built from cached data only.",
+                "parameters": [
+                    {
+                        "description": "days ahead, 1..14 (default 7)",
+                        "in": "query",
+                        "name": "days",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.tvCalendarItem"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "DeviceAuth": []
+                    }
+                ],
+                "summary": "TV calendar",
+                "tags": [
+                    "TV"
+                ]
+            }
+        },
+        "/api/tv/recent": {
+            "get": {
+                "description": "For a paired device (Authorization: Bearer <device token>, scope tv:read). The caller's own finished downloads, one entry per episode (the newest copy), newest first, at most `limit` (1..50, default 20). Built from cached data only.",
+                "parameters": [
+                    {
+                        "description": "entries, 1..50 (default 20)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.tvRecentItem"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "DeviceAuth": []
+                    }
+                ],
+                "summary": "TV recent downloads",
+                "tags": [
+                    "TV"
                 ]
             }
         },

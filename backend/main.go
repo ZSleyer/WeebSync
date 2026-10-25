@@ -59,6 +59,11 @@ func env(key, fallback string) string {
 // @securityDefinitions.apikey BearerAuth
 // @in header
 // @name Authorization
+//
+// @securityDefinitions.apikey DeviceAuth
+// @in header
+// @name Authorization
+// @description A paired device's token (POST /api/devices/token), as "Bearer <token>"; scope tv:read, accepted on /api/tv/* only.
 // the web manifest's own type: Go's table does not know the extension and
 // served it as text/plain, which browsers tolerate but audits flag
 func init() {
