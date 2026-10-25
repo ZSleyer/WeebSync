@@ -235,6 +235,12 @@ jobs:
           ref: ${{ needs.licenses.outputs.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # the cache must not outlive a Debian security update: ffmpeg's stage
+      # keys on the source version Debian offers now, the rootfs stage below
+      # (the shared libraries) is never taken from the cache
+      - name: Debian's ffmpeg source now
+        id: deb
+        run: echo "ffmpeg=$(tools/ci/ffmpeg-src-key.sh)" >>"$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
@@ -266,6 +272,8 @@ jobs:
             CHANNEL=dev
             COMMIT=${{ needs.licenses.outputs.sha }}
             REPO=${{ github.repository }}
+            FFMPEG_SRC_KEY=${{ steps.deb.outputs.ffmpeg }}
+          no-cache-filters: rootfs
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # signed SLSA provenance in GitHub's attestation store, checkable with

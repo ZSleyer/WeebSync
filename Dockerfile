@@ -47,7 +47,9 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # a speech synthesiser, an SVG renderer, ...): 220 MB of libraries for two
 # programs that decode, run x264, burn ASS subtitles and drive a GPU. The same
 # Debian source, patches included (so the archive's security fixes come with
-# every build), is configured here for what the player uses: all native
+# every build: CI passes FFMPEG_SRC_KEY, the versions Debian offers right now,
+# so a cached layer of an older source is never reused), is configured here
+# for what the player uses: all native
 # decoders/demuxers/filters, libx264, libass, libdav1d for AV1, VA-API, and the
 # NVENC headers (the driver is loaded at run time from the host's runtime).
 # Network is compiled in for exactly two protocols, http and tcp: a source on a
@@ -64,8 +66,10 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # packages. The Go binary needs no cross toolchain (CGO is off).
 FROM --platform=$BUILDPLATFORM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS ffmpeg
 ARG TARGETARCH
+ARG FFMPEG_SRC_KEY=
 ENV DEBIAN_FRONTEND=noninteractive
-RUN case "$TARGETARCH" in \
+RUN echo "ffmpeg source key: ${FFMPEG_SRC_KEY:-none}" \
+    && case "$TARGETARCH" in \
       amd64) echo x86_64-linux-gnu > /triple; echo amd64 > /debarch ;; \
       arm64) echo aarch64-linux-gnu > /triple; echo arm64 > /debarch ;; \
       *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
@@ -124,7 +128,12 @@ ARG TARGETARCH
 # it needs LLVM (130 MB) and is the reason the amd64 image is twice the size of
 # the arm64 one. Intel (iHD) and NVIDIA (NVENC) are not affected.
 ARG VAAPI_AMD=1
+# upgrade first: the libraries copied below include some of the base image's
+# own (zlib, liblzma, ...), and those must carry Debian's security fixes too.
+# CI never takes this stage from the build cache: a cached layer once shipped
+# libbrotli1 1.1.0-2+b7 days after 1.1.0-2+deb13u1 fixed CVE-2026-111497.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends libx264-164 libass9 libdav1d7 libva2 libva-drm2 \
     && if [ "$TARGETARCH" = amd64 ]; then apt-get install -y --no-install-recommends intel-media-va-driver; \
        if [ "$VAAPI_AMD" = 1 ]; then apt-get install -y --no-install-recommends mesa-va-drivers; fi; fi

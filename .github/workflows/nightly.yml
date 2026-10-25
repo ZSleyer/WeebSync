@@ -44,6 +44,11 @@ jobs:
           persist-credentials: false
       - if: steps.fresh.outputs.skip != 'true'
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # see ci.yml's dev-image: no cached layer may predate a Debian security update
+      - if: steps.fresh.outputs.skip != 'true'
+        name: Debian's ffmpeg source now
+        id: deb
+        run: echo "ffmpeg=$(tools/ci/ffmpeg-src-key.sh)" >>"$GITHUB_OUTPUT"
       - if: steps.fresh.outputs.skip != 'true'
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
@@ -69,6 +74,8 @@ jobs:
             CHANNEL=nightly
             COMMIT=${{ github.sha }}
             REPO=${{ github.repository }}
+            FFMPEG_SRC_KEY=${{ steps.deb.outputs.ffmpeg }}
+          no-cache-filters: rootfs
           cache-from: type=gha
           cache-to: type=gha,mode=max
       # signed SLSA provenance in GitHub's attestation store, checkable with
