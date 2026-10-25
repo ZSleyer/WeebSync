@@ -328,6 +328,14 @@
     "text": "21b0bf8146e998b8"
   },
   {
+    "name": "Brotli (in jassub's WebAssembly)",
+    "version": "1.2.0 (028fb5a2)",
+    "license": "MIT",
+    "url": "https://github.com/google/brotli/tree/028fb5a23661f123017c060daa546b55cf4bde29",
+    "source": "npm",
+    "text": "2a57418d6b10947f"
+  },
+  {
     "name": "ce-la-react",
     "version": "0.3.2",
     "license": "BSD-3-Clause",
@@ -342,6 +350,30 @@
     "url": "https://github.com/ZSleyer/WeebSync/tree/main/design-system",
     "source": "npm",
     "text": "54f10ec20ce99182"
+  },
+  {
+    "name": "FreeType (in jassub's WebAssembly)",
+    "version": "2.14.3 (0a0221a1)",
+    "license": "FTL OR GPL-2.0-or-later",
+    "url": "https://gitlab.freedesktop.org/freetype/freetype/-/tree/0a0221a1347e2f1e07c395263540026e9a0aa7c7",
+    "source": "npm",
+    "text": "aa96d4b2aa169e07"
+  },
+  {
+    "name": "FriBidi (in jassub's WebAssembly)",
+    "version": "1.0.16 (68162bab)",
+    "license": "LGPL-2.1-or-later",
+    "url": "https://github.com/fribidi/fribidi/tree/68162babff4f39c4e2dc164a5e825af93bda9983",
+    "source": "npm",
+    "text": "b64ef353265dc4a7"
+  },
+  {
+    "name": "HarfBuzz (in jassub's WebAssembly)",
+    "version": "8.5.0 (30485ee8)",
+    "license": "MIT-Modern-Variant",
+    "url": "https://github.com/harfbuzz/harfbuzz/tree/30485ee8c3d43c553afb9d78b9924cb71c8d2f19",
+    "source": "npm",
+    "text": "52bbb9bf44598471"
   },
   {
     "name": "hls.js",
@@ -373,7 +405,15 @@
     "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
     "url": "https://github.com/ThaUnknown/jassub",
     "source": "npm",
-    "text": "0a690e561c4de8d9"
+    "text": "00b45bdfd477e12d"
+  },
+  {
+    "name": "libass (in jassub's WebAssembly)",
+    "version": "0.17.4 (9898004a)",
+    "license": "ISC",
+    "url": "https://github.com/libass/libass/tree/9898004a39f79efee6d690a5ba145a93c0b70482",
+    "source": "npm",
+    "text": "76de92b0359db114"
   },
   {
     "name": "libpgs",

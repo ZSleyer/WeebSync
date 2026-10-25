@@ -82,6 +82,13 @@ not link is skipped in `go-overrides.json` with the package it belongs to
 and a reason; the generator fails as soon as that package shows up in
 `go list -deps`.
 
+An npm package can bundle more than its license file admits: jassub's
+WebAssembly links libass, FreeType, FriBidi, HarfBuzz and Brotli, but the
+package carries only jassub's MIT license. `tools/licenses/npm-overrides.json`
+adds those components (versions from the submodules jassub pins, texts in
+`tools/licenses/texts/jassub/`) for exactly one jassub version; after a
+jassub update the generator fails until the overrides are checked again.
+
 ## Stack
 
 - **Backend:** Go with the standard `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`; release names are read by `internal/relname`

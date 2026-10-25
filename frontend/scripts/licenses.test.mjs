@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   allowedBy,
+  applyNpmOverrides,
   check,
   dataEntries,
   goToolchainVersion,
@@ -204,5 +205,51 @@ describe('the Go toolchain entry', () => {
     expect(go.version).toBe(want)
     const data = JSON.parse(readFileSync(path.join(repo, 'tools/licenses/data.json'), 'utf8'))
     expect(data.find((e) => e.name === go.name).version).toBe('@go-toolchain')
+  })
+})
+
+describe('npm overrides: what a package bundles without saying so', () => {
+  const overrides = {
+    lib: {
+      version: '1.0.0',
+      texts: ['extra.txt'],
+      components: [{ name: 'inner (in lib)', version: '2', license: 'ISC', url: 'https://x', texts: ['inner.txt'] }],
+    },
+  }
+  const read = (f) => `text of ${f}`
+  const lib = { name: 'lib', version: '1.0.0', license: 'MIT', url: 'https://lib', source: 'npm', text: 'MIT of lib' }
+
+  it('appends the extra texts and lists the bundled components as entries of their own', () => {
+    const out = applyNpmOverrides([lib, { ...lib, name: 'other' }], overrides, read)
+    expect(out[0].text).toBe('MIT of lib\n\ntext of extra.txt')
+    expect(out[2]).toMatchObject({ name: 'other', text: 'MIT of lib' })
+    expect(out[1]).toEqual({
+      name: 'inner (in lib)',
+      version: '2',
+      license: 'ISC',
+      url: 'https://x',
+      source: 'npm',
+      text: 'text of inner.txt',
+    })
+  })
+
+  it('fails when the bundle has another version than the overrides describe', () => {
+    expect(() => applyNpmOverrides([{ ...lib, version: '1.1.0' }], overrides, read)).toThrow(
+      /describes lib 1.0.0, the bundle has 1.1.0/,
+    )
+    // a package that is not in the bundle adds nothing
+    expect(applyNpmOverrides([], overrides, read)).toEqual([])
+  })
+
+  it('the committed inventory credits FreeType and carries the LGPL of FriBidi', () => {
+    const inv = JSON.parse(readFileSync(path.join(repo, 'frontend/src/licenses/inventory.json'), 'utf8'))
+    const texts = JSON.parse(readFileSync(path.join(repo, 'frontend/src/licenses/texts.json'), 'utf8'))
+    const textOf = (name) => texts[inv.find((e) => e.name === name).text]
+    expect(textOf("FreeType (in jassub's WebAssembly)")).toContain(
+      'Portions of this software are copyright © 2026 The FreeType Project',
+    )
+    expect(textOf("FriBidi (in jassub's WebAssembly)")).toContain('GNU LESSER GENERAL PUBLIC LICENSE')
+    for (const n of ['libass', 'HarfBuzz', 'Brotli']) expect(textOf(`${n} (in jassub's WebAssembly)`)).toBeTruthy()
+    expect(textOf('jassub')).toContain('License: LGPL-2.1')
   })
 })

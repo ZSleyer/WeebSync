@@ -128,7 +128,32 @@ export function npmEntries(ids, opts, also = ALSO_SHIPPED) {
       text: noticeText(root) || standardText(pkg, spdx(pkg)),
     })
   }
-  return [...out.values()]
+  return applyNpmOverrides([...out.values()], readOverrides())
+}
+
+const readOverrides = () => JSON.parse(readFileSync(path.join(TOOLS, 'npm-overrides.json'), 'utf8'))
+
+// applyNpmOverrides: some packages bundle more than their license file says
+// (jassub's WebAssembly links libass, FreeType, FriBidi, ...). The overrides
+// in tools/licenses/npm-overrides.json append texts to such a package and add
+// what it bundles as entries of their own. They describe one version: a
+// different one in the bundle fails, so they are looked at again.
+export function applyNpmOverrides(entries, overrides, read = (f) => readFileSync(path.join(REPO, f), 'utf8')) {
+  const out = []
+  for (const e of entries) {
+    const o = overrides[e.name]
+    if (!o) {
+      out.push(e)
+      continue
+    }
+    if (o.version !== e.version)
+      throw new Error(`npm-overrides.json describes ${e.name} ${o.version}, the bundle has ${e.version}: update it`)
+    const texts = (fs) => (fs ?? []).map((f) => normText(read(f)))
+    out.push({ ...e, text: [e.text, ...texts(o.texts)].filter(Boolean).join('\n\n') })
+    for (const { texts: files, ...c } of o.components ?? [])
+      out.push({ ...c, source: 'npm', text: texts(files).join('\n\n') })
+  }
+  return out
 }
 
 // licenseInventory: the Vite plugin. With WEEBSYNC_LICENSES_NPM set, a build

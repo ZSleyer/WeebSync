@@ -25,6 +25,10 @@
       "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
       "why": "The subtitle renderer: libass and the libraries it builds on, compiled to WebAssembly and shipped unmodified from the npm package. Its LGPL-2.1-or-later part is compatible with the AGPL-3.0 app, whose complete source is published anyway; FreeType is taken under FTL."
     },
+    "FriBidi (in jassub's WebAssembly)": {
+      "license": "LGPL-2.1-or-later",
+      "why": "The bidirectional text algorithm libass uses, linked into jassub's WebAssembly (listed from tools/licenses/npm-overrides.json). LGPL-2.1-or-later is compatible with the AGPL-3.0 app, whose complete source is published; its full text ships with the entry."
+    },
     "rvfc-polyfill": {
       "license": "GPL-3.0",
       "why": "A requestVideoFrameCallback polyfill pulled in by jassub. Section 13 of both the GPL-3.0 and the AGPL-3.0 explicitly permits combining a GPL-3.0 work with an AGPL-3.0 work; the combination is conveyed under the AGPL-3.0 with the polyfill's own terms kept for its part."
