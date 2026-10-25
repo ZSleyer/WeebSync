@@ -524,6 +524,13 @@
   right: 0.25rem;
   background: color-mix(in srgb, var(--card) 80%, transparent);
 }
+/* on a cover a small mark: a touch still gets the design system's 44px hit
+   area around it (t-iconbtn ::before), and 28px clears the 24px of WCAG 2.5.8 */
+.w-grid:not(.as-list) .w-more {
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 1rem;
+}
 .w-grid.as-list .w-more {
   top: 50%;
   transform: translateY(-50%);
