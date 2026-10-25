@@ -151,13 +151,21 @@ export function NewShelf({
                         label: t('dash.removeSelected'),
                         icon: <Trash2 {...ico} />,
                         danger: true,
-                        onClick: () => remove.mutate(d.id),
+                        onClick: () =>
+                          remove.mutate(d.id, {
+                            // the tile leaves the shelf: the focus moves on to
+                            // its neighbour instead of falling to the page
+                            onSuccess: () => {
+                              const near = shelf[i + 1] ?? shelf[i - 1]
+                              if (near) tiles.current.get(near.d.id)?.focus({ preventScroll: true })
+                            },
+                          }),
                       },
                     ],
                   })
                 }
-                // a mouse's right click, and the keyboard's menu key or
-                // Shift+F10, which raise contextmenu on the focused tile
+                // a mouse's right click, and the keyboard's context menu key
+                // (MDN, Element: contextmenu event, read 2026-10-25)
                 const onContextMenu = (e: MouseEvent) => {
                   e.preventDefault()
                   menu()

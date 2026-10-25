@@ -151,6 +151,24 @@ describe('the "new here" menu', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /Frieren/ })).toBeNull())
   })
 
+  it('moves the focus on to the next tile once a removed one leaves the shelf', async () => {
+    const { d, meta } = dl({})
+    meta.groups.g1 = { ...meta.groups.g1, watchId: 7 } as never
+    meta.groups.g2 = { title: 'Dandadan' } as never
+    meta.items['2'] = { g: 'g2', episode: 5 } as never
+    const other = { ...d, id: 2, localPath: '/media/Dan/Dan - 05.mkv', finishedAt: '2026-10-12 10:00:00' } as Download
+    const list = [d, other]
+    vi.spyOn(api, 'del').mockImplementation(() => {
+      list.splice(0, 1)
+      return Promise.resolve(undefined as never)
+    })
+    render(wrap(<Page list={list} meta={meta} />))
+    fireEvent.contextMenu(await screen.findByRole('button', { name: /Frieren/ }))
+    fireEvent.click(within(menu()).getByRole('button', { name: 'dash.removeSelected' }))
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Frieren/ })).toBeNull())
+    expect(screen.getByRole('button', { name: /Dandadan/ })).toHaveFocus()
+  })
+
   it('says so when the removal fails, and the tile stays', async () => {
     mount()
     const del = vi.spyOn(api, 'del').mockRejectedValue(new Error('nope'))
