@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ch4d1/weebsync/internal/auth"
 	"github.com/ch4d1/weebsync/internal/db"
 )
 
@@ -104,6 +105,43 @@ func TestPairingCapHoldsUnderConcurrency(t *testing.T) {
 	}
 	if ok > maxPendingPerSource || rows > maxPendingPerSource {
 		t.Errorf("%d concurrent pairings from one address: %d answered 200, %d rows; want at most %d", n, ok, rows, maxPendingPerSource)
+	}
+}
+
+// Stale is measured from the last sign of life against the row's own
+// interval: polled once and then silent is evictable, a TV slowed to 60 s
+// that keeps polling at that pace is not.
+func TestPairingEvictsByStaleness(t *testing.T) {
+	dt := newDeviceTest(t)
+	old := pendingPairingCap
+	pendingPairingCap = 2
+	t.Cleanup(func() { pendingPairingCap = old })
+	silent, slowed := dt.pair(""), dt.pair("")
+	nowMs := time.Now().UnixMilli()
+	set := func(code pairOut, interval int, lastPollAgo time.Duration) {
+		t.Helper()
+		if _, err := dt.s.DB.Exec(`UPDATE device_pairings SET created_at = created_at - 300, poll_interval = ?, last_poll_ms = ?
+			WHERE device_code_hash = ?`, interval, nowMs-lastPollAgo.Milliseconds(), auth.TokenHash(code.DeviceCode)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(silent, 5, time.Minute)     // one poll a minute ago, nothing since
+	set(slowed, 60, 70*time.Second) // inside 2 × 60 s + 5 s
+	if code := dt.pairFrom("192.0.2.220"); code != http.StatusOK {
+		t.Fatalf("at the cap with a silent pairing: %d, want 200", code)
+	}
+	left := func(code pairOut) bool {
+		var n int
+		if err := dt.s.DB.QueryRow(`SELECT COUNT(*) FROM device_pairings WHERE device_code_hash = ?`, auth.TokenHash(code.DeviceCode)).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n == 1
+	}
+	if left(silent) {
+		t.Error("the pairing polled once and then silent was not evicted")
+	}
+	if !left(slowed) {
+		t.Error("the slowed pairing polling at its interval was evicted")
 	}
 }
 

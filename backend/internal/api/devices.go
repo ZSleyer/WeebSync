@@ -51,10 +51,11 @@ const (
 	// a household pairs one TV at a time, a block of /64s is one party
 	maxPendingPerSource = 5
 	maxPendingPerWide   = 20
-	// a pairing nobody polled this long after it began has no TV behind it
-	// (a real one polls within its interval): the global cap evicts those
-	pairAbandonedAfter = 15 * time.Second
-	tvScope            = "tv:read"
+	// a pending pairing silent for twice its interval plus this many seconds
+	// (since its last poll, or its start if never polled) has no TV behind
+	// it: a real one polls every interval. The global cap evicts those.
+	pairStaleGrace = 5
+	tvScope        = "tv:read"
 	// how often a token's last use is written at most
 	deviceSeenEvery = time.Minute
 	deviceNameMax   = 64
@@ -231,8 +232,9 @@ var (
 // pairingRoom says whether a new pairing from source fits: the source and its
 // IPv6 /48 below their share of open pairings, and the instance below its cap.
 // Only pending rows count; approved and denied ones wait for one last poll
-// and hold nothing. At the cap, the oldest pairings no device ever polled are
-// evicted first: a real TV polls within seconds, so those are filler.
+// and hold nothing. At the cap, the pairings silent the longest past their
+// own polling interval are evicted first: a real TV keeps polling, so those
+// are filler or abandoned.
 func pairingRoom(tx *sql.Tx, now time.Time, source, wide string) (bool, error) {
 	live := now.Unix()
 	var own, block, all int
@@ -249,11 +251,15 @@ func pairingRoom(tx *sql.Tx, now time.Time, source, wide string) (bool, error) {
 	if all < pendingPairingCap {
 		return true, nil
 	}
+	// stale: no poll (or, never polled, no start) for twice the row's own
+	// interval plus a grace; the stored interval, because slow_down raises
+	// it up to a minute and a slowed TV still counts as alive
 	res, err := tx.Exec(`DELETE FROM device_pairings WHERE id IN (
 			SELECT id FROM device_pairings
-			WHERE status = 'pending' AND expires_at > ? AND last_poll_ms = 0 AND created_at <= ?
-			ORDER BY created_at, id LIMIT ?)`,
-		live, now.Add(-pairAbandonedAfter).Unix(), all-pendingPairingCap+1)
+			WHERE status = 'pending' AND expires_at > ?
+			  AND ? - max(last_poll_ms, created_at * 1000) > (2 * poll_interval + ?) * 1000
+			ORDER BY max(last_poll_ms, created_at * 1000), id LIMIT ?)`,
+		live, now.UnixMilli(), pairStaleGrace, all-pendingPairingCap+1)
 	if err != nil {
 		return false, err
 	}

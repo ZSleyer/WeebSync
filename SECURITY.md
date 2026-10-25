@@ -116,8 +116,10 @@ authorization grant, RFC 8628 (https://www.rfc-editor.org/rfc/rfc8628, read
   trusted-network exemption, checked before the code is looked up) and the
   address (10, then 5 a minute). Starting a pairing and polling are limited
   per address. At most 5 pairings are open per address (IPv6: per /64) and
-  20 per IPv6 /48, and 500 on the whole instance; at that cap the oldest
-  pairings no device has polled 15 s after they began make room. There is no list of
+  20 per IPv6 /48, and 500 on the whole instance; at that cap the pairings
+  silent longest past twice their own polling interval plus 5 s make room.
+  Accepted gap: someone with about a hundred IPv4 addresses that keep polling
+  can still hold the instance cap and block new pairings while they do. There is no list of
   pending pairings: only the code on the device binds it, to the account that
   types it.
 - A token carries the scope `tv:read`, is accepted on `/api/tv/*` only (no
