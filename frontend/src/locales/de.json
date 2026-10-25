@@ -1776,6 +1776,8 @@
     "motion": "Animationen",
     "todayJump": "Von Heute direkt zur Folge springen",
     "language": "Sprache",
+    "language_system": "System",
+    "languageHint": "„System“ folgt der Spracheinstellung des Browsers. Gibt es für keine der dort gewählten Sprachen eine Übersetzung, gilt Englisch.",
     "notifications": "Push-Benachrichtigungen",
     "pushEnable": "Push auf diesem Gerät",
     "pushHint": "Meldung bei fertigen oder fehlgeschlagenen Downloads. Auf iOS erst nach \"Zum Home-Bildschirm hinzufügen\" verfügbar.",

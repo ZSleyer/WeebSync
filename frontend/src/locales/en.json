@@ -1776,6 +1776,8 @@
     "motion": "Animations",
     "todayJump": "Jump to the episode from Today",
     "language": "Language",
+    "language_system": "System",
+    "languageHint": "\"System\" follows the browser's language setting. When none of the languages chosen there has a translation, English is used.",
     "notifications": "Push notifications",
     "pushEnable": "Push on this device",
     "pushHint": "Notifies on finished or failed downloads. On iOS available after \"Add to Home Screen\".",

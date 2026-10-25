@@ -2,7 +2,7 @@ import { useId, useRef, useState, type KeyboardEvent } from 'react'
 import { flushSync } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { revealTransition, Segmented, SettingsField } from 'fluid-lycoris'
-import { LOCALES } from '../../locales'
+import { LOCALES, readLocalePref, setLocalePref, type LocalePref } from '../../locales'
 import { applyTheme, readThemePref, THEME_KEY, type ThemePref } from '../../theme'
 import { applyScheme, SCHEME_KEY, SCHEMES, type Scheme } from '../../scheme'
 import { SettingsPanel, SwitchSetting } from './ui'
@@ -22,16 +22,20 @@ const THEMES: ThemePref[] = ['system', 'dark', 'light']
 // Every choice here applies at once and is the preview of itself: the page
 // is painted in the scheme it picks. Stored per browser, no save button.
 export default function Look() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const root = document.documentElement
   const [theme, setTheme] = useState<ThemePref>(readThemePref)
   const [scheme, setScheme] = useState<Scheme>(root.dataset.scheme === 'recoil' ? 'recoil' : 'lycoris')
   const [jump, setJump] = useTodayJump()
   const [motion, setMotion] = useState(root.dataset.motion !== 'off')
-  const lang = LOCALES.find((l) => i18n.language.startsWith(l.code))?.code ?? LOCALES[0].code
+  const [lang, setLang] = useState<LocalePref>(readLocalePref)
   const schemeLabel = useId()
   const cards = useRef<(HTMLButtonElement | null)[]>([])
 
+  const pickLang = (l: LocalePref) => {
+    setLang(l)
+    void setLocalePref(l)
+  }
   const pickTheme = (th: ThemePref) => {
     setTheme(th)
     applyTheme(th)
@@ -69,12 +73,15 @@ export default function Look() {
 
   return (
     <SettingsPanel title={t('settings.look')} desc={t('settings.lookDesc')}>
-      <SettingsField label={t('settings.language')}>
+      <SettingsField label={t('settings.language')} hint={t('settings.languageHint')}>
         <Segmented
           aria-label={t('settings.language')}
           value={lang}
-          onChange={(code) => i18n.changeLanguage(code)}
-          options={LOCALES.map((l) => ({ value: l.code, label: l.label }))}
+          onChange={pickLang}
+          options={[
+            { value: 'system', label: t('settings.language_system') },
+            ...LOCALES.map((l) => ({ value: l.code, label: l.label })),
+          ]}
         />
       </SettingsField>
       <SettingsField label={t('settings.theme')}>
