@@ -68,6 +68,22 @@ func TestPairingCapsPerSource(t *testing.T) {
 	})
 }
 
+// A deny that loses the race (the pairing was approved between the lookup
+// and the write) says so instead of reporting a refusal that did not happen.
+func TestDeviceDenyLosingTheRace(t *testing.T) {
+	dt := newDeviceTest(t)
+	p := dt.pair("")
+	// the approval lands in between: the deny's write finds no pending row
+	if _, err := dt.s.DB.Exec(`CREATE TEMP TRIGGER approve_first BEFORE UPDATE OF status ON device_pairings
+		WHEN NEW.status = 'denied' BEGIN SELECT RAISE(IGNORE); END`); err != nil {
+		t.Fatal(err)
+	}
+	rec := dt.do("POST", "/api/devices/deny", fmt.Sprintf(`{"userCode":%q}`, p.UserCode), dt.alice, "", dt.freshIP())
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("deny that changed nothing: %d %s, want 404", rec.Code, rec.Body)
+	}
+}
+
 // At the global cap the oldest pairings no device ever polled make room; only
 // when every open pairing is in use is a new one refused.
 func TestPairingGlobalCapEvicts(t *testing.T) {

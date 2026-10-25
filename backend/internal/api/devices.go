@@ -498,8 +498,19 @@ func (s *Server) handleDeviceDeny(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if _, err := s.DB.Exec(`UPDATE device_pairings SET status = 'denied' WHERE id = ? AND status = 'pending'`, id); err != nil {
+	res, err := s.DB.Exec(`UPDATE device_pairings SET status = 'denied' WHERE id = ? AND status = 'pending'`, id)
+	if err != nil {
 		dbErr(w, err)
+		return
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		dbErr(w, err)
+		return
+	}
+	// approved, denied or expired in the meantime: nothing was declined
+	if n != 1 {
+		writeErr(w, http.StatusNotFound, "unknown or expired code")
 		return
 	}
 	writeJSON(w, http.StatusOK, OkResponse{Status: "ok"})
