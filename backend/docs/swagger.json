@@ -12889,7 +12889,7 @@
         },
         "/api/auth/sessions/others": {
             "delete": {
-                "description": "Signs every browser of the account out except this one.",
+                "description": "Signs every browser of the account out except this one, and revokes the account's paired devices.",
                 "responses": {
                     "200": {
                         "content": {

@@ -1,10 +1,32 @@
 package auth
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log/slog"
 	"net/http"
+
+	"github.com/ch4d1/weebsync/internal/db"
 )
+
+// sessionUsers lists the users holding a session whose col (oidc_sid or
+// oidc_sub, never caller input) equals val.
+func sessionUsers(tx *sql.Tx, col, val string) ([]int64, error) {
+	rows, err := tx.Query(`SELECT DISTINCT user_id FROM sessions WHERE `+col+` = ?`, val)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var users []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		users = append(users, id)
+	}
+	return users, rows.Err()
+}
 
 // backchannelEvent is the member a logout token must carry in its "events"
 // claim. Anything else with a valid signature is some other kind of token and
@@ -68,21 +90,33 @@ func (m *Manager) BackchannelLogoutHandler(w http.ResponseWriter, r *http.Reques
 
 	// sid ends one login, sub ends every login of that user at this provider -
 	// which is what a provider means when it sends no sid
+	// The users behind the ended sessions lose their paired devices too, in
+	// the same transaction: the provider signed them out everywhere.
+	col, val := "oidc_sid", claims.SID
+	if claims.SID == "" {
+		col, val = "oidc_sub", tok.Subject
+	}
 	var n int64
-	if claims.SID != "" {
-		res, err := m.DB.Exec(`DELETE FROM sessions WHERE oidc_sid = ?`, claims.SID)
+	err = db.Tx(m.DB, func(tx *sql.Tx) error {
+		users, err := sessionUsers(tx, col, val)
 		if err != nil {
-			http.Error(w, "db error", http.StatusInternalServerError)
-			return
+			return err
+		}
+		res, err := tx.Exec(`DELETE FROM sessions WHERE `+col+` = ?`, val)
+		if err != nil {
+			return err
 		}
 		n, _ = res.RowsAffected()
-	} else {
-		res, err := m.DB.Exec(`DELETE FROM sessions WHERE oidc_sub = ?`, tok.Subject)
-		if err != nil {
-			http.Error(w, "db error", http.StatusInternalServerError)
-			return
+		for _, id := range users {
+			if err := RevokeDevices(tx, id); err != nil {
+				return err
+			}
 		}
-		n, _ = res.RowsAffected()
+		return nil
+	})
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
 	}
 	slog.Info("oidc back-channel logout", "sessions", n, "bySid", claims.SID != "")
 	w.WriteHeader(http.StatusOK)

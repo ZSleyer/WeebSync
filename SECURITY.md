@@ -124,7 +124,9 @@ authorization grant, RFC 8628 (https://www.rfc-editor.org/rfc/rfc8628, read
   other route reads it, and those routes take no session cookie), and reads
   only its own account's watches and downloads. It is looked up by its hash.
   Revoking it, deleting the account (the tokens go with it) or the account
-  not being approved refuses it with 401. Last use and address are stamped at
+  not being approved refuses it with 401. A new password (own or set by an
+  admin), "end all other sessions" and an OIDC back-channel logout revoke the
+  account's devices and approved pairings in the same transaction. Last use and address are stamped at
   most once a minute and shown in the account's device list.
 - The panel tells the user to enter only a code their own device shows
   (section 5.4, remote phishing). A device that leaks its token exposes the

@@ -1,10 +1,12 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 	"regexp"
 
 	"github.com/ch4d1/weebsync/internal/auth"
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 // sessionInfo is one signed-in browser of the account. ID is a prefix of the
@@ -109,7 +111,7 @@ type sessionsEndedResponse struct {
 // handleSessionsEndOthers signs every other browser of the account out.
 //
 //	@Summary		End all other sessions
-//	@Description	Signs every browser of the account out except this one.
+//	@Description	Signs every browser of the account out except this one, and revokes the account's paired devices.
 //	@Tags			Auth
 //	@Produce		json
 //	@Success		200	{object}	sessionsEndedResponse
@@ -119,12 +121,19 @@ type sessionsEndedResponse struct {
 func (s *Server) handleSessionsEndOthers(w http.ResponseWriter, r *http.Request) {
 	u := auth.UserFrom(r.Context())
 	cur := auth.TokenHash(auth.SessionToken(r))
-	res, err := s.DB.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`,
-		u.ID, cur)
+	// the paired devices end with the other browsers, in one transaction
+	var n int64
+	err := db.Tx(s.DB, func(tx *sql.Tx) error {
+		res, err := tx.Exec(`DELETE FROM sessions WHERE user_id = ? AND token_hash != ?`, u.ID, cur)
+		if err != nil {
+			return err
+		}
+		n, _ = res.RowsAffected()
+		return auth.RevokeDevices(tx, u.ID)
+	})
 	if err != nil {
 		dbErr(w, err)
 		return
 	}
-	n, _ := res.RowsAffected()
 	writeJSON(w, http.StatusOK, sessionsEndedResponse{Ended: n})
 }
