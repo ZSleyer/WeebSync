@@ -144,6 +144,13 @@ type Server struct {
 	challengeLimiter *ipLimiter
 	// replies and likes on AniList, per user: a few a minute
 	socialLimiter *ipLimiter
+	// device pairing (devices.go): starting one and polling for its token
+	// per address, approving per address and per account; the account one
+	// has no trusted-network exemption, it is what bounds code guessing
+	pairLimiter        *ipLimiter
+	deviceTokenLimiter *ipLimiter
+	approveIPLimiter   *ipLimiter
+	approveUserLimiter *ipLimiter
 
 	// pending download-notification digests: "userID|category" → items, plus
 	// the flush timer each key is waiting on (restarted on every new item)
@@ -246,6 +253,28 @@ func (s *Server) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/begin", s.authLimiter.limit(s.handleWebAuthn2FABegin))
 	mux.HandleFunc("POST /api/auth/webauthn/2fa/finish", s.authLimiter.limit(s.handleWebAuthn2FAFinish))
 	mux.Handle("GET /api/auth/me", authed(http.HandlerFunc(s.handleMe)))
+	// paired read-only devices (a TV launcher), RFC 8628 style; see devices.go
+	if s.pairLimiter == nil {
+		s.pairLimiter = newIPLimiter(6, 10, s.ipTrusted)
+	}
+	// a TV polls every 5 s; a household behind one address has a few
+	if s.deviceTokenLimiter == nil {
+		s.deviceTokenLimiter = newIPLimiter(60, 30, s.ipTrusted)
+	}
+	if s.approveIPLimiter == nil {
+		s.approveIPLimiter = newIPLimiter(5, 10, s.ipTrusted)
+	}
+	// five tries, then one every two minutes: about ten in a code's ten
+	// minutes, against 20^8 codes
+	if s.approveUserLimiter == nil {
+		s.approveUserLimiter = newIPLimiter(0.5, 5, nil)
+	}
+	mux.HandleFunc("POST /api/devices/pair", s.pairLimiter.limit(s.handleDevicePair))
+	mux.HandleFunc("POST /api/devices/token", s.deviceTokenLimiter.limit(s.handleDeviceToken))
+	mux.Handle("POST /api/devices/approve", authed(s.approveIPLimiter.limit(s.handleDeviceApprove)))
+	mux.Handle("POST /api/devices/deny", authed(s.approveIPLimiter.limit(s.handleDeviceDeny)))
+	mux.Handle("GET /api/devices", authed(http.HandlerFunc(s.handleDevicesList)))
+	mux.Handle("DELETE /api/devices/{id}", authed(http.HandlerFunc(s.handleDeviceDelete)))
 	mux.Handle("GET /api/auth/sessions", authed(http.HandlerFunc(s.handleSessionsList)))
 	mux.Handle("DELETE /api/auth/sessions/others", authed(http.HandlerFunc(s.handleSessionsEndOthers)))
 	mux.Handle("DELETE /api/auth/sessions/{id}", authed(http.HandlerFunc(s.handleSessionDelete)))

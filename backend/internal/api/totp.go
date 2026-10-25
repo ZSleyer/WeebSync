@@ -427,7 +427,14 @@ const codeAlphabet = "abcdefghjkmnpqrstuvwxyz23456789"
 // randSymbols draws n symbols of codeAlphabet from src by rejection sampling:
 // bytes from 248 up (the incomplete last round of 31) are dropped.
 func randSymbols(src io.Reader, n int) ([]byte, error) {
-	const limit = 256 / len(codeAlphabet) * len(codeAlphabet)
+	return randFrom(src, codeAlphabet, n)
+}
+
+// randFrom draws n symbols of alphabet (at most 256 of them) from src by
+// rejection sampling: bytes past the last whole round of len(alphabet) are
+// dropped, so no symbol is more likely than another.
+func randFrom(src io.Reader, alphabet string, n int) ([]byte, error) {
+	limit := 256 / len(alphabet) * len(alphabet)
 	out := make([]byte, 0, n)
 	buf := make([]byte, n)
 	for len(out) < n {
@@ -436,7 +443,7 @@ func randSymbols(src io.Reader, n int) ([]byte, error) {
 		}
 		for _, v := range buf[:n-len(out)] {
 			if int(v) < limit {
-				out = append(out, codeAlphabet[int(v)%len(codeAlphabet)])
+				out = append(out, alphabet[int(v)%len(alphabet)])
 			}
 		}
 	}
