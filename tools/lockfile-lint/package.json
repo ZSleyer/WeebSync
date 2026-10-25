@@ -3,7 +3,7 @@
   "private": true,
   "description": "Runs lockfile-lint on frontend/yarn.lock before the frontend install, with its own pinned tree.",
   "dependencies": {
-    "lockfile-lint": "5.0.1"
+    "lockfile-lint": "5.1.0"
   },
   "packageManager": "yarn@4.18.1"
 }

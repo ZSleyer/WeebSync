@@ -20,8 +20,9 @@ import { fileURLToPath } from 'node:url'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const FRONTEND = path.resolve(HERE, '..')
 const REPO = path.resolve(FRONTEND, '..')
-const DESIGN_SYSTEM = path.join(REPO, 'design-system')
-const DESIGN_SYSTEM_URL = 'https://github.com/ZSleyer/WeebSync/tree/main/design-system'
+// packages of this repository: WeebSync's own code under its AGPL-3.0, not
+// third-party (the design system fluid-lycoris lives in design-system/)
+const OWN_PACKAGES = new Set(['fluid-lycoris'])
 const TOOLS = path.join(REPO, 'tools', 'licenses')
 const OUT = path.join(FRONTEND, 'src', 'licenses')
 
@@ -36,15 +37,14 @@ export const normText = (t) =>
 export const textId = (t) => createHash('sha256').update(t).digest('hex').slice(0, 16)
 
 // packageRoot maps a module id to the directory of the package it belongs to,
-// or null for the app's own code. Scoped names span two path segments.
-export function packageRoot(id, { designSystem = DESIGN_SYSTEM, resolveVirtual = virtualRoot } = {}) {
+// or null for the app's own code (frontend/src and the design system in
+// design-system/, both outside node_modules). Scoped names span two path
+// segments.
+export function packageRoot(id, { resolveVirtual = virtualRoot } = {}) {
   if (id.startsWith('\0') || !path.isAbsolute(id)) return resolveVirtual(id)
   const file = id.split('?')[0]
   const at = file.lastIndexOf(`${path.sep}node_modules${path.sep}`)
-  if (at < 0) {
-    const rel = path.relative(designSystem, file)
-    return rel && !rel.startsWith('..') && !path.isAbsolute(rel) ? designSystem : null
-  }
+  if (at < 0) return null
   const rest = file.slice(at + '/node_modules/'.length).split(path.sep)
   const segs = rest[0].startsWith('@') ? 2 : 1
   return file.slice(0, at + '/node_modules/'.length) + rest.slice(0, segs).join(path.sep)
@@ -117,13 +117,12 @@ export function npmEntries(ids, opts, also = ALSO_SHIPPED) {
   for (const root of roots) {
     const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'))
     const key = `${pkg.name}@${pkg.version}`
-    if (out.has(key)) continue
+    if (out.has(key) || OWN_PACKAGES.has(pkg.name)) continue
     out.set(key, {
       name: pkg.name,
       version: pkg.version,
       license: spdx(pkg),
-      // the design system lives in this repository and has no repository field
-      url: root === DESIGN_SYSTEM ? DESIGN_SYSTEM_URL : repoUrl(pkg),
+      url: repoUrl(pkg),
       source: 'npm',
       text: noticeText(root) || standardText(pkg, spdx(pkg)),
     })
@@ -137,8 +136,15 @@ const readOverrides = () => JSON.parse(readFileSync(path.join(TOOLS, 'npm-overri
 // (jassub's WebAssembly links libass, FreeType, FriBidi, ...). The overrides
 // in tools/licenses/npm-overrides.json append texts to such a package and add
 // what it bundles as entries of their own. They describe one version: a
-// different one in the bundle fails, so they are looked at again.
-export function applyNpmOverrides(entries, overrides, read = (f) => readFileSync(path.join(REPO, f), 'utf8')) {
+// different one in the bundle fails, so they are looked at again. On a
+// branch (WEEBSYNC_LICENSES_LENIENT=1, set by CI off main) it only warns, so
+// a dependency bump stays mergeable; main keeps failing until it is updated.
+export function applyNpmOverrides(
+  entries,
+  overrides,
+  read = (f) => readFileSync(path.join(REPO, f), 'utf8'),
+  lenient = process.env.WEEBSYNC_LICENSES_LENIENT === '1',
+) {
   const out = []
   for (const e of entries) {
     const o = overrides[e.name]
@@ -146,8 +152,12 @@ export function applyNpmOverrides(entries, overrides, read = (f) => readFileSync
       out.push(e)
       continue
     }
-    if (o.version !== e.version)
-      throw new Error(`npm-overrides.json describes ${e.name} ${o.version}, the bundle has ${e.version}: update it`)
+    // one version, or the list of those checked to bundle the same
+    if (![o.version].flat().includes(e.version)) {
+      const msg = `npm-overrides.json describes ${e.name} ${[o.version].flat().join(', ')}, the bundle has ${e.version}: update it`
+      if (!lenient) throw new Error(msg)
+      console.warn(`::warning::${msg}`)
+    }
     const texts = (fs) => (fs ?? []).map((f) => normText(read(f)))
     out.push({ ...e, text: [e.text, ...texts(o.texts)].filter(Boolean).join('\n\n') })
     for (const { texts: files, ...c } of o.components ?? [])

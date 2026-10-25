@@ -69,7 +69,12 @@ tools/licenses/generate.sh        # writes frontend/src/licenses/{inventory,text
 tools/licenses/generate.sh --check   # only the allowlist check
 ```
 
-CI regenerates and fails on a diff. The check refuses any license outside
+CI regenerates it on every push. On a branch or pull request a changed
+inventory is only a notice, so a dependency bump stays mergeable; on main
+the `licenses` job commits the regenerated files back to main (a commit
+GitHub signs, made through `createCommitOnBranch`, which starts no new run)
+and `dev-image` builds that commit. A local main is then one commit behind:
+`git pull --ff-only` before the next push. The check refuses any license outside
 `tools/licenses/allowlist.json`; copyleft packages are allowed one by one
 there, each with its exact license string and the reason. A Go package whose
 license file go-licenses cannot place (the vendored RAR decoder) gets its
@@ -86,8 +91,10 @@ An npm package can bundle more than its license file admits: jassub's
 WebAssembly links libass, FreeType, FriBidi, HarfBuzz and Brotli, but the
 package carries only jassub's MIT license. `tools/licenses/npm-overrides.json`
 adds those components (versions from the submodules jassub pins, texts in
-`tools/licenses/texts/jassub/`) for exactly one jassub version; after a
-jassub update the generator fails until the overrides are checked again.
+`tools/licenses/texts/jassub/`) for the jassub versions listed there, each
+checked to pin the same submodules. After a jassub update a branch only
+warns, but main fails (and builds no image) until the new version is checked
+and added, so no image ships notices that may not match.
 
 ## Stack
 

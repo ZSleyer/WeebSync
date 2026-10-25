@@ -127,13 +127,19 @@ jobs:
         run: yarn build
 
   # The third-party license inventory on the About page: regenerated from the
-  # Go module graph (go-licenses, pinned) and the production bundle, then it
-  # has to match what is committed and stay within tools/licenses/allowlist.json.
-  # After the frontend job, so the install only runs on a lockfile that
-  # passed the source check there.
+  # Go module graph (go-licenses, pinned) and the production bundle; it has to
+  # stay within tools/licenses/allowlist.json on every branch. A changed
+  # inventory does not fail a branch or pull request (a dependency bump stays
+  # mergeable): main regenerates it and commits it back before dev-image
+  # builds, and hands that commit on. After the frontend job, so the install
+  # only runs on a lockfile that passed the source check there.
   licenses:
     needs: [frontend]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # main only: the inventory commit; branches never write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -152,11 +158,24 @@ jobs:
         run: |
           yarn install --immutable
           ln -sfn "$PWD/node_modules" ../design-system/node_modules
-      - name: license inventory in sync and allowed
+      - name: license inventory allowed
+        env:
+          # off main a stale npm override only warns; main keeps failing on it
+          WEEBSYNC_LICENSES_LENIENT: ${{ github.ref != 'refs/heads/main' && '1' || '' }}
+        run: tools/licenses/generate.sh
+      - name: inventory differs from the committed one
+        if: github.ref != 'refs/heads/main'
         run: |
-          tools/licenses/generate.sh
-          git diff --exit-code frontend/src/licenses/ \
-            || { echo "License inventory out of date - run tools/licenses/generate.sh and commit frontend/src/licenses/"; exit 1; }
+          git diff --quiet frontend/src/licenses/ \
+            || echo "::notice::The license inventory changes with this branch; main regenerates and commits it before the image is built"
+      - name: commit the inventory to main
+        id: commit
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.sha }}
+        run: tools/licenses/commit-inventory.sh
 
   security:
     runs-on: ubuntu-latest
@@ -200,7 +219,8 @@ jobs:
   # at most one update a day; :dev is the fast lane while a change is being
   # worked on. The nightly cleanup excludes :dev by name - see nightly.yml.
   dev-image:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # no sha: a newer push to main superseded this run, which builds instead
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.licenses.outputs.sha != ''
     needs: [backend, frontend, licenses, security]
     runs-on: ubuntu-latest
     permissions:
@@ -209,8 +229,10 @@ jobs:
       id-token: write # Sigstore certificate for the attestation
       attestations: write
     steps:
+      # the commit the licenses job left: main plus its updated inventory
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.licenses.outputs.sha }}
           persist-credentials: false
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -239,7 +261,7 @@ jobs:
           build-args: |
             VERSION=dev
             CHANNEL=dev
-            COMMIT=${{ github.sha }}
+            COMMIT=${{ needs.licenses.outputs.sha }}
             REPO=${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
