@@ -241,25 +241,6 @@ span.td-pn { cursor: default; }
   .td-status > span { gap: 0.5rem; }
 }
 
-/* the caption around the band morph: cut away by a wipe first, cut back in
-   last (the series card's provider runs the transition) */
-::view-transition-image-pair(fl-cap) { background: linear-gradient(var(--fg), var(--fg)) no-repeat; background-size: 0% 100%; }
-::view-transition-group(fl-cap) { animation-duration: 180ms; }
-::view-transition-old(fl-cap) { animation: td-cap-cut 180ms linear both; }
-::view-transition-new(fl-cap) { animation: td-cap-reveal 320ms linear 300ms both; }
-@keyframes td-cap-cut {
-  0% { clip-path: inset(0 0 0 0); animation-timing-function: cubic-bezier(0.7, 0, 0.3, 1); }
-  50%, 100% { clip-path: inset(0 0 0 100%); }
-}
-@keyframes td-cap-reveal {
-  0%, 50% { clip-path: inset(0 100% 0 0); animation-timing-function: cubic-bezier(0.7, 0, 0.3, 1); }
-  100% { clip-path: inset(0 0 0 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-old(fl-cap),
-  ::view-transition-new(fl-cap) { animation-duration: 1ms; animation-delay: 0s; }
-}
-
 /* ── Neu da: the shelf of what landed ── */
 /* the snap edge sits where the padding ends: without it the shelf snapped
    itself a few pixels sideways as it mounted (a scroll, an edge check, a re-render) */

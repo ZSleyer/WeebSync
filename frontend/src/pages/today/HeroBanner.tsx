@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { Link, useLocation, useNavigationType } from 'react-router'
+import { Link, useNavigationType } from 'react-router'
 import { useMediaQuery } from 'fluid-lycoris'
 import { api } from '../../api'
 import type { Schemas } from '../../api.gen'
@@ -66,8 +66,7 @@ export interface HeroBannerProps {
 /**
  * The Today page's hero: a manga page cut from the banners of the user's
  * series, a new cut on every visit, a caption box with the date and what is
- * going on. A panel opens its series; the series card morphs out of it
- * (the card's provider names the pair) while the caption steps aside.
+ * going on. A panel opens its series.
  */
 export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
   const { t } = useTranslation()
@@ -141,27 +140,8 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
     return () => ro.disconnect()
   }, [])
 
-  // the caption steps aside while a panel's series opens, and back in as
-  // it closes: named for the transition from the click until the card is
-  // gone again
-  const caption = useRef<HTMLDivElement>(null)
-  const location = useLocation()
-  const cardOpen = !!(location.state as { wsTitle?: unknown } | null)?.wsTitle
-  const named = useRef(false)
-  useEffect(() => {
-    if (cardOpen || !named.current) return
-    const id = setTimeout(() => {
-      if (caption.current) caption.current.style.viewTransitionName = ''
-      named.current = false
-    }, 900)
-    return () => clearTimeout(id)
-  }, [cardOpen])
   const { open } = useSeriesModal()
-  const openPanel = (b: Banner) => {
-    if (caption.current) caption.current.style.viewTransitionName = 'fl-cap'
-    named.current = true
-    open({ source: b.source, id: b.id, banner: { url: b.url, focus: b.focus } })
-  }
+  const openPanel = (b: Banner) => open({ source: b.source, id: b.id, banner: { url: b.url, focus: b.focus } })
 
   // the panels slide in once, after the first paint of the dealt page
   const [enter, setEnter] = useState(false)
@@ -317,7 +297,7 @@ export function HeroBanner({ date, status, statusLoading }: HeroBannerProps) {
       <span aria-hidden className="td-meter td-day" style={{ '--p': day } as CSSProperties}>
         <i />
       </span>
-      <div ref={caption} className="td-cap">
+      <div className="td-cap">
         <p className="td-date t-wipe" style={{ '--i': 0 } as CSSProperties}>
           {date}
         </p>
