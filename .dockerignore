@@ -6,6 +6,7 @@
 !frontend/**
 !design-system/
 !design-system/**
+!tools/licenses/os-inventory.sh
 
 backend/data/
 frontend/node_modules/
