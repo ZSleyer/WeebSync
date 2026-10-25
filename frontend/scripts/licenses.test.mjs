@@ -1,7 +1,7 @@
 import path from 'node:path'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   allowedBy,
   applyNpmOverrides,
@@ -23,22 +23,20 @@ const ds = path.join(repo, 'design-system')
 describe('license inventory', () => {
   it('maps module ids to their package root, scoped names included', () => {
     const nm = '/x/frontend/node_modules'
-    expect(packageRoot(`${nm}/react/cjs/react.production.js`, { designSystem: ds })).toBe(`${nm}/react`)
-    expect(packageRoot(`${nm}/@tanstack/query-core/build/modern/index.js?commonjs`, { designSystem: ds })).toBe(
-      `${nm}/@tanstack/query-core`,
-    )
+    expect(packageRoot(`${nm}/react/cjs/react.production.js`)).toBe(`${nm}/react`)
+    expect(packageRoot(`${nm}/@tanstack/query-core/build/modern/index.js?commonjs`)).toBe(`${nm}/@tanstack/query-core`)
     // a nested copy counts as its own package
-    expect(packageRoot(`${nm}/a/node_modules/b/index.js`, { designSystem: ds })).toBe(`${nm}/a/node_modules/b`)
-    expect(packageRoot(`${ds}/src/controls.tsx`, { designSystem: ds })).toBe(ds)
-    // the app's own code is no third party
-    expect(packageRoot('/x/frontend/src/main.tsx', { designSystem: ds })).toBeNull()
-    expect(packageRoot(`${ds}-other/src/x.ts`, { designSystem: ds })).toBeNull()
+    expect(packageRoot(`${nm}/a/node_modules/b/index.js`)).toBe(`${nm}/a/node_modules/b`)
+    // the app's own code is no third party: frontend/src and the design
+    // system fluid-lycoris (part of WeebSync, under its AGPL-3.0)
+    expect(packageRoot('/x/frontend/src/main.tsx')).toBeNull()
+    expect(packageRoot(`${ds}/src/controls.tsx`)).toBeNull()
   })
 
   it('credits the bundler for its helpers and drops other virtual modules', () => {
     const resolveVirtual = (id) => (id.replace(/^\0/, '').startsWith('vite/') ? '/vite' : null)
-    expect(packageRoot('\0vite/preload-helper.js', { designSystem: ds, resolveVirtual })).toBe('/vite')
-    expect(packageRoot('\0commonjsHelpers.js', { designSystem: ds, resolveVirtual })).toBeNull()
+    expect(packageRoot('\0vite/preload-helper.js', { resolveVirtual })).toBe('/vite')
+    expect(packageRoot('\0commonjsHelpers.js', { resolveVirtual })).toBeNull()
   })
 
   it('takes only an SPDX string as the license and turns repositories into links', () => {
@@ -239,6 +237,29 @@ describe('npm overrides: what a package bundles without saying so', () => {
     )
     // a package that is not in the bundle adds nothing
     expect(applyNpmOverrides([], overrides, read)).toEqual([])
+  })
+
+  it('takes a list of versions checked to bundle the same', () => {
+    const listed = { lib: { ...overrides.lib, version: ['1.0.0', '1.1.0'] } }
+    expect(applyNpmOverrides([{ ...lib, version: '1.1.0' }], listed, read).map((e) => e.name)).toEqual([
+      'lib',
+      'inner (in lib)',
+    ])
+    expect(() => applyNpmOverrides([{ ...lib, version: '1.2.0' }], listed, read)).toThrow(/describes lib 1.0.0, 1.1.0/)
+  })
+
+  it('off main a stale override only warns, so a dependency bump stays mergeable', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const out = applyNpmOverrides([{ ...lib, version: '1.1.0' }], overrides, read, true)
+    expect(warn).toHaveBeenCalledWith(expect.stringMatching(/^::warning::.*describes lib 1.0.0, the bundle has 1.1.0/))
+    expect(out.map((e) => e.name)).toEqual(['lib', 'inner (in lib)'])
+    warn.mockRestore()
+  })
+
+  it('the committed inventory lists no package of this repository', () => {
+    const inv = JSON.parse(readFileSync(path.join(repo, 'frontend/src/licenses/inventory.json'), 'utf8'))
+    expect(inv.map((e) => e.name)).not.toContain('fluid-lycoris')
+    expect(inv.filter((e) => /github\.com\/ZSleyer\/WeebSync/i.test(e.url ?? ''))).toEqual([])
   })
 
   it('the committed inventory credits FreeType and carries the LGPL of FriBidi', () => {

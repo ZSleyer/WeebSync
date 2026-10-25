@@ -3,3 +3,14 @@
 
 # a fixed placeholder key in the test that proves the real TMDB key is redacted
 ad09607e0e80b8bb8c2e8db1d1b0649870f7dc25:backend/internal/tmdb/redact_test.go:generic-api-key:16
+
+# the public example subscription keys of RFC 8291 appendix A in the push tests
+35eea42d77173bab1d36b7057d3d759a233cc240:backend/internal/push/keys_test.go:generic-api-key:10
+35eea42d77173bab1d36b7057d3d759a233cc240:backend/internal/api/push_test.go:generic-api-key:23
+d38a848cb4ca484c4c414f24303d4c6d68790ad2:backend/internal/api/push_session_test.go:generic-api-key:46
+
+# a dummy hex token for a legacy session in the cookie migration test
+aac8298f76db70bead27d0cd761bd191529a373f:backend/internal/auth/cookie_test.go:generic-api-key:75
+
+# not a key: the variable that holds argon2.IDKey so tests can swap it
+5da7f6767574ffe6a36f3a052f2aa5bc6892468b:backend/internal/auth/password.go:generic-api-key:55

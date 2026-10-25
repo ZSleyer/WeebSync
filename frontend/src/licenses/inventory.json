@@ -344,14 +344,6 @@
     "text": "45d31799d0db956c"
   },
   {
-    "name": "fluid-lycoris",
-    "version": "0.1.0",
-    "license": "MIT",
-    "url": "https://github.com/ZSleyer/WeebSync/tree/main/design-system",
-    "source": "npm",
-    "text": "54f10ec20ce99182"
-  },
-  {
     "name": "FreeType (in jassub's WebAssembly)",
     "version": "2.14.3 (0a0221a1)",
     "license": "FTL OR GPL-2.0-or-later",
