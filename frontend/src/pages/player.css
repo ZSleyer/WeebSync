@@ -187,6 +187,8 @@
   text-align: center;
   pointer-events: auto;
 }
+/* nothing to play here meanwhile: the big button and the dock step aside */
+.t-player[data-elsewhere] :is(.t-player-bigplay, .t-player-dock) { display: none; }
 
 /* ── top band: back, the series and the episode, the file's chips ── */
 .t-player-top {

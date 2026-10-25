@@ -1403,6 +1403,7 @@ function PlayerView({
           lang={i18n.language}
           className="t-player"
           data-fs={ownFs || undefined}
+          data-elsewhere={docOpen || undefined}
           // media-chrome's hotkeys (space, k, f, m, arrows) act only while focus is
           // inside the player, never page-wide (WCAG 2.1.4). j, l and c it knows
           // as well (seek 10 s, subtitles): they are handled in onKey, so they

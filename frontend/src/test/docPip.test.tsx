@@ -202,6 +202,8 @@ describe('Document Picture-in-Picture', () => {
     expect(getByRole('button', { name: 'Picture in picture' }).getAttribute('aria-pressed')).toBe('true')
     // what stands in the picture's place on the page
     expect(document.body.textContent).toContain('Playing in the picture-in-picture window')
+    // and the dock with nothing to play steps aside
+    expect(document.querySelector('media-controller')!.hasAttribute('data-elsewhere')).toBe(true)
   })
 
   it("copies the page's style sheets and the root's look into the window", async () => {
@@ -240,6 +242,7 @@ describe('Document Picture-in-Picture', () => {
     expect(container.querySelector('media-controller')!.firstElementChild).toBe(video)
     expect(getByRole('button', { name: 'Picture in picture' }).getAttribute('aria-pressed')).toBe('false')
     expect(document.body.textContent).not.toContain('Playing in the picture-in-picture window')
+    expect(document.querySelector('media-controller')!.hasAttribute('data-elsewhere')).toBe(false)
   })
 
   it('closes the window from its own button, and from ours a second time', async () => {

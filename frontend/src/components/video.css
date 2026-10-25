@@ -78,6 +78,8 @@
    canvas over it, and the row of buttons under it. Its own document gets the
    page's sheets copied in (docPip.ts). ═══ */
 body:has(> .ws-dpip) { margin: 0; background: #000; overflow: hidden; }
+/* the page's reserved scrollbar strip has nothing to scroll here */
+html:has(> body > .ws-dpip) { scrollbar-gutter: auto; }
 .ws-dpip {
   position: fixed;
   inset: 0;
