@@ -2,7 +2,7 @@
   "name": "fluid-lycoris",
   "version": "0.1.0",
   "description": "Fluid Lycoris: Material 3 Expressive motion with a red/teal colour code. Theme tokens, component styles and presentational React components",
-  "license": "MIT",
+  "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
