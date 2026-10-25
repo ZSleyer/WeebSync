@@ -154,6 +154,21 @@ const VIDEO_ONLY: SessionAction[] = ['seekbackward', 'seekforward', 'enterpictur
 // the subtitles, the menus or the dock. The player covers the screen itself.
 const OWN_FULLSCREEN = !document.fullscreenEnabled
 const WEBKIT = /AppleWebKit/.test(navigator.userAgent) && !/Chrome\/|Chromium\/|Android/.test(navigator.userAgent)
+// Whether the browser's own picture-in-picture window draws a showing text
+// track, where the subtitles go as WebVTT cues (pipCues.ts). WebKit does (iOS
+// and macOS Safari, every iPhone browser): it asks for a text track
+// representation as the window opens, setRequiresTextTrackRepresentation in
+// https://github.com/WebKit/WebKit/blob/main/Source/WebCore/platform/ios/VideoPresentationInterfaceIOS.mm
+// and .../platform/mac/VideoPresentationInterfaceMac.mm. Desktop Firefox does,
+// for its own toggle on the video too: setActiveTextTrack in
+// https://github.com/mozilla-firefox/firefox/blob/main/toolkit/actors/PictureInPictureChild.sys.mjs
+// Chrome does not: its window shows the bare picture (only Live Caption,
+// https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/ui/views/overlay/video_overlay_window_views.cc;
+// on Android a compositor view of the video,
+// https://chromium.googlesource.com/chromium/src/+/main/chrome/android/java/src/org/chromium/chrome/browser/media/PictureInPictureActivity.java),
+// and a showing track there only doubled the subtitles on the page. All read
+// 2026-10-25; Firefox on Android has no picture-in-picture events at all.
+const PIP_CUES = WEBKIT || NO_NATIVE_PIP
 
 // The codec string for a picture: profile and bit depth matter, a phone that
 // decodes HEVC Main may not decode Main 10.
@@ -1191,8 +1206,8 @@ function PlayerView({
           : {}
         if (abort.signal.aborted) return
         // the words once more as a text track, for the browser's own video
-        // window, which shows no canvas (pipCues.ts)
-        undoCues = attachPipCues(v, assToVtt(content))
+        // window, which shows no canvas (pipCues.ts), where it draws one
+        if (PIP_CUES) undoCues = attachPipCues(v, assToVtt(content))
         const absolute = (u: string) => new URL(u, location.href).href
         const r = new JASSUB({
           video: v,
