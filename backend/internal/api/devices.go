@@ -171,52 +171,72 @@ func (s *Server) handleDevicePair(w http.ResponseWriter, r *http.Request) {
 	_, _ = s.DB.Exec(`DELETE FROM device_pairings WHERE expires_at < ?`, now.Add(-pairingKeep).Unix())
 	ip := auth.ClientIP(r)
 	source, wide := pairSources(ip)
-	if ok, err := s.pairingRoom(now, source, wide); err != nil {
-		dbErr(w, err)
-		return
-	} else if !ok {
-		tooMany(w, time.Minute)
-		return
-	}
 	deviceCode, err := randomSecret()
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, "rng error")
 		return
 	}
 	expires := now.Add(pairingTTL).Unix()
-	// a user code can collide with a live one (20^8 codes): draw again
-	for range 3 {
-		userCode, err := newUserCode()
+	// the room check and the insert are one transaction: it takes the write
+	// lock at BEGIN (_txlock=immediate), so a burst from one source cannot
+	// all pass the count before any of them is written
+	var userCode string
+	err = db.Tx(s.DB, func(tx *sql.Tx) error {
+		ok, err := pairingRoom(tx, now, source, wide)
 		if err != nil {
-			writeErr(w, http.StatusInternalServerError, "rng error")
-			return
+			return err
 		}
-		_, err = s.DB.Exec(`INSERT INTO device_pairings (device_code_hash, user_code_hash, name, created_at, expires_at, poll_interval, ip, source, source_wide)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			auth.TokenHash(deviceCode), userCodeHash(userCode), deviceName(in.Name), now.Unix(), expires, pairInterval, ip, source, wide)
-		if db.IsUnique(err) {
-			continue
+		if !ok {
+			return errNoPairingRoom
 		}
-		if err != nil {
-			dbErr(w, err)
-			return
+		// a user code can collide with a live one (20^8 codes): draw again;
+		// a refused insert ends only its statement, not the transaction
+		for range 3 {
+			code, err := newUserCode()
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(`INSERT INTO device_pairings (device_code_hash, user_code_hash, name, created_at, expires_at, poll_interval, ip, source, source_wide)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				auth.TokenHash(deviceCode), userCodeHash(code), deviceName(in.Name), now.Unix(), expires, pairInterval, ip, source, wide)
+			if db.IsUnique(err) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			userCode = code
+			return nil
 		}
+		return errNoUserCode
+	})
+	switch {
+	case errors.Is(err, errNoPairingRoom):
+		tooMany(w, time.Minute)
+	case errors.Is(err, errNoUserCode):
+		writeErr(w, http.StatusInternalServerError, "could not draw a free user code")
+	case err != nil:
+		dbErr(w, err)
+	default:
 		w.Header().Set("Cache-Control", "no-store")
 		writeJSON(w, http.StatusOK, devicePairResponse{UserCode: userCode, DeviceCode: deviceCode, ExpiresAt: expires, Interval: pairInterval})
-		return
 	}
-	writeErr(w, http.StatusInternalServerError, "could not draw a free user code")
 }
+
+var (
+	errNoPairingRoom = errors.New("no room for another pairing")
+	errNoUserCode    = errors.New("no free user code")
+)
 
 // pairingRoom says whether a new pairing from source fits: the source and its
 // IPv6 /48 below their share of open pairings, and the instance below its cap.
 // Only pending rows count; approved and denied ones wait for one last poll
 // and hold nothing. At the cap, the oldest pairings no device ever polled are
 // evicted first: a real TV polls within seconds, so those are filler.
-func (s *Server) pairingRoom(now time.Time, source, wide string) (bool, error) {
+func pairingRoom(tx *sql.Tx, now time.Time, source, wide string) (bool, error) {
 	live := now.Unix()
 	var own, block, all int
-	if err := s.DB.QueryRow(`SELECT
+	if err := tx.QueryRow(`SELECT
 			COUNT(*) FILTER (WHERE source = ?),
 			COUNT(*) FILTER (WHERE source_wide = ?),
 			COUNT(*)
@@ -229,7 +249,7 @@ func (s *Server) pairingRoom(now time.Time, source, wide string) (bool, error) {
 	if all < pendingPairingCap {
 		return true, nil
 	}
-	res, err := s.DB.Exec(`DELETE FROM device_pairings WHERE id IN (
+	res, err := tx.Exec(`DELETE FROM device_pairings WHERE id IN (
 			SELECT id FROM device_pairings
 			WHERE status = 'pending' AND expires_at > ? AND last_poll_ms = 0 AND created_at <= ?
 			ORDER BY created_at, id LIMIT ?)`,

@@ -3,8 +3,11 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 func (dt *deviceTest) pairFrom(ip string) int {
@@ -66,6 +69,42 @@ func TestPairingCapsPerSource(t *testing.T) {
 			t.Errorf("with only approved rows open: %d, want 200", code)
 		}
 	})
+}
+
+// A burst from one source cannot slip past its share between the count and
+// the insert: the two run as one transaction.
+func TestPairingCapHoldsUnderConcurrency(t *testing.T) {
+	dt := newDeviceTest(t)
+	// a trusted network skips the address limiter, so only the cap holds
+	if err := db.SetSetting(dt.s.DB, "trusted_networks", "192.0.2.0/24"); err != nil {
+		t.Fatal(err)
+	}
+	const n = 40
+	codes := make(chan int, n)
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	for range n {
+		wg.Go(func() {
+			<-start
+			codes <- dt.pairFrom("192.0.2.99")
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(codes)
+	ok := 0
+	for c := range codes {
+		if c == http.StatusOK {
+			ok++
+		}
+	}
+	var rows int
+	if err := dt.s.DB.QueryRow(`SELECT COUNT(*) FROM device_pairings`).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if ok > maxPendingPerSource || rows > maxPendingPerSource {
+		t.Errorf("%d concurrent pairings from one address: %d answered 200, %d rows; want at most %d", n, ok, rows, maxPendingPerSource)
+	}
 }
 
 // A deny that loses the race (the pairing was approved between the lookup
