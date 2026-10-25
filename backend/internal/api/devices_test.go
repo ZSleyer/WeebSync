@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -67,7 +68,7 @@ func (dt *deviceTest) do(method, path, body string, c *http.Cookie, bearer, ip s
 		req.Header.Set("Authorization", "Bearer "+bearer)
 	}
 	if ip != "" {
-		req.RemoteAddr = ip + ":4000"
+		req.RemoteAddr = net.JoinHostPort(ip, "4000")
 	}
 	rec := httptest.NewRecorder()
 	dt.mux.ServeHTTP(rec, req)

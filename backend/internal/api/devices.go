@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -46,13 +47,34 @@ const (
 	// an expired pairing stays this long, so the TV hears expired_token
 	// rather than invalid_grant; then the next pair sweeps it
 	pairingKeep = time.Hour
-	// pending pairings at once, whatever the per-address limit lets through
-	maxPendingPairings = 500
+	// open pairings one address (an IPv6 /64) may hold, and one IPv6 /48:
+	// a household pairs one TV at a time, a block of /64s is one party
+	maxPendingPerSource = 5
+	maxPendingPerWide   = 20
+	// a pairing nobody polled this long after it began has no TV behind it
+	// (a real one polls within its interval): the global cap evicts those
+	pairAbandonedAfter = 15 * time.Second
 	tvScope            = "tv:read"
 	// how often a token's last use is written at most
 	deviceSeenEvery = time.Minute
 	deviceNameMax   = 64
 )
+
+// pendingPairingCap bounds the open pairings of the whole instance (a var so
+// tests can reach it without 500 requests).
+var pendingPairingCap = 500
+
+// pairSources are the keys a pairing counts against: the limiter's (the
+// address, an IPv6 /64) and the IPv6 /48 around it (the same key for IPv4).
+func pairSources(ip string) (source, wide string) {
+	source = limitKey(ip)
+	a, err := netip.ParseAddr(ip)
+	if err != nil || !a.Unmap().Is6() {
+		return source, source
+	}
+	p, _ := a.Prefix(48)
+	return source, p.String()
+}
 
 // newUserCode is a fresh "XXXX-XXXX" code in userCodeAlphabet.
 func newUserCode() (string, error) {
@@ -147,12 +169,12 @@ func (s *Server) handleDevicePair(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	// best-effort sweep: an expired row left over is refused on read anyway
 	_, _ = s.DB.Exec(`DELETE FROM device_pairings WHERE expires_at < ?`, now.Add(-pairingKeep).Unix())
-	var pending int
-	if err := s.DB.QueryRow(`SELECT COUNT(*) FROM device_pairings WHERE expires_at > ?`, now.Unix()).Scan(&pending); err != nil {
+	ip := auth.ClientIP(r)
+	source, wide := pairSources(ip)
+	if ok, err := s.pairingRoom(now, source, wide); err != nil {
 		dbErr(w, err)
 		return
-	}
-	if pending >= maxPendingPairings {
+	} else if !ok {
 		tooMany(w, time.Minute)
 		return
 	}
@@ -169,9 +191,9 @@ func (s *Server) handleDevicePair(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusInternalServerError, "rng error")
 			return
 		}
-		_, err = s.DB.Exec(`INSERT INTO device_pairings (device_code_hash, user_code_hash, name, created_at, expires_at, poll_interval, ip)
-			VALUES (?, ?, ?, ?, ?, ?, ?)`,
-			auth.TokenHash(deviceCode), userCodeHash(userCode), deviceName(in.Name), now.Unix(), expires, pairInterval, auth.ClientIP(r))
+		_, err = s.DB.Exec(`INSERT INTO device_pairings (device_code_hash, user_code_hash, name, created_at, expires_at, poll_interval, ip, source, source_wide)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			auth.TokenHash(deviceCode), userCodeHash(userCode), deviceName(in.Name), now.Unix(), expires, pairInterval, ip, source, wide)
 		if db.IsUnique(err) {
 			continue
 		}
@@ -184,6 +206,42 @@ func (s *Server) handleDevicePair(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeErr(w, http.StatusInternalServerError, "could not draw a free user code")
+}
+
+// pairingRoom says whether a new pairing from source fits: the source and its
+// IPv6 /48 below their share of open pairings, and the instance below its cap.
+// Only pending rows count; approved and denied ones wait for one last poll
+// and hold nothing. At the cap, the oldest pairings no device ever polled are
+// evicted first: a real TV polls within seconds, so those are filler.
+func (s *Server) pairingRoom(now time.Time, source, wide string) (bool, error) {
+	live := now.Unix()
+	var own, block, all int
+	if err := s.DB.QueryRow(`SELECT
+			COUNT(*) FILTER (WHERE source = ?),
+			COUNT(*) FILTER (WHERE source_wide = ?),
+			COUNT(*)
+		FROM device_pairings WHERE status = 'pending' AND expires_at > ?`, source, wide, live).Scan(&own, &block, &all); err != nil {
+		return false, err
+	}
+	if own >= maxPendingPerSource || block >= maxPendingPerWide {
+		return false, nil
+	}
+	if all < pendingPairingCap {
+		return true, nil
+	}
+	res, err := s.DB.Exec(`DELETE FROM device_pairings WHERE id IN (
+			SELECT id FROM device_pairings
+			WHERE status = 'pending' AND expires_at > ? AND last_poll_ms = 0 AND created_at <= ?
+			ORDER BY created_at, id LIMIT ?)`,
+		live, now.Add(-pairAbandonedAfter).Unix(), all-pendingPairingCap+1)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return all-int(n) < pendingPairingCap, nil
 }
 
 type deviceTokenRequest struct {
