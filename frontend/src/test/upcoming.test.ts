@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { TFunction } from 'i18next'
 import type { Media } from '../api'
 import { expectedOf, missingOf } from '../components/UpcomingSeason'
@@ -37,5 +37,24 @@ describe('missingOf', () => {
   it('names the start when AniList knows the day', () => {
     expect(missingOf(t, media({ startDate: 20261003 }), 'en').label).toMatch(/^upcoming\.missingSince/)
     expect(missingOf(t, media({ startDate: 20261000 }), 'en').label).toBe('upcoming.missingBadge')
+  })
+})
+
+describe('expectedOf across a clock change', () => {
+  const tz = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'Europe/Berlin'
+  })
+  afterAll(() => {
+    process.env.TZ = tz
+  })
+  // a start date counts as late once its whole calendar day is over, on the
+  // 25-hour 2026-10-25 and the 23-hour 2026-03-29 alike
+  it('turns late at the next midnight, not 24 hours after the last', () => {
+    const late = (start: number, at: Date) => expectedOf(t, media({ startDate: start }), 'de', at.getTime()).label
+    expect(late(20261025, new Date(2026, 9, 25, 23, 30))).toMatch(/^upcoming\.expected/)
+    expect(late(20261025, new Date(2026, 9, 26, 0, 0))).toBe('upcoming.uploadPending')
+    expect(late(20260329, new Date(2026, 2, 29, 23, 30))).toMatch(/^upcoming\.expected/)
+    expect(late(20260329, new Date(2026, 2, 30, 0, 0))).toBe('upcoming.uploadPending')
   })
 })

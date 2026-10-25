@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Watch } from '../api'
 import { groupWatches } from '../watchGroups'
 
@@ -88,5 +88,34 @@ describe('Auto-Sync sections', () => {
       w(4),
     ]
     expect(keys('last', s).map((k) => k.split(':')[0])).toEqual(['today', 'yesterday', 'older', 'never'])
+  })
+})
+
+// A day is not always 24 hours: Europe/Berlin had a 25-hour 2026-10-25 and
+// has a 23-hour 2026-03-29. The headings follow the calendar, not 86,400 s.
+describe('Auto-Sync sections across a clock change', () => {
+  const tz = process.env.TZ
+  beforeAll(() => {
+    process.env.TZ = 'Europe/Berlin'
+  })
+  afterAll(() => {
+    process.env.TZ = tz
+  })
+  const next = (now: string, airs: string) =>
+    groupWatches([w(1, { nextAiringAt: at(airs) })], 'next', 'asc', new Date(now).getTime())[0].key
+  const last = (now: string, checked: string) =>
+    groupWatches([w(1, { lastCheck: checked })], 'last', 'asc', new Date(now).getTime())[0].key
+
+  it('keeps the late evening of the long day in today, and its night in yesterday', () => {
+    expect(next('2026-10-25T12:00:00', '2026-10-25T23:30:00')).toBe('today')
+    expect(next('2026-10-25T12:00:00', '2026-10-26T00:30:00')).toBe('tomorrow')
+    // 00:30 CEST on the 25th is 2026-10-24 22:30 UTC
+    expect(last('2026-10-26T12:00:00', '2026-10-24 22:30:00')).toBe('yesterday')
+  })
+
+  it('does not pull the short night into today, nor the day after into tomorrow', () => {
+    expect(next('2026-03-29T12:00:00', '2026-03-30T00:30:00')).toBe('tomorrow')
+    expect(next('2026-03-29T12:00:00', '2026-03-31T00:30:00')).toBe('week')
+    expect(next('2026-03-29T12:00:00', '2026-03-29T23:30:00')).toBe('today')
   })
 })

@@ -36,7 +36,8 @@ export function expectedOf(t: TFunction, m: Media, lang: string, now = Date.now(
   const day = d % 100
   if (year && month && day) {
     const date = new Date(year, month - 1, day)
-    if (date.getTime() + 86_400_000 <= now)
+    // late once its calendar day is over (the next midnight, not 24 h on)
+    if (new Date(year, month - 1, day + 1).getTime() <= now)
       return { label: t('upcoming.uploadPending'), tone: 'warn', at: date.getTime() }
     return {
       label: t('upcoming.expected', { when: date.toLocaleDateString(lang, { day: 'numeric', month: 'short' }) }),

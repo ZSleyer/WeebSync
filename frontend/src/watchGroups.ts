@@ -23,11 +23,11 @@ export interface WatchGroup {
   watches: Watch[]
 }
 
-const DAY = 86_400_000
-const startOfDay = (ms: number) => {
+// local midnight n calendar days from the day of ms: by date, not n × 24 h,
+// as a day around a clock change has 23 or 25 hours
+const midnight = (ms: number, n = 0) => {
   const d = new Date(ms)
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n).getTime()
 }
 const lastOf = (w: Watch) => Date.parse(w.lastCheck.replace(' ', 'T') + 'Z') || 0
 // a title with no episode ahead but a dub still coming waits on the dub's date
@@ -55,7 +55,8 @@ export function compareWatches(sort: WatchSort, a: Watch, b: Watch): number {
 type Slot = [number, string, string, Record<string, unknown> | undefined, WatchGroup['tone']]
 
 function slotOf(sort: WatchSort, w: Watch, now: number): Slot {
-  const today = startOfDay(now)
+  const today = midnight(now)
+  const day = (n: number) => midnight(now, n)
   if ((sort === 'next' || sort === 'status') && needsHand(w))
     return [-1, 'attention', 'watch.group.attention', undefined, 'accent']
   switch (sort) {
@@ -81,8 +82,8 @@ function slotOf(sort: WatchSort, w: Watch, now: number): Slot {
       const at = lastOf(w)
       if (!at) return [4, 'never', 'watch.group.never', undefined, 'accent-2']
       if (at >= today) return [0, 'today', 'watch.group.today', undefined, 'accent-2']
-      if (at >= today - DAY) return [1, 'yesterday', 'watch.group.yesterday', undefined, 'accent-2']
-      if (at >= today - 6 * DAY) return [2, 'week', 'watch.group.lastWeek', undefined, 'accent-2']
+      if (at >= day(-1)) return [1, 'yesterday', 'watch.group.yesterday', undefined, 'accent-2']
+      if (at >= day(-6)) return [2, 'week', 'watch.group.lastWeek', undefined, 'accent-2']
       return [3, 'older', 'watch.group.older', undefined, 'accent-2']
     }
     case 'season': {
@@ -97,9 +98,9 @@ function slotOf(sort: WatchSort, w: Watch, now: number): Slot {
       // a dub date already gone is overdue, not today
       const at = w.nextAiringAt ? w.nextAiringAt * 1000 : dubAt(w) * 1000 >= today ? dubAt(w) * 1000 : 0
       if (!at) return [4, 'none', 'watch.group.none', undefined, 'accent-2']
-      if (at < today + DAY) return [0, 'today', 'watch.group.today', undefined, 'accent-2']
-      if (at < today + 2 * DAY) return [1, 'tomorrow', 'watch.group.tomorrow', undefined, 'accent-2']
-      if (at < today + 7 * DAY) return [2, 'week', 'watch.group.week', undefined, 'accent-2']
+      if (at < day(1)) return [0, 'today', 'watch.group.today', undefined, 'accent-2']
+      if (at < day(2)) return [1, 'tomorrow', 'watch.group.tomorrow', undefined, 'accent-2']
+      if (at < day(7)) return [2, 'week', 'watch.group.week', undefined, 'accent-2']
       return [3, 'later', 'watch.group.later', undefined, 'accent-2']
     }
   }
