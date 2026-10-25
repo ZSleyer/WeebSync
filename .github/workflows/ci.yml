@@ -219,7 +219,8 @@ jobs:
   # at most one update a day; :dev is the fast lane while a change is being
   # worked on. The nightly cleanup excludes :dev by name - see nightly.yml.
   dev-image:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # no sha: a newer push to main superseded this run, which builds instead
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.licenses.outputs.sha != ''
     needs: [backend, frontend, licenses, security]
     runs-on: ubuntu-latest
     permissions:

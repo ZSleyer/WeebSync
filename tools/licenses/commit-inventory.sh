@@ -13,6 +13,15 @@ set -euo pipefail
 
 files=(frontend/src/licenses/inventory.json frontend/src/licenses/texts.json)
 
+# A newer push to main has its own run, which regenerates and builds that
+# state: this one stands down (empty sha, dev-image skips) instead of failing.
+superseded() {
+  echo "::notice::main moved on past $HEAD_SHA; the newer run commits the inventory and builds the image"
+  echo "sha=" >>"$GITHUB_OUTPUT"
+  exit 0
+}
+[ "$(gh api "repos/$REPO/commits/main" --jq .sha)" = "$HEAD_SHA" ] || superseded
+
 if git diff --quiet -- "${files[@]}"; then
   echo "license inventory up to date"
   echo "sha=$HEAD_SHA" >>"$GITHUB_OUTPUT"
@@ -21,7 +30,7 @@ fi
 git diff --stat -- "${files[@]}"
 
 payload="$(mktemp)"
-trap 'rm -f "$payload"' EXIT
+trap 'rm -f "$payload" "$payload.err"' EXIT
 additions="$(for f in "${files[@]}"; do
   jq -n --arg path "$f" --arg contents "$(base64 -w0 "$f")" '{path: $path, contents: $contents}'
 done | jq -s .)"
@@ -42,7 +51,12 @@ jq -n \
     }}
   }' >"$payload"
 
-oid="$(gh api graphql --input "$payload" --jq '.data.createCommitOnBranch.commit.oid')"
+if ! oid="$(gh api graphql --input "$payload" --jq '.data.createCommitOnBranch.commit.oid' 2>"$payload.err")"; then
+  # expectedHeadOid no longer matches: main moved between the check and now
+  [ "$(gh api "repos/$REPO/commits/main" --jq .sha)" != "$HEAD_SHA" ] && superseded
+  cat "$payload.err" >&2
+  exit 1
+fi
 [ -n "$oid" ] || { echo "createCommitOnBranch returned no commit" >&2; exit 1; }
 echo "committed $oid"
 echo "sha=$oid" >>"$GITHUB_OUTPUT"
