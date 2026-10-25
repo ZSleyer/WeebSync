@@ -530,7 +530,11 @@ function PlayerView({
       return () => {
         unstep()
         resumeAt.current = v.currentTime
+        v.removeEventListener('loadedmetadata', onMeta)
+        // the element outlives this player: let go of the stream, which
+        // removing the attribute alone does not do
         v.removeAttribute('src')
+        v.load()
       }
     }
     const h = new HlsPlayer({

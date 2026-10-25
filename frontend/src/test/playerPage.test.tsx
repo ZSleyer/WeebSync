@@ -390,6 +390,58 @@ describe('Player page', () => {
     })
   })
 
+  // Without MSE (hls.js not supported here) the browser plays the playlist
+  // itself. The element outlives the player now: removing src alone keeps the
+  // resource loaded (HTML: removing the attribute does not run the load
+  // algorithm), and a waiting resume listener would jump the next file.
+  it('lets go of a native HLS source and its listener when the player goes', async () => {
+    const meta = new Set<EventListenerOrEventListenerObject>()
+    const add = HTMLMediaElement.prototype.addEventListener
+    const remove = HTMLMediaElement.prototype.removeEventListener
+    const loads: HTMLMediaElement[] = []
+    Object.defineProperty(HTMLMediaElement.prototype, 'load', {
+      value(this: HTMLMediaElement) {
+        loads.push(this)
+      },
+      configurable: true,
+    })
+    const spyAdd = vi.spyOn(HTMLMediaElement.prototype, 'addEventListener').mockImplementation(function (
+      this: HTMLMediaElement,
+      type,
+      fn,
+      opts,
+    ) {
+      // the resume listener is the one added for a single call (media-chrome's
+      // own stay with its controller)
+      if (type === 'loadedmetadata' && fn && typeof opts === 'object' && opts.once) meta.add(fn)
+      return add.call(this, type, fn, opts)
+    })
+    const spyRemove = vi.spyOn(HTMLMediaElement.prototype, 'removeEventListener').mockImplementation(function (
+      this: HTMLMediaElement,
+      type,
+      fn,
+      opts,
+    ) {
+      if (type === 'loadedmetadata' && fn) meta.delete(fn)
+      return remove.call(this, type, fn, opts)
+    })
+    try {
+      const { container, unmount } = mount()
+      const video = await waitFor(() => {
+        const v = container.querySelector<HTMLVideoElement>('media-controller video')
+        expect(v?.getAttribute('src')).toContain('index.m3u8')
+        return v!
+      })
+      unmount()
+      expect(video.hasAttribute('src')).toBe(false)
+      expect(loads).toContain(video)
+      expect(meta.size).toBe(0)
+    } finally {
+      spyAdd.mockRestore()
+      spyRemove.mockRestore()
+    }
+  })
+
   // media-chrome shows a control's tooltip while it matches :hover or
   // :focus-visible (media-chrome-button.js 4.19.3); a phone keeps :hover on
   // the last button tapped, so its tooltip stayed. player.css hides the
