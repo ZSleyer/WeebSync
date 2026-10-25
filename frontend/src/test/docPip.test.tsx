@@ -180,12 +180,12 @@ describe('Document Picture-in-Picture', () => {
   beforeEach(() => {
     dpip.window = null
     dpip.requestWindow.mockClear()
-    vi.stubGlobal('documentPictureInPicture', dpip)
+    Object.defineProperty(window, 'documentPictureInPicture', { value: dpip, configurable: true })
     document.documentElement.dataset.theme = 'dark'
   })
   afterEach(() => {
     dpip.window?.close()
-    vi.unstubAllGlobals()
+    delete (window as { documentPictureInPicture?: unknown }).documentPictureInPicture
     delete document.documentElement.dataset.theme
   })
 
@@ -296,7 +296,7 @@ describe('Document Picture-in-Picture', () => {
   })
 
   it('falls back to the video window where the browser has no Document Picture-in-Picture', async () => {
-    vi.stubGlobal('documentPictureInPicture', undefined)
+    Object.defineProperty(window, 'documentPictureInPicture', { value: undefined, configurable: true })
     const { video, getByRole } = await mount(CHROME_LINUX)
     await act(async () => getByRole('button', { name: 'Picture in picture' }).click())
     expect(dpip.requestWindow).not.toHaveBeenCalled()
