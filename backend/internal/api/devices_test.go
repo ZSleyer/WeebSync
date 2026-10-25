@@ -565,4 +565,4 @@ func TestUserCodeShape(t *testing.T) {
 }
 
 // tvPaths are the routes a device token opens.
-var tvPaths = []string{"/api/tv/probe", "/api/tv/calendar"}
+var tvPaths = []string{"/api/tv/probe", "/api/tv/calendar", "/api/tv/recent"}

@@ -185,3 +185,137 @@ func (s *Server) handleTVCalendar(w http.ResponseWriter, r *http.Request) {
 	})
 	writeJSON(w, http.StatusOK, out)
 }
+
+// tvRecentItem is one episode that finished downloading.
+type tvRecentItem struct {
+	WatchID       int64  `json:"watchId,omitempty"` // the caller's watch that feeds the folder; absent for a one-off download
+	Title         string `json:"title"`
+	Season        int    `json:"season,omitempty"`
+	Episode       int    `json:"episode,omitempty"` // absent when the name carries none (a film)
+	FinishedAt    int64  `json:"finishedAt"`        // unix seconds of the newest copy
+	PosterURL     string `json:"posterUrl,omitempty"`
+	BackdropURL   string `json:"backdropUrl,omitempty"`
+	PlexRatingKey string `json:"plexRatingKey,omitempty"`
+}
+
+// tvGroup is one series folder of the recent list.
+type tvGroup struct {
+	watchID int64
+	title   string
+	art     tvSeriesArt
+}
+
+// tvRecentScan bounds the rows read for one answer: many copies of few
+// episodes still fill the list, and the cost stays fixed.
+const tvRecentScan = 1000
+
+// handleTVRecent lists what finished downloading for the device's user.
+//
+//	@Summary		TV recent downloads
+//	@Description	For a paired device (Authorization: Bearer <device token>, scope tv:read). The caller's own finished downloads, one entry per episode (the newest copy), newest first, at most `limit` (1..50, default 20). Built from cached data only.
+//	@Tags			TV
+//	@Produce		json
+//	@Param			limit	query		int	false	"entries, 1..50 (default 20)"
+//	@Success		200		{array}		tvRecentItem
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		403		{object}	ErrorResponse
+//	@Failure		500		{object}	ErrorResponse
+//	@Security		DeviceAuth
+//	@Router			/api/tv/recent [get]
+func (s *Server) handleTVRecent(w http.ResponseWriter, r *http.Request) {
+	u := tvUser(r.Context())
+	limit := tvIntParam(r, "limit", tvLimitDefault, 1, tvLimitMax)
+	list, err := s.tvDoneDownloads(u.ID)
+	if err != nil {
+		dbErr(w, err)
+		return
+	}
+
+	plexOn := s.plexLinked()
+	showOf := map[string]string{}
+	groups := map[string]tvGroup{}
+	seen := map[string]bool{}
+	out := []tvRecentItem{}
+	for _, d := range list {
+		if len(out) == limit {
+			break
+		}
+		dir := path.Dir(d.remote)
+		fk := strconv.FormatInt(d.serverID, 10) + "|" + dir
+		folder, ok := showOf[fk]
+		if !ok {
+			folder = s.showFolder(d.serverID, dir)
+			showOf[fk] = folder
+		}
+		season, episode := episodeNumbers(path.Base(d.local), path.Base(d.remote))
+		gk := strconv.FormatInt(d.serverID, 10) + "|" + folder
+		ek := gk + "|" + strconv.Itoa(epKey(season, episode))
+		if episode == 0 {
+			ek = gk + "|" + d.remote // no number: one entry per file
+		}
+		if seen[ek] {
+			continue // an older copy of an episode already listed
+		}
+		seen[ek] = true
+		g, ok := groups[gk]
+		if !ok {
+			g = s.tvRecentGroup(u.ID, d.serverID, folder, plexOn)
+			groups[gk] = g
+		}
+		finished, perr := time.ParseInLocation("2006-01-02 15:04:05", d.at, time.UTC)
+		if perr != nil {
+			continue // a row without a readable end is not "recent"
+		}
+		out = append(out, tvRecentItem{
+			WatchID: g.watchID, Title: g.title, Season: season, Episode: episode, FinishedAt: finished.Unix(),
+			PosterURL: g.art.poster, BackdropURL: g.art.backdrop, PlexRatingKey: g.art.plexKey,
+		})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// tvDone is one finished download of the recent list.
+type tvDone struct {
+	serverID          int64
+	remote, local, at string
+}
+
+// tvDoneDownloads reads the user's finished downloads, newest first.
+func (s *Server) tvDoneDownloads(userID int64) ([]tvDone, error) {
+	rows, err := s.DB.Query(`SELECT server_id, remote_path, local_path, updated_at FROM downloads
+		WHERE user_id = ? AND status = 'done' ORDER BY updated_at DESC, id DESC LIMIT ?`, userID, tvRecentScan)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var list []tvDone
+	for rows.Next() {
+		var d tvDone
+		if err := rows.Scan(&d.serverID, &d.remote, &d.local, &d.at); err != nil {
+			return nil, err
+		}
+		list = append(list, d)
+	}
+	return list, rows.Err()
+}
+
+// tvRecentGroup describes one series folder of the caller's downloads: the
+// caller's own watch over it, its title and pictures. The watch lookup is
+// scoped to the caller, so another user's watch on the same path never
+// lends its id or title.
+func (s *Server) tvRecentGroup(userID, serverID int64, folder string, plexOn bool) (g tvGroup) {
+	source, mediaID := s.folderMatch(serverID, folder)
+	var m *anilist.Media
+	if source != "" && mediaID != 0 {
+		m, _ = s.sourceMedia(source, mediaID)
+	}
+	var override string
+	// display metadata: no watch is the fallback
+	_ = s.DB.QueryRow(`SELECT id, title_override FROM watches
+		WHERE user_id = ? AND server_id = ?
+		  AND (?3 = rtrim(remote_path, '/') OR substr(?3, 1, length(rtrim(remote_path, '/')) + 1) = rtrim(remote_path, '/') || '/')
+		ORDER BY length(remote_path) DESC LIMIT 1`, userID, serverID, folder).Scan(&g.watchID, &override)
+	g.title = tvTitle(override, m, folder)
+	g.art = s.tvArt(serverID, folder, source, m, plexOn)
+	return g
+}

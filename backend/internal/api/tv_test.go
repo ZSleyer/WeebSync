@@ -161,3 +161,101 @@ func TestTVIntParam(t *testing.T) {
 		}
 	}
 }
+
+type tvRec struct {
+	WatchID    int64  `json:"watchId"`
+	Title      string `json:"title"`
+	Season     int    `json:"season"`
+	Episode    int    `json:"episode"`
+	FinishedAt int64  `json:"finishedAt"`
+	PosterURL  string `json:"posterUrl"`
+}
+
+func (dt *deviceTest) recent(tok, query string) []tvRec {
+	dt.t.Helper()
+	rec := dt.do("GET", "/api/tv/recent"+query, "", nil, tok, "")
+	if rec.Code != http.StatusOK {
+		dt.t.Fatalf("recent%s: %d %s", query, rec.Code, rec.Body)
+	}
+	var out []tvRec
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		dt.t.Fatal(err)
+	}
+	return out
+}
+
+// Recent lists the caller's finished downloads, one entry per episode and
+// newest first; another user's downloads never show, not even on the same
+// series path.
+func TestTVRecent(t *testing.T) {
+	dt := newDeviceTest(t)
+	dt.seedTVWatch(1, "AliceShow", 5, nil, nil)
+	dt.seedTVWatch(2, "BobShow", 6, nil, nil)
+	at := func(ago time.Duration) string { return time.Now().Add(-ago).UTC().Format("2006-01-02 15:04:05") }
+	for _, q := range []struct {
+		user, server   int64
+		remote, status string
+		ago            time.Duration
+	}{
+		{1, 1, "/AliceShow/Show - S01E01 [1080p].mkv", "done", 5 * time.Hour},
+		{1, 1, "/AliceShow/Show - S01E01 [720p].mkv", "done", 4 * time.Hour}, // the same episode again
+		{1, 1, "/AliceShow/Show - S01E02 [1080p].mkv", "done", 2 * time.Hour},
+		{1, 1, "/AliceShow/Show - S01E03 [1080p].mkv", "error", time.Hour},
+		{1, 1, "/AliceShow/Show - S01E04 [1080p].mkv", "running", time.Minute},
+		{2, 2, "/BobShow/Bob - S02E07 [1080p].mkv", "done", 3 * time.Hour},
+	} {
+		if _, err := dt.s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)`, q.user, q.server, q.remote, "x"+q.remote, q.status, at(q.ago)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	alice := dt.link(dt.alice, "A")
+	bob := dt.link(dt.bob, "B")
+
+	got := dt.recent(alice, "")
+	if len(got) != 2 {
+		t.Fatalf("alice's recent = %+v, want episodes 2 and 1", got)
+	}
+	if got[0].Episode != 2 || got[1].Episode != 1 || got[0].Season != 1 {
+		t.Errorf("order = %+v, want S01E02 then S01E01", got)
+	}
+	if want := time.Now().Add(-4 * time.Hour).Unix(); got[1].FinishedAt < want-5 || got[1].FinishedAt > want+5 {
+		t.Errorf("episode 1 finished at %d, want its newest copy (%d)", got[1].FinishedAt, want)
+	}
+	for _, it := range got {
+		if it.WatchID != 1 || it.Title != "EN AliceShow" || it.PosterURL != "https://img.example/5-xl.jpg" {
+			t.Errorf("entry %+v: want alice's watch, title and poster", it)
+		}
+	}
+	if n := len(dt.recent(alice, "?limit=1")); n != 1 {
+		t.Errorf("limit=1: %d entries", n)
+	}
+	if n := len(dt.recent(alice, "?limit=0")); n != 1 {
+		t.Errorf("limit=0: %d entries, want clamped to 1", n)
+	}
+	if n := len(dt.recent(alice, "?limit=500")); n != 2 {
+		t.Errorf("limit=500: %d entries, want all 2 (clamped to 50)", n)
+	}
+
+	b := dt.recent(bob, "")
+	if len(b) != 1 || b[0].Title != "EN BobShow" || b[0].Season != 2 || b[0].Episode != 7 || b[0].WatchID != 2 {
+		t.Errorf("bob's recent = %+v, want only his S02E07", b)
+	}
+
+	// alice downloads under the path bob's watch uses, on her own server:
+	// still not bob's, and not tied to bob's watch
+	if _, err := dt.s.DB.Exec(`INSERT INTO downloads (user_id, server_id, remote_path, local_path, status, updated_at)
+		VALUES (1, 1, '/BobShow/Bob - S02E08.mkv', 'x', 'done', ?)`, at(0)); err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range dt.recent(bob, "") {
+		if it.Episode == 8 {
+			t.Errorf("bob sees alice's download: %+v", it)
+		}
+	}
+	for _, it := range dt.recent(alice, "") {
+		if it.WatchID == 2 || it.Title == "EN BobShow" {
+			t.Errorf("alice's download is tied to bob's watch or match: %+v", it)
+		}
+	}
+}
