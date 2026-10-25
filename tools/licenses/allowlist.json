@@ -1,0 +1,33 @@
+{
+  "comment": "Licenses the shipped app may contain without a second look: permissive ones plus MPL-2.0 (file-level copyleft). WeebSync itself is AGPL-3.0-only, so copyleft that is compatible with it (LGPL, GPL-2.0-or-later) is not forbidden, but it is never allowed in bulk: each such package is listed under exceptions with its exact license string and the reason. A changed license string fails the check again. Checked by frontend/scripts/licenses.mjs check, run from tools/licenses/generate.sh and CI.",
+  "allowed": [
+    "0BSD",
+    "Apache-2.0",
+    "BlueOak-1.0.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "CC-BY-4.0",
+    "CC0-1.0",
+    "FTL",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MIT-Modern-Variant",
+    "MPL-2.0",
+    "NTP",
+    "OFL-1.1",
+    "Unlicense",
+    "Zlib"
+  ],
+  "exceptions": {
+    "jassub": {
+      "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
+      "why": "The subtitle renderer: libass and the libraries it builds on, compiled to WebAssembly and shipped unmodified from the npm package. Its LGPL-2.1-or-later part is compatible with the AGPL-3.0 app, whose complete source is published anyway; FreeType is taken under FTL."
+    },
+    "rvfc-polyfill": {
+      "license": "GPL-3.0",
+      "why": "A requestVideoFrameCallback polyfill pulled in by jassub. Section 13 of both the GPL-3.0 and the AGPL-3.0 explicitly permits combining a GPL-3.0 work with an AGPL-3.0 work; the combination is conveyed under the AGPL-3.0 with the polyfill's own terms kept for its part."
+    }
+  }
+}

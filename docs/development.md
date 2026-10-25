@@ -54,6 +54,27 @@ cd frontend
 yarn lint && yarn format:check && yarn test && yarn build
 ```
 
+### Third-party licenses
+
+The About page lists every third-party component the app ships, with its
+license text: Go modules linked into the binary (go-licenses v2.0.1), the npm
+packages that end up in the production bundle (a small Vite plugin in
+`frontend/scripts/licenses.mjs` reads the bundle's module ids), and static
+entries in `tools/licenses/data.json` (Go itself, the vendored Swagger UI,
+the password list, the fonts, the DB-IP database). After a dependency
+change, regenerate and commit the result:
+
+```bash
+tools/licenses/generate.sh        # writes frontend/src/licenses/{inventory,texts}.json
+tools/licenses/generate.sh --check   # only the allowlist check
+```
+
+CI regenerates and fails on a diff. The check refuses any license outside
+`tools/licenses/allowlist.json`; copyleft packages are allowed one by one
+there, each with its exact license string and the reason. A Go package whose
+license file go-licenses cannot place (the vendored RAR decoder) gets its
+version and URL from `tools/licenses/go-overrides.json`.
+
 ## Stack
 
 - **Backend:** Go with the standard `net/http`, `modernc.org/sqlite`, `pkg/sftp`, `jlaffaye/ftp`; release names are read by `internal/relname`

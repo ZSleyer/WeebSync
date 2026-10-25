@@ -1,0 +1,73 @@
+[
+  {
+    "name": "Go standard library and runtime",
+    "version": "1.27.3",
+    "license": "BSD-3-Clause",
+    "url": "https://go.dev/LICENSE",
+    "source": "data",
+    "texts": [
+      "tools/licenses/texts/go-LICENSE.txt"
+    ]
+  },
+  {
+    "name": "Swagger UI (vendored in backend/docs/swaggerui, served by dev builds only)",
+    "version": "5.32.9",
+    "license": "Apache-2.0",
+    "url": "https://github.com/swagger-api/swagger-ui",
+    "source": "data",
+    "texts": [
+      "tools/licenses/texts/swagger-ui-LICENSE.txt",
+      "tools/licenses/texts/swagger-ui-NOTICE.txt"
+    ]
+  },
+  {
+    "name": "SecLists common passwords (backend/internal/auth/common-passwords.txt)",
+    "version": "NCSC top 100k",
+    "license": "MIT",
+    "url": "https://github.com/danielmiessler/SecLists",
+    "source": "data",
+    "texts": [
+      "tools/licenses/texts/seclists-LICENSE.txt"
+    ]
+  },
+  {
+    "name": "IP Geolocation by DB-IP",
+    "version": "IP to City Lite",
+    "license": "CC-BY-4.0",
+    "url": "https://db-ip.com",
+    "source": "data",
+    "texts": [
+      "tools/licenses/texts/CC-BY-4.0.txt"
+    ]
+  },
+  {
+    "name": "Chakra Petch (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/m4rc1e/Chakra-Petch",
+    "source": "data",
+    "texts": [
+      "frontend/src/fonts/LICENSE-chakra-petch.txt"
+    ]
+  },
+  {
+    "name": "IBM Plex Mono (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/IBM/plex",
+    "source": "data",
+    "texts": [
+      "frontend/src/fonts/LICENSE-ibm-plex-mono.txt"
+    ]
+  },
+  {
+    "name": "IBM Plex Sans (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/IBM/plex",
+    "source": "data",
+    "texts": [
+      "frontend/src/fonts/LICENSE-ibm-plex-sans.txt"
+    ]
+  }
+]

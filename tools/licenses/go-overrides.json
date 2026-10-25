@@ -1,0 +1,7 @@
+{
+  "github.com/nwaples/rardecode/v2": {
+    "version": "v2.4.5 (vendored with changes in backend/third_party/rardecode)",
+    "url": "https://github.com/nwaples/rardecode",
+    "licenseFile": "backend/third_party/rardecode/LICENSE"
+  }
+}

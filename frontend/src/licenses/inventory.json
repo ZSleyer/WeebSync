@@ -1,0 +1,506 @@
+[
+  {
+    "name": "Chakra Petch (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/m4rc1e/Chakra-Petch",
+    "source": "data",
+    "text": "a776886423f4ffb4"
+  },
+  {
+    "name": "Go standard library and runtime",
+    "version": "1.27.3",
+    "license": "BSD-3-Clause",
+    "url": "https://go.dev/LICENSE",
+    "source": "data",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "IBM Plex Mono (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/IBM/plex",
+    "source": "data",
+    "text": "7c08ae0a6363ca03"
+  },
+  {
+    "name": "IBM Plex Sans (frontend/src/fonts)",
+    "version": "woff2 from fontsource",
+    "license": "OFL-1.1",
+    "url": "https://github.com/IBM/plex",
+    "source": "data",
+    "text": "e2ff586d1c651f4c"
+  },
+  {
+    "name": "IP Geolocation by DB-IP",
+    "version": "IP to City Lite",
+    "license": "CC-BY-4.0",
+    "url": "https://db-ip.com",
+    "source": "data",
+    "text": "fe7b4ce83b8381cc"
+  },
+  {
+    "name": "SecLists common passwords (backend/internal/auth/common-passwords.txt)",
+    "version": "NCSC top 100k",
+    "license": "MIT",
+    "url": "https://github.com/danielmiessler/SecLists",
+    "source": "data",
+    "text": "93c37ee6fd53af0c"
+  },
+  {
+    "name": "Swagger UI (vendored in backend/docs/swaggerui, served by dev builds only)",
+    "version": "5.32.9",
+    "license": "Apache-2.0",
+    "url": "https://github.com/swagger-api/swagger-ui",
+    "source": "data",
+    "text": "0c7cb4840a2974be"
+  },
+  {
+    "name": "github.com/at-wat/ebml-go",
+    "version": "v0.19.4",
+    "license": "Apache-2.0",
+    "url": "https://github.com/at-wat/ebml-go/blob/v0.19.4/LICENSE",
+    "source": "go",
+    "text": "283ea6cc2997a1a7"
+  },
+  {
+    "name": "github.com/coreos/go-oidc/v3/oidc",
+    "version": "v3.21.0",
+    "license": "Apache-2.0",
+    "url": "https://github.com/coreos/go-oidc/blob/v3.21.0/LICENSE",
+    "source": "go",
+    "text": "6dc0e068dcf3a5bc"
+  },
+  {
+    "name": "github.com/dustin/go-humanize",
+    "version": "v1.0.1",
+    "license": "MIT",
+    "url": "https://github.com/dustin/go-humanize/blob/v1.0.1/LICENSE",
+    "source": "go",
+    "text": "a387ca71c7aabd58"
+  },
+  {
+    "name": "github.com/fxamacker/cbor/v2",
+    "version": "v2.9.4",
+    "license": "MIT",
+    "url": "https://github.com/fxamacker/cbor/blob/v2.9.4/LICENSE",
+    "source": "go",
+    "text": "78cad457d5ea7318"
+  },
+  {
+    "name": "github.com/go-jose/go-jose/v4",
+    "version": "v4.1.6",
+    "license": "Apache-2.0",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.6/LICENSE",
+    "source": "go",
+    "text": "283ea6cc2997a1a7"
+  },
+  {
+    "name": "github.com/go-jose/go-jose/v4/json",
+    "version": "v4.1.6",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.6/json/LICENSE",
+    "source": "go",
+    "text": "fa5d72757c7d3472"
+  },
+  {
+    "name": "github.com/go-viper/mapstructure/v2",
+    "version": "v2.5.0",
+    "license": "MIT",
+    "url": "https://github.com/go-viper/mapstructure/blob/v2.5.0/LICENSE",
+    "source": "go",
+    "text": "d88adb6d12706dec"
+  },
+  {
+    "name": "github.com/go-webauthn/webauthn",
+    "version": "v0.18.2",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/go-webauthn/webauthn/blob/v0.18.2/LICENSE",
+    "source": "go",
+    "text": "5e0435d30b066b2e"
+  },
+  {
+    "name": "github.com/go-webauthn/x/crypto/secp256k1",
+    "version": "v0.3.1",
+    "license": "ISC",
+    "url": "https://github.com/go-webauthn/x/blob/v0.3.1/crypto/secp256k1/LICENSE",
+    "source": "go",
+    "text": "36ca878ab5dc7bd4"
+  },
+  {
+    "name": "github.com/go-webauthn/x/encoding/asn1",
+    "version": "v0.3.1",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/go-webauthn/x/blob/v0.3.1/LICENSE",
+    "source": "go",
+    "text": "3b6f3112ab7231f5"
+  },
+  {
+    "name": "github.com/go-webauthn/x/revoke",
+    "version": "v0.3.1",
+    "license": "BSD-2-Clause",
+    "url": "https://github.com/go-webauthn/x/blob/v0.3.1/revoke/LICENSE",
+    "source": "go",
+    "text": "f8bb7d3b271251d6"
+  },
+  {
+    "name": "github.com/golang-jwt/jwt/v5",
+    "version": "v5.3.1",
+    "license": "MIT",
+    "url": "https://github.com/golang-jwt/jwt/blob/v5.3.1/LICENSE",
+    "source": "go",
+    "text": "165040bd15ac3ffe"
+  },
+  {
+    "name": "github.com/google/go-tpm",
+    "version": "v0.9.8",
+    "license": "Apache-2.0",
+    "url": "https://github.com/google/go-tpm/blob/v0.9.8/LICENSE",
+    "source": "go",
+    "text": "283ea6cc2997a1a7"
+  },
+  {
+    "name": "github.com/google/uuid",
+    "version": "v1.6.0",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/google/uuid/blob/v1.6.0/LICENSE",
+    "source": "go",
+    "text": "321fb0f91d220662"
+  },
+  {
+    "name": "github.com/jlaffaye/ftp",
+    "version": "v0.2.4",
+    "license": "ISC",
+    "url": "https://github.com/jlaffaye/ftp/blob/v0.2.4/LICENSE",
+    "source": "go",
+    "text": "1e9bf5afb97e43d4"
+  },
+  {
+    "name": "github.com/kr/fs",
+    "version": "v0.1.0",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/kr/fs/blob/v0.1.0/LICENSE",
+    "source": "go",
+    "text": "fa5d72757c7d3472"
+  },
+  {
+    "name": "github.com/nwaples/rardecode/v2",
+    "version": "v2.4.5 (vendored with changes in backend/third_party/rardecode)",
+    "license": "BSD-2-Clause",
+    "url": "https://github.com/nwaples/rardecode",
+    "source": "go",
+    "text": "72e15fa6c3146eba"
+  },
+  {
+    "name": "github.com/philhofer/fwd",
+    "version": "v1.2.0",
+    "license": "MIT",
+    "url": "https://github.com/philhofer/fwd/blob/v1.2.0/LICENSE.md",
+    "source": "go",
+    "text": "430da36bd967b28f"
+  },
+  {
+    "name": "github.com/pkg/sftp",
+    "version": "v1.13.11",
+    "license": "BSD-2-Clause",
+    "url": "https://github.com/pkg/sftp/blob/v1.13.11/LICENSE",
+    "source": "go",
+    "text": "2bdbd15d720026ed"
+  },
+  {
+    "name": "github.com/remyoudompheng/bigfft",
+    "version": "v0.0.0-20230129092748-24d4a6f8daec",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/remyoudompheng/bigfft/blob/24d4a6f8daec/LICENSE",
+    "source": "go",
+    "text": "fa5d72757c7d3472"
+  },
+  {
+    "name": "github.com/tinylib/msgp/msgp",
+    "version": "v1.6.4",
+    "license": "MIT",
+    "url": "https://github.com/tinylib/msgp/blob/v1.6.4/LICENSE",
+    "source": "go",
+    "text": "17df22e31ef6a84f"
+  },
+  {
+    "name": "github.com/x448/float16",
+    "version": "v0.8.4",
+    "license": "MIT",
+    "url": "https://github.com/x448/float16/blob/v0.8.4/LICENSE",
+    "source": "go",
+    "text": "8fbcad4413dca2b7"
+  },
+  {
+    "name": "golang.org/x/crypto",
+    "version": "v0.58.0",
+    "license": "BSD-3-Clause",
+    "url": "https://cs.opensource.google/go/x/crypto/+/v0.58.0:LICENSE",
+    "source": "go",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "golang.org/x/oauth2",
+    "version": "v0.37.0",
+    "license": "BSD-3-Clause",
+    "url": "https://cs.opensource.google/go/x/oauth2/+/v0.37.0:LICENSE",
+    "source": "go",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "golang.org/x/sys",
+    "version": "v0.49.0",
+    "license": "BSD-3-Clause",
+    "url": "https://cs.opensource.google/go/x/sys/+/v0.49.0:LICENSE",
+    "source": "go",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "golang.org/x/text",
+    "version": "v0.43.0",
+    "license": "BSD-3-Clause",
+    "url": "https://cs.opensource.google/go/x/text/+/v0.43.0:LICENSE",
+    "source": "go",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "golang.org/x/time/rate",
+    "version": "v0.16.0",
+    "license": "BSD-3-Clause",
+    "url": "https://cs.opensource.google/go/x/time/+/v0.16.0:LICENSE",
+    "source": "go",
+    "text": "22975ebe413674bc"
+  },
+  {
+    "name": "modernc.org/libc",
+    "version": "v1.77.1",
+    "license": "BSD-3-Clause",
+    "url": "https://gitlab.com/cznic/libc/-/blob/v1.77.1/LICENSE",
+    "source": "go",
+    "text": "7d1d14fc62bf1284"
+  },
+  {
+    "name": "modernc.org/mathutil",
+    "version": "v1.7.1",
+    "license": "BSD-3-Clause",
+    "url": "https://gitlab.com/cznic/mathutil/-/blob/v1.7.1/LICENSE",
+    "source": "go",
+    "text": "cb501d1d52603ec4"
+  },
+  {
+    "name": "modernc.org/memory",
+    "version": "v1.12.1",
+    "license": "BSD-3-Clause",
+    "url": "https://gitlab.com/cznic/memory/-/blob/v1.12.1/LICENSE",
+    "source": "go",
+    "text": "548392101458709a"
+  },
+  {
+    "name": "modernc.org/sqlite",
+    "version": "v1.60.1",
+    "license": "BSD-3-Clause",
+    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.60.1/LICENSE",
+    "source": "go",
+    "text": "ed5daf17385452dc"
+  },
+  {
+    "name": "@tanstack/query-core",
+    "version": "5.104.2",
+    "license": "MIT",
+    "url": "https://github.com/TanStack/query",
+    "source": "npm",
+    "text": "277d2a8e459713d6"
+  },
+  {
+    "name": "@tanstack/react-query",
+    "version": "5.104.2",
+    "license": "MIT",
+    "url": "https://github.com/TanStack/query",
+    "source": "npm",
+    "text": "277d2a8e459713d6"
+  },
+  {
+    "name": "abslink",
+    "version": "1.3.1",
+    "license": "Apache-2.0",
+    "url": "https://github.com/ThaUnknown/abslink",
+    "source": "npm",
+    "text": "21b0bf8146e998b8"
+  },
+  {
+    "name": "ce-la-react",
+    "version": "0.3.2",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/muxinc/ce-la-react",
+    "source": "npm",
+    "text": "45d31799d0db956c"
+  },
+  {
+    "name": "fluid-lycoris",
+    "version": "0.1.0",
+    "license": "MIT",
+    "url": "https://github.com/ZSleyer/WeebSync/tree/main/design-system",
+    "source": "npm",
+    "text": "54f10ec20ce99182"
+  },
+  {
+    "name": "hls.js",
+    "version": "1.7.3",
+    "license": "Apache-2.0",
+    "url": "https://github.com/video-dev/hls.js",
+    "source": "npm",
+    "text": "bddf7c26f1f7ea45"
+  },
+  {
+    "name": "html-parse-stringify",
+    "version": "4.0.1",
+    "license": "MIT",
+    "url": "https://github.com/i18next/html-parse-stringify",
+    "source": "npm",
+    "text": "e11877630c33295b"
+  },
+  {
+    "name": "i18next",
+    "version": "26.4.4",
+    "license": "MIT",
+    "url": "https://github.com/i18next/i18next",
+    "source": "npm",
+    "text": "95745ba564f174b1"
+  },
+  {
+    "name": "jassub",
+    "version": "2.5.20",
+    "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
+    "url": "https://github.com/ThaUnknown/jassub",
+    "source": "npm",
+    "text": "0a690e561c4de8d9"
+  },
+  {
+    "name": "libpgs",
+    "version": "0.9.0",
+    "license": "MIT",
+    "url": "https://github.com/Arcus92/libpgs-js",
+    "source": "npm",
+    "text": "047409c897cd7b2d"
+  },
+  {
+    "name": "lucide-react",
+    "version": "1.55.0",
+    "license": "ISC",
+    "url": "https://github.com/lucide-icons/lucide",
+    "source": "npm",
+    "text": "ee35498e6684b30c"
+  },
+  {
+    "name": "media-chrome",
+    "version": "4.19.3",
+    "license": "MIT",
+    "url": "https://github.com/muxinc/media-chrome",
+    "source": "npm",
+    "text": "761afbd786b4c6d8"
+  },
+  {
+    "name": "pdfjs-dist",
+    "version": "6.4.299",
+    "license": "Apache-2.0",
+    "url": "https://github.com/mozilla/pdf.js",
+    "source": "npm",
+    "text": "4bf96504d6e83ce5"
+  },
+  {
+    "name": "qrcode-generator",
+    "version": "2.0.4",
+    "license": "MIT",
+    "url": "https://github.com/kazuhikoarase/qrcode-generator",
+    "source": "npm",
+    "text": "7ed556348fcbcbce"
+  },
+  {
+    "name": "react",
+    "version": "19.3.0",
+    "license": "MIT",
+    "url": "https://github.com/react/react",
+    "source": "npm",
+    "text": "cf9b17822d1fcd4f"
+  },
+  {
+    "name": "react-dom",
+    "version": "19.3.0",
+    "license": "MIT",
+    "url": "https://github.com/react/react",
+    "source": "npm",
+    "text": "cf9b17822d1fcd4f"
+  },
+  {
+    "name": "react-i18next",
+    "version": "17.0.16",
+    "license": "MIT",
+    "url": "https://github.com/i18next/react-i18next",
+    "source": "npm",
+    "text": "a7748879aa4d3502"
+  },
+  {
+    "name": "react-router",
+    "version": "8.4.0",
+    "license": "MIT",
+    "url": "https://github.com/remix-run/react-router",
+    "source": "npm",
+    "text": "9bd42e9ab2f84a39"
+  },
+  {
+    "name": "rolldown",
+    "version": "1.2.13",
+    "license": "MIT",
+    "url": "https://github.com/rolldown/rolldown",
+    "source": "npm",
+    "text": "93a675c915fd5846"
+  },
+  {
+    "name": "rvfc-polyfill",
+    "version": "1.0.8",
+    "license": "GPL-3.0",
+    "url": "https://github.com/ThaUnknown/rvfc-polyfill",
+    "source": "npm",
+    "text": "3743f7a4ab5132f7"
+  },
+  {
+    "name": "scheduler",
+    "version": "0.28.0",
+    "license": "MIT",
+    "url": "https://github.com/react/react",
+    "source": "npm",
+    "text": "cf9b17822d1fcd4f"
+  },
+  {
+    "name": "tailwindcss",
+    "version": "4.3.3",
+    "license": "MIT",
+    "url": "https://github.com/tailwindlabs/tailwindcss",
+    "source": "npm",
+    "text": "fdd854c84f367147"
+  },
+  {
+    "name": "throughput",
+    "version": "1.0.2",
+    "license": "MIT",
+    "url": "https://github.com/ThaUnknown/throughput",
+    "source": "npm",
+    "text": "e357f2a06e33852a"
+  },
+  {
+    "name": "use-sync-external-store",
+    "version": "1.6.0",
+    "license": "MIT",
+    "url": "https://github.com/facebook/react",
+    "source": "npm",
+    "text": "cf9b17822d1fcd4f"
+  },
+  {
+    "name": "vite",
+    "version": "8.3.4",
+    "license": "MIT",
+    "url": "https://github.com/vitejs/vite",
+    "source": "npm",
+    "text": "f9a0c68ac4a23abf"
+  }
+]

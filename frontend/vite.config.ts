@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { licenseInventory } from './scripts/licenses.mjs'
 
 // The fonts the first screen sets its text in, Latin subset: the display face
 // of every heading and the body text. Preloaded from the HTML, so they load
@@ -34,7 +35,9 @@ function preloadFonts(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), preloadFonts()],
+  // licenseInventory lists the packages of the bundle for the About page,
+  // only when tools/licenses/generate.sh asks for it
+  plugins: [react(), tailwindcss(), preloadFonts(), licenseInventory()],
   resolve: {
     alias: {
       // the design system resolves to its SOURCE, not its dist: no build step
