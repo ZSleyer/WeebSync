@@ -26,11 +26,13 @@ function Start() {
   )
 }
 
-const session = { metadata: null as unknown, setActionHandler: vi.fn() }
+const handlers = new Map<string, unknown>()
+const session = { metadata: null as unknown, setActionHandler: (a: string, fn: unknown) => void handlers.set(a, fn) }
 const video = { title: 'an episode' }
 
 beforeEach(() => {
   session.metadata = null
+  handlers.clear()
   Object.defineProperty(navigator, 'mediaSession', { value: session, configurable: true })
   vi.stubGlobal('MediaMetadata', function (this: object, m: object) {
     Object.assign(this, m)
@@ -62,6 +64,18 @@ describe('the audio player and the shared Media Session', () => {
       document.querySelector('audio')!.dispatchEvent(new Event('play'))
     })
     expect((session.metadata as { title?: string })?.title).toBe('01 Opening')
+  })
+
+  it('takes over every lock-screen button, the ones it has none for switched off', () => {
+    app()
+    // the video had the session: its seek and float buttons were set
+    session.metadata = video
+    for (const a of ['seekbackward', 'seekforward', 'enterpictureinpicture']) handlers.set(a, () => 'video')
+    act(() => {
+      document.querySelector('audio')!.dispatchEvent(new Event('play'))
+    })
+    for (const a of ['seekbackward', 'seekforward', 'enterpictureinpicture']) expect(handlers.get(a)).toBeNull()
+    expect(handlers.get('play')).toBeTypeOf('function')
   })
 
   it("leaves the video's session alone as its queue ends", () => {

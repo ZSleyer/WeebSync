@@ -307,6 +307,23 @@ describe('the app-wide video player', () => {
       expect(session.metadata).toBeNull()
     })
 
+    it('clears its own extra buttons on close even after a track took the session', async () => {
+      const { router } = mount()
+      const video = await ready()
+      await waitFor(() => expect(handlers.get('seekforward')).toBeTypeOf('function'))
+      playing(video, true)
+      await go(router, '/watches')
+      // a track took the session; its own buttons are set
+      session.metadata = { title: 'a song' }
+      handlers.set('play', 'theirs')
+      fireEvent.click(
+        within(mini()!.querySelector<HTMLElement>('.ws-vmini-row')!).getByRole('button', { name: 'Close the video' }),
+      )
+      for (const a of ['seekbackward', 'seekforward', 'enterpictureinpicture']) expect(handlers.get(a)).toBeNull()
+      expect(handlers.get('play')).toBe('theirs')
+      expect(session.metadata).toEqual({ title: 'a song' })
+    })
+
     it('takes the session back from a track as the video plays again', async () => {
       mount()
       const video = await ready()

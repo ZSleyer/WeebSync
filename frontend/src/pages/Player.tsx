@@ -143,6 +143,8 @@ async function askPip(v: HTMLVideoElement) {
 // (https://developer.chrome.com/blog/automatic-picture-in-picture-initiated-by-the-browser).
 // TypeScript's DOM types do not know the action yet.
 type SessionAction = MediaSessionAction | 'enterpictureinpicture'
+// the session buttons only the video player sets (the audio player has none)
+const VIDEO_ONLY: SessionAction[] = ['seekbackward', 'seekforward', 'enterpictureinpicture']
 // Safari, and every browser on an iPhone (all WebKit), reads no Matroska: a
 // direct .mkv loaded forever without a frame
 // an iPhone has fullscreen for a bare <video> only: iOS's own player, without
@@ -868,7 +870,10 @@ function PlayerView({
     v?.addEventListener('play', reclaim)
     return () => {
       v?.removeEventListener('play', reclaim)
-      // the audio player shares the session: leave it alone once it took over
+      // the buttons the audio player has none of are this player's alone:
+      // they go with it, whoever holds the session now
+      for (const a of VIDEO_ONLY) set(a, null)
+      // the audio player shares the session: leave the rest alone once it took over
       if (ms.metadata !== meta) return
       ms.metadata = null
       for (const [a] of on) set(a, null)

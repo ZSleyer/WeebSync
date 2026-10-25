@@ -320,13 +320,17 @@ describe('picture in picture when the tab is left', () => {
     expect(handlers.get('play')).toBeNull()
   })
 
-  it('stays with the audio player once it took the session over', async () => {
+  // the audio player sets play, pause, seekto and the track buttons; floating
+  // is the video's alone, so it goes with the video either way
+  it('stays with the audio player once it took the session over, the float action goes', async () => {
     const { unmount } = await mount(CHROME_ANDROID)
     await waitFor(() => expect(handlers.get('enterpictureinpicture')).toBeTypeOf('function'))
     session.metadata = { title: 'a song' }
     const theirs = () => {}
-    handlers.set('enterpictureinpicture', theirs)
+    handlers.set('play', theirs)
     unmount()
-    expect(handlers.get('enterpictureinpicture')).toBe(theirs)
+    expect(handlers.get('play')).toBe(theirs)
+    expect(session.metadata).toEqual({ title: 'a song' })
+    expect(handlers.get('enterpictureinpicture')).toBeNull()
   })
 })

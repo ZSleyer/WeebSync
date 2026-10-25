@@ -219,9 +219,12 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       artwork: queue.cover ? [{ src: queue.cover }] : [],
     })
     const all: MediaSessionAction[] = ['play', 'pause', 'previoustrack', 'nexttrack', 'seekto']
-    for (const a of all) {
+    // the video player's buttons (seeking by ten seconds, floating) would act
+    // on the paused video while the track holds the session: off with them
+    const none = ['seekbackward', 'seekforward', 'enterpictureinpicture'] as MediaSessionAction[]
+    for (const a of [...all, ...none]) {
       try {
-        ms.setActionHandler(a, (d) => actions(a, d))
+        ms.setActionHandler(a, all.includes(a) ? (d) => actions(a, d) : null)
       } catch {
         // an action this browser does not know
       }
