@@ -209,12 +209,39 @@ export function skipProblems(overrides, deps) {
   return problems
 }
 
-// dataEntries: the static ones, texts named by repo-relative paths
-export function dataEntries(data, read = (f) => readFileSync(path.join(REPO, f), 'utf8')) {
-  return data.map(({ texts = [], ...e }) => ({
-    ...e,
-    text: texts.map((f) => normText(read(f))).join('\n\n'),
-  }))
+const goVersion = (v) => v.split('.').map(Number)
+const olderThan = (a, b) => {
+  const [x, y] = [goVersion(a), goVersion(b)]
+  for (let i = 0; i < Math.max(x.length, y.length); i++)
+    if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) < (y[i] ?? 0)
+  return false
+}
+
+// goToolchainVersion: the Go that builds the shipped binary is the golang
+// build image in the Dockerfile; go.mod only names the oldest Go the module
+// accepts (go) or wants (toolchain), so the image must not be older
+export function goToolchainVersion(dockerfile, gomod) {
+  const img = dockerfile.match(/^FROM\s+(?:--\S+\s+)*golang:(\d+\.\d+(?:\.\d+)?)[-@\s]/m)?.[1]
+  if (!img) throw new Error('Dockerfile: no golang build image')
+  const want = [gomod.match(/^go\s+(\d[\d.]*)\s*$/m)?.[1], gomod.match(/^toolchain\s+go(\d[\d.]*)\s*$/m)?.[1]]
+  for (const v of want)
+    if (v && olderThan(img, v)) throw new Error(`Dockerfile: golang:${img} is older than go.mod's ${v}`)
+  return img
+}
+
+// dataEntries: the static ones, texts named by repo-relative paths; the
+// version "@go-toolchain" stands for goToolchainVersion
+export function dataEntries(data, read = (f) => readFileSync(path.join(REPO, f), 'utf8'), goToolchain = undefined) {
+  return data.map(({ texts = [], ...e }) => {
+    if (e.version === '@go-toolchain') {
+      goToolchain ??= goToolchainVersion(
+        readFileSync(path.join(REPO, 'Dockerfile'), 'utf8'),
+        readFileSync(path.join(REPO, 'backend', 'go.mod'), 'utf8'),
+      )
+      e = { ...e, version: goToolchain }
+    }
+    return { ...e, text: texts.map((f) => normText(read(f))).join('\n\n') }
+  })
 }
 
 const ORDER = { data: 0, go: 1, npm: 2, os: 3 }

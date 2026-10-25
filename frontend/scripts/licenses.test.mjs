@@ -5,6 +5,8 @@ import { describe, expect, it } from 'vitest'
 import {
   allowedBy,
   check,
+  dataEntries,
+  goToolchainVersion,
   merge,
   packageRoot,
   parseGoReport,
@@ -174,5 +176,33 @@ describe('Go modules: every notice next to the license', () => {
     expect(textOf('github.com/coreos/go-oidc/v3/oidc')).toContain('CoreOS Project')
     expect(textOf('modernc.org/libc')).toMatch(/musl/i)
     expect(textOf('modernc.org/sqlite')).toContain('SQLite Is Public Domain')
+  })
+})
+
+describe('the Go toolchain entry', () => {
+  const dockerfile = 'FROM node AS web\nFROM --platform=$BUILDPLATFORM golang:1.27.3-alpine@sha256:abc AS build\n'
+
+  it('takes its version from the image that builds the binary', () => {
+    expect(goToolchainVersion(dockerfile, 'module x\n\ngo 1.26.10\n')).toBe('1.27.3')
+    const [e] = dataEntries([{ name: 'Go', version: '@go-toolchain', texts: [] }], () => '', '1.27.3')
+    expect(e.version).toBe('1.27.3')
+  })
+
+  it('refuses a build image older than go.mod asks for, or none at all', () => {
+    expect(() => goToolchainVersion(dockerfile, 'go 1.28.0\n')).toThrow(/older than go.mod/)
+    expect(() => goToolchainVersion(dockerfile, 'go 1.26.10\ntoolchain go1.27.4\n')).toThrow(/older than go.mod/)
+    expect(() => goToolchainVersion('FROM alpine\n', 'go 1.26\n')).toThrow(/no golang build image/)
+  })
+
+  it('the committed Go entry matches the Dockerfile', () => {
+    const inv = JSON.parse(readFileSync(path.join(repo, 'frontend/src/licenses/inventory.json'), 'utf8'))
+    const go = inv.find((e) => e.name === 'Go standard library and runtime')
+    const want = goToolchainVersion(
+      readFileSync(path.join(repo, 'Dockerfile'), 'utf8'),
+      readFileSync(path.join(repo, 'backend/go.mod'), 'utf8'),
+    )
+    expect(go.version).toBe(want)
+    const data = JSON.parse(readFileSync(path.join(repo, 'tools/licenses/data.json'), 'utf8'))
+    expect(data.find((e) => e.name === go.name).version).toBe('@go-toolchain')
   })
 })

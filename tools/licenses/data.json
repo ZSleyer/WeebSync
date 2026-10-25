@@ -1,7 +1,7 @@
 [
   {
     "name": "Go standard library and runtime",
-    "version": "1.27.3",
+    "version": "@go-toolchain",
     "license": "BSD-3-Clause",
     "url": "https://go.dev/LICENSE",
     "source": "data",
