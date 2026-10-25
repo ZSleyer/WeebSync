@@ -247,6 +247,9 @@ jobs:
           tags: |
             type=raw,value=dev
             type=raw,value=dev-{{sha}}
+          # the commit built, which the licenses job may have moved past the push
+          labels: |
+            org.opencontainers.image.revision=${{ needs.licenses.outputs.sha }}
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
