@@ -7,6 +7,7 @@ import { updateText, useAuth, useVersion } from '../../hooks'
 import Brand from '../../components/Brand'
 import { ProviderMark } from '../../components/SourceLine'
 import { SettingsPanel, SwitchSetting } from './ui'
+import ThirdPartyLicenses from './Licenses'
 
 // read once per page load; the year does not change during a session
 const year = new Date().getFullYear()
@@ -107,6 +108,8 @@ export default function About() {
           <span className="sf-note">{t('about.dbipNote')}</span>
         </li>
       </ul>
+
+      <ThirdPartyLicenses />
 
       {user?.isAdmin && data && (
         <SwitchSetting

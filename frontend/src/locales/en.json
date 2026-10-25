@@ -61,6 +61,23 @@
     "tvdbNote": "Metadata provided by TheTVDB. Please consider adding missing information or subscribing.",
     "dbipNote": "Approximate session locations, from the DB-IP database (CC BY 4.0).",
     "anilistNote": "Anime data and artwork from AniList.",
+    "licenses": {
+      "title": "Third-party licenses",
+      "intro": "Components by others that WeebSync ships, with their licenses and full license texts.",
+      "loading": "Loading licenses",
+      "loadFailed": "The license list could not be loaded.",
+      "search": "Search name or license",
+      "count_one": "{{count}} of {{total}} components",
+      "count_other": "{{count}} of {{total}} components",
+      "text": "License text",
+      "textOf": "License text: {{name}}",
+      "source": {
+        "data": "Data, fonts and embedded files",
+        "go": "Go modules (server)",
+        "npm": "npm packages (interface)",
+        "os": "Operating system packages (image)"
+      }
+    },
     "licenseLine": "Free software under",
     "dev": "Dev version",
     "stable": "Stable",
