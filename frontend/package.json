@@ -19,7 +19,7 @@
     "@tanstack/react-query": "^5.104.4",
     "hls.js": "^1.7.3",
     "i18next": "^26.5.2",
-    "jassub": "^2.5.21",
+    "jassub": "^2.5.22",
     "libpgs": "^0.9.0",
     "lucide-react": "^1.59.0",
     "media-chrome": "^4.19.3",
