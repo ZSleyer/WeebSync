@@ -100,6 +100,16 @@ func (s *Server) indexPlexLibrary(ctx context.Context) {
 		}
 	}
 	s.storePlexPathNotes(notes)
+	// a pseudo folder this complete run did not write again is gone from Plex,
+	// or its file is reachable now (a path mapping was added) and the season
+	// sits under its real folder. Left in place it stays a second local copy
+	// without a path note, and an upgrade card that picks it can only say
+	// "map the path" to an admin whose mapping already works. Only pseudo
+	// folders: a real path can also come from the local catalog.
+	if _, err := s.DB.Exec(`DELETE FROM catalog_variants
+		WHERE server_id = 0 AND folder LIKE 'plex:%' AND computed_at < ?`, now); err != nil {
+		slog.Warn("plex index: stale pseudo folders not dropped", "err", err)
+	}
 	if err := db.SetSetting(s.DB, "plex_indexed_at", now); err != nil {
 		slog.Warn("plex index time not saved, the next tick indexes again", "err", err)
 	}
