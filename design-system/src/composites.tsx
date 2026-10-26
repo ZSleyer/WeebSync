@@ -632,9 +632,13 @@ export function TransferCard({
       </div>
       <Progress value={percent} size={hero ? 'md' : 'sm'} active={active} tone={tone} label={progressLabel} wave className="mt-3" />
       {children}
-      {/* one row at every width: on a phone the buttons keep their icons and
-          drop the captions, which is what leaves the limit control its place */}
-      {actions && <div className="mt-2 flex flex-nowrap items-center gap-2">{actions}</div>}
+      {/* in a narrow card the buttons keep their icons and drop the captions,
+          which is what leaves the limit control its place on the line. The row
+          is the size container, so the switch follows the card, not the
+          viewport - a card in the side sheet is narrow on any screen. Narrower
+          still (a phone, four buttons) the limit wraps below instead of
+          running out of the card */}
+      {actions && <div className="@container mt-2 flex flex-wrap items-center gap-2">{actions}</div>}
     </Panel>
   )
 }

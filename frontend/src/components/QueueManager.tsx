@@ -1371,23 +1371,23 @@ function DownloadRow({
       actions={
         d.status === 'done' ? undefined : (
           <>
-            {/* on a phone the buttons drop their captions and keep the icon,
+            {/* in a narrow card the buttons drop their captions and keep the icon,
               which is what leaves the limit control room to stay on the line */}
             {running || d.status === 'queued' ? (
               <Button size="sm" className="shrink-0" aria-label={t('dash.pause')} onClick={() => onAction('pause')}>
-                <Pause aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                <span className="hidden sm:inline">{t('dash.pause')}</span>
+                <Pause aria-hidden size="1em" className="inline align-[-0.125em] @3xl:mr-1" />
+                <span className="hidden @3xl:inline">{t('dash.pause')}</span>
               </Button>
             ) : (
               <Button size="sm" className="shrink-0" aria-label={t('dash.resume')} onClick={() => onAction('resume')}>
-                <Play aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                <span className="hidden sm:inline">{t('dash.resume')}</span>
+                <Play aria-hidden size="1em" className="inline align-[-0.125em] @3xl:mr-1" />
+                <span className="hidden @3xl:inline">{t('dash.resume')}</span>
               </Button>
             )}
             {reorder?.toFront && (
               <Button size="sm" className="shrink-0" aria-label={t('dash.toFront')} onClick={reorder.toFront}>
-                <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-                <span className="hidden sm:inline">{t('dash.toFront')}</span>
+                <ArrowUpToLine aria-hidden size="1em" className="inline align-[-0.125em] @3xl:mr-1" />
+                <span className="hidden @3xl:inline">{t('dash.toFront')}</span>
               </Button>
             )}
             <Button
@@ -1397,8 +1397,8 @@ function DownloadRow({
               aria-label={t('dash.cancel')}
               onClick={() => onAction('cancel')}
             >
-              <X aria-hidden size="1em" className="inline align-[-0.125em] sm:mr-1" />
-              <span className="hidden sm:inline">{t('dash.cancel')}</span>
+              <X aria-hidden size="1em" className="inline align-[-0.125em] @3xl:mr-1" />
+              <span className="hidden @3xl:inline">{t('dash.cancel')}</span>
             </Button>
             <RateLimitInput d={d} />
           </>
@@ -1609,12 +1609,14 @@ function LimitInput({
     // twice is a lot of phone screen. The caption goes screen-reader-only on a
     // phone rather than away, so the field keeps its accessible name
     <label className="ml-auto flex min-w-0 flex-nowrap items-center gap-2 text-xs text-t-muted">
-      <span className={caption ? 'shrink-0' : 'sr-only shrink-0 sm:not-sr-only'}>{label}</span>
+      <span className={caption ? 'shrink-0' : 'sr-only shrink-0 @3xl:not-sr-only'}>{label}</span>
       {/* the width needs the bang: .t-input sets width:100% unlayered, which
-          beats a plain w-14 utility and lets the field eat the whole row */}
+          beats a plain w-14 utility and lets the field eat the whole row. In a
+          card it widens with the card's action row (the size container); a
+          captioned one sits in a wrapping toolbar with no container above it */}
       <Input
         size="sm"
-        className="w-14! shrink-0 font-mono sm:w-24!"
+        className={caption ? 'w-24! shrink-0 font-mono' : 'w-14! shrink-0 font-mono @3xl:w-24!'}
         type="number"
         min={0}
         step="any"
