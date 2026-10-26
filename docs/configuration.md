@@ -57,6 +57,27 @@ To adopt the new layout:
 3. `PUID` and `PGID` default to 65532 in the compose file, the owner your data already has, so the first start changes nothing for a setup that ran without `user:`. If you ran with `user: "1000:1000"` (or other ids) before, set `PUID` and `PGID` to those ids, otherwise the config folder is handed to 65532 and the app can no longer write the download folders owned by your user. Set them to the host user (`id -u`, `id -g`) if you want your own ids instead. The start-up then hands the config folder, and only that, to the new owner.
 4. Download and media folders are never walked, so files WeebSync wrote there as 65532 keep that owner. After switching ids, run a one-time `chown -R PUID:PGID` on them on the host. Folders you list in `WEEBSYNC_DOWNLOADS` that sit on a mount of their own need the same.
 
+### Coming from `user: "0:0"` without `cap_add`
+
+Older images ran the app as whatever user the container started as, so `user: "0:0"` next to `cap_drop: [ALL]` ran WeebSync as root. A container started as root now always hands its data folder to `PUID:PGID` and drops to that user, and without capabilities it cannot. It stops right after the start, the log says:
+
+```
+entrypoint: data dir /data: ... (the container needs CHOWN and DAC_READ_SEARCH, see docs/configuration.md)
+```
+
+Keep `user: "0:0"` and add what the switch needs:
+
+```yaml
+    user: "0:0"
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETUID, SETGID]
+    environment:
+      - PUID=1000   # owner of your media folder: stat -c %u /path/to/media
+      - PGID=1000   # its group: stat -c %g /path/to/media
+```
+
+The app no longer runs as root, so it can only write where `PUID:PGID` may. The data folder is handed over at start; everything else the app wrote as root stays root's. Before the first start, hand it over once on the host: `sudo chown -R PUID:PGID` on the download folders, and on the media folders WeebSync writes into if they are not already owned by that user. `group_add` entries (GPU render groups) are kept. Dropping `user: "0:0"` instead runs the app as 65532, which then needs the same ownership for 65532.
+
 ## Environment variables
 
 ### Container
