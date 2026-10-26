@@ -399,6 +399,8 @@
     "sessionsLastSeen": "Last active {{when}}",
     "sessionsLocal": "Home network ({{ip}})",
     "sessionsSince": "Since {{when}}",
+    "sessionsEnds": "Expires {{when}}",
+    "sessionsEndsHint": "Every use pushes the end back, but the session ends {{when}} at the latest.",
     "sessionsOld": "Began before the update, no date",
     "sessionsSso": "via SSO",
     "sessionsUnknown": "Unknown browser",
@@ -1675,6 +1677,7 @@
       "retest": "Test again",
       "testing": "Testing, this takes a few seconds",
       "testedAt": "Tested {{when}}",
+      "storedNote": "result from the last start, the next conversion checks again",
       "docs": "Documentation"
     },
     "jellyfinUrl": "Jellyfin URL",

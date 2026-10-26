@@ -2545,6 +2545,10 @@ export interface Schemas {
      */
     probedAt?: string
     probing: boolean
+    /**
+     * the outcome of an earlier run, kept across a restart; this process has not probed yet
+     */
+    stored: boolean
   }
   'api.ipStatus': {
     /**
@@ -3189,6 +3193,13 @@ export interface Schemas {
      */
     createdAt: string
     current: boolean
+    /**
+     * when it ends unless used again: ExpiresAt or the end of its idle window, whichever is first
+     */
+    endsAt: string
+    /**
+     * hard end, set at sign-in
+     */
     expiresAt: string
     id: string
     /**

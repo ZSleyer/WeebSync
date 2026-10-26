@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -38,6 +39,22 @@ func idleLimit(remember bool) time.Duration {
 		return rememberIdle
 	}
 	return sessionIdle
+}
+
+// SessionEnd is when a session ends unless it is used again: its hard expiry
+// or the end of its idle window, whichever comes first. Both stamps are
+// RFC 3339; an unreadable last_seen leaves the hard expiry.
+func SessionEnd(expiresAt, lastSeen string, remember bool) string {
+	exp, err := time.Parse(time.RFC3339, expiresAt)
+	if err != nil {
+		return expiresAt
+	}
+	if seen, err := time.Parse(time.RFC3339, lastSeen); err == nil {
+		if idle := seen.Add(idleLimit(remember)); idle.Before(exp) {
+			exp = idle
+		}
+	}
+	return exp.UTC().Format(time.RFC3339)
 }
 
 // IdleCutoffs are the last_seen stamps before which a session has gone idle,
@@ -384,14 +401,22 @@ func DestroySession(d *sql.DB, w http.ResponseWriter, r *http.Request) error {
 // touchSession reports whether a session is still in use, and stamps it as
 // seen, from ip, when the last stamp is older than seenEvery. An empty stamp
 // (a session from before the column) counts as seen now.
-func touchSession(d *sql.DB, token, lastSeen, ip string, remember bool, now time.Time) bool {
+func touchSession(d *sql.DB, userID int64, token, lastSeen, lastIP, ip string, remember bool, now time.Time) bool {
 	if seen, err := time.Parse(time.RFC3339, lastSeen); err == nil {
 		if now.Sub(seen) > idleLimit(remember) {
 			return false
 		}
-		if now.Sub(seen) < seenEvery {
+		// a new address is written at once: a phone that changes networks
+		// between two stamps would otherwise keep showing the old one.
+		// ponytail: a dual-stack client alternating v4 and v6 per connection
+		// writes (and logs) on every flip; hold same-session flips to
+		// seenEvery if that shows up in the log
+		if now.Sub(seen) < seenEvery && ip == lastIP {
 			return true
 		}
+	}
+	if lastIP != "" && ip != lastIP {
+		slog.Info("session address changed", "user", userID, "from", lastIP, "to", ip)
 	}
 	// a missed stamp only means the next request stamps again
 	_, _ = d.Exec(`UPDATE sessions SET last_seen = ?, ip = ? WHERE token_hash = ?`, now.UTC().Format(time.RFC3339), ip, hashToken(token))
@@ -429,16 +454,16 @@ func Middleware(d *sql.DB, required bool) func(http.Handler) http.Handler {
 			c, legacy := sessionCookieFrom(r)
 			if c != nil {
 				var u User
-				var expires, lastSeen string
+				var expires, lastSeen, lastIP string
 				var isAdmin int
 				var remember bool
-				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.remember
+				err := d.QueryRow(`SELECT u.id, u.email, u.is_admin, u.auth_upgrade, s.expires_at, s.last_seen, s.ip, s.remember
 					FROM sessions s JOIN users u ON u.id = s.user_id
 					WHERE s.token_hash = ? AND u.approved = 1`, hashToken(c.Value)).
-					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &remember)
+					Scan(&u.ID, &u.Email, &isAdmin, &u.Upgrade, &expires, &lastSeen, &lastIP, &remember)
 				if err == nil {
 					now := time.Now()
-					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, c.Value, lastSeen, ClientIP(r), remember, now) {
+					if exp, perr := time.Parse(time.RFC3339, expires); perr == nil && exp.After(now) && touchSession(d, u.ID, c.Value, lastSeen, lastIP, ClientIP(r), remember, now) {
 						if legacy {
 							// moved over once; from now on it comes back
 							// under the host-prefixed name

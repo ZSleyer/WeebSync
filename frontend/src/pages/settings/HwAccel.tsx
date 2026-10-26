@@ -206,6 +206,7 @@ export default function HwAccelPanel() {
         {data.probedAt && !busy && (
           <span className="text-[length:var(--fs-meta)] text-t-muted">
             {t('settings.hw.testedAt', { when: new Date(data.probedAt).toLocaleString() })}
+            {data.stored && ` · ${t('settings.hw.storedNote')}`}
           </span>
         )}
         {repo && (

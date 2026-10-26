@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -14,6 +16,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/ch4d1/weebsync/internal/db"
 )
 
 // videoEncoder is how a transcode writes its picture: x264 in software, or a
@@ -230,6 +234,7 @@ type hwReport struct {
 	ModeFromEnv bool          `json:"modeFromEnv"`
 	Probed      bool          `json:"probed"`
 	Probing     bool          `json:"probing"`
+	Stored      bool          `json:"stored"`             // the outcome of an earlier run, kept across a restart; this process has not probed yet
 	ProbedAt    string        `json:"probedAt,omitempty"` // RFC 3339
 	Choice      *hwChoice     `json:"choice,omitempty"`   // absent until probed
 	Issues      []hwIssue     `json:"issues"`
@@ -339,6 +344,7 @@ func encodeCode(ctx context.Context, env hwEnv, e videoEncoder, failed string) (
 // runs waits for it and takes its result.
 type hwProber struct {
 	env     hwEnv
+	db      *sql.DB    // keeps the last outcome across restarts; nil keeps nothing
 	mu      sync.Mutex // held for the length of a probe
 	gen     atomic.Int64
 	probing atomic.Bool
@@ -376,19 +382,50 @@ func (p *hwProber) probe(seen int64) *hwReport {
 	}
 	p.cur.Store(r)
 	p.gen.Add(1)
+	if p.db != nil {
+		if b, err := json.Marshal(r); err == nil {
+			if err := db.SetSetting(p.db, hwReportKey, string(b)); err != nil {
+				slog.Warn("player: keeping the hardware probe result failed", "err", err)
+			}
+		}
+	}
 	return r
 }
 
-// snapshot is the report for the API: a copy carrying the probing flag, or an
-// unprobed shell before the first probe.
+// hwReportKey is the setting the last probe outcome is kept under.
+const hwReportKey = "hwaccel_report"
+
+// stored is the outcome an earlier run kept, nil when there is none.
+func (p *hwProber) stored() *hwReport {
+	if p.db == nil {
+		return nil
+	}
+	raw := db.Setting(p.db, hwReportKey)
+	if raw == "" {
+		return nil
+	}
+	var r hwReport
+	if json.Unmarshal([]byte(raw), &r) != nil {
+		return nil
+	}
+	r.Stored = true
+	return &r
+}
+
+// snapshot is the report for the API: a copy carrying the probing flag. Before
+// this process probes it is the outcome an earlier run kept, else an unprobed
+// shell; either way mode and arch are today's.
 func (p *hwProber) snapshot() hwReport {
 	var r hwReport
 	if c := p.cur.Load(); c != nil {
 		r = *c
 	} else {
 		raw := strings.TrimSpace(p.env.getenv("WEEBSYNC_HWACCEL"))
-		r = hwReport{Arch: p.env.goarch, Mode: hwMode(raw), ModeFromEnv: raw != "",
-			Issues: []hwIssue{}, Candidates: []hwCandidate{}}
+		r = hwReport{Issues: []hwIssue{}, Candidates: []hwCandidate{}}
+		if s := p.stored(); s != nil {
+			r = *s
+		}
+		r.Arch, r.Mode, r.ModeFromEnv = p.env.goarch, hwMode(raw), raw != ""
 	}
 	r.Probing = p.probing.Load()
 	return r
@@ -396,6 +433,10 @@ func (p *hwProber) snapshot() hwReport {
 
 // hwProbe is the process's prober.
 var hwProbe = &hwProber{env: osHWEnv()}
+
+// KeepHWProbeIn keeps the probe outcome in d's settings, so Settings shows the
+// last result after a restart instead of "not tested". Call before serving.
+func KeepHWProbeIn(d *sql.DB) { hwProbe.db = d }
 
 // playEncoder is picked once per process (and again on request, Settings).
 //

@@ -166,7 +166,8 @@ func main() {
 	rootCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	api.ClearBookCache() // the reader's unpacked books: their tokens died with the last run
+	api.ClearBookCache()        // the reader's unpacked books: their tokens died with the last run
+	api.KeepHWProbeIn(database) // Settings shows the last GPU test after a restart
 	// every loop and startup job runs through srv.Go: Shutdown waits for them
 	// before the database closes
 	srv.Go(func() { srv.WatchLoop(rootCtx) })

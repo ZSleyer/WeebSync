@@ -5745,6 +5745,10 @@
                     },
                     "probing": {
                         "type": "boolean"
+                    },
+                    "stored": {
+                        "description": "the outcome of an earlier run, kept across a restart; this process has not probed yet",
+                        "type": "boolean"
                     }
                 },
                 "required": [
@@ -5753,6 +5757,7 @@
                     "modeFromEnv",
                     "probed",
                     "probing",
+                    "stored",
                     "issues",
                     "candidates"
                 ],
@@ -7305,7 +7310,12 @@
                     "current": {
                         "type": "boolean"
                     },
+                    "endsAt": {
+                        "description": "when it ends unless used again: ExpiresAt or the end of its idle window, whichever is first",
+                        "type": "string"
+                    },
                     "expiresAt": {
+                        "description": "hard end, set at sign-in",
                         "type": "string"
                     },
                     "id": {
@@ -7330,6 +7340,7 @@
                     "id",
                     "createdAt",
                     "expiresAt",
+                    "endsAt",
                     "lastSeen",
                     "ip",
                     "city",

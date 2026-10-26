@@ -167,6 +167,33 @@ func TestProberCachesAndNeverOverlaps(t *testing.T) {
 	}
 }
 
+// The outcome outlives the process: after a restart Settings shows the last
+// test, marked as kept, with today's mode, until this run probes on its own.
+func TestHWProbeKeptAcrossRestart(t *testing.T) {
+	_, s, _, _ := setupAdminTest(t)
+	env := fakeHW("amd64", "", map[string]int{"/dev/nvidiactl": 0}, nil)
+	env.encode = func(context.Context, videoEncoder) (string, error) { return "", nil }
+	before := &hwProber{env: env, db: s.DB}
+	if s := before.snapshot(); s.Probed || s.Stored {
+		t.Fatalf("nothing kept yet: %+v", s)
+	}
+	before.report()
+
+	env.getenv = func(string) string { return "none" }
+	after := &hwProber{env: env, db: s.DB}
+	got := after.snapshot()
+	if !got.Stored || !got.Probed || got.Choice == nil || got.Choice.Encoder != "nvenc" || got.ProbedAt == "" {
+		t.Fatalf("restart lost the outcome: %+v", got)
+	}
+	if got.Mode != "none" || !got.ModeFromEnv {
+		t.Errorf("kept report carries the old mode: %q fromEnv=%v", got.Mode, got.ModeFromEnv)
+	}
+	after.report()
+	if after.snapshot().Stored {
+		t.Error("a fresh probe still reads as kept")
+	}
+}
+
 func TestHWAccelRoutesAreAdminOnly(t *testing.T) {
 	mux, _, adminC, userC := setupAdminTest(t)
 	for _, rt := range []struct{ method, path string }{{"GET", "/api/admin/hwaccel"}, {"POST", "/api/admin/hwaccel/probe"}} {

@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,5 +70,41 @@ func TestSessionIdle(t *testing.T) {
 	s.DB.QueryRow(`SELECT last_seen, ip FROM sessions WHERE token_hash = ?`, auth.TokenHash(old.Value)).Scan(&seen, &ip)
 	if seen == "" || ip == "" {
 		t.Errorf("pre-column session not stamped: seen %q, ip %q", seen, ip)
+	}
+}
+
+// A new address is stored with the next request, not only with the next
+// last_seen stamp, and the list says when each session ends unless used: the
+// hard expiry or the end of the idle window, whichever comes first.
+func TestSessionAddressAndEnd(t *testing.T) {
+	mux, s, _, _, _, userID := setupUsersTest(t)
+	rec := httptest.NewRecorder()
+	if err := auth.CreateSession(s.DB, rec, httptest.NewRequest("GET", "/", nil), userID, false); err != nil {
+		t.Fatal(err)
+	}
+	c := rec.Result().Cookies()[0]
+	seen := time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)
+	s.DB.Exec(`UPDATE sessions SET last_seen = ?, ip = '203.0.113.9' WHERE token_hash = ?`, seen, auth.TokenHash(c.Value))
+
+	if code := doReq(mux, "GET", "/api/auth/me", "", c).Code; code != http.StatusOK {
+		t.Fatalf("me: %d", code)
+	}
+	var ip, stamp string
+	s.DB.QueryRow(`SELECT ip, last_seen FROM sessions WHERE token_hash = ?`, auth.TokenHash(c.Value)).Scan(&ip, &stamp)
+	if ip == "203.0.113.9" {
+		t.Errorf("address not updated after a network change")
+	}
+
+	ts, _ := time.Parse(time.RFC3339, stamp)
+	far := time.Now().Add(23 * time.Hour).UTC().Format(time.RFC3339)
+	if got, want := auth.SessionEnd(far, stamp, false), ts.Add(12*time.Hour).UTC().Format(time.RFC3339); got != want {
+		t.Errorf("idle end: got %s, want %s", got, want)
+	}
+	hard := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	if got := auth.SessionEnd(hard, stamp, false); got != hard {
+		t.Errorf("hard end: got %s, want %s", got, hard)
+	}
+	if body := doReq(mux, "GET", "/api/auth/sessions", "", c).Body.String(); !strings.Contains(body, `"endsAt":"`) {
+		t.Errorf("list without endsAt: %s", body)
 	}
 }

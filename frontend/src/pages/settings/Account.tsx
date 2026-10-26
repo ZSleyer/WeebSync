@@ -620,6 +620,12 @@ function SessionsSection() {
                   <br />
                   {(x.createdAt ? t('account.sessionsSince', { when: when(x.createdAt) }) : t('account.sessionsOld')) +
                     (x.oidc ? `\u00a0· ${t('account.sessionsSso')}` : '')}
+                  {x.endsAt && (
+                    // the end slides with use; the hard end set at sign-in is the most it gets
+                    <span title={t('account.sessionsEndsHint', { when: when(x.expiresAt) })}>
+                      {` · ${t('account.sessionsEnds', { when: when(x.endsAt) })}`}
+                    </span>
+                  )}
                 </>
               }
               trailing={
