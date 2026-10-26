@@ -393,7 +393,7 @@
   },
   {
     "name": "jassub",
-    "version": "2.5.21",
+    "version": "2.5.22",
     "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
     "url": "https://github.com/ThaUnknown/jassub",
     "source": "npm",
