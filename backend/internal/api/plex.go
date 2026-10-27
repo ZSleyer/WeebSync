@@ -826,11 +826,23 @@ func (s *Server) plexOwned() func(m anilist.Media, source string) bool {
 		// Plex unconfigured: nothing is owned, so nothing gets hidden
 		return func(anilist.Media, string) bool { return false }
 	}
-	titles := s.plexTitleIndex(c)
+	return plexOwnedFrom(s.plexTitleIndex(c), s.plexGuidIndex())
+}
+
+// plexOwnedNoWait is plexOwned for a request: the indexes are the last
+// copies, a rebuild runs behind the read, and Plex is never asked.
+func (s *Server) plexOwnedNoWait() func(m anilist.Media, source string) bool {
+	if s.plexClient() == nil {
+		return func(anilist.Media, string) bool { return false }
+	}
+	return plexOwnedFrom(s.plexTitleIndexNoWait(), s.plexGuidIndexNoWait())
+}
+
+func plexOwnedFrom(titles map[string]string, guids map[string]plexGuid) func(m anilist.Media, source string) bool {
 	// one TMDB number names a series and an unrelated film alike: a film in
 	// the library says nothing about the series of the same number
 	tmdbTV, tmdbFilm := map[int]bool{}, map[int]bool{}
-	for _, g := range s.plexGuidIndex() {
+	for _, g := range guids {
 		if g.TMDB > 0 {
 			if g.Movie {
 				tmdbFilm[g.TMDB] = true

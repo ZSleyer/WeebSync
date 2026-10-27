@@ -8136,6 +8136,63 @@
                 ],
                 "type": "object"
             },
+            "api.tvTrendingItem": {
+                "properties": {
+                    "anilistId": {
+                        "type": "integer"
+                    },
+                    "backdropUrl": {
+                        "type": "string"
+                    },
+                    "inLibrary": {
+                        "description": "the media server holds it",
+                        "type": "boolean"
+                    },
+                    "overview": {
+                        "description": "Overview in German where there is one, else English",
+                        "type": "string"
+                    },
+                    "plexRatingKey": {
+                        "description": "its entry on the media server",
+                        "type": "string"
+                    },
+                    "posterUrl": {
+                        "type": "string"
+                    },
+                    "rank": {
+                        "description": "1 = top of the interleaved list",
+                        "type": "integer"
+                    },
+                    "source": {
+                        "description": "anime | tv | movie",
+                        "type": "string"
+                    },
+                    "title": {
+                        "description": "Title in German where TMDB has one, else the provider's title",
+                        "type": "string"
+                    },
+                    "tmdbId": {
+                        "type": "integer"
+                    },
+                    "tvdbId": {
+                        "type": "integer"
+                    },
+                    "watchId": {
+                        "description": "the caller's own watch on it",
+                        "type": "integer"
+                    },
+                    "year": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "source",
+                    "title",
+                    "inLibrary",
+                    "rank"
+                ],
+                "type": "object"
+            },
             "api.tvdbMeResponse": {
                 "properties": {
                     "configured": {
@@ -22536,6 +22593,99 @@
                     }
                 ],
                 "summary": "TV recent downloads",
+                "tags": [
+                    "TV"
+                ]
+            }
+        },
+        "/api/tv/trending": {
+            "get": {
+                "description": "For a paired device (Authorization: Bearer <device token>, scope tv:read). What is trending on AniList and TMDB (anime, series and films, interleaved in that order), at most `limit` (1..50, default 20), optionally of one `kind`. One global list built in the background every few hours and read from the database only, so the list is empty until the first build finished. `inLibrary`, `plexRatingKey` and `watchId` are the caller's own state. `rank` is the position in the whole list.",
+                "parameters": [
+                    {
+                        "description": "entries, 1..50 (default 20)",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "description": "anime, tv, movie or all (default all)",
+                        "in": "query",
+                        "name": "kind",
+                        "schema": {
+                            "enum": [
+                                "anime",
+                                "tv",
+                                "movie",
+                                "all"
+                            ],
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "items": {
+                                        "$ref": "#/components/schemas/api.tvTrendingItem"
+                                    },
+                                    "type": "array"
+                                }
+                            }
+                        },
+                        "description": "OK"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Unauthorized"
+                    },
+                    "403": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Forbidden"
+                    },
+                    "500": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/api.ErrorResponse"
+                                }
+                            }
+                        },
+                        "description": "Internal Server Error"
+                    }
+                },
+                "security": [
+                    {
+                        "DeviceAuth": []
+                    }
+                ],
+                "summary": "TV trending",
                 "tags": [
                     "TV"
                 ]

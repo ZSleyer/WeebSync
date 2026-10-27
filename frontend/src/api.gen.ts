@@ -3613,6 +3613,42 @@ export interface Schemas {
      */
     watchId?: number
   }
+  'api.tvTrendingItem': {
+    anilistId?: number
+    backdropUrl?: string
+    /**
+     * the media server holds it
+     */
+    inLibrary: boolean
+    /**
+     * Overview in German where there is one, else English
+     */
+    overview?: string
+    /**
+     * its entry on the media server
+     */
+    plexRatingKey?: string
+    posterUrl?: string
+    /**
+     * 1 = top of the interleaved list
+     */
+    rank: number
+    /**
+     * anime | tv | movie
+     */
+    source: string
+    /**
+     * Title in German where TMDB has one, else the provider's title
+     */
+    title: string
+    tmdbId?: number
+    tvdbId?: number
+    /**
+     * the caller's own watch on it
+     */
+    watchId?: number
+    year?: number
+  }
   'api.tvdbMeResponse': {
     configured: boolean
     connected: boolean

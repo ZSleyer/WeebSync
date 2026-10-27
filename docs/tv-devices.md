@@ -73,7 +73,29 @@ episode, newest first (1..50, default 20):
   "posterUrl": "https://…", "backdropUrl": "https://…", "plexRatingKey": "4711"}]
 ```
 
+`GET /api/tv/trending?limit=20&kind=all` - what is trending on AniList and
+TMDB: anime, series and films interleaved in that order (`kind` = `anime`,
+`tv`, `movie` or `all`, default `all`; `limit` 1..50, default 20). The list is
+the same for every device, built in the background every few hours and
+stored; a poll only reads it, so it is `[]` until the first build has
+finished (the first poll starts it). Titles and overviews are German where
+TMDB has them. `inLibrary`, `plexRatingKey` and `watchId` are your own state
+(`watchId`: your watch on the title); `rank` is the position in the whole
+list, also when `kind` or `limit` cut it down. `source` is `anime`, `tv` or
+`movie`. A series that AniList and TMDB both list appears once, as `anime`
+with both ids. Unknown `kind` answers `400`.
+
+```json
+[{"source": "anime", "anilistId": 154587, "tmdbId": 209867, "tvdbId": 424536,
+  "title": "Frieren - Jenseits des Endes", "overview": "Die Elfe Frieren …", "year": 2023,
+  "posterUrl": "https://…", "backdropUrl": "https://image.tmdb.org/t/p/w1280/…",
+  "inLibrary": true, "plexRatingKey": "4711", "watchId": 12, "rank": 1},
+ {"source": "movie", "tmdbId": 912649, "title": "Film", "year": 2026,
+  "posterUrl": "https://…", "inLibrary": false, "rank": 3}]
+```
+
 Optional fields (`anilistId`, `episodeAbs`, `posterUrl`, `backdropUrl`,
-`plexRatingKey`, `watchId`, `season`, `episode` on recent) are left out when
+`plexRatingKey`, `watchId`, `season`, `episode` on recent; `anilistId`, `tmdbId`,
+`tvdbId`, `overview`, `year`, `plexRatingKey`, `watchId` on trending) are left out when
 unknown. Both lists come from cached data, so polling every 15 minutes is
 cheap; a backdrop shows up once WeebSync has looked it up for the web UI.

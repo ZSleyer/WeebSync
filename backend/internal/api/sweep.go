@@ -129,6 +129,8 @@ func (s *Server) SweepLoop(ctx context.Context) {
 			// keep each user's aggregated suggestion blob warm so the page loads
 			// instantly instead of assembling on the first request
 			s.warmSuggestions()
+			// and the global trending list the TV launcher reads
+			s.warmTVTrending()
 		}
 	}
 }

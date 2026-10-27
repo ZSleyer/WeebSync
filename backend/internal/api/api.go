@@ -278,6 +278,7 @@ func (s *Server) Register(mux *http.ServeMux) {
 	// read by paired devices with their token, and by nothing else
 	mux.Handle("GET /api/tv/calendar", s.tvAuth(s.handleTVCalendar))
 	mux.Handle("GET /api/tv/recent", s.tvAuth(s.handleTVRecent))
+	mux.Handle("GET /api/tv/trending", s.tvAuth(s.handleTVTrending))
 	mux.Handle("GET /api/auth/sessions", authed(http.HandlerFunc(s.handleSessionsList)))
 	mux.Handle("DELETE /api/auth/sessions/others", authed(http.HandlerFunc(s.handleSessionsEndOthers)))
 	mux.Handle("DELETE /api/auth/sessions/{id}", authed(http.HandlerFunc(s.handleSessionDelete)))
