@@ -127,16 +127,23 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 		if err != nil {
 			partial = true
 			slog.Warn("tv trending: AniList failed", "err", err)
-			anime = keep("anime")
-			for _, e := range anime {
+			// kept anime take today's id mapping and the same dedupe as
+			// fresh ones: the mapping may have arrived since the last build
+			for _, e := range keep("anime") {
 				seenAni[e.AnilistID] = true
-				if e.TmdbID != 0 {
-					kind := "tv"
-					if ids, ok := s.animeIDs(e.AnilistID); ok {
-						kind = tmdbArtKind(ids.tmdbKind)
+				// no mapping any more: drop the old ids with it
+				e.TvdbID, e.TmdbID = 0, 0
+				if ids, ok := s.animeIDs(e.AnilistID); ok {
+					e.TvdbID, e.TmdbID = ids.tvdbID, ids.tmdbID
+					if ids.tmdbID != 0 {
+						k := tmdbArtKind(ids.tmdbKind) + ":" + strconv.Itoa(ids.tmdbID)
+						if seenTmdb[k] {
+							continue // another cour of a series already listed
+						}
+						seenTmdb[k] = true
 					}
-					seenTmdb[kind+":"+strconv.Itoa(e.TmdbID)] = true
 				}
+				anime = append(anime, e)
 			}
 		}
 		for _, m := range list {
@@ -260,6 +267,12 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 	}
 	if ctx.Err() != nil {
 		partial = true // the budget ran out: the rest is retried soon
+	}
+	// a fresh install builds before the id mapping has loaded: without it an
+	// anime and its TMDB row cannot be told apart, so retry soon, not in 8 h
+	var mapped bool
+	if s.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM anime_ids)`).Scan(&mapped) != nil || !mapped {
+		partial = true
 	}
 	for i := range items {
 		items[i].Rank = i + 1

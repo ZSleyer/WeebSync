@@ -169,6 +169,40 @@ func TestTVTrendingKeptRowsDedupe(t *testing.T) {
 	}
 }
 
+// A build before the id mapping loaded is partial (retried soon), and a kept
+// anime picks the mapping up once it is there: an AniList outage after that
+// must not list Frieren both as the kept anime and as the fresh TMDB tv row.
+func TestTVTrendingKeptAnimeTakesNewMapping(t *testing.T) {
+	dt := newDeviceTest(t)
+	dt.seedTrendingCaches()
+	if _, err := dt.s.DB.Exec(`DELETE FROM anime_ids`); err != nil {
+		t.Fatal(err)
+	}
+	dt.s.buildTVTrending(context.Background())
+	if b, _, _ := dt.s.tvTrendingBlob(); !b.Partial {
+		t.Error("a build without the id mapping is stored as complete for 8 hours")
+	}
+
+	if _, err := dt.s.DB.Exec(`INSERT INTO anime_ids (anilist_id, tmdb_id, tmdb_kind, tvdb_id) VALUES (100, 500, 'tv', 9), (102, 500, 'tv', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'trending:anime'`); err != nil {
+		t.Fatal(err)
+	}
+	dt.s.Anilist.HTTP = &http.Client{Transport: downTransport{}}
+	dt.s.buildTVTrending(context.Background())
+	b, _, _ := dt.s.tvTrendingBlob()
+	n := 0
+	for _, e := range b.Items {
+		if e.TmdbID == 500 || e.AnilistID == 100 || e.AnilistID == 102 {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("Frieren listed %d times, want once: %+v", n, b.Items)
+	}
+}
+
 // The first build failing with nothing to keep still writes an (empty,
 // partial) blob, so the providers are not asked again before tvTrendingRetry.
 func TestTVTrendingFirstBuildFailsWaits(t *testing.T) {
