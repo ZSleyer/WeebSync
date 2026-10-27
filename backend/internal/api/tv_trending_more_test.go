@@ -116,6 +116,59 @@ func TestTVTrendingEmptyBuildKeepsBlob(t *testing.T) {
 	}
 }
 
+// Rows kept from a failed TMDB chart go through the anime dedupe like fresh
+// ones, and a kept anime does not collect its German title once per retry.
+func TestTVTrendingKeptRowsDedupe(t *testing.T) {
+	dt := newDeviceTest(t)
+	dt.seedTrendingCaches()
+	full, ok := dt.s.cacheGet("trending:anime", time.Hour)
+	if !ok {
+		t.Fatal("no seeded anime chart")
+	}
+	// build 1: only the obscure anime, so TMDB tv 500 comes in as a tv row
+	dt.s.cacheSet("trending:anime", `[{"id":101,"title":{"romaji":"Obscure Anime"},"seasonYear":2024}]`)
+	dt.s.buildTVTrending(context.Background())
+	// build 2: Frieren (tmdb tv 500) trends as an anime, the TMDB tv chart is down
+	dt.s.cacheSet("trending:anime", full)
+	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'tmdb:trending:tv'`); err != nil {
+		t.Fatal(err)
+	}
+	dt.s.Tmdb.HTTP = &http.Client{Transport: downTransport{}}
+	dt.s.buildTVTrending(context.Background())
+	b, _, _ := dt.s.tvTrendingBlob()
+	n := 0
+	for _, e := range b.Items {
+		if e.TmdbID == 500 {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("tmdb tv 500 listed %d times, want once: %+v", n, b.Items)
+	}
+
+	// AniList down twice: the kept Frieren keeps one copy of its German title
+	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'trending:anime'`); err != nil {
+		t.Fatal(err)
+	}
+	dt.s.Anilist.HTTP = &http.Client{Transport: downTransport{}}
+	titles := func() int {
+		b, _, _ := dt.s.tvTrendingBlob()
+		for _, e := range b.Items {
+			if e.AnilistID == 100 {
+				return len(e.Titles)
+			}
+		}
+		t.Fatal("Frieren dropped")
+		return 0
+	}
+	dt.s.buildTVTrending(context.Background())
+	first := titles()
+	dt.s.buildTVTrending(context.Background())
+	if got := titles(); got != first {
+		t.Errorf("titles grew across retries: %d then %d", first, got)
+	}
+}
+
 // The first build failing with nothing to keep still writes an (empty,
 // partial) blob, so the providers are not asked again before tvTrendingRetry.
 func TestTVTrendingFirstBuildFailsWaits(t *testing.T) {

@@ -174,10 +174,21 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 			if err != nil {
 				partial = true
 				slog.Warn("tv trending: TMDB failed", "kind", kind, "err", err)
+				// kept rows pass the same dedupe as fresh ones: an anime
+				// listed now may be the series a kept row stands for
+				var kept []tvTrendingEntry
+				for _, e := range keep(kind) {
+					k := kind + ":" + strconv.Itoa(e.TmdbID)
+					if seenTmdb[k] {
+						continue
+					}
+					seenTmdb[k] = true
+					kept = append(kept, e)
+				}
 				if kind == "tv" {
-					tv = keep("tv")
+					tv = kept
 				} else {
-					movie = keep("movie")
+					movie = kept
 				}
 				continue
 			}
@@ -231,7 +242,10 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 				continue
 			}
 			if m.Title.Romaji != "" {
-				e.Titles = append(e.Titles, m.Title.Romaji)
+				// a kept entry has it from the last build already
+				if !slices.Contains(e.Titles, m.Title.Romaji) {
+					e.Titles = append(e.Titles, m.Title.Romaji)
+				}
 				e.Title = m.Title.Romaji
 			}
 			if o := tmdbOverview(m); o != "" {
