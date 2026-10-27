@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ch4d1/weebsync/internal/anilist"
@@ -25,7 +25,6 @@ const (
 	tvTrendingRetry = 30 * time.Minute // a blob a provider failed for is rebuilt sooner
 	tvTrendingCap   = 60               // entries kept in the blob
 	tvTrendingBuild = 10 * time.Minute // the build's time budget
-	tvTrendingKinds = "|anime|tv|movie|all|"
 )
 
 // tvTrendingItem is one trending title.
@@ -197,7 +196,8 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 			}
 			m, err := s.Tmdb.Media(ctx, kind, e.TmdbID)
 			if err != nil {
-				partial = true
+				// a TMDB id that is gone keeps the AniList text; only a
+				// failed chart makes the blob partial
 				continue
 			}
 			if m.Title.Romaji != "" {
@@ -213,6 +213,9 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 				e.BackdropURL = m.BannerImage
 			}
 		}
+	}
+	if ctx.Err() != nil {
+		partial = true // the budget ran out: the rest is retried soon
 	}
 	for i := range items {
 		items[i].Rank = i + 1
@@ -295,7 +298,7 @@ func (s *Server) handleTVTrending(w http.ResponseWriter, r *http.Request) {
 	if kind == "" {
 		kind = "all"
 	}
-	if !strings.Contains(tvTrendingKinds, "|"+kind+"|") {
+	if !slices.Contains([]string{"anime", "tv", "movie", "all"}, kind) {
 		writeErr(w, http.StatusBadRequest, "invalid kind")
 		return
 	}
@@ -326,17 +329,6 @@ func (s *Server) handleTVTrending(w http.ResponseWriter, r *http.Request) {
 	plexOn := s.plexLinked()
 	for _, e := range picked {
 		it := e.tvTrendingItem
-		var m anilist.Media
-		for i, t := range e.Titles {
-			switch i {
-			case 0:
-				m.Title.Romaji = t
-			case 1:
-				m.Title.English = t
-			case 2:
-				m.Title.Native = t
-			}
-		}
 		// the sources the title is known under at the watches, and the
 		// media-server series keys it may be filed under
 		var srcs, keys []string
@@ -350,11 +342,15 @@ func (s *Server) handleTVTrending(w http.ResponseWriter, r *http.Request) {
 			srcs = append(srcs, "anilist|"+id)
 			keys = append(keys, "anilist:"+id)
 			if e.TvdbID != 0 {
+				if tkind != "movie" { // the catalog files films under tvdb-movie
+					srcs = append(srcs, "tvdb|"+strconv.Itoa(e.TvdbID))
+				}
 				keys = append(keys, "tvdb:"+strconv.Itoa(e.TvdbID))
 			}
 		}
 		if e.TmdbID != 0 {
-			srcs = append(srcs, "tmdb:"+tkind+"|"+tid, "tmdb|"+tid)
+			// catalog_matches only holds tmdb:tv and tmdb:movie, never a bare tmdb
+			srcs = append(srcs, "tmdb:"+tkind+"|"+tid)
 			keys = append(keys, "tmdb:"+tid)
 		}
 		for _, k := range srcs {
@@ -371,16 +367,25 @@ func (s *Server) handleTVTrending(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+		// every title the entry is known by, against the library's titles
+		isOwned := func(id int, source string) bool {
+			for _, t := range e.Titles {
+				var m anilist.Media
+				m.ID = id
+				m.Title.Romaji = t
+				if t != "" && owned(m, source) {
+					return true
+				}
+			}
+			return owned(anilist.Media{ID: id}, source) // the id alone
+		}
 		if e.Source == "anime" {
-			m.ID = e.AnilistID
-			it.InLibrary = owned(m, "anilist")
+			it.InLibrary = isOwned(e.AnilistID, "anilist")
 			if !it.InLibrary && e.TmdbID != 0 {
-				m.ID = e.TmdbID
-				it.InLibrary = owned(m, "tmdb:"+tkind)
+				it.InLibrary = isOwned(e.TmdbID, "tmdb:"+tkind)
 			}
 		} else {
-			m.ID = e.TmdbID
-			it.InLibrary = owned(m, "tmdb:"+e.Source)
+			it.InLibrary = isOwned(e.TmdbID, "tmdb:"+e.Source)
 		}
 		it.InLibrary = it.InLibrary || it.PlexKey != ""
 		out = append(out, it)

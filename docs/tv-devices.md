@@ -97,5 +97,6 @@ with both ids. Unknown `kind` answers `400`.
 Optional fields (`anilistId`, `episodeAbs`, `posterUrl`, `backdropUrl`,
 `plexRatingKey`, `watchId`, `season`, `episode` on recent; `anilistId`, `tmdbId`,
 `tvdbId`, `overview`, `year`, `plexRatingKey`, `watchId` on trending) are left out when
-unknown. Both lists come from cached data, so polling every 15 minutes is
-cheap; a backdrop shows up once WeebSync has looked it up for the web UI.
+unknown. All three lists come from cached data, so polling every 15 minutes is
+cheap. On calendar and recent a backdrop shows up once WeebSync has looked it
+up for the web UI; the trending list's background build fetches its own.
