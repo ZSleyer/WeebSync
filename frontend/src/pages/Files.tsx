@@ -163,6 +163,7 @@ export default function Files() {
     queryFn: () => api.get('/api/servers'),
   })
   const [params, setParams] = useSearchParams()
+  const { key: locationKey } = useLocation()
   // the source from the link, else the one used last, else the first server
   // once the list is in, else the local library
   // The link is the state: source and folder live in the URL, so every step
@@ -250,17 +251,21 @@ export default function Files() {
       ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason)
       : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
-  // the address a step is on its way to. A data router navigates
-  // asynchronously, so the render that clears the search still sees the old
-  // folder; normalising then would write that folder back over the step
-  const goingTo = useRef<string | null>(null)
+  // the location a step left from, while the step is under way. A data
+  // router navigates asynchronously, so the render that clears the search
+  // still sees the old folder; normalising then would write that folder back
+  // over the step. Any new location ends the wait: the step landed, or back,
+  // forward or a link overtook it
+  const leaving = useRef<string | null>(null)
   // one step in the browser: a new entry, the search is left behind
   const go = (src: Source, to: string) => {
     const next = new URLSearchParams()
     if (src === 'local') next.set('source', 'local')
     else next.set('server', String(src))
     if (to) next.set('path', to)
-    goingTo.current = next.toString()
+    // a step to where we already are has nothing stale to guard against; the
+    // router still makes a new location of it, which would end the wait anyway
+    if (next.toString() !== params.toString()) leaving.current = locationKey
     setParams(next)
     setQuery('')
   }
@@ -297,9 +302,9 @@ export default function Files() {
   useEffect(() => {
     // no source named yet and the server list still out: "local" would stick
     if (!chosen && !serversIn) return
-    if (goingTo.current !== null) {
-      if (params.toString() !== goingTo.current) return // the step has not landed yet
-      goingTo.current = null
+    if (leaving.current !== null) {
+      if (locationKey === leaving.current) return // the step has not landed yet
+      leaving.current = null
     }
     const next = new URLSearchParams()
     if (isLocal) next.set('source', 'local')
@@ -307,7 +312,7 @@ export default function Files() {
     if (path) next.set('path', path)
     if (query.trim()) next.set('q', query)
     if (next.toString() !== params.toString()) setParams(next, { replace: true })
-  }, [isLocal, source, path, query, params, setParams, chosen, serversIn])
+  }, [isLocal, source, path, query, params, setParams, chosen, serversIn, locationKey])
   const pickSource = (s: Source, to = '') => {
     go(s, to)
     setSelection(null)
@@ -1019,6 +1024,8 @@ function SearchResults({
       <ul className="ws-cl-rows">
         {data?.results.map((e) => {
           const dir = e.path.slice(0, e.path.lastIndexOf('/')) || '/'
+          // the folder is part of the name: a search returns many "Season 01"
+          const where = ` (${dir})`
           return (
             <li key={e.path} className="ws-cl-row">
               <div className="ws-cl-in">
@@ -1030,7 +1037,7 @@ function SearchResults({
                 <button
                   type="button"
                   className="ws-cl-main"
-                  aria-label={t(e.isDir ? 'files.openItem' : 'files.showItem', { name: e.name })}
+                  aria-label={t(e.isDir ? 'files.openItem' : 'files.showItem', { name: e.name }) + where}
                   onClick={() => (e.isDir ? onOpenDir(e.path) : onShow(e))}
                 >
                   <strong>{e.name}</strong>
@@ -1043,7 +1050,7 @@ function SearchResults({
                   <button
                     type="button"
                     className="ws-cl-pick"
-                    aria-label={t('remote.selectItem', { name: e.name })}
+                    aria-label={t('remote.selectItem', { name: e.name }) + where}
                     onClick={() => onShow(e)}
                   >
                     {t('files.pick')}

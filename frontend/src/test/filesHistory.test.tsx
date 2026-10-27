@@ -21,7 +21,9 @@ const dir = (name: string, path: string): Entry => ({
 const tree: Record<string, Entry[]> = {
   '': [dir('Show', '/Show')],
   '/Show': [dir('Season 01', '/Show/Season 01')],
-  '/Show/Season 01': [],
+  '/Show/Season 01': [
+    { name: 'ep01.mkv', path: '/Show/Season 01/ep01.mkv', isDir: false, size: 1, modTime: '2026-09-01T00:00:00Z' },
+  ],
 }
 
 function mount(url: string) {
@@ -103,23 +105,36 @@ describe('Files folder history', () => {
   // must not write the folder the search started in back over the new one
   it('opens a found folder, not the one the search started in', async () => {
     const router = mount('/files?server=1&q=Season')
-    fireEvent.click(await screen.findByRole('button', { name: 'files.openItem' }))
+    // the folder is part of the name: many hits share "Season 01"
+    fireEvent.click(await screen.findByRole('button', { name: 'files.openItem (/Show)' }))
     await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show%2FSeason+01'))
     // the browser lists the found folder, the search is gone
-    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/servers/1/browse?path=%2FShow%2FSeason%2001'))
-    expect(screen.queryByRole('button', { name: 'files.openItem' })).toBeNull()
+    await screen.findByText('ep01.mkv')
+    expect(screen.queryByRole('button', { name: 'files.openItem (/Show)' })).toBeNull()
   })
 
   it('picks a found folder in its parent, ready for a sync', async () => {
     const router = mount('/files?server=1&q=Season')
-    fireEvent.click(await screen.findByRole('button', { name: 'remote.selectItem' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'remote.selectItem (/Show)' }))
     await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show'))
+    // the row is marked (the name shows a second time, in the picked entry's panel)
+    await waitFor(() => expect(screen.getAllByText('Season 01').some((n) => n.closest('[data-sel]'))).toBe(true))
   })
 
   it('shows a found file in its folder', async () => {
     const router = mount('/files?server=1&q=ep01')
-    fireEvent.click(await screen.findByRole('button', { name: 'files.showItem' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'files.showItem (/Show/Season 01)' }))
     await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show%2FSeason+01'))
+    await waitFor(() => expect(screen.getAllByText('ep01.mkv').some((n) => n.closest('[data-sel]'))).toBe(true))
+  })
+
+  // a step to the folder already in view changes no location; it must not
+  // leave normalising waiting for one that never comes
+  it('keeps normalising after a step to where it already is', async () => {
+    const router = mount('/files?server=1')
+    fireEvent.click(await screen.findByRole('button', { name: 'files.root' }))
+    await act(() => router.navigate('/files'))
+    await waitFor(() => expect(router.state.location.search).toBe('?server=1'))
   })
 
   it('writes the missing source into the entry without adding one', async () => {
