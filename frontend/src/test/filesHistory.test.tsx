@@ -27,6 +27,21 @@ const tree: Record<string, Entry[]> = {
 function mount(url: string) {
   vi.spyOn(api, 'get').mockImplementation(async (u: string) => {
     if (u === '/api/servers') return [{ id: 1, name: 'srv' }]
+    if (u.startsWith('/api/servers/1/search')) {
+      return {
+        indexed: 500,
+        results: [
+          dir('Season 01', '/Show/Season 01'),
+          {
+            name: 'ep01.mkv',
+            path: '/Show/Season 01/ep01.mkv',
+            isDir: false,
+            size: 1,
+            modTime: '2026-09-01T00:00:00Z',
+          },
+        ],
+      }
+    }
     if (u.startsWith('/api/servers/1/browse')) {
       const p = new URLSearchParams(u.split('?')[1] ?? '').get('path') ?? ''
       return tree[p] ?? []
@@ -82,6 +97,29 @@ describe('Files folder history', () => {
     // one more back leaves the page
     await act(() => router.navigate(-1))
     expect(router.state.location.pathname).toBe('/start')
+  })
+
+  // the search field is cleared in the same click that navigates; that render
+  // must not write the folder the search started in back over the new one
+  it('opens a found folder, not the one the search started in', async () => {
+    const router = mount('/files?server=1&q=Season')
+    fireEvent.click(await screen.findByRole('button', { name: 'files.openItem' }))
+    await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show%2FSeason+01'))
+    // the browser lists the found folder, the search is gone
+    await waitFor(() => expect(api.get).toHaveBeenCalledWith('/api/servers/1/browse?path=%2FShow%2FSeason%2001'))
+    expect(screen.queryByRole('button', { name: 'files.openItem' })).toBeNull()
+  })
+
+  it('picks a found folder in its parent, ready for a sync', async () => {
+    const router = mount('/files?server=1&q=Season')
+    fireEvent.click(await screen.findByRole('button', { name: 'remote.selectItem' }))
+    await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show'))
+  })
+
+  it('shows a found file in its folder', async () => {
+    const router = mount('/files?server=1&q=ep01')
+    fireEvent.click(await screen.findByRole('button', { name: 'files.showItem' }))
+    await waitFor(() => expect(router.state.location.search).toBe('?server=1&path=Show%2FSeason+01'))
   })
 
   it('writes the missing source into the entry without adding one', async () => {

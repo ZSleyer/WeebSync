@@ -716,7 +716,6 @@
     "noHits": "No matches for “{{q}}”.",
     "openItem": "Open {{name}}",
     "showItem": "Show {{name}} in its folder",
-    "show": "Show",
     "colName": "Name",
     "colSize": "Size",
     "colDate": "Modified",

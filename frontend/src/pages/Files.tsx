@@ -250,12 +250,17 @@ export default function Files() {
       ? subfolderTargetDir(syncLocal, syncEntry.path, syncMode, syncTitle, subSep, syncSeason)
       : syncLocal
   const [query, setQuery] = useState(params.get('q') ?? '')
+  // the address a step is on its way to. A data router navigates
+  // asynchronously, so the render that clears the search still sees the old
+  // folder; normalising then would write that folder back over the step
+  const goingTo = useRef<string | null>(null)
   // one step in the browser: a new entry, the search is left behind
   const go = (src: Source, to: string) => {
     const next = new URLSearchParams()
     if (src === 'local') next.set('source', 'local')
     else next.set('server', String(src))
     if (to) next.set('path', to)
+    goingTo.current = next.toString()
     setParams(next)
     setQuery('')
   }
@@ -292,6 +297,10 @@ export default function Files() {
   useEffect(() => {
     // no source named yet and the server list still out: "local" would stick
     if (!chosen && !serversIn) return
+    if (goingTo.current !== null) {
+      if (params.toString() !== goingTo.current) return // the step has not landed yet
+      goingTo.current = null
+    }
     const next = new URLSearchParams()
     if (isLocal) next.set('source', 'local')
     else next.set('server', String(source))
@@ -736,7 +745,7 @@ export default function Files() {
                   setQuery('')
                 }}
                 onShow={(e) => {
-                  // a found file: its folder, the file picked in it
+                  // a found file, or a folder picked for a sync: its parent, the entry picked in it
                   navigate(e.path.slice(0, e.path.lastIndexOf('/')))
                   setQuery('')
                   setSelection(e)
@@ -979,7 +988,7 @@ function SearchResults({
   path: string
   query: string
   onOpenDir: (path: string) => void
-  /** a found file: go to its folder and pick it there */
+  /** a found file or a folder to sync: go to its parent and pick it there */
   onShow: (e: Entry) => void
 }) {
   const { t } = useTranslation()
@@ -1016,19 +1025,30 @@ function SearchResults({
                 <span className="ws-cl-glyph" data-dir={e.isDir || undefined}>
                   <FileIcon isDir={e.isDir} name={e.name} />
                 </span>
-                <div className="ws-cl-main cursor-default!">
-                  <strong>{e.name}</strong>
-                  <span className="ws-cl-meta font-mono">{dir}</span>
-                </div>
-                {!e.isDir && <span className="ws-cl-size">{fmtBytes(e.size)}</span>}
+                {/* the whole row goes there, as a row in the browser does: a
+                    folder opens, a file shows picked in its folder */}
                 <button
                   type="button"
-                  className="ws-cl-pick"
+                  className="ws-cl-main"
                   aria-label={t(e.isDir ? 'files.openItem' : 'files.showItem', { name: e.name })}
                   onClick={() => (e.isDir ? onOpenDir(e.path) : onShow(e))}
                 >
-                  {t(e.isDir ? 'files.openPath' : 'files.show')}
+                  <strong>{e.name}</strong>
+                  <span className="ws-cl-meta font-mono">{dir}</span>
                 </button>
+                {!e.isDir && <span className="ws-cl-size">{fmtBytes(e.size)}</span>}
+                {e.isDir && (
+                  // and a folder is picked (for a sync) the way the browser
+                  // picks one: in its parent, the folder marked there
+                  <button
+                    type="button"
+                    className="ws-cl-pick"
+                    aria-label={t('remote.selectItem', { name: e.name })}
+                    onClick={() => onShow(e)}
+                  >
+                    {t('files.pick')}
+                  </button>
+                )}
               </div>
             </li>
           )
