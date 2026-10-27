@@ -108,12 +108,36 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 	var anime, tv, movie []tvTrendingEntry
 	seenTmdb := map[string]bool{} // "tv:123": a series is listed once, whichever chart brought it
 	seenAni := map[int]bool{}
+	// a chart that fails keeps what the last build had from it, so an outage
+	// of one provider does not empty its row on the TV until it is back
+	prev, _, _ := s.tvTrendingBlob()
+	keep := func(source string) []tvTrendingEntry {
+		var out []tvTrendingEntry
+		for _, e := range prev.Items {
+			if e.Source == source {
+				e.Rank = 0
+				out = append(out, e)
+			}
+		}
+		return out
+	}
 
 	if s.Anilist != nil {
 		list, err := s.Anilist.Trending(ctx)
 		if err != nil {
 			partial = true
 			slog.Warn("tv trending: AniList failed", "err", err)
+			anime = keep("anime")
+			for _, e := range anime {
+				seenAni[e.AnilistID] = true
+				if e.TmdbID != 0 {
+					kind := "tv"
+					if ids, ok := s.animeIDs(e.AnilistID); ok {
+						kind = tmdbArtKind(ids.tmdbKind)
+					}
+					seenTmdb[kind+":"+strconv.Itoa(e.TmdbID)] = true
+				}
+			}
 		}
 		for _, m := range list {
 			if seenAni[m.ID] {
@@ -150,6 +174,11 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 			if err != nil {
 				partial = true
 				slog.Warn("tv trending: TMDB failed", "kind", kind, "err", err)
+				if kind == "tv" {
+					tv = keep("tv")
+				} else {
+					movie = keep("movie")
+				}
 				continue
 			}
 			for _, m := range list {
@@ -176,10 +205,11 @@ func (s *Server) buildTVTrending(ctx context.Context) {
 
 	items := interleaveTrending(tvTrendingCap, anime, tv, movie)
 	if len(items) == 0 {
-		// nothing to say: the last blob keeps serving, and the next stale
-		// read tries again
-		slog.Warn("tv trending: nothing built", "partial", partial)
-		return
+		// nothing now and nothing kept: the empty blob is still written, as
+		// partial, so the next try waits tvTrendingRetry instead of every
+		// sweep tick and every poll asking the providers again
+		partial = true
+		slog.Warn("tv trending: nothing built")
 	}
 
 	// German texts and a wide picture for the anime that TMDB knows. Only

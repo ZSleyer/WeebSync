@@ -42,14 +42,21 @@ func TestTVTrendingPartialOnlyForCharts(t *testing.T) {
 		t.Errorf("the AniList text should stay: %+v", b.Items[0])
 	}
 
-	// a chart that fails does
+	// a chart that fails does, and keeps what the last build had from it
 	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'tmdb:trending:movie'`); err != nil {
 		t.Fatal(err)
 	}
 	dt.s.buildTVTrending(context.Background())
 	b, _, _ = dt.s.tvTrendingBlob()
-	if !b.Partial || len(b.Items) != 3 {
-		t.Errorf("chart failure: partial=%v items=%d, want true and 3", b.Partial, len(b.Items))
+	if !b.Partial || len(b.Items) != 4 {
+		t.Errorf("chart failure: partial=%v items=%d, want true and 4", b.Partial, len(b.Items))
+	}
+	kept := false
+	for _, e := range b.Items {
+		kept = kept || (e.Source == "movie" && e.TmdbID == 700)
+	}
+	if !kept {
+		t.Errorf("the failed movie chart dropped the last build's movie: %+v", b.Items)
 	}
 }
 
@@ -86,18 +93,45 @@ func TestTVTrendingStaleTiming(t *testing.T) {
 	}
 }
 
-// A build that yields nothing leaves the previous blob in place.
+// With every provider down the last entries keep serving, and the attempt is
+// stamped: the next one waits tvTrendingRetry instead of running on every
+// sweep tick and every poll.
 func TestTVTrendingEmptyBuildKeepsBlob(t *testing.T) {
 	dt := newDeviceTest(t)
 	dt.builtTrending()
 	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache WHERE key = 'trending:anime' OR key LIKE 'tmdb:trending:%'`); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := dt.s.DB.Exec(`UPDATE anilist_cache SET fetched_at = datetime('now', '-9 hours') WHERE key = ?`, tvTrendingKey); err != nil {
+		t.Fatal(err)
+	}
 	dt.s.Anilist.HTTP = &http.Client{Transport: downTransport{}}
 	dt.s.Tmdb.HTTP = &http.Client{Transport: downTransport{}}
 	dt.s.buildTVTrending(context.Background())
-	if b, _, ok := dt.s.tvTrendingBlob(); !ok || len(b.Items) != 4 || b.Partial {
+	if b, _, ok := dt.s.tvTrendingBlob(); !ok || len(b.Items) != 4 || !b.Partial {
 		t.Errorf("blob after an empty build = %+v", b)
+	}
+	if dt.s.tvTrendingStale() {
+		t.Error("a failed build left the blob stale: every sweep tick and poll would ask the providers again")
+	}
+}
+
+// The first build failing with nothing to keep still writes an (empty,
+// partial) blob, so the providers are not asked again before tvTrendingRetry.
+func TestTVTrendingFirstBuildFailsWaits(t *testing.T) {
+	dt := newDeviceTest(t)
+	if _, err := dt.s.DB.Exec(`DELETE FROM anilist_cache`); err != nil {
+		t.Fatal(err)
+	}
+	dt.s.Anilist.HTTP = &http.Client{Transport: downTransport{}}
+	dt.s.Tmdb.HTTP = &http.Client{Transport: downTransport{}}
+	dt.s.buildTVTrending(context.Background())
+	b, _, ok := dt.s.tvTrendingBlob()
+	if !ok || len(b.Items) != 0 || !b.Partial {
+		t.Fatalf("blob after a failed first build = %+v, ok=%v", b, ok)
+	}
+	if dt.s.tvTrendingStale() {
+		t.Error("a failed first build is retried at once")
 	}
 }
 
