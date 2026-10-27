@@ -47,6 +47,9 @@ type Manager struct {
 	DB  *sql.DB
 	mu  sync.RWMutex
 	cur *OIDC
+	// reload runs one Reload at a time: a retry that read the old settings
+	// must not land after a save and put the old provider back
+	reload sync.Mutex
 	// OnPending is told of an account the provider's first sign-in created
 	// that waits for an admin's approval (the api package mails the admins)
 	OnPending func(email string)
@@ -74,8 +77,33 @@ func (m *Manager) Get() *OIDC {
 
 func (m *Manager) Enabled() bool { return m.Get() != nil }
 
+// KeepTrying loads the provider again every so often while one is configured
+// but none is up: a provider that was down when the app started (a cluster
+// update, both machines booting after a power cut) would otherwise keep
+// sign-in off until a restart, and with "oidc-only" nobody could get in to
+// do one. The start already logged the failure; only the recovery is logged.
+func (m *Manager) KeepTrying(ctx context.Context, every time.Duration) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		if m.Enabled() || db.SettingOrEnv(m.DB, "oidc_issuer", "OIDC_ISSUER") == "" {
+			continue
+		}
+		if m.Reload(ctx) == nil && m.Enabled() {
+			slog.Info("oidc provider reachable again, single sign-on is back on")
+		}
+	}
+}
+
 // Reload rebuilds the provider from current settings. Empty issuer disables OIDC.
 func (m *Manager) Reload(ctx context.Context) error {
+	m.reload.Lock()
+	defer m.reload.Unlock()
 	issuer := db.SettingOrEnv(m.DB, "oidc_issuer", "OIDC_ISSUER")
 	if issuer == "" {
 		m.mu.Lock()

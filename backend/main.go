@@ -172,7 +172,8 @@ func main() {
 	// before the database closes
 	srv.Go(func() { srv.WatchLoop(rootCtx) })
 	srv.Go(func() { srv.IndexLoop(rootCtx) })
-	srv.Go(func() { srv.GeoipLoop(rootCtx) }) // session locations: opens or refreshes the DB-IP database when the setting is on
+	srv.Go(func() { srv.GeoipLoop(rootCtx) })                    // session locations: opens or refreshes the DB-IP database when the setting is on
+	srv.Go(func() { srv.OIDC.KeepTrying(rootCtx, time.Minute) }) // a provider that was down at start: sign-in comes back without a restart
 	srv.Go(func() {
 		srv.BackfillSeries()
 		srv.SettleMatchedSeries()    // once per rule set: name series after the match their folder holds
