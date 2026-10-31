@@ -49,9 +49,18 @@
   background: var(--card);
   border: 1px solid var(--line-strong);
 }
-.ws-cl-actions > strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 500; }
-.ws-cl-actions .t-btn { height: 2.5rem; padding: 0 0.75rem; font-size: 0.875rem; flex: none; }
+.ws-cl-actions > strong { flex: 1; min-width: 3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 500; }
+/* a long label (German, a scaled-up system font) clips inside its button
+   rather than squeezing the name to nothing or pushing "more" off the card */
+.ws-cl-actions .t-btn { height: 2.5rem; padding: 0 0.75rem; font-size: 0.875rem; flex: 0 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; }
+.ws-cl-actions .t-iconbtn { flex: none; }
 @media (width < 30rem) { .ws-cl-actions .t-btn > svg { display: none; } }
+/* two labelled actions never fit next to the name on a phone: up to 640px the
+   root font grows with the viewport (fluid-lycoris.css), so the bar's content
+   grows with it. One action there, the other stays in the sheet behind "more" */
+@media (max-width: 640px) { .ws-cl-actions .t-btn ~ .t-btn { display: none; } }
+/* below 360px even one action needs the glyph's room */
+@media (max-width: 359px) { .ws-cl-actions .ws-cl-glyph { display: none; } }
 @media (width >= 64rem) { .ws-cl-actions { display: none; } }
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="off"]) .ws-cl-actions { animation: ws-bar-in 200ms var(--ease-enter); }
