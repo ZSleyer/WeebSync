@@ -36,7 +36,9 @@ func TestHardenAllowsTheTrailerFrame(t *testing.T) {
 	// the frame exception must not have widened anything else
 	for _, want := range []string{"default-src 'self'", "connect-src 'self'", "frame-ancestors 'none'",
 		// the player: libass as wasm, hls.js through a MediaSource blob
-		"script-src 'self' 'wasm-unsafe-eval'", "media-src 'self' blob:"} {
+		"script-src 'self' 'wasm-unsafe-eval'", "media-src 'self' blob:",
+		// inline style attributes stay refused; only <style> elements are inline
+		"style-src-attr 'none'"} {
 		if !strings.Contains(csp, want) {
 			t.Errorf("CSP lost %q: %q", want, csp)
 		}

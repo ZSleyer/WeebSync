@@ -286,11 +286,19 @@ func harden(next http.Handler) http.Handler {
 		// every page of the app keeps frame-ancestors 'none'. The player renders
 		// subtitles with libass compiled to WebAssembly (wasm-unsafe-eval lets
 		// our own scripts compile wasm, not run eval) and hls.js hands the video
-		// element a MediaSource blob: URL.
+		// element a MediaSource blob: URL. Styles keep 'unsafe-inline' for
+		// <style> elements only: media-chrome builds every control's shadow DOM
+		// from an inline <style> block and offers no nonce or adopted-sheet
+		// path, so without it the player's controls render bare. Inline style
+		// attributes are refused (style-src-attr 'none'); React's style prop
+		// and every library here write through the CSSOM, which CSP does not
+		// govern.
+		// ponytail: hashes of media-chrome's blocks would drop 'unsafe-inline',
+		// at the cost of a hash list every media-chrome update rewrites
 		h.Set("Content-Security-Policy",
 			"default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; media-src 'self' blob:; "+
 				"img-src 'self' https: data:; "+
-				"style-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' 'unsafe-inline'; style-src-attr 'none'; "+
 				"connect-src 'self' https://s4.anilist.co https://image.tmdb.org https://artworks.thetvdb.com; "+
 				"frame-src 'self' https://www.youtube-nocookie.com; "+
 				"frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'")
