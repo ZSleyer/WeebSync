@@ -33,7 +33,12 @@ export function mirrorDocument(from: Document, to: Document) {
       to.head.appendChild(link)
     }
   }
-  for (const a of from.documentElement.attributes) to.documentElement.setAttribute(a.name, a.value)
+  // the window inherits our CSP, whose style-src-attr 'none' refuses a style
+  // attribute set as markup: the root's inline look crosses through the CSSOM
+  for (const a of from.documentElement.attributes) {
+    if (a.name !== 'style') to.documentElement.setAttribute(a.name, a.value)
+  }
+  to.documentElement.style.cssText = from.documentElement.style.cssText
 }
 
 /** the height of the window's button row, under the picture */
