@@ -922,25 +922,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tanstack/query-core@npm:5.104.4":
-  version: 5.104.4
-  resolution: "@tanstack/query-core@npm:5.104.4"
-  checksum: 10c0/059587b4eec5abc186e9361b23ede4b5ecf0b0899e0e10154d70793f2b00ce4fd168e5d9636cdacabca464bb6c882372d2866a4bfd354ec3d2fd4b0ba6ef1110
+"@tanstack/query-core@npm:5.104.5":
+  version: 5.104.5
+  resolution: "@tanstack/query-core@npm:5.104.5"
+  checksum: 10c0/bc2f0626e33ccb1c881343e2b351168d6c07df01f42ed0b4f679d4ecc753af5864678f3e09f57bef500a02de5fc52cfef13aa7c3f2d3be6b62297bac024acaed
   languageName: node
   linkType: hard
 
-"@tanstack/react-query@npm:^5.104.4":
-  version: 5.104.4
-  resolution: "@tanstack/react-query@npm:5.104.4"
+"@tanstack/react-query@npm:^5.104.5":
+  version: 5.104.5
+  resolution: "@tanstack/react-query@npm:5.104.5"
   dependencies:
-    "@tanstack/query-core": "npm:5.104.4"
+    "@tanstack/query-core": "npm:5.104.5"
   peerDependencies:
     "@types/react": ^18 || ^19
     react: ^18 || ^19
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/c4999d44e59de7849dcb9e54ecff5670e9bbfb31f4eba82d4dcac6855171e1dce64e436a0192dddc669a9e2aa1f658bb836b1cd9026074268a4c28197dad54a3
+  checksum: 10c0/eaff9dd4cec0cc43cf835d780efeaf0a2603b792cc2f5f5800a73b4f62b4562cce54b88885f74be72ea0fa7fc721636884ec4bae152b24aea9ce49544fb4c5d1
   languageName: node
   linkType: hard
 
@@ -1485,7 +1485,7 @@ __metadata:
   resolution: "frontend@workspace:."
   dependencies:
     "@tailwindcss/vite": "npm:^4.3.2"
-    "@tanstack/react-query": "npm:^5.104.4"
+    "@tanstack/react-query": "npm:^5.104.5"
     "@testing-library/dom": "npm:10.4.2"
     "@testing-library/jest-dom": "npm:7.0.1"
     "@testing-library/react": "npm:16.3.3"
@@ -1494,20 +1494,20 @@ __metadata:
     "@types/react-dom": "npm:^19.3.0"
     "@vitejs/plugin-react": "npm:^6.1.2"
     hls.js: "npm:^1.7.3"
-    i18next: "npm:^26.5.2"
-    jassub: "npm:^2.5.22"
+    i18next: "npm:^26.5.11"
+    jassub: "npm:^2.5.23"
     jsdom: "npm:30.1.3"
     libpgs: "npm:^0.9.0"
-    lucide-react: "npm:^1.59.0"
-    media-chrome: "npm:^4.19.3"
+    lucide-react: "npm:^1.61.0"
+    media-chrome: "npm:^4.19.4"
     oxfmt: "npm:0.73.0"
     oxlint: "npm:^1.88.0"
     pdfjs-dist: "npm:^6.4.299"
     qrcode-generator: "npm:2.0.4"
     react: "npm:^19.3.1"
     react-dom: "npm:^19.3.1"
-    react-i18next: "npm:^17.1.0"
-    react-router: "npm:8.4.0"
+    react-i18next: "npm:^17.1.9"
+    react-router: "npm:8.5.0"
     tailwindcss: "npm:^4.3.2"
     typescript: "npm:~7.0.2"
     vite: "npm:^8.3.4"
@@ -1564,15 +1564,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"i18next@npm:^26.5.2":
-  version: 26.5.2
-  resolution: "i18next@npm:26.5.2"
+"i18next@npm:^26.5.11":
+  version: 26.5.11
+  resolution: "i18next@npm:26.5.11"
   peerDependencies:
     typescript: ^5 || ^6 || ^7
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: 10c0/b2edaba4af8f907d685bb133b8878cc1f03a7eaac3e76937da736b819d6d9500a82f516441b272994e9988c227bbcbbbc38fd185b4a2f67ab6bf9884ecf31167
+  checksum: 10c0/b2ecb58a38420530d928d93761efc1d4e966f24cf99518df843f5b8797be135d7b6defb01ca97b61bf2bc614a6fab56bd874032b42567ae22cfa84909c2187cd
   languageName: node
   linkType: hard
 
@@ -1597,15 +1597,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"jassub@npm:^2.5.22":
-  version: 2.5.22
-  resolution: "jassub@npm:2.5.22"
+"jassub@npm:^2.5.23":
+  version: 2.5.23
+  resolution: "jassub@npm:2.5.23"
   dependencies:
     abslink: "npm:^1.3.1"
     lfa-ponyfill: "npm:^1.1.1"
     rvfc-polyfill: "npm:^1.0.8"
     throughput: "npm:^1.0.2"
-  checksum: 10c0/90d41b70df86d39c53dd549b39ecf07528efe39024c488cef5e3d53f246e7b6fa5d71ecb3803ba0749bb1b834c59a14f6601f070af30efb161833c99d79bc212
+  checksum: 10c0/abe7259ce61fb57902a8a4e585d48b1d652ad1c7aac8648ae178a7e8ec0007d7855f43a60b0d89dab9feb34a6459077c2fd15c7690d8b0b6910a1c740591ad78
   languageName: node
   linkType: hard
 
@@ -1919,16 +1919,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.59.0":
-  version: 1.59.0
-  resolution: "lucide-react@npm:1.59.0"
+"lucide-react@npm:^1.61.0":
+  version: 1.61.0
+  resolution: "lucide-react@npm:1.61.0"
   peerDependencies:
     "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/e02dbdda8a9689527988ffb8ed7f01675755146ee7abfebbbe46b843fbc477f23dc0a4524fe257d0daa3d8eb3289a46f8bdce4a1dcbbdeeab5d158bfa68842c4
+  checksum: 10c0/85576d32aef43d5dccf5a1fac06b67c2ccbb70eb33b996123f49aab108111fffa6bdd517c7d406db67a14432c45924279c2ec7212a166864d3355ce68b361494
   languageName: node
   linkType: hard
 
@@ -1966,12 +1966,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"media-chrome@npm:^4.19.3":
-  version: 4.19.3
-  resolution: "media-chrome@npm:4.19.3"
+"media-chrome@npm:^4.19.4":
+  version: 4.19.4
+  resolution: "media-chrome@npm:4.19.4"
   dependencies:
     ce-la-react: "npm:^0.3.2"
-  checksum: 10c0/c3f53d13339cf66f0ca5104ef86625848ae70c5505e3efeffdc5092dfe0041e75dfe16f10767d4c2da4cec9eea6693ec9886ac6150e3ac63f1f22fbadb5d6c7b
+  checksum: 10c0/faaf6a72fe24cc85b21c230fcad0923871ff5cc835c94eba025ecbc8b77ae4b16c64b724a3a83e49cf03f13f926087adb9da6c8139eae8054ec47e241c992408
   languageName: node
   linkType: hard
 
@@ -2290,9 +2290,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-i18next@npm:^17.1.0":
-  version: 17.1.0
-  resolution: "react-i18next@npm:17.1.0"
+"react-i18next@npm:^17.1.9":
+  version: 17.1.9
+  resolution: "react-i18next@npm:17.1.9"
   dependencies:
     "@babel/runtime": "npm:^7.29.7"
     html-parse-stringify: "npm:^4.0.1"
@@ -2308,7 +2308,7 @@ __metadata:
       optional: true
     typescript:
       optional: true
-  checksum: 10c0/5ba9de18304f8fc20511de9f64f2a71594cb607c55b06692463867721f256770ae71489639bd96554bc556b5b310d495cff526ebbbaac091f9bae0ca8f547f24
+  checksum: 10c0/f3c263df1d152a6a757cd47895c86568fa36cd583ac659276afa9c5a97e6babd72e3197f22587862f7382de628428e39f757b6d67ad03ebbfd333296237d44d7
   languageName: node
   linkType: hard
 
@@ -2319,19 +2319,25 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-router@npm:8.4.0":
-  version: 8.4.0
-  resolution: "react-router@npm:8.4.0"
+"react-router@npm:8.5.0":
+  version: 8.5.0
+  resolution: "react-router@npm:8.5.0"
   dependencies:
     "@remix-run/route-pattern": "npm:^0.22.1"
     cookie-es: "npm:^3.1.1"
   peerDependencies:
+    "@types/react": ">=19.2.0"
+    "@types/react-dom": ">=19.2.0"
     react: ">=19.2.7"
     react-dom: ">=19.2.7"
   peerDependenciesMeta:
+    "@types/react":
+      optional: true
+    "@types/react-dom":
+      optional: true
     react-dom:
       optional: true
-  checksum: 10c0/37ad46ed19aad7fcb6432fcc65b0817ac90898f6bb8cfaa406c151767fd59f56ee1f5ab56cdf90468ec03a7952e42f0494372b226fdad8fb316854ef04c5d9be
+  checksum: 10c0/072edf07459485149dc85d9b7f4ee6b127d1443f83f4ba2dd3bb9443ed065ecc36964cdbc26c46cbd3517b93d51d888cb50d8c89d5e42bed79b6fd4a5abf39ea
   languageName: node
   linkType: hard
 
