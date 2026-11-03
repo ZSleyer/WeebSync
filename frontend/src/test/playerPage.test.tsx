@@ -324,7 +324,9 @@ describe('Player page', () => {
     Object.defineProperty(HTMLOListElement.prototype, 'scrollTop', {
       configurable: true,
       get: () => 50,
-      set: (v: number) => void set.push(v),
+      set: (v: number) => {
+        set.push(v)
+      },
     })
     Object.defineProperty(HTMLOListElement.prototype, 'clientHeight', { configurable: true, get: () => 300 })
     const rect = (top: number, height: number) => ({ top, height, bottom: top + height }) as DOMRect
