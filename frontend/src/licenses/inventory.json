@@ -305,7 +305,7 @@
   },
   {
     "name": "@tanstack/query-core",
-    "version": "5.104.5",
+    "version": "5.105.0",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -313,7 +313,7 @@
   },
   {
     "name": "@tanstack/react-query",
-    "version": "5.104.5",
+    "version": "5.105.0",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -417,7 +417,7 @@
   },
   {
     "name": "lucide-react",
-    "version": "1.61.0",
+    "version": "1.62.0",
     "license": "ISC",
     "url": "https://github.com/lucide-icons/lucide",
     "source": "npm",
