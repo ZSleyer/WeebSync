@@ -213,16 +213,18 @@ func (s *Server) openLocal(rel string) (*transfer.LocalPath, error) {
 	return transfer.OpenLocal(s.localRoots(), rel)
 }
 
-// localExists reports whether p exists inside the allowed roots; a link that
-// leads outside does not count.
+// localExists reports whether the file p exists inside the allowed roots; a
+// link that leads outside does not count. It answers from the folder cache:
+// the hourly Plex index asks this for every season, and a stat per season on
+// a cold inode cache is enough to wake a sleeping disk every hour.
 func (s *Server) localExists(p string) bool {
-	local, err := s.openLocal(p)
-	if err != nil {
-		return false
+	name := filepath.Base(p)
+	for _, f := range s.localFiles(filepath.Dir(p)) {
+		if f.sub == name {
+			return true
+		}
 	}
-	defer local.Close()
-	_, err = local.Root.Stat(local.Name)
-	return err == nil
+	return false
 }
 
 // @Summary  Browse local directory
