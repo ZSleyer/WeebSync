@@ -73,9 +73,9 @@
   },
   {
     "name": "github.com/dustin/go-humanize",
-    "version": "v1.0.1",
+    "version": "v1.1.0",
     "license": "MIT",
-    "url": "https://github.com/dustin/go-humanize/blob/v1.0.1/LICENSE",
+    "url": "https://github.com/dustin/go-humanize/blob/v1.1.0/LICENSE",
     "source": "go",
     "text": "a387ca71c7aabd58"
   },
@@ -201,9 +201,9 @@
   },
   {
     "name": "github.com/pkg/sftp",
-    "version": "v1.13.11",
+    "version": "v1.13.12",
     "license": "BSD-2-Clause",
-    "url": "https://github.com/pkg/sftp/blob/v1.13.11/LICENSE",
+    "url": "https://github.com/pkg/sftp/blob/v1.13.12/LICENSE",
     "source": "go",
     "text": "2bdbd15d720026ed"
   },
@@ -273,9 +273,9 @@
   },
   {
     "name": "modernc.org/libc",
-    "version": "v1.77.1",
+    "version": "v1.79.0",
     "license": "BSD-3-Clause",
-    "url": "https://gitlab.com/cznic/libc/-/blob/v1.77.1/LICENSE",
+    "url": "https://gitlab.com/cznic/libc/-/blob/v1.79.0/LICENSE",
     "source": "go",
     "text": "9064aa7619b39836"
   },
@@ -297,15 +297,15 @@
   },
   {
     "name": "modernc.org/sqlite",
-    "version": "v1.60.1",
+    "version": "v1.61.0",
     "license": "BSD-3-Clause",
-    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.60.1/LICENSE",
+    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.61.0/LICENSE",
     "source": "go",
-    "text": "024b87708fe535ab"
+    "text": "15055cfb223f2d8b"
   },
   {
     "name": "@tanstack/query-core",
-    "version": "5.104.4",
+    "version": "5.104.5",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -313,7 +313,7 @@
   },
   {
     "name": "@tanstack/react-query",
-    "version": "5.104.4",
+    "version": "5.104.5",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -385,7 +385,7 @@
   },
   {
     "name": "i18next",
-    "version": "26.5.2",
+    "version": "26.5.11",
     "license": "MIT",
     "url": "https://github.com/i18next/i18next",
     "source": "npm",
@@ -393,7 +393,7 @@
   },
   {
     "name": "jassub",
-    "version": "2.5.22",
+    "version": "2.5.23",
     "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
     "url": "https://github.com/ThaUnknown/jassub",
     "source": "npm",
@@ -401,9 +401,9 @@
   },
   {
     "name": "libass (in jassub's WebAssembly)",
-    "version": "0.17.4 (9898004a)",
+    "version": "0.17.5 (fbe73bf1)",
     "license": "ISC",
-    "url": "https://github.com/libass/libass/tree/9898004a39f79efee6d690a5ba145a93c0b70482",
+    "url": "https://github.com/libass/libass/tree/fbe73bf18bd98e3ba14ce6d5e4bd1ba202a25ef4",
     "source": "npm",
     "text": "76de92b0359db114"
   },
@@ -417,7 +417,7 @@
   },
   {
     "name": "lucide-react",
-    "version": "1.59.0",
+    "version": "1.61.0",
     "license": "ISC",
     "url": "https://github.com/lucide-icons/lucide",
     "source": "npm",
@@ -425,7 +425,7 @@
   },
   {
     "name": "media-chrome",
-    "version": "4.19.3",
+    "version": "4.19.4",
     "license": "MIT",
     "url": "https://github.com/muxinc/media-chrome",
     "source": "npm",
@@ -465,7 +465,7 @@
   },
   {
     "name": "react-i18next",
-    "version": "17.1.0",
+    "version": "17.1.9",
     "license": "MIT",
     "url": "https://github.com/i18next/react-i18next",
     "source": "npm",
@@ -473,7 +473,7 @@
   },
   {
     "name": "react-router",
-    "version": "8.4.0",
+    "version": "8.5.0",
     "license": "MIT",
     "url": "https://github.com/remix-run/react-router",
     "source": "npm",
@@ -481,7 +481,7 @@
   },
   {
     "name": "rolldown",
-    "version": "1.2.13",
+    "version": "1.2.15",
     "license": "MIT",
     "url": "https://github.com/rolldown/rolldown",
     "source": "npm",
@@ -529,10 +529,10 @@
   },
   {
     "name": "vite",
-    "version": "8.3.4",
+    "version": "8.3.5",
     "license": "MIT",
     "url": "https://github.com/vitejs/vite",
     "source": "npm",
-    "text": "f9a0c68ac4a23abf"
+    "text": "af456c6455a9739f"
   }
 ]
