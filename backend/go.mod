@@ -5,7 +5,7 @@ go 1.26.10
 require (
 	github.com/at-wat/ebml-go v0.19.4
 	github.com/coreos/go-oidc/v3 v3.21.0
-	github.com/go-jose/go-jose/v4 v4.1.6
+	github.com/go-jose/go-jose/v4 v4.1.7
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/nwaples/rardecode/v2 v2.4.5
@@ -15,7 +15,7 @@ require (
 	golang.org/x/sys v0.49.0
 	golang.org/x/text v0.43.0
 	golang.org/x/time v0.16.0
-	modernc.org/sqlite v1.61.0
+	modernc.org/sqlite v1.61.1
 )
 
 require (
