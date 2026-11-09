@@ -168,7 +168,7 @@ EOF
 # Distroless on glibc: no shell, no package manager, the C
 # library, CA certificates and tzdata of Debian 13, and the user nonroot (uid
 # 65532). Everything else is the /rootfs above, the Go binary and the frontend.
-FROM gcr.io/distroless/cc-debian13@sha256:58e12be899275afaa05f1b03051ab19037ed7f252528e57a3a9ad7e220a62578
+FROM gcr.io/distroless/cc-debian13@sha256:e1f5543d45a2cd7c02a5b43dda5f0ff30729b4832113759d01ed39b0b152cddb
 # static OCI labels; CI adds version, revision and created from the build
 LABEL org.opencontainers.image.title="WeebSync" \
       org.opencontainers.image.description="Sync anime from S/FTP servers: download manager, auto-sync, rename engine, catalog and player" \
