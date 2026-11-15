@@ -19,7 +19,8 @@ export default function NeedsPage() {
   const loading = isLoading || watchesLoading
   const { shown, row, dialog } = useNeedList({ downloads, meta, watches, detected, plexToken, mediaChoose })
   const groups = groupNeeds(shown)
-  let index = 0
+  // each group's first row index, so the rows count on across groups
+  const starts = groups.map((_, gi) => groups.slice(0, gi).reduce((sum, g) => sum + g.needs.length, 0))
   return (
     <div className="flex flex-col">
       <PageHeader className="mb-4" title={t('needs.title')} />
@@ -34,7 +35,7 @@ export default function NeedsPage() {
         ) : groups.length === 0 ? (
           !failed && <EmptyState label={t('needs.empty')}>{t('needs.emptyHint')}</EmptyState>
         ) : (
-          groups.map((g) => (
+          groups.map((g, gi) => (
             <section key={g.group} aria-labelledby={`needs-${g.group}`}>
               <SectionHeading
                 id={`needs-${g.group}`}
@@ -42,7 +43,7 @@ export default function NeedsPage() {
                 tone={g.group === 'sync' ? 'accent-2' : 'accent'}
                 action={<span className="td-count">{g.needs.length}</span>}
               />
-              <ul className="t-rows td-needs">{g.needs.map((n) => row(n, index++))}</ul>
+              <ul className="t-rows td-needs">{g.needs.map((n, i) => row(n, starts[gi] + i))}</ul>
             </section>
           ))
         )}
