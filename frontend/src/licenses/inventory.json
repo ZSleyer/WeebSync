@@ -9,7 +9,7 @@
   },
   {
     "name": "Go standard library and runtime",
-    "version": "1.27.3",
+    "version": "1.27.4",
     "license": "BSD-3-Clause",
     "url": "https://go.dev/LICENSE",
     "source": "data",
@@ -89,17 +89,17 @@
   },
   {
     "name": "github.com/go-jose/go-jose/v4",
-    "version": "v4.1.6",
+    "version": "v4.1.7",
     "license": "Apache-2.0",
-    "url": "https://github.com/go-jose/go-jose/blob/v4.1.6/LICENSE",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.7/LICENSE",
     "source": "go",
     "text": "283ea6cc2997a1a7"
   },
   {
     "name": "github.com/go-jose/go-jose/v4/json",
-    "version": "v4.1.6",
+    "version": "v4.1.7",
     "license": "BSD-3-Clause",
-    "url": "https://github.com/go-jose/go-jose/blob/v4.1.6/json/LICENSE",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.7/json/LICENSE",
     "source": "go",
     "text": "fa5d72757c7d3472"
   },
@@ -297,15 +297,15 @@
   },
   {
     "name": "modernc.org/sqlite",
-    "version": "v1.61.0",
+    "version": "v1.61.1",
     "license": "BSD-3-Clause",
-    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.61.0/LICENSE",
+    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.61.1/LICENSE",
     "source": "go",
     "text": "15055cfb223f2d8b"
   },
   {
     "name": "@tanstack/query-core",
-    "version": "5.105.0",
+    "version": "5.105.1",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -313,7 +313,7 @@
   },
   {
     "name": "@tanstack/react-query",
-    "version": "5.105.0",
+    "version": "5.105.1",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -369,7 +369,7 @@
   },
   {
     "name": "hls.js",
-    "version": "1.7.3",
+    "version": "1.7.4",
     "license": "Apache-2.0",
     "url": "https://github.com/video-dev/hls.js",
     "source": "npm",
@@ -385,7 +385,7 @@
   },
   {
     "name": "i18next",
-    "version": "26.5.11",
+    "version": "26.7.1",
     "license": "MIT",
     "url": "https://github.com/i18next/i18next",
     "source": "npm",
@@ -417,7 +417,7 @@
   },
   {
     "name": "lucide-react",
-    "version": "1.62.0",
+    "version": "1.66.0",
     "license": "ISC",
     "url": "https://github.com/lucide-icons/lucide",
     "source": "npm",
@@ -433,7 +433,7 @@
   },
   {
     "name": "pdfjs-dist",
-    "version": "6.4.299",
+    "version": "6.5.438",
     "license": "Apache-2.0",
     "url": "https://github.com/mozilla/pdf.js",
     "source": "npm",
@@ -465,7 +465,7 @@
   },
   {
     "name": "react-i18next",
-    "version": "17.1.9",
+    "version": "17.1.11",
     "license": "MIT",
     "url": "https://github.com/i18next/react-i18next",
     "source": "npm",
