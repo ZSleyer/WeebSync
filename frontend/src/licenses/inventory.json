@@ -89,17 +89,17 @@
   },
   {
     "name": "github.com/go-jose/go-jose/v4",
-    "version": "v4.1.7",
+    "version": "v4.1.9",
     "license": "Apache-2.0",
-    "url": "https://github.com/go-jose/go-jose/blob/v4.1.7/LICENSE",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.9/LICENSE",
     "source": "go",
     "text": "283ea6cc2997a1a7"
   },
   {
     "name": "github.com/go-jose/go-jose/v4/json",
-    "version": "v4.1.7",
+    "version": "v4.1.9",
     "license": "BSD-3-Clause",
-    "url": "https://github.com/go-jose/go-jose/blob/v4.1.7/json/LICENSE",
+    "url": "https://github.com/go-jose/go-jose/blob/v4.1.9/json/LICENSE",
     "source": "go",
     "text": "fa5d72757c7d3472"
   },
@@ -241,17 +241,17 @@
   },
   {
     "name": "golang.org/x/oauth2",
-    "version": "v0.37.0",
+    "version": "v0.38.0",
     "license": "BSD-3-Clause",
-    "url": "https://cs.opensource.google/go/x/oauth2/+/v0.37.0:LICENSE",
+    "url": "https://cs.opensource.google/go/x/oauth2/+/v0.38.0:LICENSE",
     "source": "go",
     "text": "22975ebe413674bc"
   },
   {
     "name": "golang.org/x/sys",
-    "version": "v0.49.0",
+    "version": "v0.50.0",
     "license": "BSD-3-Clause",
-    "url": "https://cs.opensource.google/go/x/sys/+/v0.49.0:LICENSE",
+    "url": "https://cs.opensource.google/go/x/sys/+/v0.50.0:LICENSE",
     "source": "go",
     "text": "7a8ee946dc79f657"
   },
@@ -273,9 +273,9 @@
   },
   {
     "name": "modernc.org/libc",
-    "version": "v1.79.0",
+    "version": "v1.80.1",
     "license": "BSD-3-Clause",
-    "url": "https://gitlab.com/cznic/libc/-/blob/v1.79.0/LICENSE",
+    "url": "https://gitlab.com/cznic/libc/-/blob/v1.80.1/LICENSE",
     "source": "go",
     "text": "9064aa7619b39836"
   },
@@ -297,15 +297,15 @@
   },
   {
     "name": "modernc.org/sqlite",
-    "version": "v1.61.1",
+    "version": "v1.62.0",
     "license": "BSD-3-Clause",
-    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.61.1/LICENSE",
+    "url": "https://gitlab.com/cznic/sqlite/-/blob/v1.62.0/LICENSE",
     "source": "go",
-    "text": "15055cfb223f2d8b"
+    "text": "e2aa849dabf7c85c"
   },
   {
     "name": "@tanstack/query-core",
-    "version": "5.105.1",
+    "version": "5.107.1",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -313,7 +313,7 @@
   },
   {
     "name": "@tanstack/react-query",
-    "version": "5.105.1",
+    "version": "5.107.1",
     "license": "MIT",
     "url": "https://github.com/TanStack/query",
     "source": "npm",
@@ -393,7 +393,7 @@
   },
   {
     "name": "jassub",
-    "version": "2.5.23",
+    "version": "2.5.36",
     "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
     "url": "https://github.com/ThaUnknown/jassub",
     "source": "npm",
@@ -417,7 +417,7 @@
   },
   {
     "name": "lucide-react",
-    "version": "1.66.0",
+    "version": "1.70.0",
     "license": "ISC",
     "url": "https://github.com/lucide-icons/lucide",
     "source": "npm",
@@ -481,7 +481,7 @@
   },
   {
     "name": "rolldown",
-    "version": "1.2.15",
+    "version": "1.2.16",
     "license": "MIT",
     "url": "https://github.com/rolldown/rolldown",
     "source": "npm",
@@ -505,7 +505,7 @@
   },
   {
     "name": "tailwindcss",
-    "version": "4.3.3",
+    "version": "4.3.5",
     "license": "MIT",
     "url": "https://github.com/tailwindlabs/tailwindcss",
     "source": "npm",
@@ -529,7 +529,7 @@
   },
   {
     "name": "vite",
-    "version": "8.3.5",
+    "version": "8.3.6",
     "license": "MIT",
     "url": "https://github.com/vitejs/vite",
     "source": "npm",
