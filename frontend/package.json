@@ -15,13 +15,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.2",
-    "@tanstack/react-query": "^5.105.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@tanstack/react-query": "^5.107.1",
     "hls.js": "^1.7.4",
     "i18next": "^26.7.1",
-    "jassub": "^2.5.23",
+    "jassub": "^2.5.36",
     "libpgs": "^0.9.0",
-    "lucide-react": "^1.66.0",
+    "lucide-react": "^1.70.0",
     "media-chrome": "^4.19.4",
     "pdfjs-dist": "^6.5.438",
     "qrcode-generator": "2.0.4",
@@ -29,7 +29,7 @@
     "react-dom": "^19.3.1",
     "react-i18next": "^17.1.11",
     "react-router": "8.5.1",
-    "tailwindcss": "^4.3.2"
+    "tailwindcss": "^4.3.5"
   },
   "devDependencies": {
     "@testing-library/dom": "10.4.2",
