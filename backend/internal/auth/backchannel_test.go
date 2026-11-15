@@ -23,7 +23,7 @@ import (
 type testKeys struct{ key *rsa.PrivateKey }
 
 func (k testKeys) VerifySignature(_ context.Context, raw string) ([]byte, error) {
-	sig, err := jose.ParseSigned(raw, []jose.SignatureAlgorithm{jose.RS256})
+	sig, err := jose.ParseSignedCompact(raw, []jose.SignatureAlgorithm{jose.RS256})
 	if err != nil {
 		return nil, err
 	}
