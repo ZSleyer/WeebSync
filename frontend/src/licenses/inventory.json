@@ -385,7 +385,7 @@
   },
   {
     "name": "i18next",
-    "version": "26.7.1",
+    "version": "27.0.1",
     "license": "MIT",
     "url": "https://github.com/i18next/i18next",
     "source": "npm",
@@ -393,7 +393,7 @@
   },
   {
     "name": "jassub",
-    "version": "2.5.36",
+    "version": "2.5.37",
     "license": "LGPL-2.1-or-later AND (FTL OR GPL-2.0-or-later) AND MIT AND MIT-Modern-Variant AND ISC AND NTP AND Zlib AND BSL-1.0",
     "url": "https://github.com/ThaUnknown/jassub",
     "source": "npm",
@@ -465,7 +465,7 @@
   },
   {
     "name": "react-i18next",
-    "version": "17.1.11",
+    "version": "18.0.1",
     "license": "MIT",
     "url": "https://github.com/i18next/react-i18next",
     "source": "npm",
@@ -518,14 +518,6 @@
     "url": "https://github.com/ThaUnknown/throughput",
     "source": "npm",
     "text": "e357f2a06e33852a"
-  },
-  {
-    "name": "use-sync-external-store",
-    "version": "1.6.0",
-    "license": "MIT",
-    "url": "https://github.com/facebook/react",
-    "source": "npm",
-    "text": "cf9b17822d1fcd4f"
   },
   {
     "name": "vite",

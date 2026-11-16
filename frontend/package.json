@@ -18,7 +18,7 @@
     "@tailwindcss/vite": "^4.3.5",
     "@tanstack/react-query": "^5.107.1",
     "hls.js": "^1.7.4",
-    "i18next": "^26.7.1",
+    "i18next": "^27.0.1",
     "jassub": "^2.5.37",
     "libpgs": "^0.9.0",
     "lucide-react": "^1.70.0",

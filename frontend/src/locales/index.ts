@@ -10,6 +10,15 @@ const resources: Record<string, { translation: Record<string, unknown> }> = Obje
   Object.entries(files).map(([path, translation]) => [path.slice(2, -'.json'.length), { translation }]),
 )
 
+// The resources are plain JSON, not typed per key, so i18next 27's strict
+// interpolation types only reject the shared `(key, opts?) => string` helpers
+// without checking any variable. Keep the v26 types.
+declare module 'i18next' {
+  interface CustomTypeOptions {
+    strictInterpolationChecks: false
+  }
+}
+
 export type Locale = string
 // The language setting: one of the locales, or 'system' to follow the
 // browser's language list (the default when nothing was chosen yet).
