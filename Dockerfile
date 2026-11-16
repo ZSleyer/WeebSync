@@ -64,7 +64,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 # dependencies. See docs/development.md.
 # Cross-compiled for arm64 from the build machine with the multiarch -dev
 # packages. The Go binary needs no cross toolchain (CGO is off).
-FROM --platform=$BUILDPLATFORM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS ffmpeg
+FROM --platform=$BUILDPLATFORM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS ffmpeg
 ARG TARGETARCH
 ARG FFMPEG_SRC_KEY=
 ENV DEBIAN_FRONTEND=noninteractive
@@ -122,7 +122,7 @@ RUN set -eu; triple="$(cat /triple)"; cross=""; \
 # On amd64 the drivers are intel-media-va-driver for Intel and mesa's radeonsi
 # for AMD (WEEBSYNC_HWACCEL). arm64 images stay without: a Raspberry Pi 5 has no
 # H.264 encoder to drive.
-FROM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f AS rootfs
+FROM debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS rootfs
 ARG TARGETARCH
 # --build-arg VAAPI_AMD=0 leaves mesa's radeonsi driver out of the amd64 image:
 # it needs LLVM (130 MB) and is the reason the amd64 image is twice the size of
