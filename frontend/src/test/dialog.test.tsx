@@ -631,7 +631,7 @@ describe('Dialog', () => {
       touch('touchMove', 160)
       touch('touchMove', 230)
       expect(dialog.hasAttribute('data-dragging')).toBe(true)
-      expect(dialog.style.transform).toBe('translate3d(0, 70px, 0)')
+      expect(dialog.style.transform).toBe('translate3d(0px, 70px, 0px)')
     } finally {
       restore()
     }
@@ -670,7 +670,7 @@ describe('Dialog', () => {
       fireEvent.pointerMove(dialog, { clientY: 360, pointerId: 1 })
       fireEvent.pointerMove(dialog, { clientY: 310, pointerId: 1 })
       expect(dialog.hasAttribute('data-expanded')).toBe(false)
-      expect(dialog.style.transform).toBe('translate3d(0, -90px, 0)')
+      expect(dialog.style.transform).toBe('translate3d(0px, -90px, 0px)')
       await new Promise((r) => setTimeout(r, 300))
       fireEvent.pointerUp(dialog, { clientY: 310, pointerId: 1 })
       await waitFor(() => expect(dialog.hasAttribute('data-expanded')).toBe(true))
