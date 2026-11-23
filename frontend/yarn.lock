@@ -1397,12 +1397,12 @@ __metadata:
     "@types/react-dom": "npm:^19.3.0"
     "@vitejs/plugin-react": "npm:^6.2.1"
     hls.js: "npm:^1.7.4"
-    i18next: "npm:^27.0.1"
+    i18next: "npm:^27.1.3"
     jassub: "npm:^2.5.37"
     jsdom: "npm:31.0.0"
     libpgs: "npm:^0.9.0"
-    lucide-react: "npm:^1.70.0"
-    media-chrome: "npm:^4.19.4"
+    lucide-react: "npm:^1.73.0"
+    media-chrome: "npm:^4.19.5"
     oxfmt: "npm:0.77.0"
     oxlint: "npm:^1.92.0"
     pdfjs-dist: "npm:^6.5.438"
@@ -1467,15 +1467,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"i18next@npm:^27.0.1":
-  version: 27.0.1
-  resolution: "i18next@npm:27.0.1"
+"i18next@npm:^27.1.3":
+  version: 27.1.3
+  resolution: "i18next@npm:27.1.3"
   peerDependencies:
     typescript: ^5 || ^6 || ^7
   peerDependenciesMeta:
     typescript:
       optional: true
-  checksum: 10c0/b30a61d650e854d9b111e8289f870e8f0216438a9ce8e271a9bcabfb972ca57266607111e8157ca9e88ced18fd4653def91c6b867b65ee619bfc62542e739620
+  checksum: 10c0/3c4f1ae3ee43f2dfdc721c5677d9676ea9dec46a1d640f62f02ee44f05cc9ec7ee55db48c86042851d8213caf2c5644e1b3273463a575cf696ce232bad6c6974
   languageName: node
   linkType: hard
 
@@ -1724,16 +1724,16 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.70.0":
-  version: 1.70.0
-  resolution: "lucide-react@npm:1.70.0"
+"lucide-react@npm:^1.73.0":
+  version: 1.73.0
+  resolution: "lucide-react@npm:1.73.0"
   peerDependencies:
     "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/bce0a8b5f77c78933a4b6c2037d4ce371d1eaff8986849ef7fb28da131be3fa6964e4d2459ff40c9ac719402cddced55311af3d34397b178449817d312dfa4c5
+  checksum: 10c0/d533bbdde58d30235b66408bae5e0a63acee1ca4c407a70a17381c75624441d5cd34f6662773fd7a6ad7b3c8e3314a43aa7a4e0698bce13ebc8745bb8de7295a
   languageName: node
   linkType: hard
 
@@ -1764,12 +1764,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"media-chrome@npm:^4.19.4":
-  version: 4.19.4
-  resolution: "media-chrome@npm:4.19.4"
+"media-chrome@npm:^4.19.5":
+  version: 4.19.5
+  resolution: "media-chrome@npm:4.19.5"
   dependencies:
     ce-la-react: "npm:^0.3.2"
-  checksum: 10c0/faaf6a72fe24cc85b21c230fcad0923871ff5cc835c94eba025ecbc8b77ae4b16c64b724a3a83e49cf03f13f926087adb9da6c8139eae8054ec47e241c992408
+  checksum: 10c0/cfe927484dbb164f018a4c47c7439e08f956b1e04eef3db1e4c799d62334425481f81abf10f14825f65f312d71cd476eb6d36816b00133b147766166a7bb8a6c
   languageName: node
   linkType: hard
 
