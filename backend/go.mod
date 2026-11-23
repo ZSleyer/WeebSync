@@ -10,10 +10,10 @@ require (
 	github.com/jlaffaye/ftp v0.2.4
 	github.com/nwaples/rardecode/v2 v2.4.5
 	github.com/pkg/sftp v1.13.12
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sys v0.50.0
-	golang.org/x/text v0.43.0
+	golang.org/x/text v0.44.0
 	golang.org/x/time v0.16.0
 	modernc.org/sqlite v1.62.0
 )
